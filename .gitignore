@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Local configuration
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.local
+
+# Credentials
+*.key
+*.pem
+*.p12
+*.pfx
+secrets/
+credentials/
+
+# Build
+.next/
+dist/
+build/
+coverage/
+out/
+cache/
+target/
+*.tsbuildinfo
+playwright-report/
+test-results/
+
+# OS / editor
+.DS_Store
+*.log
+.idea/
+.vscode/
+
+# Electron
+apps/desktop/release/
