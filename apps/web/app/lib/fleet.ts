@@ -82,10 +82,10 @@ function fromInstance(i: ApiInstance): Fleet {
   };
 }
 
-/** Card: el template publicado. 404 si Admin aun no lo publico. */
-export async function deskTemplate(wallet: string, lang = "en"): Promise<DeskTemplate> {
+/** Card: un template publicado. 404 si Admin aun no lo publico. */
+export async function deskTemplate(wallet: string, lang = "en", templateId = FLEET_TEMPLATE_ID): Promise<DeskTemplate> {
   const idToken = await token(wallet);
-  const r = await perkosRequest<ApiTemplate>(`/project-templates/${encodeURIComponent(FLEET_TEMPLATE_ID)}`, { idToken, timeoutMs: 15_000 });
+  const r = await perkosRequest<ApiTemplate>(`/project-templates/${encodeURIComponent(templateId)}`, { idToken, timeoutMs: 15_000 });
   const t = r.template;
   return {
     id: t.id,
@@ -97,17 +97,28 @@ export async function deskTemplate(wallet: string, lang = "en"): Promise<DeskTem
   };
 }
 
-/** Estado de las orbs; no lanza ni despierta nada. */
-export async function fleetStatus(wallet: string): Promise<Fleet> {
+/** Todas las cards: los templates fleet publicados (hoy uno; el wizard muestra una card por cada uno). */
+export async function listDeskTemplates(wallet: string, lang = "en"): Promise<DeskTemplate[]> {
   const idToken = await token(wallet);
-  const i = await perkosRequest<ApiInstance>(`/project-templates/${encodeURIComponent(FLEET_TEMPLATE_ID)}/instance`, { idToken, timeoutMs: 30_000 });
+  const r = await perkosRequest<{ templates: Array<{ id: string; kind?: string; activation?: string }> }>("/project-templates", { idToken, timeoutMs: 15_000 });
+  const ids = r.templates.filter((t) => t.kind === "fleet" || t.activation === "fleet").map((t) => t.id);
+  const all = await Promise.all(ids.map((id) => deskTemplate(wallet, lang, id).catch(() => null)));
+  const desks = all.filter((d): d is DeskTemplate => d !== null);
+  // El desk por defecto primero.
+  return desks.sort((a, b) => (a.id === FLEET_TEMPLATE_ID ? -1 : b.id === FLEET_TEMPLATE_ID ? 1 : a.name.localeCompare(b.name)));
+}
+
+/** Estado de las orbs; no lanza ni despierta nada. */
+export async function fleetStatus(wallet: string, templateId = FLEET_TEMPLATE_ID): Promise<Fleet> {
+  const idToken = await token(wallet);
+  const i = await perkosRequest<ApiInstance>(`/project-templates/${encodeURIComponent(templateId)}/instance`, { idToken, timeoutMs: 30_000 });
   return fromInstance(i);
 }
 
 /** "Deploy / Wake the team": la API crea los que falten y despierta los dormidos. */
-export async function wakeFleet(wallet: string): Promise<Fleet> {
+export async function wakeFleet(wallet: string, templateId = FLEET_TEMPLATE_ID): Promise<Fleet> {
   const idToken = await token(wallet);
-  const i = await perkosRequest<ApiInstance>(`/project-templates/${encodeURIComponent(FLEET_TEMPLATE_ID)}/instantiate`, {
+  const i = await perkosRequest<ApiInstance>(`/project-templates/${encodeURIComponent(templateId)}/instantiate`, {
     idToken, method: "POST", body: "{}", timeoutMs: 90_000
   });
   return fromInstance(i);

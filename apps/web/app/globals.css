@@ -902,3 +902,46 @@ button.cta:disabled { animation: none; opacity: 0.45; cursor: default; box-shado
 @container stage (max-width: 560px) {
   .slab.desk { bottom: 190px; }
 }
+
+/* Wizard paso 3 "Your team": roles del desk con el coral de PerkOS. */
+.wizard-card.team { gap: 14px; }
+.wizard-card.team .providers { width: 100%; text-align: left; }
+.wizard-card.team .provider small { display: block; margin-top: 2px; color: #c5d2ee; font-size: 12px; line-height: 1.45; }
+.tag.role { border-color: rgba(236, 27, 105, 0.5); color: #ff5a6a; }
+.wizard-card.team .hint-line { max-width: 40ch; }
+
+/* Cards de templates (paso "Your team"). Grid centrado; con una sola card
+   queda centrada; con varias, se reparten. Paleta PerkOS: coral para la
+   card elegida, borde estructural para el resto. */
+.desk-cards { width: 100%; display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+.desk-card {
+  flex: 1 1 260px; max-width: 360px; text-align: left;
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 16px 16px 14px; border-radius: 16px; cursor: pointer;
+  background: rgba(6, 10, 22, 0.55); border: 1px solid rgba(120, 160, 255, 0.18);
+  color: var(--ink); font: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+.desk-card:hover { border-color: rgba(236, 27, 105, 0.45); transform: translateY(-1px); }
+.desk-card.on { border-color: rgba(236, 27, 105, 0.7); box-shadow: 0 0 0 1px rgba(236, 27, 105, 0.25), 0 0 28px rgba(236, 27, 105, 0.3); }
+.desk-card .k { font-size: 9px; letter-spacing: 0.2em; }
+.desk-card strong { font-size: 16px; font-weight: 500; }
+.desk-card .desk-desc { font-size: 12px; line-height: 1.5; color: #c5d2ee; }
+.desk-card .desk-roles { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.desk-card .desk-roles .tag { margin-left: 0; }
+.desk-card .desk-meta { font-size: 10px; letter-spacing: 0.06em; color: var(--mute); text-transform: uppercase; margin-top: 2px; }
+.wizard-card.team { width: min(720px, calc(100% - 48px)); }
+.wizard-card.team .providers { max-width: 520px; }
+/* La card es un <button> y heredaba mayusculas/tracking del wizard: texto normal,
+   salvo la etiqueta .k. Y el paso entero cabe en 800px: roles a dos columnas,
+   scroll interno si hace falta, siempre centrado. */
+.desk-card, .desk-card strong, .desk-card .desk-desc { text-transform: none; letter-spacing: normal; }
+.desk-card { padding: 14px 16px 12px; gap: 6px; }
+.wizard-card.team { gap: 12px; max-height: calc(100vh - 72px); overflow-y: auto; scrollbar-width: thin; padding: 6px 4px; }
+.wizard-card.team > b { font-size: 17px; }
+.wizard-card.team > .lead { font-size: 12px; }
+.wizard-card.team .team-roles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-width: 620px; }
+.wizard-card.team .team-roles .provider { padding: 10px 12px; gap: 3px; }
+.wizard-card.team .team-roles .provider small { font-size: 11px; line-height: 1.4; }
+.wizard-card.team button.cta { margin-top: 6px; }
+@container stage (max-width: 700px) { .wizard-card.team .team-roles { grid-template-columns: 1fr; } }

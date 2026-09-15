@@ -28,9 +28,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       config={{
         loginMethodsAndOrder: {
           primary: ["email", "google"],
-          // En Electron no hay extensiones, pero Privy muestra MetaMask y
-          // Coinbase como QR para el celular (via WalletConnect), asi que van.
-          overflow: ["wallet_connect_qr", "metamask", "coinbase_wallet", "detected_ethereum_wallets"]
+          // En Electron no hay extensiones. La entrada "metamask" de Privy usa el
+          // MetaMask SDK (QR propio) que aqui no completa el pairing: el primer
+          // login fallaba y recien el segundo, ya como "WalletConnect" con el
+          // logo de MetaMask, entraba. MetaMask Mobile va siempre por
+          // WalletConnect (wallet_connect_qr); Coinbase Wallet tiene su SDK.
+          overflow: ["wallet_connect_qr", "coinbase_wallet", "detected_ethereum_wallets"]
         },
         // Con walletConnectCloudProjectId forzabamos el proyecto nuevo (ae9952...)
         // y el pairing por QR dejo de completar: el origen 127.0.0.1:3847 no esta

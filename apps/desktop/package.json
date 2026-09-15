@@ -4,7 +4,9 @@
   "private": true,
   "main": "main.cjs",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "brand": "bash brand-electron.sh",
+    "postinstall": "bash brand-electron.sh"
   },
   "devDependencies": {
     "electron": "^37.2.0"
