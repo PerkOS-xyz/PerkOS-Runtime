@@ -199,6 +199,27 @@ export async function hibernateFleet(wallet: string): Promise<Fleet> {
 
 export type FleetReply = { role: FleetRole; ok: boolean; reply: string; detail?: string; ms: number };
 
+/** Un solo agente, un prompt. Base del turno de mesa secuencial (desk). */
+export async function askOne(wallet: string, role: FleetRole, prompt: string, timeoutMs = 30_000, signal?: AbortSignal): Promise<FleetReply> {
+  const idToken = await token(wallet);
+  const mine = await listMine(idToken, wallet);
+  const t0 = Date.now();
+  const cur = mine.get(role);
+  if (!cur || cur.status !== "ready") return { role, ok: false, reply: "", detail: cur ? `agent ${cur.status}` : "no agent", ms: 0 };
+  try {
+    const r = await perkosRequest<{ ok?: boolean; reply?: string; detail?: string }>(`/agents/${encodeURIComponent(cur.id)}/task`, {
+      idToken,
+      method: "POST",
+      body: JSON.stringify({ prompt, timeoutMs }),
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs + 5_000)]) : AbortSignal.timeout(timeoutMs + 5_000)
+    });
+    const reply = String(r.reply ?? "").trim();
+    return { role, ok: Boolean(r.ok ?? reply), reply, detail: r.detail, ms: Date.now() - t0 };
+  } catch (e) {
+    return { role, ok: false, reply: "", detail: (e as Error).message, ms: Date.now() - t0 };
+  }
+}
+
 /** Pregunta a los agentes listos (en paralelo). Cada uno responde como handoff corto. */
 export async function askFleet(wallet: string, prompt: string, roles: FleetRole[] = FLEET_ROLES, timeoutMs = 45_000, signal?: AbortSignal): Promise<FleetReply[]> {
   const idToken = await token(wallet);
