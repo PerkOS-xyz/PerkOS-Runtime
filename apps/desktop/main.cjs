@@ -104,7 +104,10 @@ async function create() {
   win.webContents.setWindowOpenHandler(({ url }) => {
     try {
       const host = new URL(url).hostname;
-      if (host === "auth.x.ai" || host.endsWith(".x.ai")) {
+      // Login de xAI y el portal de pagos (pay.perkos.xyz): ahi el usuario usa
+      // su sesion de X/Grok o la wallet del browser. MetaMask/WalletConnect/
+      // Privy siguen adentro: mandarlos afuera rompia el QR de MetaMask.
+      if (host === "auth.x.ai" || host.endsWith(".x.ai") || host === "pay.perkos.xyz" || host.endsWith(".pay.perkos.xyz")) {
         shell.openExternal(url);
         return { action: "deny" };
       }
