@@ -171,8 +171,10 @@ function RailCard({ rail }: { rail: RailStep }) {
     try { return localStorage.getItem("floor.rail.email") ?? ""; } catch { return ""; }
   });
   const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-  const traderReady = rail.traderState === "ready";
-  const traderLine = traderReady ? "ready on PerkOS" : rail.traderState === "provisioning" ? "provisioning… link is enabled when it is ready" : rail.traderState === "waking" ? "waking…" : rail.traderState || "not created";
+  // Provisioned is enough: the API links the credential and reprovisions the
+  // container, which also wakes an agent the curator put to sleep.
+  const traderReady = rail.traderState === "ready" || rail.traderState === "hibernated" || rail.traderState === "waking";
+  const traderLine = rail.traderState === "ready" ? "ready on PerkOS" : rail.traderState === "hibernated" ? "asleep on PerkOS · wakes when linked" : rail.traderState === "waking" ? "waking…" : rail.traderState === "provisioning" ? "provisioning… link is enabled when it is ready" : rail.traderState || "not created";
   const link = () => {
     try { localStorage.setItem("floor.rail.email", email.trim()); } catch {}
     rail.onLink(email.trim());
@@ -188,7 +190,7 @@ function RailCard({ rail }: { rail: RailStep }) {
         <li className={`provider${traderReady ? " on" : ""}`}>
           <div className="provider-head">
             <span className="provider-name">{rail.traderName || "Trader"}</span>
-            <span className={`tag${traderReady ? " ok" : ""}`}>{traderReady ? "Ready" : "Deploying"}</span>
+            <span className={`tag${traderReady ? " ok" : ""}`}>{rail.traderState === "hibernated" ? "Asleep" : traderReady ? "Ready" : "Deploying"}</span>
           </div>
           <small>Trader · {traderLine}</small>
         </li>
