@@ -24,6 +24,9 @@ export type Wallet = {
   logout: () => void;
   // personal_sign con la wallet activa (embebida o externa). Para la sesion PerkOS.
   signMessage: (message: string) => Promise<string>;
+  // eth_sendTransaction con la wallet activa en la cadena pedida (Base para el
+  // swap del Trader). Externa: MetaMask pide confirmar. Devuelve el hash.
+  sendTransaction: (tx: { to: `0x${string}`; data: `0x${string}`; value?: `0x${string}`; chainId: number }) => Promise<`0x${string}`>;
 };
 
 export const disabledWallet: Wallet = {
@@ -44,7 +47,8 @@ export const disabledWallet: Wallet = {
   proven: false,
   forget: () => undefined,
   logout: () => undefined,
-  signMessage: async () => { throw new Error("wallet disabled"); }
+  signMessage: async () => { throw new Error("wallet disabled"); },
+  sendTransaction: async () => { throw new Error("wallet disabled"); }
 };
 
 const Ctx = createContext<Wallet>(disabledWallet);
