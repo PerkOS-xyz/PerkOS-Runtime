@@ -111,6 +111,22 @@ function Bridge({ children }: { children: ReactNode }) {
     return r.signature;
   };
 
+  // Transaccion (approve/swap del draft) con la wallet activa: cambia a la
+  // cadena pedida y manda eth_sendTransaction por el provider EIP-1193 de
+  // Privy. Con MetaMask por WalletConnect la confirmacion sale en el celular.
+  const sendTransaction = async (tx: { to: `0x${string}`; data: `0x${string}`; value?: `0x${string}`; chainId: number }): Promise<`0x${string}`> => {
+    const w = wallets.find((x) => x.address.toLowerCase() === address.toLowerCase()) ?? wallets[0];
+    if (!w) throw new Error("No wallet connected");
+    await w.switchChain(tx.chainId);
+    const provider = await w.getEthereumProvider();
+    const hash = await provider.request({
+      method: "eth_sendTransaction",
+      params: [{ from: w.address, to: tx.to, data: tx.data, value: tx.value ?? "0x0" }]
+    });
+    if (typeof hash !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(hash)) throw new Error("Wallet returned no transaction hash");
+    return hash as `0x${string}`;
+  };
+
   const value = useMemo<Wallet>(
     () => ({
       enabled: true,
@@ -143,7 +159,8 @@ function Bridge({ children }: { children: ReactNode }) {
       logout: () => {
         void logout();
       },
-      signMessage
+      signMessage,
+      sendTransaction
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [address, authenticated, error, login, logout, ready, walletsReady, wallets]

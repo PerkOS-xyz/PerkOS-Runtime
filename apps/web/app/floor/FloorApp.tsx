@@ -59,7 +59,12 @@ function Shell() {
   const [model, setModel] = useState("grok-4.6");
   const [effort, setEffort] = useState<"low" | "medium" | "high">("low");
   // Split: al primer envio la esfera va a la derecha y el transcript ocupa la izquierda.
-  type Msg = { id: number; role: "you" | "floor" | "team"; who?: string; text: string; streaming?: boolean };
+  // "draft": carta del Trader (cotizacion Uniswap V3 Base + calldata) con la
+  // orb Approve; la wallet de la persona firma approve + swap. `tx` es el
+  // progreso de la firma; `draft` es lo que devolvio /api/trade/draft.
+  type Draft = { id: string; chainId: number; pool: string; fee: number; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; deadline: number; quotedAt: string; needsApproval: boolean; balanceUsdc: string; txs: Array<{ label: "approve" | "swap"; to: `0x${string}`; data: `0x${string}`; value: "0x0" }> };
+  type DraftTx = { stage: "idle" | "signing" | "pending" | "done" | "failed"; step?: "approve" | "swap"; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
+  type Msg = { id: number; role: "you" | "floor" | "team" | "draft"; who?: string; text: string; streaming?: boolean; draft?: Draft; tx?: DraftTx };
   // Sesion PerkOS (firma del nonce con la wallet Privy) + flota Hermes en PerkOS infra.
   // rail/railLinked: el rail de gasto 1Claw del template (Trader) y si ya esta vinculado.
   type FleetAgent = { role: "scout" | "risk" | "trader" | "auditor"; name: string; agentId?: string; state: "planned" | "provisioning" | "waking" | "ready" | "hibernated" | "failed"; detail?: string; rail?: { provider: "1claw"; lockUsd: number }; railLinked?: boolean };
@@ -73,6 +78,8 @@ function Shell() {
   const perkosRef = useRef(perkos);
   perkosRef.current = perkos;
   const [messages, setMessages] = useState<Msg[]>([]);
+  const messagesRef = useRef<Msg[]>([]);
+  messagesRef.current = messages;
   const [split, setSplit] = useState(false);
   const idleTimer = useRef<number>(0);
   const voiceRef = useRef<{ continuous: boolean; listening: boolean } | null>(null);
@@ -405,11 +412,84 @@ function Shell() {
   const ensurePerkosRef = useRef(ensurePerkos);
   ensurePerkosRef.current = ensurePerkos;
 
+  // Draft del Trader: "buy $5 of NVIDIA" → /api/trade/draft cotiza en Uniswap
+  // V3 (Base) y arma approve + swap; la carta aparece en el transcript con la
+  // orb Approve. La conversacion sigue en paralelo (equipo + Grok comentan).
+  const tradeDraft = useCallback(async (amountUsd: number) => {
+    const id = Date.now() + 3;
+    setMessages((m) => [...m.slice(-40), { id, role: "draft", who: "trader", text: `Drafting a $${amountUsd} buy of NVDAc…`, streaming: true }]);
+    touch();
+    try {
+      const res = await fetch("/api/trade/draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amountUsd }) });
+      const j = (await res.json().catch(() => ({}))) as Draft & { error?: string; detail?: string };
+      if (!res.ok || !j.txs) {
+        flog("error", `trade draft ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`);
+        setMessages((m) => m.map((x) => (x.id === id ? { ...x, text: `Could not draft the trade: ${j.detail ?? j.error ?? res.status}`, streaming: false } : x)));
+        return;
+      }
+      flog("info", `trade draft: $${amountUsd} → ${j.quoteOutHuman} NVDAc @ $${j.impliedPriceUsd.toFixed(2)} · ${j.txs.length} tx · balance $${j.balanceUsdc}`);
+      setMessages((m) => m.map((x) => (x.id === id ? { ...x, text: "", streaming: false, draft: j, tx: { stage: "idle", hashes: [] } } : x)));
+      setCaption(`Trader drafted: $${amountUsd} → ${j.quoteOutHuman} NVDAc. Hold Approve to sign.`);
+    } catch (e) {
+      flog("error", `trade draft: ${(e as Error).message}`);
+      setMessages((m) => m.map((x) => (x.id === id ? { ...x, text: "Could not draft the trade.", streaming: false } : x)));
+    }
+  }, [touch]);
+
+  // Approve: la persona firma en su wallet (MetaMask por WalletConnect) cada
+  // tx del draft en orden; Floor espera el receipt en Base y muestra el hash.
+  const approveDraft = useCallback(async (msgId: number) => {
+    const msg = messagesRef.current.find((x) => x.id === msgId);
+    const d = msg?.draft;
+    if (!d || (msg?.tx && msg.tx.stage !== "idle" && msg.tx.stage !== "failed")) return;
+    const patch = (tx: Partial<DraftTx>) => setMessages((m) => m.map((x) => (x.id === msgId ? { ...x, tx: { ...(x.tx ?? { stage: "idle", hashes: [] }), ...tx } as DraftTx } : x)));
+    if (Date.now() / 1000 > d.deadline - 60) { patch({ stage: "failed", note: "Quote expired. Ask for a new draft." }); return; }
+    const hashes: DraftTx["hashes"] = [];
+    try {
+      for (const t of d.txs) {
+        patch({ stage: "signing", step: t.label, hashes: [...hashes], note: "" });
+        setCaption(t.label === "approve" ? "Confirm the USDC approval in your wallet…" : "Confirm the swap in your wallet…");
+        flog("info", `trade ${t.label}: waiting for signature`);
+        const hash = await wallet.sendTransaction({ to: t.to, data: t.data, value: t.value, chainId: d.chainId });
+        flog("info", `trade ${t.label}: sent ${hash}`);
+        hashes.push({ label: t.label, hash, status: "pending", explorer: `https://basescan.org/tx/${hash}` });
+        patch({ stage: "pending", step: t.label, hashes: [...hashes] });
+        setCaption(t.label === "approve" ? "Approval sent · waiting for Base…" : "Swap sent · waiting for Base…");
+        const started = Date.now();
+        for (;;) {
+          await new Promise((r) => setTimeout(r, 4000));
+          const r = await fetch(`/api/trade/receipt?hash=${hash}`);
+          const rj = (await r.json().catch(() => ({}))) as { status?: string };
+          if (rj.status === "success") { hashes[hashes.length - 1].status = "success"; patch({ hashes: [...hashes] }); break; }
+          if (rj.status === "reverted") throw new Error(`${t.label} reverted on Base`);
+          if (Date.now() - started > 3 * 60_000) throw new Error(`${t.label} not confirmed after 3 min`);
+        }
+        flog("info", `trade ${t.label}: confirmed`);
+      }
+      patch({ stage: "done", step: undefined, hashes: [...hashes] });
+      setCaption(`Bought ${d.quoteOutHuman} NVDAc for $${d.amountInUsd} on Base.`);
+      speak(`Done. You now hold ${Number(d.quoteOutHuman).toFixed(4)} NVIDIA on Base, and the receipt is on chain.`);
+      touch();
+    } catch (e) {
+      const m = (e as Error).message || "signature failed";
+      flog("error", `trade: ${m}`);
+      patch({ stage: "failed", hashes: [...hashes], note: /reject|denied|4001/i.test(m) ? "You declined in the wallet." : m });
+      setCaption(/reject|denied|4001/i.test(m) ? "Trade cancelled in the wallet." : "Trade failed.");
+    }
+  }, [wallet, speak, touch]);
+
   const run = useCallback((raw: string) => {
     const spoken = raw.trim();
     const cmd = parseCommand(raw);
     // Todo lo que no es un comando del canvas es conversacion.
     if (cmd === "unknown" && spoken) {
+      // Intencion de compra: "buy $5 of NVIDIA" / "compra 5 dolares de nvda".
+      const buy = /\b(buy|purchase|compra(?:r)?)\b/i.test(spoken) && /\b(nvda|nvidia)\b/i.test(spoken);
+      if (buy) {
+        const n = spoken.match(/\$\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*(?:usd|usdc|dollars?|bucks|d[oó]lares)/i);
+        const amount = Math.min(100, Number((n?.[1] ?? n?.[2] ?? "5").replace(",", ".")) || 5);
+        void tradeDraft(amount);
+      }
       void chat(spoken);
       return;
     }
@@ -842,11 +922,15 @@ function Shell() {
       <div className={`transcript${split ? " on" : ""}`} aria-live="polite">
         {messages.map((m) => (
           <div key={m.id} className={`turn ${m.role}`}>
-            <span className="turn-k">{m.role === "you" ? "You" : m.role === "team" ? `Team · ${m.who ?? ""}` : "Floor"}</span>
-            <div className="bubble">
-              {m.text}
-              {m.streaming ? <i className="cursor" /> : null}
-            </div>
+            <span className="turn-k">{m.role === "you" ? "You" : m.role === "team" ? `Team · ${m.who ?? ""}` : m.role === "draft" ? "Trader · draft" : "Floor"}</span>
+            {m.role === "draft" && m.draft ? (
+              <DraftCard draft={m.draft} tx={m.tx ?? { stage: "idle", hashes: [] }} onApprove={() => void approveDraft(m.id)} />
+            ) : (
+              <div className="bubble">
+                {m.text}
+                {m.streaming ? <i className="cursor" /> : null}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -1036,6 +1120,72 @@ function Orb({ className, label, on, state = "", rail, onRail }: { className: st
           <img src="/1claw.svg" alt="" />1Claw
         </em>
       ) : null}
+    </div>
+  );
+}
+
+/** Carta del draft del Trader + orb Approve (se mantiene 2 s para firmar).
+ *  Sin llaves aqui: Approve manda las tx a la wallet de la persona. */
+function DraftCard({ draft, tx, onApprove }: {
+  draft: { amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; pool: string; fee: number; deadline: number; needsApproval: boolean; balanceUsdc: string; txs: Array<{ label: string }> };
+  tx: { stage: "idle" | "signing" | "pending" | "done" | "failed"; step?: string; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
+  onApprove: () => void;
+}) {
+  const [holding, setHolding] = useState(false);
+  const holdRef = useRef(0);
+  const armed = tx.stage === "idle" || tx.stage === "failed";
+  const short = Number(draft.balanceUsdc) < draft.amountInUsd;
+  const start = () => {
+    if (!armed || short) return;
+    setHolding(true);
+    holdRef.current = window.setTimeout(() => { setHolding(false); onApprove(); }, 2000);
+  };
+  const cancel = () => { window.clearTimeout(holdRef.current); setHolding(false); };
+  const minOutHuman = (Number(draft.minOut) / 1e8).toFixed(6);
+  return (
+    <div className={`draft-card st-${tx.stage}`}>
+      <div className="draft-head">
+        <b>Buy ${draft.amountInUsd} of NVDAc</b>
+        <span className="tag">Uniswap V3 · Base</span>
+      </div>
+      <dl className="draft-rows">
+        <dt>You pay</dt><dd>${draft.amountInUsd.toFixed(2)} USDC</dd>
+        <dt>You get</dt><dd>≈ {draft.quoteOutHuman} NVDAc <small>(min {minOutHuman}, {draft.slippageBps / 100}% slippage)</small></dd>
+        <dt>Price</dt><dd>${draft.impliedPriceUsd.toFixed(2)} / share</dd>
+        <dt>Route</dt><dd>USDC → NVDAc · pool {draft.pool.slice(0, 6)}…{draft.pool.slice(-4)} · {draft.fee / 10_000}%</dd>
+        <dt>Signatures</dt><dd>{draft.txs.map((t) => t.label).join(" + ")}{draft.needsApproval ? "" : " (USDC already approved)"}</dd>
+      </dl>
+      {short ? <p className="hint-line err">Wallet holds ${Number(draft.balanceUsdc).toFixed(2)} USDC on Base; the draft needs ${draft.amountInUsd.toFixed(2)}.</p> : null}
+      {tx.note ? <p className="hint-line err">{tx.note}</p> : null}
+      {tx.hashes.length ? (
+        <ul className="draft-tx">
+          {tx.hashes.map((h) => (
+            <li key={h.hash} className={h.status}>
+              <span>{h.label}</span>
+              <a href={h.explorer} target="_blank" rel="noreferrer">{h.hash.slice(0, 10)}…{h.hash.slice(-6)}</a>
+              <em>{h.status === "success" ? "confirmed" : "pending"}</em>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <div className="draft-actions">
+        <button
+          type="button"
+          className={`approve${holding ? " holding" : ""}${tx.stage === "done" ? " done" : ""}${tx.stage === "signing" || tx.stage === "pending" ? " busy" : ""}`}
+          disabled={!armed || short}
+          onPointerDown={start}
+          onPointerUp={cancel}
+          onPointerLeave={cancel}
+          onPointerCancel={cancel}
+          aria-label="Hold to approve"
+        >
+          <span className="ring" />
+          <span className="lbl">
+            {tx.stage === "done" ? "Done" : tx.stage === "signing" ? `Sign ${tx.step}…` : tx.stage === "pending" ? `${cap(tx.step ?? "")} on Base…` : tx.stage === "failed" ? "Retry" : "Hold to approve"}
+          </span>
+        </button>
+        <small>{tx.stage === "done" ? "Receipt on Base. Your keys, your trade." : "They draft. You sign in your wallet."}</small>
+      </div>
     </div>
   );
 }
