@@ -14,13 +14,19 @@ const LABELS: Record<string, string> = {
 };
 
 type PerkosState = { connected: boolean; busy: boolean; fundingUrl: string; note: string };
+// Rail de gasto 1Claw del Trader. Los limites (cadenas, allowlist, tope por tx,
+// tope diario, aprobacion) viven en 1Claw y los edita la persona en su cuenta;
+// Floor solo enlaza. Sin flota con rail no se muestra.
+type RailState = { status: string; oneclawAgentId?: string; vaultId?: string; linkedRoles?: string[]; hasRail: boolean };
 
-export default function SettingsPanel({ onClose, debug, onDebug, perkos, onReconnectPerkos }: {
+export default function SettingsPanel({ onClose, debug, onDebug, perkos, onReconnectPerkos, rail, onLinkRail }: {
   onClose: () => void;
   debug: boolean;
   onDebug: (v: boolean) => void;
   perkos: PerkosState;
   onReconnectPerkos: () => void;
+  rail?: RailState;
+  onLinkRail?: () => void;
 }) {
   const [llm, setLlm] = useState<Llm | null>(null);
   const [model, setModel] = useState("");
@@ -70,6 +76,31 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
         <div className="row">
           <button type="button" onClick={onReconnectPerkos} disabled={perkos.busy}>{perkos.connected ? "Re-sign PerkOS" : "Connect PerkOS"}</button>
         </div>
+        {rail?.hasRail ? (
+          <>
+            <b>Spend rail · 1Claw</b>
+            <p className="hint-line">
+              {rail.status === "linked"
+                ? `Linked · ${(rail.linkedRoles ?? ["trader"]).map((r) => r[0].toUpperCase() + r.slice(1)).join(", ")} carry the credential${rail.vaultId ? ` · vault ${rail.vaultId.slice(0, 8)}` : ""}`
+                : rail.status === "claim_pending"
+                  ? "Claim pending at 1Claw"
+                  : rail.status === "not_configured"
+                    ? "Not enabled on this PerkOS yet"
+                    : "Not linked · the Trader drafts only"}
+            </p>
+            {rail.status === "linked" && rail.oneclawAgentId ? (
+              <p className="hint-line">
+                <a href={`https://1claw.co/agents/${encodeURIComponent(rail.oneclawAgentId)}`} target="_blank" rel="noreferrer">Edit limits at 1Claw ↗</a>
+                {" "}· chains, allowlists, per-trade and daily caps, approval policy
+              </p>
+            ) : null}
+            {rail.status !== "linked" && rail.status !== "not_configured" && onLinkRail ? (
+              <div className="row">
+                <button type="button" onClick={onLinkRail}>Link 1Claw</button>
+              </div>
+            ) : null}
+          </>
+        ) : null}
         <b>Debug</b>
         <label className="check">
           <input type="checkbox" checked={debug} onChange={(e) => onDebug(e.target.checked)} />

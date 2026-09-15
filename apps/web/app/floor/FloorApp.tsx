@@ -601,7 +601,7 @@ function Shell() {
   // flota. Opcional: se entra sin rail y se vuelve desde la orb del Trader.
   // La API enrola con su app partner y devuelve el claimUrl; Floor lo abre en
   // el browser del sistema y hace polling hasta `linked`. La key nunca llega.
-  type RailState = { status: "unknown" | "not_configured" | "not_connected" | "claim_pending" | "linked"; claimUrl?: string; vaultId?: string; busy: boolean; note: string };
+  type RailState = { status: "unknown" | "not_configured" | "not_connected" | "claim_pending" | "linked"; claimUrl?: string; vaultId?: string; oneclawAgentId?: string; linkedRoles?: string[]; busy: boolean; note: string };
   const [rail, setRail] = useState<RailState>({ status: "unknown", busy: false, note: "" });
   const [railSkipped, setRailSkipped] = useState(false);
   const railPollRef = useRef(0);
@@ -609,10 +609,10 @@ function Shell() {
     window.clearTimeout(railPollRef.current);
     try {
       const res = await fetch("/api/fleet/rail");
-      const j = (await res.json().catch(() => ({}))) as { status?: RailState["status"]; claimUrl?: string; vaultId?: string; error?: string; detail?: string };
+      const j = (await res.json().catch(() => ({}))) as { status?: RailState["status"]; claimUrl?: string; vaultId?: string; oneclawAgentId?: string; linkedRoles?: string[]; error?: string; detail?: string };
       if (!res.ok || !j.status) { flog("warn", `rail status ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`); return; }
-      flog("info", `rail: ${j.status}${j.vaultId ? ` · vault ${j.vaultId.slice(0, 8)}` : ""}`);
-      setRail((p) => ({ ...p, status: j.status!, vaultId: j.vaultId, claimUrl: j.claimUrl ?? p.claimUrl, note: j.status === "linked" ? "" : p.note }));
+      flog("info", `rail: ${j.status}${j.vaultId ? ` · vault ${j.vaultId.slice(0, 8)}` : ""}${j.linkedRoles?.length ? ` · ${j.linkedRoles.join("/")}` : ""}`);
+      setRail((p) => ({ ...p, status: j.status!, vaultId: j.vaultId, oneclawAgentId: j.oneclawAgentId, linkedRoles: j.linkedRoles, claimUrl: j.claimUrl ?? p.claimUrl, note: j.status === "linked" ? "" : p.note }));
       if (j.status === "claim_pending") railPollRef.current = window.setTimeout(() => void railStatus(), 5000);
     } catch (e) {
       flog("error", `rail status: ${(e as Error).message}`);
@@ -643,6 +643,12 @@ function Shell() {
       setRail((p) => ({ ...p, busy: false, note: "Could not link 1Claw. Try again." }));
     }
   }, [railStatus]);
+  // En la escena, el estado del rail se lee una vez por flota (Settings y el
+  // badge del Trader lo muestran); el wizard lo refresca por su cuenta.
+  useEffect(() => {
+    if (rail.status !== "unknown" || !fleet?.agents.some((a) => a.rail) || !perkos.connected) return;
+    void railStatus();
+  }, [fleet, rail.status, perkos.connected, railStatus]);
   const openRailStep = useCallback(() => {
     setRailSkipped(false);
     setWizardStart(4);
@@ -883,6 +889,8 @@ function Shell() {
           onDebug={setDebug}
           perkos={perkos}
           onReconnectPerkos={() => void ensurePerkos(true)}
+          rail={{ status: rail.status, oneclawAgentId: rail.oneclawAgentId, vaultId: rail.vaultId, linkedRoles: rail.linkedRoles, hasRail: Boolean(fleet?.agents.some((a) => a.rail)) }}
+          onLinkRail={() => { setSettings(false); openRailStep(); }}
         />
       ) : null}
 
