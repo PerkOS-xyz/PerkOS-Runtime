@@ -61,7 +61,8 @@ function Shell() {
   // Split: al primer envio la esfera va a la derecha y el transcript ocupa la izquierda.
   type Msg = { id: number; role: "you" | "floor" | "team"; who?: string; text: string; streaming?: boolean };
   // Sesion PerkOS (firma del nonce con la wallet Privy) + flota Hermes en PerkOS infra.
-  type FleetAgent = { role: "scout" | "risk" | "trader" | "auditor"; name: string; agentId?: string; state: "planned" | "provisioning" | "waking" | "ready" | "hibernated" | "failed"; detail?: string };
+  // rail/railLinked: el rail de gasto 1Claw del template (Trader) y si ya esta vinculado.
+  type FleetAgent = { role: "scout" | "risk" | "trader" | "auditor"; name: string; agentId?: string; state: "planned" | "provisioning" | "waking" | "ready" | "hibernated" | "failed"; detail?: string; rail?: { provider: "1claw"; lockUsd: number }; railLinked?: boolean };
   type Fleet = { status: "none" | "provisioning" | "waking" | "ready" | "partial" | "hibernated"; agents: FleetAgent[] };
   // Espejo de DeskTemplate (app/lib/fleet.ts) sin importar codigo server-only.
   type DeskTemplate = { id: string; revision: number; name: string; description: string; idleMinutes: number; agents: Array<{ role: string; name: string; duty: string }> };
@@ -631,6 +632,8 @@ function Shell() {
 
   const awake = team !== "hibernated";
   const orbState = (role: FleetAgent["role"]) => fleet?.agents.find((a) => a.role === role)?.state ?? (perkos.connected ? "planned" : "");
+  // Badge 1Claw: solo para roles con rail en el template (Trader). Vinculado = a color.
+  const orbRail = (role: FleetAgent["role"]) => { const a = fleet?.agents.find((x) => x.role === role); return a?.rail ? { linked: Boolean(a.railLinked), lockUsd: a.rail.lockUsd } : undefined; };
   // La conversacion esta activa mientras escuchamos o el equipo sigue despierto:
   // ahi el boton pasa de microfono a stop.
   const live = listening || awake;
@@ -722,7 +725,7 @@ function Shell() {
       <div className="orbit">
         <Orb className="scout" label="Scout" on={awake} state={orbState("scout")} />
         <Orb className="risk" label="Risk" on={awake} state={orbState("risk")} />
-        <Orb className="trader" label="Trader" on={awake} state={orbState("trader")} />
+        <Orb className="trader" label="Trader" on={awake} state={orbState("trader")} rail={orbRail("trader")} />
         <Orb className="auditor" label="Auditor" on={awake} state={orbState("auditor")} />
         <Orb className={`guest${guest ? "" : " dim"}`} label={guest ? "Grok Bot" : "Guest"} on={guest} />
       </div>
@@ -930,13 +933,20 @@ function StopIcon() {
   );
 }
 
-function Orb({ className, label, on, state = "" }: { className: string; label: string; on: boolean; state?: string }) {
+function Orb({ className, label, on, state = "", rail }: { className: string; label: string; on: boolean; state?: string; rail?: { linked: boolean; lockUsd: number } }) {
   const sub = state === "ready" ? "PerkOS" : state === "provisioning" ? "provisioning…" : state === "waking" ? "waking…" : state === "hibernated" ? "asleep" : state === "failed" ? "failed" : state === "planned" ? "not created" : "";
   return (
     <div className={`orb ${className}${on ? " on" : ""}${state ? ` st-${state}` : ""}`} title={sub}>
       <div className="ball" />
       <span>{label}</span>
       {sub ? <small>{sub}</small> : null}
+      {rail ? (
+        // Rail de gasto 1Claw (patron EQLTY): a color cuando esta vinculado; atenuado
+        // cuando el template lo exige y aun no se conecto. Solo Trader lo tiene.
+        <em className={`rail${rail.linked ? " on" : ""}`} title={rail.linked ? `1Claw rail linked · lock $${rail.lockUsd}` : `1Claw rail required above $${rail.lockUsd} · not linked`}>
+          <img src="/1claw.svg" alt="" />1Claw
+        </em>
+      ) : null}
     </div>
   );
 }
