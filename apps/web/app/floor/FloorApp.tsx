@@ -277,6 +277,47 @@ function Shell() {
     }
   }, []);
 
+  // Pago: tras un 402, pedir una billing session a PerkOS y abrirla en el
+  // browser del sistema (main.cjs manda pay.perkos.xyz afuera). Mientras la
+  // persona paga, polling del saldo; cuando la infra queda habilitada, se
+  // reintenta el deploy solo. Sin deep link de vuelta: el polling alcanza.
+  const payPollRef = useRef(0);
+  const fleetActionRef = useRef<(a: "status" | "wake" | "hibernate") => Promise<void>>(async () => undefined);
+  const [paying, setPaying] = useState(false);
+  const stopPayPoll = useCallback(() => { window.clearTimeout(payPollRef.current); payPollRef.current = 0; setPaying(false); }, []);
+  const openPay = useCallback(async () => {
+    try {
+      const res = await fetch("/api/perkos/pay-session", { method: "POST" });
+      const j = (await res.json().catch(() => ({}))) as { url?: string; error?: string; detail?: string };
+      if (!res.ok || !j.url) { flog("error", `pay session ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`); setCaption("Could not open the payment page"); return; }
+      flog("info", `pay: opening ${j.url}`);
+      window.open(j.url, "_blank", "noopener");
+      setPaying(true);
+      setCaption("Waiting for your payment on pay.perkos.xyz…");
+      const started = Date.now();
+      const tick = async () => {
+        try {
+          const b = await fetch("/api/perkos/billing");
+          const bj = (await b.json().catch(() => ({}))) as { creditsUsd?: number; allowed?: boolean; reason?: string };
+          if (b.ok && bj.allowed) {
+            flog("info", `pay: infra allowed · $${(bj.creditsUsd ?? 0).toFixed(2)} credits`);
+            stopPayPoll();
+            setPerkos((p) => ({ ...p, fundingUrl: "", note: "" }));
+            setTeam("waking");
+            setCaption("Payment received · deploying your team on PerkOS…");
+            void fleetActionRef.current("wake");
+            return;
+          }
+        } catch {}
+        if (Date.now() - started > 30 * 60_000) { flog("warn", "pay: gave up waiting after 30 min"); stopPayPoll(); setCaption("Payment window closed · press Deploy again"); return; }
+        payPollRef.current = window.setTimeout(() => void tick(), 5000);
+      };
+      payPollRef.current = window.setTimeout(() => void tick(), 5000);
+    } catch (e) {
+      flog("error", `pay: ${(e as Error).message}`);
+    }
+  }, [stopPayPoll]);
+
   const fleetAction = useCallback(async (action: "status" | "wake" | "hibernate") => {
     try {
       const res = action === "status"
@@ -284,7 +325,7 @@ function Shell() {
         : await fetch("/api/fleet", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
       const j = (await res.json().catch(() => ({}))) as Fleet & { error?: string; detail?: string };
       if (!res.ok) {
-        if (res.status === 402) { setPerkos((p) => ({ ...p, fundingUrl: "https://perkos.xyz" })); setCaption("Activate PerkOS infrastructure to run the team"); }
+        if (res.status === 402) { setPerkos((p) => ({ ...p, fundingUrl: "https://pay.perkos.xyz", note: "Activate PerkOS infrastructure" })); setCaption("Activate PerkOS infrastructure to run the team"); }
         if (res.status === 404) setCaption("Team template not published yet");
         flog(res.status === 402 ? "warn" : "error", `fleet ${action} ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`);
         if (action === "wake") setTeam("hibernated");
@@ -296,6 +337,7 @@ function Shell() {
       flog("error", `fleet ${action}: ${(e as Error).message}`);
     }
   }, [applyFleet]);
+  fleetActionRef.current = fleetAction;
 
   // Sesion PerkOS: reutiliza la guardada para esta wallet o firma el nonce.
   const ensurePerkos = useCallback(async (force = false) => {
@@ -527,6 +569,7 @@ function Shell() {
     setPerkos({ connected: false, busy: false, fundingUrl: "", note: "" });
     setFleet(null);
     window.clearTimeout(pollRef.current);
+    stopPayPoll();
     hush();
     wallet.logout();
     setWho("");
@@ -655,15 +698,26 @@ function Shell() {
                 <li key={a.role}><span>{a.name}</span> {a.duty}</li>
               ))}
             </ul>
-            <button
-              type="button"
-              className="cta"
-              disabled={team === "waking"}
-              onClick={() => { setTeam("waking"); setCaption("Deploying your team on PerkOS…"); void fleetAction("wake"); }}
-            >
-              {team === "waking" ? "Deploying…" : "Deploy on PerkOS"}
-            </button>
-            <small className="desk-foot">Runs under your account · sleeps after {desk.idleMinutes} min idle · they draft, you approve</small>
+            {perkos.fundingUrl ? (
+              <>
+                <button type="button" className="cta" disabled={paying} onClick={() => void openPay()}>
+                  {paying ? "Waiting for payment…" : "Activate PerkOS infrastructure"}
+                </button>
+                <small className="desk-foot">Opens pay.perkos.xyz in your browser · card or USDC on Base · the team deploys as soon as the balance is positive</small>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="cta"
+                  disabled={team === "waking"}
+                  onClick={() => { setTeam("waking"); setCaption("Deploying your team on PerkOS…"); void fleetAction("wake"); }}
+                >
+                  {team === "waking" ? "Deploying…" : "Deploy on PerkOS"}
+                </button>
+                <small className="desk-foot">Runs under your account · sleeps after {desk.idleMinutes} min idle · they draft, you approve</small>
+              </>
+            )}
           </>
         ) : (
           <>
