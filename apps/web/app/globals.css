@@ -945,3 +945,15 @@ button.cta:disabled { animation: none; opacity: 0.45; cursor: default; box-shado
 .wizard-card.team .team-roles .provider small { font-size: 11px; line-height: 1.4; }
 .wizard-card.team button.cta { margin-top: 6px; }
 @container stage (max-width: 700px) { .wizard-card.team .team-roles { grid-template-columns: 1fr; } }
+
+/* Badge del rail 1Claw en el orb (Trader). Logo redondo oscuro de 1Claw. */
+.orb em.rail {
+  display: inline-flex; align-items: center; gap: 5px;
+  margin-top: -2px; padding: 2px 7px 2px 3px; border-radius: 999px;
+  font-style: normal; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--mute); border: 1px solid rgba(232, 238, 255, 0.18);
+  opacity: 0.55; filter: grayscale(1);
+  transition: opacity 0.3s ease, filter 0.3s ease, border-color 0.3s ease;
+}
+.orb em.rail img { width: 14px; height: 14px; border-radius: 50%; display: block; }
+.orb em.rail.on { opacity: 1; filter: none; color: #ff5a6a; border-color: rgba(236, 27, 105, 0.6); box-shadow: 0 0 10px rgba(236, 27, 105, 0.35); }

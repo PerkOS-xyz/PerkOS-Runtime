@@ -16,7 +16,8 @@ export type FleetRole = "scout" | "risk" | "trader" | "auditor";
 export const FLEET_ROLES: FleetRole[] = ["scout", "risk", "trader", "auditor"];
 
 export type AgentState = "planned" | "provisioning" | "waking" | "ready" | "hibernated" | "failed";
-export type FleetAgent = { role: FleetRole; name: string; agentId?: string; state: AgentState; detail?: string };
+export type FleetRail = { provider: "1claw"; enforcement: "required-before-spend"; lockUsd: number };
+export type FleetAgent = { role: FleetRole; name: string; agentId?: string; state: AgentState; detail?: string; rail?: FleetRail; railLinked?: boolean };
 export type FleetStatus = "none" | "provisioning" | "waking" | "ready" | "partial" | "hibernated";
 export type Fleet = { status: FleetStatus; agents: FleetAgent[]; imageTag?: string; wallet: string; projectId?: string; templateId?: string };
 
@@ -51,7 +52,7 @@ type ApiInstance = {
   wallet: string;
   status: FleetStatus;
   imageTag?: string;
-  agents: Array<{ role: string; name: string; agentId?: string; state: AgentState; detail?: string }>;
+  agents: Array<{ role: string; name: string; agentId?: string; state: AgentState; detail?: string; rail?: FleetRail; railLinked?: boolean }>;
 };
 type ApiAgent = { id: string; name: string; runtime: "Hermes" | "OpenClaw" | string; status: "provisioning" | "ready" | "failed" | "unknown" | string };
 
@@ -78,7 +79,7 @@ function fromInstance(i: ApiInstance): Fleet {
     templateId: i.templateId,
     agents: i.agents
       .filter((a): a is ApiInstance["agents"][number] & { role: FleetRole } => (FLEET_ROLES as string[]).includes(a.role))
-      .map((a) => ({ role: a.role, name: a.name, agentId: a.agentId, state: a.state, detail: a.detail }))
+      .map((a) => ({ role: a.role, name: a.name, agentId: a.agentId, state: a.state, detail: a.detail, rail: a.rail, railLinked: a.railLinked }))
   };
 }
 
