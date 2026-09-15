@@ -111,7 +111,9 @@ async function create() {
       // Privy siguen adentro: mandarlos afuera rompia el QR de MetaMask.
       // 1claw.xyz: el claim del vault del Trader (paso "Spend rail") se hace
       // con la cuenta 1Claw de la persona, en su browser.
-      if (host === "auth.x.ai" || host.endsWith(".x.ai") || host === "pay.perkos.xyz" || host.endsWith(".pay.perkos.xyz") || host === "1claw.xyz" || host.endsWith(".1claw.xyz")) {
+      // 1Claw vive en 1claw.co (1claw.xyz redirige alli): claim, authorize y dashboard.
+      const oneclaw = /(^|\.)1claw\.(co|xyz)$/.test(host);
+      if (host === "auth.x.ai" || host.endsWith(".x.ai") || host === "pay.perkos.xyz" || host.endsWith(".pay.perkos.xyz") || oneclaw) {
         shell.openExternal(url);
         return { action: "deny" };
       }
