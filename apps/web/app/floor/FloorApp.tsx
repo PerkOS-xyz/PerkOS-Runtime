@@ -516,13 +516,82 @@ function Shell() {
   // El paso "Your team" termina cuando hay flota (aunque este provisionando):
   // la escena con las orbs es donde se ve el progreso.
   const [teamSkipped, setTeamSkipped] = useState(false);
+
+  // Rail de gasto (1Claw) del Trader: paso 4 del wizard, recien desplegada la
+  // flota. Opcional: se entra sin rail y se vuelve desde la orb del Trader.
+  // La API enrola con su app partner y devuelve el claimUrl; Floor lo abre en
+  // el browser del sistema y hace polling hasta `linked`. La key nunca llega.
+  type RailState = { status: "unknown" | "not_configured" | "not_connected" | "claim_pending" | "linked"; claimUrl?: string; vaultId?: string; busy: boolean; note: string };
+  const [rail, setRail] = useState<RailState>({ status: "unknown", busy: false, note: "" });
+  const [railSkipped, setRailSkipped] = useState(false);
+  const railPollRef = useRef(0);
+  const railStatus = useCallback(async () => {
+    window.clearTimeout(railPollRef.current);
+    try {
+      const res = await fetch("/api/fleet/rail");
+      const j = (await res.json().catch(() => ({}))) as { status?: RailState["status"]; claimUrl?: string; vaultId?: string; error?: string; detail?: string };
+      if (!res.ok || !j.status) { flog("warn", `rail status ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`); return; }
+      flog("info", `rail: ${j.status}${j.vaultId ? ` · vault ${j.vaultId.slice(0, 8)}` : ""}`);
+      setRail((p) => ({ ...p, status: j.status!, vaultId: j.vaultId, claimUrl: j.claimUrl ?? p.claimUrl, note: j.status === "linked" ? "" : p.note }));
+      if (j.status === "claim_pending") railPollRef.current = window.setTimeout(() => void railStatus(), 5000);
+    } catch (e) {
+      flog("error", `rail status: ${(e as Error).message}`);
+    }
+  }, []);
+  const railEnrol = useCallback(async (email: string) => {
+    setRail((p) => ({ ...p, busy: true, note: "" }));
+    try {
+      const res = await fetch("/api/fleet/rail", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
+      const j = (await res.json().catch(() => ({}))) as { status?: RailState["status"]; claimUrl?: string; authorizeUrl?: string; vaultId?: string; error?: string; detail?: string };
+      if (!res.ok || !j.status) {
+        flog("error", `rail enrol ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`);
+        setRail((p) => ({ ...p, busy: false, note: j.detail || "Could not link 1Claw. Try again." }));
+        return;
+      }
+      flog("info", `rail enrol: ${j.status}${j.claimUrl ? " · claim url" : ""}${j.authorizeUrl ? " · authorize url" : ""}`);
+      if (j.authorizeUrl) {
+        // Cuenta 1Claw existente: primero autoriza PerkOS, despues Link de nuevo.
+        window.open(j.authorizeUrl, "_blank", "noopener");
+        setRail((p) => ({ ...p, busy: false, status: "not_connected", note: "Authorize PerkOS in your 1Claw account, then press Link 1Claw again." }));
+        return;
+      }
+      if (j.claimUrl) window.open(j.claimUrl, "_blank", "noopener");
+      setRail({ status: j.status, claimUrl: j.claimUrl, vaultId: j.vaultId, busy: false, note: "" });
+      if (j.status === "claim_pending") railPollRef.current = window.setTimeout(() => void railStatus(), 5000);
+    } catch (e) {
+      flog("error", `rail enrol: ${(e as Error).message}`);
+      setRail((p) => ({ ...p, busy: false, note: "Could not link 1Claw. Try again." }));
+    }
+  }, [railStatus]);
+  const openRailStep = useCallback(() => {
+    setRailSkipped(false);
+    setWizardStart(4);
+    setWizard(true);
+    void railStatus();
+  }, [railStatus]);
+
+  // El paso "Your team" termina cuando hay flota (aunque este provisionando).
+  // Si el template trae rail y aun no esta vinculado sigue el paso 4; si no,
+  // la escena con las orbs es donde se ve el progreso.
   useEffect(() => {
     if (!wizard || wizardStart !== 3) return;
-    if (teamSkipped || (fleet && fleet.status !== "none")) {
+    if (teamSkipped) { setWizard(false); setSplash(false); return; }
+    if (fleet && fleet.status !== "none") {
+      const railed = fleet.agents.find((a) => a.rail);
+      if (railed && !railed.railLinked && !railSkipped) { setWizardStart(4); void railStatus(); return; }
       setWizard(false);
       setSplash(false);
     }
-  }, [wizard, wizardStart, fleet, teamSkipped]);
+  }, [wizard, wizardStart, fleet, teamSkipped, railSkipped, railStatus]);
+  useEffect(() => {
+    if (!wizard || wizardStart !== 4) return;
+    if (railSkipped || rail.status === "linked") {
+      window.clearTimeout(railPollRef.current);
+      setWizard(false);
+      setSplash(false);
+      if (rail.status === "linked") { setCaption("1Claw rail linked · the Trader spends only within your limits"); void fleetActionRef.current("status"); }
+    }
+  }, [wizard, wizardStart, rail.status, railSkipped]);
 
   useEffect(() => {
     // El long-poll del bridge de voz (apps/voice) ocupa una conexion 20 s por
@@ -600,6 +669,9 @@ function Shell() {
     setDesks([]);
     setDeskNote("");
     setTeamSkipped(false);
+    setRail({ status: "unknown", busy: false, note: "" });
+    setRailSkipped(false);
+    window.clearTimeout(railPollRef.current);
     window.clearTimeout(pollRef.current);
     stopPayPoll();
     hush();
@@ -688,6 +760,18 @@ function Shell() {
             onReconnect: () => void ensurePerkos(true),
             onSkip: () => { setTeamSkipped(true); void fetch("/api/settings").then((r) => r.json()).then(applyWho); }
           }}
+          rail={{
+            status: rail.status,
+            traderName: fleet?.agents.find((a) => a.rail)?.name ?? "",
+            traderState: fleet?.agents.find((a) => a.rail)?.state ?? "",
+            lockUsd: fleet?.agents.find((a) => a.rail)?.rail?.lockUsd ?? 0,
+            busy: rail.busy,
+            note: rail.note,
+            claimUrl: rail.claimUrl,
+            onLink: (email: string) => void railEnrol(email),
+            onOpenClaim: () => { if (rail.claimUrl) window.open(rail.claimUrl, "_blank", "noopener"); },
+            onSkip: () => setRailSkipped(true)
+          }}
         />
         <ErrorDock open={debug} onOpen={setDebug} />
       </div>
@@ -725,7 +809,7 @@ function Shell() {
       <div className="orbit">
         <Orb className="scout" label="Scout" on={awake} state={orbState("scout")} />
         <Orb className="risk" label="Risk" on={awake} state={orbState("risk")} />
-        <Orb className="trader" label="Trader" on={awake} state={orbState("trader")} rail={orbRail("trader")} />
+        <Orb className="trader" label="Trader" on={awake} state={orbState("trader")} rail={orbRail("trader")} onRail={openRailStep} />
         <Orb className="auditor" label="Auditor" on={awake} state={orbState("auditor")} />
         <Orb className={`guest${guest ? "" : " dim"}`} label={guest ? "Grok Bot" : "Guest"} on={guest} />
       </div>
@@ -933,7 +1017,7 @@ function StopIcon() {
   );
 }
 
-function Orb({ className, label, on, state = "", rail }: { className: string; label: string; on: boolean; state?: string; rail?: { linked: boolean; lockUsd: number } }) {
+function Orb({ className, label, on, state = "", rail, onRail }: { className: string; label: string; on: boolean; state?: string; rail?: { linked: boolean; lockUsd: number }; onRail?: () => void }) {
   const sub = state === "ready" ? "PerkOS" : state === "provisioning" ? "provisioning…" : state === "waking" ? "waking…" : state === "hibernated" ? "asleep" : state === "failed" ? "failed" : state === "planned" ? "not created" : "";
   return (
     <div className={`orb ${className}${on ? " on" : ""}${state ? ` st-${state}` : ""}`} title={sub}>
@@ -943,7 +1027,12 @@ function Orb({ className, label, on, state = "", rail }: { className: string; la
       {rail ? (
         // Rail de gasto 1Claw (patron EQLTY): a color cuando esta vinculado; atenuado
         // cuando el template lo exige y aun no se conecto. Solo Trader lo tiene.
-        <em className={`rail${rail.linked ? " on" : ""}`} title={rail.linked ? `1Claw rail linked · lock $${rail.lockUsd}` : `1Claw rail required above $${rail.lockUsd} · not linked`}>
+        // Sin vincular, el badge abre el paso "Spend rail" del wizard.
+        <em
+          className={`rail${rail.linked ? " on" : ""}`}
+          title={rail.linked ? `1Claw rail linked · lock $${rail.lockUsd}` : `1Claw rail required above $${rail.lockUsd} · not linked · click to link`}
+          onClick={!rail.linked && onRail ? onRail : undefined}
+        >
           <img src="/1claw.svg" alt="" />1Claw
         </em>
       ) : null}

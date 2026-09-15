@@ -957,3 +957,11 @@ button.cta:disabled { animation: none; opacity: 0.45; cursor: default; box-shado
 }
 .orb em.rail img { width: 14px; height: 14px; border-radius: 50%; display: block; }
 .orb em.rail.on { opacity: 1; filter: none; color: #ff5a6a; border-color: rgba(236, 27, 105, 0.6); box-shadow: 0 0 10px rgba(236, 27, 105, 0.35); }
+
+/* Paso 4: rail de gasto (1Claw). */
+.wizard-card.rail label { width: 100%; text-align: left; }
+.wizard-card.rail label span { display: block; margin-bottom: 4px; font-size: 11px; letter-spacing: 0.06em; color: var(--mute); }
+.wizard-card.rail input { width: 100%; }
+.rail-mark { height: 14px; width: 14px; vertical-align: -2px; margin-right: 6px; border-radius: 50%; }
+.orb em.rail:not(.on) { cursor: pointer; }
+.orb em.rail:not(.on):hover { opacity: 0.9; }

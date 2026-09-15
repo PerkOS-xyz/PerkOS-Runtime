@@ -109,7 +109,9 @@ async function create() {
       // Login de xAI y el portal de pagos (pay.perkos.xyz): ahi el usuario usa
       // su sesion de X/Grok o la wallet del browser. MetaMask/WalletConnect/
       // Privy siguen adentro: mandarlos afuera rompia el QR de MetaMask.
-      if (host === "auth.x.ai" || host.endsWith(".x.ai") || host === "pay.perkos.xyz" || host.endsWith(".pay.perkos.xyz")) {
+      // 1claw.xyz: el claim del vault del Trader (paso "Spend rail") se hace
+      // con la cuenta 1Claw de la persona, en su browser.
+      if (host === "auth.x.ai" || host.endsWith(".x.ai") || host === "pay.perkos.xyz" || host.endsWith(".pay.perkos.xyz") || host === "1claw.xyz" || host.endsWith(".1claw.xyz")) {
         shell.openExternal(url);
         return { action: "deny" };
       }

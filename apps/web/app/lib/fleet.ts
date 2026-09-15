@@ -109,6 +109,35 @@ export async function listDeskTemplates(wallet: string, lang = "en"): Promise<De
   return desks.sort((a, b) => (a.id === FLEET_TEMPLATE_ID ? -1 : b.id === FLEET_TEMPLATE_ID ? 1 : a.name.localeCompare(b.name)));
 }
 
+// Rail de gasto (1Claw) del Trader. La API enrola con su app partner de 1Claw
+// y le pasa la credencial al Trader; la persona reclama su vault en el browser
+// (claimUrl). Floor solo ve el estado, nunca la key.
+export type RailState = {
+  status: "not_configured" | "not_connected" | "claim_pending" | "linked";
+  role?: string;
+  connectionId?: string;
+  oneclawAgentId?: string;
+  vaultId?: string;
+  claimedAt?: string;
+  claimUrl?: string;
+  expiresIn?: number;
+  authorizeUrl?: string;
+  walletAddress?: string;
+};
+
+export async function railStatus(wallet: string, templateId = FLEET_TEMPLATE_ID): Promise<RailState> {
+  const idToken = await token(wallet);
+  return perkosRequest<RailState>(`/project-templates/${encodeURIComponent(templateId)}/rail`, { idToken, timeoutMs: 20_000 });
+}
+
+/** "Link 1Claw": idempotente; devuelve claimUrl mientras falte el claim. */
+export async function enrolRail(wallet: string, email: string, templateId = FLEET_TEMPLATE_ID): Promise<RailState> {
+  const idToken = await token(wallet);
+  return perkosRequest<RailState>(`/project-templates/${encodeURIComponent(templateId)}/rail`, {
+    idToken, method: "POST", body: JSON.stringify({ email }), timeoutMs: 60_000
+  });
+}
+
 /** Estado de las orbs; no lanza ni despierta nada. */
 export async function fleetStatus(wallet: string, templateId = FLEET_TEMPLATE_ID): Promise<Fleet> {
   const idToken = await token(wallet);

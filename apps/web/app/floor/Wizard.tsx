@@ -5,9 +5,10 @@ import Ambient from "./Ambient";
 import XaiConnect from "./XaiConnect";
 import { useWallet } from "./wallet/context";
 
-// Pasos: 0 ident cinematografico -> 1 Privy (wallet) -> 2 LLM -> 3 equipo.
-// FloorApp decide donde arranca: 2 si falta el LLM, 3 si falta la flota. El
-// paso 3 es onboarding, no escena: la esfera recien aparece con equipo.
+// Pasos: 0 ident cinematografico -> 1 Privy (wallet) -> 2 LLM -> 3 equipo ->
+// 4 rail de gasto (1Claw, opcional). FloorApp decide donde arranca: 2 si falta
+// el LLM, 3 si falta la flota, 4 recien desplegada la flota. Los pasos 3 y 4
+// son onboarding, no escena: la esfera recien aparece con equipo.
 
 export type DeskCard = { id: string; name: string; description: string; idleMinutes: number; agents: Array<{ role: string; name: string; duty: string }> };
 export type TeamStep = {
@@ -28,7 +29,21 @@ export type TeamStep = {
   onSkip: () => void;
 };
 
-export default function Wizard({ onDone, start = 0, team }: { onDone: () => void; start?: number; team?: TeamStep }) {
+export type RailStep = {
+  status: "unknown" | "not_configured" | "not_connected" | "claim_pending" | "linked";
+  /** Estado del agente con rail (Trader): solo `ready` puede vincularse. */
+  traderName: string;
+  traderState: string;
+  lockUsd: number;
+  busy: boolean;
+  note: string;
+  claimUrl?: string;
+  onLink: (email: string) => void;
+  onOpenClaim: () => void;
+  onSkip: () => void;
+};
+
+export default function Wizard({ onDone, start = 0, team, rail }: { onDone: () => void; start?: number; team?: TeamStep; rail?: RailStep }) {
   const [step, setStep] = useState(start);
   if (step === 0) {
     return (
@@ -46,7 +61,7 @@ export default function Wizard({ onDone, start = 0, team }: { onDone: () => void
       </div>
     );
   }
-  return <Auth step={step} setStep={setStep} onDone={onDone} team={team} />;
+  return <Auth step={step} setStep={setStep} onDone={onDone} team={team} rail={rail} />;
 }
 
 type Llm = { provider: string; model: string; connected: boolean };
@@ -58,7 +73,7 @@ const PROVIDERS: Array<{ id: string; label: string; sub: string; soon?: boolean 
   { id: "local", label: "Local", sub: "Ollama / LM Studio", soon: true }
 ];
 
-function Auth({ step, setStep, onDone, team }: { step: number; setStep: (n: number) => void; onDone: () => void; team?: TeamStep }) {
+function Auth({ step, setStep, onDone, team, rail }: { step: number; setStep: (n: number) => void; onDone: () => void; team?: TeamStep; rail?: RailStep }) {
   const wallet = useWallet();
   const [llm, setLlm] = useState<Llm | null>(null);
 
@@ -142,7 +157,85 @@ function Auth({ step, setStep, onDone, team }: { step: number; setStep: (n: numb
         ) : null}
 
         {step === 3 && team ? <TeamCard team={team} /> : null}
+        {step === 4 && rail ? <RailCard rail={rail} /> : null}
       </Ambient>
+    </div>
+  );
+}
+
+/** Paso 4: rail de gasto. El Trader solo gasta a traves de 1Claw (limites,
+ *  allowlist, aprobacion humana) y la persona reclama su vault en el browser.
+ *  Opcional: se puede entrar sin rail y volver desde la orb del Trader. */
+function RailCard({ rail }: { rail: RailStep }) {
+  const [email, setEmail] = useState<string>(() => {
+    try { return localStorage.getItem("floor.rail.email") ?? ""; } catch { return ""; }
+  });
+  const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const traderReady = rail.traderState === "ready";
+  const traderLine = traderReady ? "ready on PerkOS" : rail.traderState === "provisioning" ? "provisioning… link is enabled when it is ready" : rail.traderState === "waking" ? "waking…" : rail.traderState || "not created";
+  const link = () => {
+    try { localStorage.setItem("floor.rail.email", email.trim()); } catch {}
+    rail.onLink(email.trim());
+  };
+  return (
+    <div className="wizard-card team rail">
+      <div className="k">SPEND RAIL</div>
+      <b>The Trader spends only through 1Claw.</b>
+      <p className="lead">
+        Limits, allowlists and your approval, enforced outside the model. Above ${rail.lockUsd} every spend waits for you.
+      </p>
+      <ul className="providers team-roles">
+        <li className={`provider${traderReady ? " on" : ""}`}>
+          <div className="provider-head">
+            <span className="provider-name">{rail.traderName || "Trader"}</span>
+            <span className={`tag${traderReady ? " ok" : ""}`}>{traderReady ? "Ready" : "Deploying"}</span>
+          </div>
+          <small>Trader · {traderLine}</small>
+        </li>
+        <li className={`provider${rail.status === "linked" ? " on" : ""}`}>
+          <div className="provider-head">
+            <span className="provider-name"><img className="rail-mark" src="/1claw.svg" alt="" />1Claw</span>
+            {rail.status === "linked" ? <span className="tag ok">Linked</span> : rail.status === "claim_pending" ? <span className="tag">Claim pending</span> : null}
+          </div>
+          <small>
+            {rail.status === "linked"
+              ? "Your vault and the Trader's credential are in place."
+              : rail.status === "claim_pending"
+                ? "Finish claiming your vault at 1claw.xyz. This step completes on its own once you do."
+                : rail.status === "not_configured"
+                  ? "Not enabled on this PerkOS yet."
+                  : "You get your own vault at 1Claw; the Trader gets a credential that can only act within it."}
+          </small>
+        </li>
+      </ul>
+
+      {rail.status === "not_connected" || rail.status === "unknown" ? (
+        <label>
+          <span>Your email (for your 1Claw account)</span>
+          <input type="email" value={email} placeholder="you@company.com" autoComplete="email" onChange={(e) => setEmail(e.target.value)} />
+        </label>
+      ) : null}
+      {rail.note ? <p className={`hint-line${/fail|could not|error/i.test(rail.note) ? " err" : ""}`}>{rail.note}</p> : null}
+
+      <div className="row">
+        {rail.status === "claim_pending" ? (
+          <button type="button" className="cta" onClick={rail.onOpenClaim}>Open 1Claw again</button>
+        ) : rail.status === "linked" ? (
+          <button type="button" className="cta" onClick={rail.onSkip}>Enter Floor</button>
+        ) : (
+          <button type="button" className="cta" disabled={!traderReady || !validEmail || rail.busy || rail.status === "not_configured"} onClick={link}>
+            {rail.busy ? "Linking…" : "Link 1Claw"}
+          </button>
+        )}
+      </div>
+      <p className="hint-line">
+        {rail.status === "claim_pending"
+          ? "Waiting for the claim in your browser…"
+          : "Opens 1claw.xyz in your browser to claim the vault. The key never touches this Mac."}
+      </p>
+      {rail.status !== "linked" ? (
+        <button type="button" className="back" onClick={rail.onSkip}>Enter Floor without a spend rail</button>
+      ) : null}
     </div>
   );
 }
