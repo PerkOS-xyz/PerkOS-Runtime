@@ -20,6 +20,17 @@ apps/web       Canvas UI (Next.js)
 apps/desktop   Electron shell
 ```
 
+## Run
+
+Node 22. From repo root:
+
+```
+npm run dev --prefix apps/web
+npm start --prefix apps/desktop
+```
+
+Ask the floor: `Hey PerkOS`, `Wake the team`, `Invite the guest`, `Show the documentation`, `Review the market`, `Stop`.
+
 ## Status
 
 Scaffold for Runtime Agent Week (demo 19 Sep 2026). Spec lives in the PerkOS Obsidian vault under `Hackathons/Runtime-Agent-Week/`.
