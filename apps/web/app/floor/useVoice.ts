@@ -267,19 +267,22 @@ export function useVoice({ onTranscript, onInterrupt, onStatus }: Opts) {
       setStatus("transcribing");
       const form = new FormData();
       form.set("file", blob, "audio.webm");
-      form.set("language", "en");
+      // Idioma del sistema, no "en" fijo: con "en" forzado xAI transcribia el
+      // espanol como portugues o devolvia vacio.
+      form.set("language", (typeof navigator !== "undefined" && navigator.language ? navigator.language.slice(0, 2) : "en"));
       flog("info", `stt -> ${Math.round(blob.size / 1024)} KB`);
       let text = "";
+      let detail = "";
       try {
         const res = await fetch("/api/voice/stt", { method: "POST", body: form });
         const j = await res.json().catch(() => ({}));
         if (!res.ok) flog("error", `stt ${res.status}: ${j.detail || j.error || ""}`);
-        else text = String(j.text || "").trim();
+        else { text = String(j.text || "").trim(); detail = String(j.detail || ""); }
       } catch (e) {
         flog("error", `stt: ${(e as Error).message}`);
       }
       if (statusRef.current !== "transcribing") return; // alguien cambio el estado mientras tanto
-      flog("info", `stt <- ${text || "(empty)"}`);
+      flog("info", `stt <- ${text || `(empty${detail ? ` · ${detail}` : ""})`}`);
       if (!text) { setStatus("idle"); settleRef.current(); return; }
       // beginTurn() pone "thinking"; lo llama el chat via onTranscript.
       onTranscriptRef.current(text);
@@ -357,7 +360,13 @@ export function useVoice({ onTranscript, onInterrupt, onStatus }: Opts) {
   // ---------- API publica ----------
   const toggleTalk = useCallback(() => {
     const st = statusRef.current;
-    if (st === "listening") { stopCapture("user"); return; }
+    if (st === "listening") {
+      // Parar el mic a mano es parar: si el continuo estaba encendido, se apaga,
+      // si no settle() lo volvia a armar 250ms despues del STT.
+      if (continuousRef.current) { continuousRef.current = false; setContinuousState(false); flog("info", "continuous conversation off (stop)"); }
+      stopCapture("user");
+      return;
+    }
     if (st === "thinking" || st === "speaking") {
       // Hablar encima con el boton: mismo efecto que el barge-in por voz.
       turnRef.current += 1;
