@@ -11,6 +11,10 @@ import { useWallet } from "./wallet/context";
 import { flog } from "./log";
 import { useVoice } from "./useVoice";
 
+// Vive lo que vive el modulo (no el componente): un remount no debe volver a
+// pedir la firma del nonce a la wallet despues de un timeout o un rechazo.
+let perkosDeclined = false;
+
 type Team = "hibernated" | "waking" | "ready";
 
 export default function FloorApp() {
@@ -98,15 +102,16 @@ function Shell() {
       setSpeaking(s === "speaking");
     }
   });
-  const { speak, beginTurn, endTurn, interrupt } = voice;
+  const { speak, beginTurn, endTurn } = voice;
   voiceRef.current = { continuous: voice.continuous, listening: voice.status === "listening" };
   touchRef.current = touch;
 
-  // Stop del composer / comando stop: corta chat y voz en curso.
+  // Stop del composer / comando stop: corta chat, voz y escucha, y apaga el
+  // continuo. Antes usaba interrupt(), cuyo settle() volvia a abrir el mic.
   const hush = useCallback(() => {
     abortChat();
-    interrupt();
-  }, [abortChat, interrupt]);
+    voice.stopAll();
+  }, [abortChat, voice]);
 
   // Conversacion: POST /api/chat (Responses API via suscripcion de Grok),
   // SSE de deltas -> caption en vivo + se habla oracion por oracion.
@@ -277,6 +282,11 @@ function Shell() {
         const cur = (await fetch(`/api/perkos/session?wallet=${encodeURIComponent(addr)}`).then((r) => r.json())) as { connected?: boolean; configured?: boolean };
         if (cur.configured === false) { flog("warn", "perkos: session not available on this build"); setPerkos({ connected: false, busy: false, fundingUrl: "", note: "not configured" }); return; }
         if (cur.connected) { flog("info", "perkos: session ok"); setPerkos({ connected: true, busy: false, fundingUrl: "", note: "" }); void fleetAction("status"); return; }
+        // La firma automatica se pide una sola vez: tras un timeout o un rechazo
+        // en la wallet, cada montaje volvia a mandar un pedido a MetaMask.
+        if (perkosDeclined) { flog("info", "perkos: sign-in skipped (declined earlier · Settings > Reconnect)"); setPerkos({ connected: false, busy: false, fundingUrl: "", note: "Reconnect to sign in" }); return; }
+      } else {
+        perkosDeclined = false;
       }
       const n = await fetch(`/api/perkos/nonce?address=${encodeURIComponent(addr)}`);
       const nj = (await n.json().catch(() => ({}))) as { nonce?: string; message?: string; error?: string; detail?: string };
@@ -300,6 +310,7 @@ function Shell() {
       setPerkos({ connected: true, busy: false, fundingUrl: "", note: "" });
       void fleetAction("status");
     } catch (e) {
+      perkosDeclined = true;
       flog("error", `perkos: ${(e as Error).message}`);
       setPerkos({ connected: false, busy: false, fundingUrl: "", note: (e as Error).message });
     }
@@ -493,6 +504,9 @@ function Shell() {
     hush();
     wallet.logout();
     setWho("");
+    // La conversacion es de la cuenta que se va: no debe quedar para la siguiente.
+    setMessages([]);
+    setSplit(false);
     setTeam("hibernated");
     setGuest(false);
     setDocs(false);
@@ -601,6 +615,17 @@ function Shell() {
         <small>0xb200…08108C · tokens, not shares</small>
       </div>
 
+      <div className="core-wrap">
+        <button className={`core ${coreClass}`} type="button" onClick={listen} aria-label="Talk to PerkOS" />
+        <div className="mic-dock">
+          <div className="whisper">{speaking ? "Speaking" : thinking ? "Thinking" : listening ? "Listening" : awake ? "The floor is live" : "Hey PerkOS"}</div>
+        </div>
+      </div>
+
+      {/* Conversacion: transcript + composer viven en una sola columna (.convo)
+          que es la unica duena de posicion y ancho. En idle es solo el composer
+          centrado abajo; en split ocupa la izquierda con un separador. */}
+      <div className={`convo${split ? " split" : ""}`}>
       <div className={`transcript${split ? " on" : ""}`} aria-live="polite">
         {messages.map((m) => (
           <div key={m.id} className={`turn ${m.role}`}>
@@ -611,13 +636,6 @@ function Shell() {
             </div>
           </div>
         ))}
-      </div>
-
-      <div className="core-wrap">
-        <button className={`core ${coreClass}`} type="button" onClick={listen} aria-label="Talk to PerkOS" />
-        <div className="mic-dock">
-          <div className="whisper">{speaking ? "Speaking" : thinking ? "Thinking" : listening ? "Listening" : awake ? "The floor is live" : "Hey PerkOS"}</div>
-        </div>
       </div>
 
       <form
@@ -710,6 +728,7 @@ function Shell() {
         ) : null}
         </div>
       </form>
+      </div>
       <div className="caption">{caption}</div>
       <ErrorDock open={debug} onOpen={setDebug} />
     </div>

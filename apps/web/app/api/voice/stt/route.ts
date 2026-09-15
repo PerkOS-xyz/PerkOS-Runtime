@@ -16,6 +16,7 @@ export async function POST(req: Request) {
   form.set("format", "true");
   if (language) form.set("language", language);
 
+  const t0 = Date.now();
   const res = await fetch(`${XAI_OAUTH_BASE_URL}/stt`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "User-Agent": XAI_USER_AGENT },
@@ -23,6 +24,7 @@ export async function POST(req: Request) {
     signal: AbortSignal.timeout(60_000)
   });
   const raw = await res.text().catch(() => "");
+  const ms = Date.now() - t0;
   if (!res.ok) return Response.json({ error: `xai stt ${res.status}`, detail: raw.slice(0, 600) }, { status: 502 });
   let text = "";
   try {
@@ -31,5 +33,8 @@ export async function POST(req: Request) {
   } catch {
     text = raw;
   }
-  return Response.json({ text: text.trim() });
+  // Un 200 sin texto no distingue "silencio" de "xAI no entendio": se devuelve
+  // el cuerpo crudo (recortado) y el tiempo para verlo en el panel de debug.
+  const detail = text.trim() ? undefined : `${ms} ms · ${res.status} · ${raw.slice(0, 160) || "(no body)"}`;
+  return Response.json({ text: text.trim(), ms, detail });
 }
