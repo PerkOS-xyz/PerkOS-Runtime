@@ -36,3 +36,7 @@ test-results/
 
 # Electron
 apps/desktop/release/
+
+# Log de debug de la UI (apps/web/.floor-debug.log)
+*.floor-debug.log
+.floor-debug.log
