@@ -19,7 +19,13 @@ export type Settings = {
   baseUrl: string;  // solo para "local" (coming soon)
   onboarded: boolean;
   wallet: string;
+  // Template fleet elegido en el wizard (project_templates de PerkOS, kind
+  // fleet). Hoy solo floor-desk; el paso "Choose your team" muestra una card
+  // por template publicado.
+  fleetTemplateId: string;
 };
+
+export const DEFAULT_FLEET_TEMPLATE = "floor-desk";
 
 const dir = join(homedir(), ".perkos-floor");
 const file = join(dir, "settings.json");
@@ -56,10 +62,11 @@ export async function loadSettings(): Promise<Settings> {
       apiKey: typeof raw.apiKey === "string" ? raw.apiKey : "",
       baseUrl: typeof raw.baseUrl === "string" ? raw.baseUrl : "",
       onboarded: Boolean(raw.onboarded),
-      wallet: typeof raw.wallet === "string" ? raw.wallet : ""
+      wallet: typeof raw.wallet === "string" ? raw.wallet : "",
+      fleetTemplateId: typeof raw.fleetTemplateId === "string" && /^[a-z][a-z0-9-]{0,63}$/.test(raw.fleetTemplateId) ? raw.fleetTemplateId : DEFAULT_FLEET_TEMPLATE
     };
   } catch {
-    return { provider: "xai-oauth", model: DEFAULT_MODELS["xai-oauth"], effort: "low", apiKey: "", baseUrl: "", onboarded: false, wallet: "" };
+    return { provider: "xai-oauth", model: DEFAULT_MODELS["xai-oauth"], effort: "low", apiKey: "", baseUrl: "", onboarded: false, wallet: "", fleetTemplateId: DEFAULT_FLEET_TEMPLATE };
   }
 }
 

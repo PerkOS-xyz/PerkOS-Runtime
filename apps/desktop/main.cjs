@@ -79,6 +79,8 @@ async function create() {
     width: 1280,
     height: 800,
     title: "PerkOS Floor",
+    // Linux / Windows toman el icono de la ventana; macOS usa el del Dock (abajo).
+    icon: path.join(__dirname, "icon.png"),
     backgroundColor: "#00000000",
     transparent: true,
     hasShadow: true,
@@ -124,6 +126,11 @@ async function create() {
 }
 
 app.whenReady().then(() => {
+  // En desarrollo Electron muestra su propio icono en el Dock; el .app
+  // empaquetado usara el .icns del bundle. Hasta entonces, el logo de PerkOS.
+  if (mac && app.dock) {
+    try { app.dock.setIcon(path.join(__dirname, "icon.png")); } catch {}
+  }
   // Microfono para el composer (getUserMedia). Electron niega "media" si no hay handler.
   session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => {
     cb(permission === "media" || permission === "clipboard-read");

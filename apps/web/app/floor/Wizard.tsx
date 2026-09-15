@@ -5,10 +5,30 @@ import Ambient from "./Ambient";
 import XaiConnect from "./XaiConnect";
 import { useWallet } from "./wallet/context";
 
-// Pasos: 0 ident cinematografico -> 1 Privy (wallet) -> 2 LLM.
-// El paso 2 solo aparece si no hay LLM conectado en la maquina; FloorApp lo decide.
+// Pasos: 0 ident cinematografico -> 1 Privy (wallet) -> 2 LLM -> 3 equipo.
+// FloorApp decide donde arranca: 2 si falta el LLM, 3 si falta la flota. El
+// paso 3 es onboarding, no escena: la esfera recien aparece con equipo.
 
-export default function Wizard({ onDone, start = 0 }: { onDone: () => void; start?: number }) {
+export type DeskCard = { id: string; name: string; description: string; idleMinutes: number; agents: Array<{ role: string; name: string; duty: string }> };
+export type TeamStep = {
+  /** Una card por template fleet publicado en PerkOS. Hoy: PerkOS Floor desk. */
+  desks: DeskCard[];
+  desk: DeskCard | null;
+  deskNote: string;
+  onSelect: (id: string) => void;
+  perkosConnected: boolean;
+  perkosBusy: boolean;
+  perkosNote: string;
+  fundingUrl: string;
+  paying: boolean;
+  deploying: boolean;
+  onDeploy: () => void;
+  onPay: () => void;
+  onReconnect: () => void;
+  onSkip: () => void;
+};
+
+export default function Wizard({ onDone, start = 0, team }: { onDone: () => void; start?: number; team?: TeamStep }) {
   const [step, setStep] = useState(start);
   if (step === 0) {
     return (
@@ -26,7 +46,7 @@ export default function Wizard({ onDone, start = 0 }: { onDone: () => void; star
       </div>
     );
   }
-  return <Auth step={step} setStep={setStep} onDone={onDone} />;
+  return <Auth step={step} setStep={setStep} onDone={onDone} team={team} />;
 }
 
 type Llm = { provider: string; model: string; connected: boolean };
@@ -38,7 +58,7 @@ const PROVIDERS: Array<{ id: string; label: string; sub: string; soon?: boolean 
   { id: "local", label: "Local", sub: "Ollama / LM Studio", soon: true }
 ];
 
-function Auth({ step, setStep, onDone }: { step: number; setStep: (n: number) => void; onDone: () => void }) {
+function Auth({ step, setStep, onDone, team }: { step: number; setStep: (n: number) => void; onDone: () => void; team?: TeamStep }) {
   const wallet = useWallet();
   const [llm, setLlm] = useState<Llm | null>(null);
 
@@ -64,7 +84,10 @@ function Auth({ step, setStep, onDone }: { step: number; setStep: (n: number) =>
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ wallet: wallet.address, finish: true })
     });
-    onDone();
+    // Con el LLM listo sigue el equipo; FloorApp cierra el wizard cuando la
+    // flota existe (o al saltar el paso).
+    if (team) setStep(3);
+    else onDone();
   }
 
   return (
@@ -112,12 +135,97 @@ function Auth({ step, setStep, onDone }: { step: number; setStep: (n: number) =>
             </ul>
             <div className="row">
               <button type="button" className="cta" disabled={!llm?.connected} onClick={() => void finish()}>
-                Enter Floor
+                {team ? "Continue" : "Enter Floor"}
               </button>
             </div>
           </div>
         ) : null}
+
+        {step === 3 && team ? <TeamCard team={team} /> : null}
       </Ambient>
+    </div>
+  );
+}
+
+/** Paso 3: elegir el equipo. Una card por template fleet de PerkOS (hoy una);
+ *  la elegida muestra sus roles y el boton de deploy bajo la cuenta del usuario. */
+function TeamCard({ team }: { team: TeamStep }) {
+  const { desks, desk, deskNote, perkosConnected, perkosBusy, perkosNote, fundingUrl, paying, deploying } = team;
+  const ready = perkosConnected && !!desk;
+  return (
+    <div className="wizard-card team">
+      <div className="k">YOUR TEAM</div>
+      <b>{desks.length > 1 ? "Choose a team." : "Your first team."}</b>
+      <p className="lead">Teams run on PerkOS infrastructure under your account. They draft; you approve.</p>
+
+      {!perkosConnected ? (
+        <p className="hint-line">
+          {perkosBusy ? "Connecting your PerkOS account… approve the signature in your wallet." : perkosNote || "PerkOS account not connected."}
+        </p>
+      ) : null}
+      {perkosConnected && !desks.length && deskNote ? <p className="hint-line err">{deskNote}</p> : null}
+
+      {desks.length ? (
+        <div className="desk-cards" role="list">
+          {desks.map((d) => {
+            const on = desk?.id === d.id;
+            return (
+              <button
+                key={d.id}
+                type="button"
+                role="listitem"
+                className={`desk-card${on ? " on" : ""}`}
+                aria-pressed={on}
+                onClick={() => team.onSelect(d.id)}
+              >
+                <span className="k">PERKOS TEMPLATE</span>
+                <strong>{d.name}</strong>
+                <span className="desk-desc">{d.description}</span>
+                <span className="desk-roles">
+                  {d.agents.map((a) => (
+                    <span key={a.role} className="tag role">{a.name}</span>
+                  ))}
+                </span>
+                <span className="desk-meta">{d.agents.length} agents · sleeps after {d.idleMinutes} min idle</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {desk ? (
+        <ul className="providers team-roles">
+          {desk.agents.map((a) => (
+            <li key={a.role} className="provider">
+              <div className="provider-head">
+                <span className="provider-name">{a.name}</span>
+                <span className="tag role">{a.role}</span>
+              </div>
+              <small>{a.duty}</small>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      <div className="row">
+        {!perkosConnected && !perkosBusy ? (
+          <button type="button" className="cta" onClick={team.onReconnect}>Connect PerkOS</button>
+        ) : fundingUrl ? (
+          <button type="button" className="cta" disabled={paying} onClick={team.onPay}>
+            {paying ? "Waiting for payment…" : "Activate PerkOS infrastructure"}
+          </button>
+        ) : (
+          <button type="button" className="cta" disabled={!ready || deploying} onClick={team.onDeploy}>
+            {deploying ? "Deploying…" : `Deploy ${desk?.name ?? "team"} on PerkOS`}
+          </button>
+        )}
+      </div>
+      <p className="hint-line">
+        {fundingUrl
+          ? "Opens pay.perkos.xyz in your browser. Card, USDC on Base, or a code. The team deploys as soon as the balance is positive."
+          : "Runs under your account · they draft, you approve."}
+      </p>
+      <button type="button" className="back" onClick={team.onSkip}>Enter Floor without a team</button>
     </div>
   );
 }

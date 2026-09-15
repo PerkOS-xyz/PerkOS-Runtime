@@ -21,7 +21,9 @@ export async function POST(req: Request) {
   const wallet = typeof body.wallet === "string" ? body.wallet.trim() : cur.wallet;
   const onboarded = body.finish === true ? true : cur.onboarded;
   const effort: Effort = body.effort === "low" || body.effort === "medium" || body.effort === "high" ? body.effort : cur.effort;
-  const next: Settings = { provider, model, effort, apiKey, baseUrl, wallet, onboarded };
+  const fleetTemplateId =
+    typeof body.fleetTemplateId === "string" && /^[a-z][a-z0-9-]{0,63}$/.test(body.fleetTemplateId) ? body.fleetTemplateId : cur.fleetTemplateId;
+  const next: Settings = { provider, model, effort, apiKey, baseUrl, wallet, onboarded, fleetTemplateId };
   await saveSettings(next);
   return Response.json(publicSettings(next));
 }

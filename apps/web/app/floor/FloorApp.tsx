@@ -38,6 +38,9 @@ function Shell() {
   const [splash, setSplash] = useState(false);
   const [wizard, setWizard] = useState(false);
   const [wizardStart, setWizardStart] = useState(0);
+  // Cambia en cada logout: fuerza el remount del wizard aunque el paso de
+  // arranque no cambie (el wizard guarda el paso en su propio estado).
+  const [wizardEpoch, setWizardEpoch] = useState(0);
   const [booted, setBooted] = useState(false);
   const [settings, setSettings] = useState(false);
   // Panel de debug (derecha). Oculto por defecto; persiste; Settings o Cmd/Ctrl+Shift+D.
@@ -255,25 +258,30 @@ function Shell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Card del template (nombre, agentes, duty). La API la publica desde Admin;
-  // sin ella el desk no se puede desplegar y la card lo dice.
-  const [desk, setDesk] = useState<DeskTemplate | null>(null);
+  // Templates fleet publicados en PerkOS (una card por template; hoy solo
+  // floor-desk). `deskId` es la card elegida; `desk` la derivada.
+  const [desks, setDesks] = useState<DeskTemplate[]>([]);
+  const [deskId, setDeskId] = useState("floor-desk");
   const [deskNote, setDeskNote] = useState("");
-  const loadDesk = useCallback(async () => {
+  const desk = desks.find((d) => d.id === deskId) ?? desks[0] ?? null;
+  const loadDesks = useCallback(async () => {
     try {
-      const res = await fetch(`/api/fleet/template?lang=${encodeURIComponent((navigator.language || "en").slice(0, 2))}`);
-      const j = (await res.json().catch(() => ({}))) as DeskTemplate & { error?: string; detail?: string };
+      const res = await fetch(`/api/fleet/templates?lang=${encodeURIComponent((navigator.language || "en").slice(0, 2))}`);
+      const j = (await res.json().catch(() => ({}))) as { templates?: DeskTemplate[]; selected?: string; error?: string; detail?: string };
       if (!res.ok) {
-        setDesk(null);
-        setDeskNote(res.status === 404 ? "Team template not published yet" : j.detail || j.error || "template unavailable");
-        flog(res.status === 404 ? "warn" : "error", `desk template ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`);
+        setDesks([]);
+        setDeskNote(j.detail || j.error || "templates unavailable");
+        flog("error", `desk templates ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`);
         return;
       }
-      setDesk(j);
-      setDeskNote("");
-      flog("info", `desk template: ${j.id} r${j.revision} · ${j.agents.length} agents`);
+      const list = j.templates ?? [];
+      setDesks(list);
+      if (j.selected && list.some((d) => d.id === j.selected)) setDeskId(j.selected);
+      else if (list[0]) setDeskId(list[0].id);
+      setDeskNote(list.length ? "" : "No team template published yet");
+      flog(list.length ? "info" : "warn", `desk templates: ${list.map((d) => `${d.id} r${d.revision} (${d.agents.length})`).join(", ") || "none"}`);
     } catch (e) {
-      flog("error", `desk template: ${(e as Error).message}`);
+      flog("error", `desk templates: ${(e as Error).message}`);
     }
   }, []);
 
@@ -283,6 +291,10 @@ function Shell() {
   // reintenta el deploy solo. Sin deep link de vuelta: el polling alcanza.
   const payPollRef = useRef(0);
   const fleetActionRef = useRef<(a: "status" | "wake" | "hibernate") => Promise<void>>(async () => undefined);
+  const wizardRef = useRef(false);
+  wizardRef.current = wizard;
+  const deskIdRef = useRef("floor-desk");
+  deskIdRef.current = deskId;
   const [paying, setPaying] = useState(false);
   const stopPayPoll = useCallback(() => { window.clearTimeout(payPollRef.current); payPollRef.current = 0; setPaying(false); }, []);
   const openPay = useCallback(async () => {
@@ -322,10 +334,16 @@ function Shell() {
     try {
       const res = action === "status"
         ? await fetch("/api/fleet")
-        : await fetch("/api/fleet", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
+        : await fetch("/api/fleet", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, templateId: deskIdRef.current }) });
       const j = (await res.json().catch(() => ({}))) as Fleet & { error?: string; detail?: string };
       if (!res.ok) {
-        if (res.status === 402) { setPerkos((p) => ({ ...p, fundingUrl: "https://pay.perkos.xyz", note: "Activate PerkOS infrastructure" })); setCaption("Activate PerkOS infrastructure to run the team"); }
+        if (res.status === 402) {
+          setPerkos((p) => ({ ...p, fundingUrl: "https://pay.perkos.xyz", note: "Activate PerkOS infrastructure" }));
+          setCaption("Activate PerkOS infrastructure to run the team");
+          // Desde la escena (comando "wake") no hay boton: abrir el pago directo.
+          // En el wizard el paso "Your team" muestra el boton y la persona decide.
+          if (action === "wake" && !wizardRef.current) void openPay();
+        }
         if (res.status === 404) setCaption("Team template not published yet");
         flog(res.status === 402 ? "warn" : "error", `fleet ${action} ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`);
         if (action === "wake") setTeam("hibernated");
@@ -348,7 +366,7 @@ function Shell() {
       if (!force) {
         const cur = (await fetch(`/api/perkos/session?wallet=${encodeURIComponent(addr)}`).then((r) => r.json())) as { connected?: boolean; configured?: boolean };
         if (cur.configured === false) { flog("warn", "perkos: session not available on this build"); setPerkos({ connected: false, busy: false, fundingUrl: "", note: "not configured" }); return; }
-        if (cur.connected) { flog("info", "perkos: session ok"); setPerkos({ connected: true, busy: false, fundingUrl: "", note: "" }); void loadDesk(); void fleetAction("status"); return; }
+        if (cur.connected) { flog("info", "perkos: session ok"); setPerkos({ connected: true, busy: false, fundingUrl: "", note: "" }); void loadDesks(); void fleetAction("status"); return; }
         // La firma automatica se pide una sola vez: tras un timeout o un rechazo
         // en la wallet, cada montaje volvia a mandar un pedido a MetaMask.
         if (perkosDeclined) { flog("info", "perkos: sign-in skipped (declined earlier · Settings > Reconnect)"); setPerkos({ connected: false, busy: false, fundingUrl: "", note: "Reconnect to sign in" }); return; }
@@ -375,14 +393,14 @@ function Shell() {
       if (!r.ok) { flog("error", `perkos signin ${r.status}: ${rj.error ?? ""} ${rj.detail ?? ""}`); setPerkos({ connected: false, busy: false, fundingUrl: "", note: rj.detail || rj.error || "sign-in failed" }); return; }
       flog("info", "perkos: signed in");
       setPerkos({ connected: true, busy: false, fundingUrl: "", note: "" });
-      void loadDesk();
+      void loadDesks();
       void fleetAction("status");
     } catch (e) {
       perkosDeclined = true;
       flog("error", `perkos: ${(e as Error).message}`);
       setPerkos({ connected: false, busy: false, fundingUrl: "", note: (e as Error).message });
     }
-  }, [wallet, fleetAction, loadDesk]);
+  }, [wallet, fleetAction, loadDesks]);
   const ensurePerkosRef = useRef(ensurePerkos);
   ensurePerkosRef.current = ensurePerkos;
 
@@ -465,12 +483,10 @@ function Shell() {
           applyWho(s);
           flog("info", `llm status: ${llm?.connected ? "connected" : "not connected"}`);
           void ensurePerkosRef.current();
-          if (llm?.connected) {
-            setWizard(false);
-          } else {
-            setWizardStart(2);
-            setWizard(true);
-          }
+          // Con LLM, el wizard sigue en el paso del equipo (3): se cierra solo
+          // en cuanto la flota existe (ver effect mas abajo) o al saltarlo.
+          setWizardStart(llm?.connected ? 3 : 2);
+          setWizard(true);
           setSplash(false);
           setBooted(true);
         })
@@ -495,6 +511,17 @@ function Shell() {
         setBooted(true);
       });
   }, [wallet.loaded, wallet.connected, wallet.address]);
+
+  // El paso "Your team" termina cuando hay flota (aunque este provisionando):
+  // la escena con las orbs es donde se ve el progreso.
+  const [teamSkipped, setTeamSkipped] = useState(false);
+  useEffect(() => {
+    if (!wizard || wizardStart !== 3) return;
+    if (teamSkipped || (fleet && fleet.status !== "none")) {
+      setWizard(false);
+      setSplash(false);
+    }
+  }, [wizard, wizardStart, fleet, teamSkipped]);
 
   useEffect(() => {
     // El long-poll del bridge de voz (apps/voice) ocupa una conexion 20 s por
@@ -567,11 +594,21 @@ function Shell() {
     flog("info", "logout: privy + wallet + PerkOS session cleared, LLM kept");
     void fetch("/api/perkos/session", { method: "DELETE" });
     setPerkos({ connected: false, busy: false, fundingUrl: "", note: "" });
+    perkosDeclined = false;
     setFleet(null);
+    setDesks([]);
+    setDeskNote("");
+    setTeamSkipped(false);
     window.clearTimeout(pollRef.current);
     stopPayPoll();
     hush();
+    // Privy tarda varios segundos en cerrar la sesion; no esperarlo: la
+    // bienvenida con el logo aparece ya, y el wizard se remonta en el paso 0.
     wallet.logout();
+    setWizardStart(0);
+    setWizardEpoch((e) => e + 1);
+    setWizard(true);
+    setSplash(false);
     setWho("");
     // La conversacion es de la cuenta que se va: no debe quedar para la siguiente.
     setMessages([]);
@@ -623,6 +660,7 @@ function Shell() {
           </div>
         ) : null}
         <Wizard
+          key={`${wizardStart}:${wizardEpoch}`}
           start={wizardStart}
           onDone={() => {
             setWizard(false);
@@ -630,6 +668,22 @@ function Shell() {
             void fetch("/api/settings")
               .then((r) => r.json())
               .then(applyWho);
+          }}
+          team={{
+            desks,
+            desk,
+            deskNote,
+            onSelect: (id: string) => { setDeskId(id); setFleet(null); void fleetActionRef.current("status"); },
+            perkosConnected: perkos.connected,
+            perkosBusy: perkos.busy,
+            perkosNote: perkos.note,
+            fundingUrl: perkos.fundingUrl,
+            paying,
+            deploying: team === "waking",
+            onDeploy: () => { setTeam("waking"); setCaption("Deploying your team on PerkOS…"); void fleetAction("wake"); },
+            onPay: () => void openPay(),
+            onReconnect: () => void ensurePerkos(true),
+            onSkip: () => { setTeamSkipped(true); void fetch("/api/settings").then((r) => r.json()).then(applyWho); }
           }}
         />
         <ErrorDock open={debug} onOpen={setDebug} />
@@ -684,48 +738,8 @@ function Shell() {
         <small>0xb200…08108C · tokens, not shares</small>
       </div>
 
-      {/* Template del desk: aparece con sesion PerkOS y sin flota creada.
-          "Deploy" = instantiate en la API bajo la wallet del usuario; las orbs
-          muestran el progreso y la card se retira cuando hay agentes. */}
-      <div className={`slab desk${perkos.connected && !split && !settings && (desk || deskNote) && (!fleet || fleet.status === "none") ? " on" : ""}`}>
-        <div className="k">PERKOS FLOOR · TEMPLATE</div>
-        {desk ? (
-          <>
-            <b>{desk.name}</b>
-            <small>{desk.description}</small>
-            <ul className="desk-agents">
-              {desk.agents.map((a) => (
-                <li key={a.role}><span>{a.name}</span> {a.duty}</li>
-              ))}
-            </ul>
-            {perkos.fundingUrl ? (
-              <>
-                <button type="button" className="cta" disabled={paying} onClick={() => void openPay()}>
-                  {paying ? "Waiting for payment…" : "Activate PerkOS infrastructure"}
-                </button>
-                <small className="desk-foot">Opens pay.perkos.xyz in your browser · card or USDC on Base · the team deploys as soon as the balance is positive</small>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  className="cta"
-                  disabled={team === "waking"}
-                  onClick={() => { setTeam("waking"); setCaption("Deploying your team on PerkOS…"); void fleetAction("wake"); }}
-                >
-                  {team === "waking" ? "Deploying…" : "Deploy on PerkOS"}
-                </button>
-                <small className="desk-foot">Runs under your account · sleeps after {desk.idleMinutes} min idle · they draft, you approve</small>
-              </>
-            )}
-          </>
-        ) : (
-          <>
-            <b>Team template</b>
-            <small>{deskNote}</small>
-          </>
-        )}
-      </div>
+      {/* El template del desk vive en el wizard (paso "Your team"): la escena
+          solo se ve con equipo. Un "wake" por voz con 402 abre el pago directo. */}
 
       <div className="core-wrap">
         <button className={`core ${coreClass}`} type="button" onClick={listen} aria-label="Talk to PerkOS" />
