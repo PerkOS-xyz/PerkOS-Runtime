@@ -1,16 +1,16 @@
 import { getPerkosIdToken, perkosRequest, PerkosApiError } from "./perkosApi";
 
-// Flota de Floor en PerkOS infra, como EQLTY (API/src/perkos-fleet.ts) pero
-// propia: cuatro Hermes por usuario (floor-scout/risk/trader/auditor-<wallet>),
-// sin ENS/Durin ni 1Claw. La API de PerkOS hace el trabajo pesado:
-//   GET  /runtimes                      imagen Hermes publica
-//   GET  /agents                        los del usuario
-//   POST /agents/launch                 crear (perkos-managed; 402 sin creditos)
-//   GET  /agents/:id/hibernation        estado
-//   POST /agents/:id/ensure-awake       despertar
-//   POST /agents/:id/activity           extiende la ventana de idle
-//   POST /agents/:id/hibernate          dormir
-//   POST /agents/:id/task {prompt}      hablar con el agente
+// Flota de Floor en PerkOS infra: el template `floor-desk` (project_templates,
+// kind fleet) vive en la API y lo publica Admin; los souls ya no viajan en el
+// app. La API orquesta la flota bajo la wallet del usuario:
+//   GET  /project-templates/:id            que es el desk (card)
+//   GET  /project-templates/:id/instance   estado de mis agentes (no lanza)
+//   POST /project-templates/:id/instantiate crea los que faltan, despierta los
+//                                          dormidos (402 antes de lanzar nada)
+//   GET  /agents · POST /agents/:id/hibernate · POST /agents/:id/task  (por rol)
+// Nombres: `<prefix>-<role>-<wallet8>`, los mismos que calcula la API.
+
+export const FLEET_TEMPLATE_ID = (process.env.PERKOS_FLEET_TEMPLATE || "floor-desk").trim();
 
 export type FleetRole = "scout" | "risk" | "trader" | "auditor";
 export const FLEET_ROLES: FleetRole[] = ["scout", "risk", "trader", "auditor"];
@@ -18,35 +18,45 @@ export const FLEET_ROLES: FleetRole[] = ["scout", "risk", "trader", "auditor"];
 export type AgentState = "planned" | "provisioning" | "waking" | "ready" | "hibernated" | "failed";
 export type FleetAgent = { role: FleetRole; name: string; agentId?: string; state: AgentState; detail?: string };
 export type FleetStatus = "none" | "provisioning" | "waking" | "ready" | "partial" | "hibernated";
-export type Fleet = { status: FleetStatus; agents: FleetAgent[]; imageTag?: string; wallet: string };
+export type Fleet = { status: FleetStatus; agents: FleetAgent[]; imageTag?: string; wallet: string; projectId?: string; templateId?: string };
 
-type ApiAgent = { id: string; name: string; runtime: "Hermes" | "OpenClaw" | string; status: "provisioning" | "ready" | "failed" | "unknown" | string };
-type Hibernation = { state: "active" | "hibernating" | "hibernated" | "waking"; desiredCount: number; runningCount: number; pendingCount: number };
-type EnsureAwake = { finalState?: Hibernation["state"]; online?: boolean; triggeredWake?: boolean };
-type Launch = { launchId: string; result?: { status?: string; jobId?: string | null; agent?: ApiAgent } };
-
-export function fleetName(role: FleetRole, wallet: string): string {
-  return `floor-${role}-${wallet.toLowerCase().replace(/^0x/, "").slice(-8)}`;
-}
-
-const DUTY: Record<FleetRole, string> = {
-  scout: "Find opportunities: markets, tokens, projects and signals on Base. Cite what you saw and how fresh it is.",
-  risk: "Size and limit. Check liquidity, freshness, policy and exposure before anything is drafted. You can block.",
-  trader: "Draft orders and routes only. You never execute or move funds; the human approves every draft.",
-  auditor: "Reconcile: what was asked, what was drafted, what evidence supports it, what is missing. Keep the record."
+/** Lo que Floor muestra en la card del template (sin souls). */
+export type DeskTemplate = {
+  id: string;
+  revision: number;
+  name: string;
+  description: string;
+  idleMinutes: number;
+  agents: Array<{ role: string; name: string; duty: string }>;
 };
 
-export function roleSoul(role: FleetRole, wallet: string): string {
-  return [
-    `# PerkOS Floor · ${role}`,
-    "",
-    `You are the ${role} teammate on the PerkOS Floor desk of ${wallet}. The desk runs on PerkOS infrastructure on Base.`,
-    "",
-    DUTY[role],
-    "",
-    "You draft; the human approves. Never spend, sign or move funds. Never claim evidence a tool did not return.",
-    "Reply in plain text, under 120 words, in the language of the request, as a short handoff to the desk."
-  ].join("\n");
+type Localized = { en: string; es: string; [k: string]: string };
+type ApiTemplate = {
+  revision: number;
+  activation: string;
+  template: {
+    id: string;
+    kind: string;
+    name: Localized;
+    description: Localized;
+    namePrefix: string;
+    idleMinutes: number;
+    agents: Array<{ role: string; name: Localized; duty: Localized }>;
+  };
+};
+type ApiInstance = {
+  templateId: string;
+  revision: number;
+  projectId: string;
+  wallet: string;
+  status: FleetStatus;
+  imageTag?: string;
+  agents: Array<{ role: string; name: string; agentId?: string; state: AgentState; detail?: string }>;
+};
+type ApiAgent = { id: string; name: string; runtime: "Hermes" | "OpenClaw" | string; status: "provisioning" | "ready" | "failed" | "unknown" | string };
+
+export function fleetName(role: FleetRole, wallet: string, prefix = "floor"): string {
+  return `${prefix}-${role}-${wallet.toLowerCase().replace(/^0x/, "").slice(-8)}`;
 }
 
 async function token(wallet: string): Promise<string> {
@@ -55,22 +65,52 @@ async function token(wallet: string): Promise<string> {
   return t.idToken;
 }
 
-async function latestHermesImage(): Promise<string> {
-  const r = await perkosRequest<{ runtimes: Array<{ runtime: string; primaryTag?: string; channel?: string }> }>("/runtimes");
-  const img = r.runtimes.find((x) => x.runtime === "Hermes" && x.channel === "public" && x.primaryTag);
-  if (!img?.primaryTag) throw new Error("PerkOS has no public Hermes runtime image");
-  return img.primaryTag;
+function text(l: Localized | undefined, lang = "en"): string {
+  return l?.[lang] ?? l?.en ?? "";
 }
 
-function summarize(agents: FleetAgent[], wallet: string, imageTag?: string): Fleet {
-  const status: FleetStatus =
-    agents.every((a) => a.state === "planned") ? "none"
-    : agents.every((a) => a.state === "ready") ? "ready"
-    : agents.every((a) => a.state === "hibernated" || a.state === "planned") ? "hibernated"
-    : agents.some((a) => a.state === "failed") ? "partial"
-    : agents.some((a) => a.state === "provisioning") ? "provisioning"
-    : "waking";
-  return { status, agents, imageTag, wallet };
+function fromInstance(i: ApiInstance): Fleet {
+  return {
+    status: i.status,
+    wallet: i.wallet,
+    imageTag: i.imageTag,
+    projectId: i.projectId,
+    templateId: i.templateId,
+    agents: i.agents
+      .filter((a): a is ApiInstance["agents"][number] & { role: FleetRole } => (FLEET_ROLES as string[]).includes(a.role))
+      .map((a) => ({ role: a.role, name: a.name, agentId: a.agentId, state: a.state, detail: a.detail }))
+  };
+}
+
+/** Card: el template publicado. 404 si Admin aun no lo publico. */
+export async function deskTemplate(wallet: string, lang = "en"): Promise<DeskTemplate> {
+  const idToken = await token(wallet);
+  const r = await perkosRequest<ApiTemplate>(`/project-templates/${encodeURIComponent(FLEET_TEMPLATE_ID)}`, { idToken, timeoutMs: 15_000 });
+  const t = r.template;
+  return {
+    id: t.id,
+    revision: r.revision,
+    name: text(t.name, lang),
+    description: text(t.description, lang),
+    idleMinutes: t.idleMinutes,
+    agents: t.agents.map((a) => ({ role: a.role, name: text(a.name, lang), duty: text(a.duty, lang) }))
+  };
+}
+
+/** Estado de las orbs; no lanza ni despierta nada. */
+export async function fleetStatus(wallet: string): Promise<Fleet> {
+  const idToken = await token(wallet);
+  const i = await perkosRequest<ApiInstance>(`/project-templates/${encodeURIComponent(FLEET_TEMPLATE_ID)}/instance`, { idToken, timeoutMs: 30_000 });
+  return fromInstance(i);
+}
+
+/** "Deploy / Wake the team": la API crea los que falten y despierta los dormidos. */
+export async function wakeFleet(wallet: string): Promise<Fleet> {
+  const idToken = await token(wallet);
+  const i = await perkosRequest<ApiInstance>(`/project-templates/${encodeURIComponent(FLEET_TEMPLATE_ID)}/instantiate`, {
+    idToken, method: "POST", body: "{}", timeoutMs: 90_000
+  });
+  return fromInstance(i);
 }
 
 async function listMine(idToken: string, wallet: string): Promise<Map<FleetRole, ApiAgent>> {
@@ -84,80 +124,15 @@ async function listMine(idToken: string, wallet: string): Promise<Map<FleetRole,
   return out;
 }
 
-/** Estado sin tocar nada (para las orbs). */
-export async function fleetStatus(wallet: string): Promise<Fleet> {
-  const idToken = await token(wallet);
-  const mine = await listMine(idToken, wallet);
-  const agents = await Promise.all(
-    FLEET_ROLES.map(async (role): Promise<FleetAgent> => {
-      const name = fleetName(role, wallet);
-      const cur = mine.get(role);
-      if (!cur) return { role, name, state: "planned" };
-      if (cur.status !== "ready") return { role, name, agentId: cur.id, state: cur.status === "failed" ? "failed" : "provisioning" };
-      try {
-        const h = await perkosRequest<Hibernation>(`/agents/${encodeURIComponent(cur.id)}/hibernation`, { idToken, timeoutMs: 10_000 });
-        if (h.state === "active" && h.runningCount > 0) return { role, name, agentId: cur.id, state: "ready" };
-        if (h.state === "waking" || (h.desiredCount > 0 && h.runningCount === 0)) return { role, name, agentId: cur.id, state: "waking" };
-        return { role, name, agentId: cur.id, state: "hibernated" };
-      } catch (e) {
-        return { role, name, agentId: cur.id, state: "ready", detail: (e as Error).message };
-      }
-    })
-  );
-  return summarize(agents, wallet);
-}
-
-/** "Wake the team": crea los que falten, despierta los dormidos. */
-export async function wakeFleet(wallet: string): Promise<Fleet> {
-  const idToken = await token(wallet);
-  const mine = await listMine(idToken, wallet);
-  const missing = FLEET_ROLES.filter((r) => !mine.has(r));
-  const imageTag = missing.length ? await latestHermesImage() : undefined;
-  const agents = await Promise.all(
-    FLEET_ROLES.map(async (role): Promise<FleetAgent> => {
-      const name = fleetName(role, wallet);
-      const cur = mine.get(role);
-      if (!cur) {
-        const launch = await perkosRequest<Launch>("/agents/launch", {
-          idToken,
-          method: "POST",
-          timeoutMs: 30_000,
-          body: JSON.stringify({
-            walletAddress: wallet.toLowerCase(),
-            runtime: "Hermes",
-            name,
-            plugins: [],
-            skills: [],
-            deployMode: "perkos-managed",
-            imageTag,
-            soul: roleSoul(role, wallet),
-            disabledTools: ["code-execution"]
-          })
-        });
-        return { role, name, agentId: launch.result?.agent?.id, state: launch.result?.status === "ready" ? "ready" : "provisioning" };
-      }
-      if (cur.status !== "ready") return { role, name, agentId: cur.id, state: cur.status === "failed" ? "failed" : "provisioning" };
-      const h = await perkosRequest<Hibernation>(`/agents/${encodeURIComponent(cur.id)}/hibernation`, { idToken, timeoutMs: 10_000 });
-      if (h.state === "active" && h.runningCount > 0) {
-        void touch(cur.id, idToken);
-        return { role, name, agentId: cur.id, state: "ready" };
-      }
-      if (h.state === "waking" || (h.desiredCount > 0 && h.runningCount === 0)) {
-        void touch(cur.id, idToken);
-        return { role, name, agentId: cur.id, state: "waking" };
-      }
-      const awake = await perkosRequest<EnsureAwake>(`/agents/${encodeURIComponent(cur.id)}/ensure-awake`, {
-        idToken, method: "POST", timeoutMs: 30_000, body: JSON.stringify({ waitForRunning: false })
-      });
-      void touch(cur.id, idToken);
-      return { role, name, agentId: cur.id, state: awake.online || awake.finalState === "active" ? "ready" : "waking" };
-    })
-  );
-  return summarize(agents, wallet, imageTag);
-}
-
-async function touch(agentId: string, idToken: string): Promise<void> {
-  try { await perkosRequest(`/agents/${encodeURIComponent(agentId)}/activity`, { idToken, method: "POST", body: "{}", timeoutMs: 10_000 }); } catch {}
+function summarize(agents: FleetAgent[], wallet: string): Fleet {
+  const status: FleetStatus =
+    agents.every((a) => a.state === "planned") ? "none"
+    : agents.every((a) => a.state === "ready") ? "ready"
+    : agents.every((a) => a.state === "hibernated" || a.state === "planned") ? "hibernated"
+    : agents.some((a) => a.state === "failed") ? "partial"
+    : agents.some((a) => a.state === "provisioning") ? "provisioning"
+    : "waking";
+  return { status, agents, wallet };
 }
 
 /** "Stop": hiberna los que esten despiertos. */

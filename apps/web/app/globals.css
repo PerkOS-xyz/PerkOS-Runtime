@@ -889,3 +889,16 @@ button.cta:disabled { animation: none; opacity: 0.45; cursor: default; box-shado
   .stage.split .who > span { display: none; }
   .stage.split .ask-btn { width: 34px; height: 34px; }
 }
+
+/* ---- Card del template del desk (idle, con sesion PerkOS y sin flota) ---- */
+.slab.desk { left: 50%; top: auto; bottom: 200px; width: min(420px, calc(100% - 48px)); transform: translate(-50%, 8px); }
+.slab.desk.on { transform: translate(-50%, 0); }
+.desk-agents { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; font-size: 11px; line-height: 1.4; color: #c5d2ee; }
+.desk-agents span { color: #ff5a6a; letter-spacing: 0.1em; text-transform: uppercase; font-size: 9px; margin-right: 6px; }
+.slab.desk button.cta { margin-top: 14px; padding: 9px 18px; }
+.slab.desk .desk-foot { display: block; margin-top: 10px; }
+/* En split la card no compite con el transcript; en compacto va sobre el composer. */
+.stage.split .slab.desk { opacity: 0; pointer-events: none; }
+@container stage (max-width: 560px) {
+  .slab.desk { bottom: 190px; }
+}

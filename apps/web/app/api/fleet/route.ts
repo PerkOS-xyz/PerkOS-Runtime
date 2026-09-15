@@ -6,6 +6,8 @@ function fail(e: unknown) {
   if (e instanceof PerkosApiError) {
     if (e.status === 402) return Response.json({ error: "infra_payment_required", detail: e.message }, { status: 402 });
     if (e.status === 401) return Response.json({ error: "perkos_session_required", detail: e.message }, { status: 401 });
+    // El template floor-desk aun no esta publicado desde Admin.
+    if (e.status === 404) return Response.json({ error: "template_unpublished", detail: e.message }, { status: 404 });
     return Response.json({ error: e.code ?? "fleet_failed", detail: e.message }, { status: e.status });
   }
   return Response.json({ error: "fleet_failed", detail: (e as Error).message }, { status: 502 });

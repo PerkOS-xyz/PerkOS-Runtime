@@ -60,6 +60,8 @@ function Shell() {
   // Sesion PerkOS (firma del nonce con la wallet Privy) + flota Hermes en PerkOS infra.
   type FleetAgent = { role: "scout" | "risk" | "trader" | "auditor"; name: string; agentId?: string; state: "planned" | "provisioning" | "waking" | "ready" | "hibernated" | "failed"; detail?: string };
   type Fleet = { status: "none" | "provisioning" | "waking" | "ready" | "partial" | "hibernated"; agents: FleetAgent[] };
+  // Espejo de DeskTemplate (app/lib/fleet.ts) sin importar codigo server-only.
+  type DeskTemplate = { id: string; revision: number; name: string; description: string; idleMinutes: number; agents: Array<{ role: string; name: string; duty: string }> };
   const [perkos, setPerkos] = useState<{ connected: boolean; busy: boolean; fundingUrl: string; note: string }>({ connected: false, busy: false, fundingUrl: "", note: "" });
   const [fleet, setFleet] = useState<Fleet | null>(null);
   const fleetRef = useRef<Fleet | null>(null);
@@ -253,6 +255,28 @@ function Shell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Card del template (nombre, agentes, duty). La API la publica desde Admin;
+  // sin ella el desk no se puede desplegar y la card lo dice.
+  const [desk, setDesk] = useState<DeskTemplate | null>(null);
+  const [deskNote, setDeskNote] = useState("");
+  const loadDesk = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/fleet/template?lang=${encodeURIComponent((navigator.language || "en").slice(0, 2))}`);
+      const j = (await res.json().catch(() => ({}))) as DeskTemplate & { error?: string; detail?: string };
+      if (!res.ok) {
+        setDesk(null);
+        setDeskNote(res.status === 404 ? "Team template not published yet" : j.detail || j.error || "template unavailable");
+        flog(res.status === 404 ? "warn" : "error", `desk template ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`);
+        return;
+      }
+      setDesk(j);
+      setDeskNote("");
+      flog("info", `desk template: ${j.id} r${j.revision} · ${j.agents.length} agents`);
+    } catch (e) {
+      flog("error", `desk template: ${(e as Error).message}`);
+    }
+  }, []);
+
   const fleetAction = useCallback(async (action: "status" | "wake" | "hibernate") => {
     try {
       const res = action === "status"
@@ -261,6 +285,7 @@ function Shell() {
       const j = (await res.json().catch(() => ({}))) as Fleet & { error?: string; detail?: string };
       if (!res.ok) {
         if (res.status === 402) { setPerkos((p) => ({ ...p, fundingUrl: "https://perkos.xyz" })); setCaption("Activate PerkOS infrastructure to run the team"); }
+        if (res.status === 404) setCaption("Team template not published yet");
         flog(res.status === 402 ? "warn" : "error", `fleet ${action} ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`);
         if (action === "wake") setTeam("hibernated");
         return;
@@ -281,7 +306,7 @@ function Shell() {
       if (!force) {
         const cur = (await fetch(`/api/perkos/session?wallet=${encodeURIComponent(addr)}`).then((r) => r.json())) as { connected?: boolean; configured?: boolean };
         if (cur.configured === false) { flog("warn", "perkos: session not available on this build"); setPerkos({ connected: false, busy: false, fundingUrl: "", note: "not configured" }); return; }
-        if (cur.connected) { flog("info", "perkos: session ok"); setPerkos({ connected: true, busy: false, fundingUrl: "", note: "" }); void fleetAction("status"); return; }
+        if (cur.connected) { flog("info", "perkos: session ok"); setPerkos({ connected: true, busy: false, fundingUrl: "", note: "" }); void loadDesk(); void fleetAction("status"); return; }
         // La firma automatica se pide una sola vez: tras un timeout o un rechazo
         // en la wallet, cada montaje volvia a mandar un pedido a MetaMask.
         if (perkosDeclined) { flog("info", "perkos: sign-in skipped (declined earlier · Settings > Reconnect)"); setPerkos({ connected: false, busy: false, fundingUrl: "", note: "Reconnect to sign in" }); return; }
@@ -308,13 +333,14 @@ function Shell() {
       if (!r.ok) { flog("error", `perkos signin ${r.status}: ${rj.error ?? ""} ${rj.detail ?? ""}`); setPerkos({ connected: false, busy: false, fundingUrl: "", note: rj.detail || rj.error || "sign-in failed" }); return; }
       flog("info", "perkos: signed in");
       setPerkos({ connected: true, busy: false, fundingUrl: "", note: "" });
+      void loadDesk();
       void fleetAction("status");
     } catch (e) {
       perkosDeclined = true;
       flog("error", `perkos: ${(e as Error).message}`);
       setPerkos({ connected: false, busy: false, fundingUrl: "", note: (e as Error).message });
     }
-  }, [wallet, fleetAction]);
+  }, [wallet, fleetAction, loadDesk]);
   const ensurePerkosRef = useRef(ensurePerkos);
   ensurePerkosRef.current = ensurePerkos;
 
@@ -613,6 +639,38 @@ function Shell() {
         <div className="k">B20</div>
         <b>NVDAc</b>
         <small>0xb200…08108C · tokens, not shares</small>
+      </div>
+
+      {/* Template del desk: aparece con sesion PerkOS y sin flota creada.
+          "Deploy" = instantiate en la API bajo la wallet del usuario; las orbs
+          muestran el progreso y la card se retira cuando hay agentes. */}
+      <div className={`slab desk${perkos.connected && !split && !settings && (desk || deskNote) && (!fleet || fleet.status === "none") ? " on" : ""}`}>
+        <div className="k">PERKOS FLOOR · TEMPLATE</div>
+        {desk ? (
+          <>
+            <b>{desk.name}</b>
+            <small>{desk.description}</small>
+            <ul className="desk-agents">
+              {desk.agents.map((a) => (
+                <li key={a.role}><span>{a.name}</span> {a.duty}</li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              className="cta"
+              disabled={team === "waking"}
+              onClick={() => { setTeam("waking"); setCaption("Deploying your team on PerkOS…"); void fleetAction("wake"); }}
+            >
+              {team === "waking" ? "Deploying…" : "Deploy on PerkOS"}
+            </button>
+            <small className="desk-foot">Runs under your account · sleeps after {desk.idleMinutes} min idle · they draft, you approve</small>
+          </>
+        ) : (
+          <>
+            <b>Team template</b>
+            <small>{deskNote}</small>
+          </>
+        )}
       </div>
 
       <div className="core-wrap">
