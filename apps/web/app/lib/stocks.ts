@@ -107,12 +107,18 @@ export async function resolveStock(query: string): Promise<Stock | null> {
   const q = query.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
   if (!q) return null;
   const stocks = await listStocks();
-  const exact = stocks.find((s) => s.symbol.toLowerCase() === q);
-  if (exact) return withDecimals(exact);
+  // Un simbolo on-chain exacto (NVDAc, ANVDA, WTGRND) gana; "NVDA" solo es el
+  // ticker (Dinari tambien lo usa como simbolo), asi que se resuelve por
+  // ticker con preferencia por el B20 de Coinbase.
+  const exact = stocks.filter((s) => s.symbol.toLowerCase() === q);
   const ticker = (ALIASES[q] ?? q.replace(/c$/, "")).toUpperCase();
-  const byTicker = stocks.filter((s) => s.ticker === ticker || s.name.toLowerCase().replace(/[^a-z0-9]/g, "") === q);
-  if (!byTicker.length) return null;
-  const pick = byTicker.find((s) => s.issuer === "coinbase") ?? byTicker.sort((a, b) => (b.volume24hUsd ?? 0) - (a.volume24hUsd ?? 0))[0];
+  const byTicker = stocks.filter((s) => s.ticker === ticker || s.ticker.toLowerCase() === q || s.name.toLowerCase().replace(/[^a-z0-9]/g, "") === q);
+  const pool = byTicker.length ? byTicker : exact;
+  if (!pool.length) return null;
+  const pick =
+    pool.find((s) => s.issuer === "coinbase") ??
+    exact[0] ??
+    [...pool].sort((a, b) => (b.volume24hUsd ?? 0) - (a.volume24hUsd ?? 0))[0];
   return withDecimals(pick);
 }
 

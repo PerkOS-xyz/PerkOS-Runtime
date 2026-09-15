@@ -62,7 +62,8 @@ function Shell() {
   // "draft": carta del Trader (cotizacion Uniswap V3 Base + calldata) con la
   // orb Approve; la wallet de la persona firma approve + swap. `tx` es el
   // progreso de la firma; `draft` es lo que devolvio /api/trade/draft.
-  type Draft = { id: string; chainId: number; pool: string; fee: number; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; deadline: number; quotedAt: string; needsApproval: boolean; balanceUsdc: string; txs: Array<{ label: "approve" | "swap"; to: `0x${string}`; data: `0x${string}`; value: "0x0" }> };
+  type Draft = { id: string; chainId: number; side: "buy" | "sell"; stock: { symbol: string; ticker: string; name: string; issuer: string; address: string; decimals: number }; pool: string; fee: number; poolUsdcDepth: number; tokenIn: { symbol: string; decimals: number }; tokenOut: { symbol: string; decimals: number }; amountInHuman: string; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; deadline: number; quotedAt: string; needsApproval: boolean; balanceUsdc: string; balanceToken: string; txs: Array<{ label: "approve" | "swap"; to: `0x${string}`; data: `0x${string}`; value: "0x0" }> };
+  type TradeIntent = { side: "buy" | "sell"; stock?: string; amountUsd?: number; amountToken?: number; fraction?: number };
   type DraftTx = { stage: "idle" | "signing" | "pending" | "done" | "failed"; step?: "approve" | "swap"; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
   type Msg = { id: number; role: "you" | "floor" | "team" | "draft"; who?: string; text: string; streaming?: boolean; draft?: Draft; tx?: DraftTx };
   // Sesion PerkOS (firma del nonce con la wallet Privy) + flota Hermes en PerkOS infra.
@@ -415,21 +416,23 @@ function Shell() {
   // Draft del Trader: "buy $5 of NVIDIA" → /api/trade/draft cotiza en Uniswap
   // V3 (Base) y arma approve + swap; la carta aparece en el transcript con la
   // orb Approve. La conversacion sigue en paralelo (equipo + Grok comentan).
-  const tradeDraft = useCallback(async (amountUsd: number) => {
+  const tradeDraft = useCallback(async (intent: TradeIntent) => {
     const id = Date.now() + 3;
-    setMessages((m) => [...m.slice(-40), { id, role: "draft", who: "trader", text: `Drafting a $${amountUsd} buy of NVDAc…`, streaming: true }]);
+    const what = intent.stock ?? "NVDAc";
+    const size = intent.side === "buy" ? `$${intent.amountUsd}` : intent.fraction === 1 ? "all your" : intent.fraction ? `${Math.round(intent.fraction * 100)}% of your` : intent.amountToken ? `${intent.amountToken}` : `$${intent.amountUsd} of`;
+    setMessages((m) => [...m.slice(-40), { id, role: "draft", who: "trader", text: `Drafting: ${intent.side} ${size} ${what}…`, streaming: true }]);
     touch();
     try {
-      const res = await fetch("/api/trade/draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amountUsd }) });
+      const res = await fetch("/api/trade/draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(intent) });
       const j = (await res.json().catch(() => ({}))) as Draft & { error?: string; detail?: string };
       if (!res.ok || !j.txs) {
         flog("error", `trade draft ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`);
         setMessages((m) => m.map((x) => (x.id === id ? { ...x, text: `Could not draft the trade: ${j.detail ?? j.error ?? res.status}`, streaming: false } : x)));
         return;
       }
-      flog("info", `trade draft: $${amountUsd} → ${j.quoteOutHuman} NVDAc @ $${j.impliedPriceUsd.toFixed(2)} · ${j.txs.length} tx · balance $${j.balanceUsdc}`);
+      flog("info", `trade draft: ${j.side} ${j.amountInHuman} ${j.tokenIn.symbol} → ${j.quoteOutHuman} ${j.tokenOut.symbol} @ $${j.impliedPriceUsd.toFixed(2)} · pool $${j.poolUsdcDepth.toFixed(0)} · ${j.txs.length} tx · balances $${j.balanceUsdc} / ${j.balanceToken} ${j.stock.symbol}`);
       setMessages((m) => m.map((x) => (x.id === id ? { ...x, text: "", streaming: false, draft: j, tx: { stage: "idle", hashes: [] } } : x)));
-      setCaption(`Trader drafted: $${amountUsd} → ${j.quoteOutHuman} NVDAc. Hold Approve to sign.`);
+      setCaption(`Trader drafted: ${j.amountInHuman} ${j.tokenIn.symbol} → ${j.quoteOutHuman} ${j.tokenOut.symbol}. Hold Approve to sign.`);
     } catch (e) {
       flog("error", `trade draft: ${(e as Error).message}`);
       setMessages((m) => m.map((x) => (x.id === id ? { ...x, text: "Could not draft the trade.", streaming: false } : x)));
@@ -467,8 +470,8 @@ function Shell() {
         flog("info", `trade ${t.label}: confirmed`);
       }
       patch({ stage: "done", step: undefined, hashes: [...hashes] });
-      setCaption(`Bought ${d.quoteOutHuman} NVDAc for $${d.amountInUsd} on Base.`);
-      speak(`Done. You now hold ${Number(d.quoteOutHuman).toFixed(4)} NVIDIA on Base, and the receipt is on chain.`);
+      setCaption(d.side === "buy" ? `Bought ${d.quoteOutHuman} ${d.stock.symbol} for $${d.amountInUsd} on Base.` : `Sold ${d.amountInHuman} ${d.stock.symbol} for $${d.quoteOutHuman} on Base.`);
+      speak(d.side === "buy" ? `Done. You now hold ${Number(d.quoteOutHuman).toFixed(4)} ${d.stock.name} on Base, and the receipt is on chain.` : `Done. ${d.amountInHuman} ${d.stock.name} sold for ${Number(d.quoteOutHuman).toFixed(2)} dollars on Base, receipt on chain.`);
       touch();
     } catch (e) {
       const m = (e as Error).message || "signature failed";
@@ -484,12 +487,8 @@ function Shell() {
     // Todo lo que no es un comando del canvas es conversacion.
     if (cmd === "unknown" && spoken) {
       // Intencion de compra: "buy $5 of NVIDIA" / "compra 5 dolares de nvda".
-      const buy = /\b(buy|purchase|compra(?:r)?)\b/i.test(spoken) && /\b(nvda|nvidia)\b/i.test(spoken);
-      if (buy) {
-        const n = spoken.match(/\$\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*(?:usd|usdc|dollars?|bucks|d[oó]lares)/i);
-        const amount = Math.min(100, Number((n?.[1] ?? n?.[2] ?? "5").replace(",", ".")) || 5);
-        void tradeDraft(amount);
-      }
+      const intent = parseTradeIntent(spoken);
+      if (intent) void tradeDraft(intent);
       void chat(spoken);
       return;
     }
@@ -1135,35 +1134,38 @@ function Orb({ className, label, on, state = "", rail, onRail }: { className: st
 /** Carta del draft del Trader + orb Approve (se mantiene 2 s para firmar).
  *  Sin llaves aqui: Approve manda las tx a la wallet de la persona. */
 function DraftCard({ draft, tx, onApprove }: {
-  draft: { amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; pool: string; fee: number; deadline: number; needsApproval: boolean; balanceUsdc: string; txs: Array<{ label: string }> };
+  draft: { side: "buy" | "sell"; stock: { symbol: string; ticker: string; name: string; issuer: string }; tokenIn: { symbol: string; decimals: number }; tokenOut: { symbol: string; decimals: number }; amountInHuman: string; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; pool: string; fee: number; poolUsdcDepth: number; deadline: number; needsApproval: boolean; balanceUsdc: string; balanceToken: string; txs: Array<{ label: string }> };
   tx: { stage: "idle" | "signing" | "pending" | "done" | "failed"; step?: string; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
   onApprove: () => void;
 }) {
   const [holding, setHolding] = useState(false);
   const holdRef = useRef(0);
   const armed = tx.stage === "idle" || tx.stage === "failed";
-  const short = Number(draft.balanceUsdc) < draft.amountInUsd;
+  const buy = draft.side === "buy";
+  const short = buy ? Number(draft.balanceUsdc) < draft.amountInUsd : Number(draft.balanceToken) < Number(draft.amountInHuman);
   const start = () => {
     if (!armed || short) return;
     setHolding(true);
     holdRef.current = window.setTimeout(() => { setHolding(false); onApprove(); }, 2000);
   };
   const cancel = () => { window.clearTimeout(holdRef.current); setHolding(false); };
-  const minOutHuman = (Number(draft.minOut) / 1e8).toFixed(6);
+  const minOutHuman = (Number(draft.minOut) / 10 ** draft.tokenOut.decimals).toFixed(buy ? 6 : 2);
+  const issuer = draft.stock.issuer === "coinbase" ? "Coinbase B20" : draft.stock.issuer;
   return (
     <div className={`draft-card st-${tx.stage}`}>
       <div className="draft-head">
-        <b>Buy ${draft.amountInUsd} of NVDAc</b>
+        <b>{buy ? `Buy $${draft.amountInUsd} of ${draft.stock.symbol}` : `Sell ${draft.amountInHuman} ${draft.stock.symbol}`}</b>
         <span className="tag">Uniswap V3 · Base</span>
       </div>
       <dl className="draft-rows">
-        <dt>You pay</dt><dd>${draft.amountInUsd.toFixed(2)} USDC</dd>
-        <dt>You get</dt><dd>≈ {draft.quoteOutHuman} NVDAc <small>(min {minOutHuman}, {draft.slippageBps / 100}% slippage)</small></dd>
+        <dt>Asset</dt><dd>{draft.stock.name} <small>({draft.stock.ticker} · {issuer})</small></dd>
+        <dt>You pay</dt><dd>{buy ? `$${draft.amountInUsd.toFixed(2)} USDC` : `${draft.amountInHuman} ${draft.stock.symbol}`}</dd>
+        <dt>You get</dt><dd>≈ {draft.quoteOutHuman} {draft.tokenOut.symbol} <small>(min {minOutHuman}, {draft.slippageBps / 100}% slippage)</small></dd>
         <dt>Price</dt><dd>${draft.impliedPriceUsd.toFixed(2)} / share</dd>
-        <dt>Route</dt><dd>USDC → NVDAc · pool {draft.pool.slice(0, 6)}…{draft.pool.slice(-4)} · {draft.fee / 10_000}%</dd>
-        <dt>Signatures</dt><dd>{draft.txs.map((t) => t.label).join(" + ")}{draft.needsApproval ? "" : " (USDC already approved)"}</dd>
+        <dt>Route</dt><dd>{draft.tokenIn.symbol} → {draft.tokenOut.symbol} · pool {draft.pool.slice(0, 6)}…{draft.pool.slice(-4)} · {draft.fee / 10_000}% · ${draft.poolUsdcDepth.toFixed(0)} USDC deep</dd>
+        <dt>Signatures</dt><dd>{draft.txs.map((t) => t.label).join(" + ")}{draft.needsApproval ? "" : ` (${draft.tokenIn.symbol} already approved)`}</dd>
       </dl>
-      {short ? <p className="hint-line err">Wallet holds ${Number(draft.balanceUsdc).toFixed(2)} USDC on Base; the draft needs ${draft.amountInUsd.toFixed(2)}.</p> : null}
+      {short ? <p className="hint-line err">{buy ? `Wallet holds $${Number(draft.balanceUsdc).toFixed(2)} USDC on Base; the draft needs $${draft.amountInUsd.toFixed(2)}.` : `Wallet holds ${draft.balanceToken} ${draft.stock.symbol}; the draft needs ${draft.amountInHuman}.`}</p> : null}
       {tx.note ? <p className="hint-line err">{tx.note}</p> : null}
       {tx.hashes.length ? (
         <ul className="draft-tx">
@@ -1196,6 +1198,43 @@ function DraftCard({ draft, tx, onApprove }: {
       </div>
     </div>
   );
+}
+
+/** "buy $5 of Apple", "compra 10 dolares de nvidia", "sell half my NVDAc",
+ *  "vende todo mi AAPL", "sell 0.01 NVDA". null si no es una orden. */
+function parseTradeIntent(text: string): { side: "buy" | "sell"; stock?: string; amountUsd?: number; amountToken?: number; fraction?: number } | null {
+  const t = text.trim();
+  const sideM = t.match(/\b(buy|purchase|compra(?:r)?|sell|vende(?:r)?|vend[eé]|liquida(?:r)?)\b/i);
+  if (!sideM) return null;
+  const side: "buy" | "sell" = /^(sell|vend|liquid)/i.test(sideM[1]) ? "sell" : "buy";
+  const num = (v?: string) => (v ? Number(v.replace(",", ".")) : undefined);
+  const usd = t.match(/\$\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*(?:usd|usdc|dollars?|bucks|d[oó]lares)/i);
+  const amountUsd = num(usd?.[1] ?? usd?.[2]);
+  const frac = /\b(all|everything|todo|toda|todas)\b/i.test(t) ? 1 : /\b(half|mitad)\b/i.test(t) ? 0.5 : /\b(quarter|cuarto)\b/i.test(t) ? 0.25 : undefined;
+  // El activo: la palabra tras "of/de/my/mi/mis", o un ticker/alias suelto.
+  const after = t.match(/\b(?:of|de|my|mi|mis)\s+(?:my\s+|mis?\s+)?([A-Za-z][A-Za-z0-9.]{0,24})/i)?.[1];
+  const stop = /^(usd|usdc|dollars?|bucks|d[oó]lares|worth|shares?|acciones?|stock|tokens?|on|en|base|the|el|la|los|las|un|una)$/i;
+  let stock = after && !stop.test(after) ? after : undefined;
+  if (!stock) {
+    // "buy apple for $5" / "vende tesla": la palabra que sigue al verbo.
+    const afterVerb = t.slice((sideM.index ?? 0) + sideM[0].length).match(/^\s+([A-Za-z][A-Za-z0-9.]{0,24})/)?.[1];
+    if (afterVerb && !stop.test(afterVerb) && !/^(my|mi|mis|some|a|an)$/i.test(afterVerb)) stock = afterVerb;
+  }
+  if (!stock) {
+    const tick = t.match(/\b([A-Z]{2,6}c?)\b/)?.[1];
+    if (tick && !/^(USD|USDC|BUY|SELL)$/i.test(tick)) stock = tick;
+  }
+  // "sell 0.01 NVDA": cantidad de tokens sin signo de dolar.
+  const tok = !usd ? t.match(/\b(\d+(?:[.,]\d+)?)\s+(?:shares?\s+(?:of\s+)?|acciones\s+de\s+)?([A-Za-z][A-Za-z0-9]{0,24})/i) : null;
+  const amountToken = side === "sell" && tok && !stop.test(tok[2]) ? num(tok[1]) : undefined;
+  if (side === "sell" && amountToken !== undefined && !stock) stock = tok?.[2];
+  // Sin activo ni monto no es una orden ("should I buy?" es conversacion).
+  if (!stock && amountUsd === undefined && frac === undefined && amountToken === undefined) return null;
+  if (side === "buy") return { side, stock, amountUsd: Math.min(100, amountUsd && amountUsd > 0 ? amountUsd : 5) };
+  if (frac !== undefined) return { side, stock, fraction: frac };
+  if (amountToken !== undefined) return { side, stock, amountToken };
+  if (amountUsd !== undefined) return { side, stock, amountUsd: Math.min(100, amountUsd) };
+  return { side, stock, fraction: 1 };
 }
 
 function cap(s: string): string {
