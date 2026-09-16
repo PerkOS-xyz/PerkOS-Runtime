@@ -1673,6 +1673,11 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .settings-dock .srow .v button:disabled { opacity: 0.5; cursor: default; }
 .settings-dock .srow .v input:not([type="checkbox"]) { width: 120px; background: #05070c; border: 1px solid #1a2233; border-radius: 8px; color: var(--ink); font: inherit; font-size: 11.5px; padding: 4px 8px; }
 .settings-dock .srow .v a { color: #ff5a6a; text-decoration: none; }
+/* Fila 1Claw: etiqueta con el logo y pill coral (misma familia que el badge del Trader). */
+.settings-dock .srow.rail-row > span:first-child { display: inline-flex; align-items: center; gap: 7px; }
+.settings-dock .srow.rail-row .rail-mark { width: 18px; height: 18px; margin: 0; vertical-align: 0; box-shadow: 0 0 8px rgba(236, 27, 105, 0.35); }
+.settings-dock .srow .v a.pill { padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(236, 27, 105, 0.55); color: #ff5a6a; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; box-shadow: 0 0 10px rgba(236, 27, 105, 0.22); }
+.settings-dock .srow .v a.pill:hover { background: rgba(236, 27, 105, 0.12); }
 .settings-dock .srow .v em { font-style: normal; color: #7fe0a8; font-size: 10px; }
 .settings-dock .hint-line { margin: 8px 0 0; font-size: 10.5px; color: var(--mute); }
 .settings-dock .xai-connect { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 6px; }

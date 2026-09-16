@@ -203,7 +203,7 @@ function RailCard({ rail }: { rail: RailStep }) {
             {rail.status === "linked"
               ? "Your vault and the Trader's credential are in place."
               : rail.status === "claim_pending"
-                ? "Finish claiming your vault at 1claw.xyz. This step completes on its own once you do."
+                ? "Finish claiming your vault at 1Claw. This step completes on its own once you do."
                 : rail.status === "not_configured"
                   ? "Not enabled on this PerkOS yet."
                   : "You get your own vault at 1Claw; the Trader gets a credential that can only act within it."}
@@ -233,7 +233,7 @@ function RailCard({ rail }: { rail: RailStep }) {
       <p className="hint-line">
         {rail.status === "claim_pending"
           ? "Waiting for the claim in your browser…"
-          : "Opens 1claw.xyz in your browser to claim the vault. The key never touches this Mac."}
+          : "Opens 1Claw in your browser to claim the vault. The key never touches this Mac."}
       </p>
       {rail.status !== "linked" ? (
         <button type="button" className="back" onClick={rail.onSkip}>Enter Floor without a spend rail</button>
