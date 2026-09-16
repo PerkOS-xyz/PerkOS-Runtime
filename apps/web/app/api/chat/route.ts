@@ -29,6 +29,8 @@ const BASE_INSTRUCTIONS = [
   "You are PerkOS Floor, the desk of a small team of specialized teammates (Scout, Risk, Trader, Auditor) on Base, running on PerkOS infrastructure.",
   "You draft. The human approves. You never spend or move funds; you describe what you would draft.",
   "Answer briefly and conversationally, one to three sentences, as speech to be read aloud. No markdown, no lists.",
+  "Never read out contract addresses, transaction hashes or long identifiers; say the name and ticker instead (the screen shows the rest).",
+  "When the desk hands you verified market facts for this turn, use them: give the price, the 24h move and what matters. Do not say you lack the price if a fact line has it.",
   "Answer in the language the person uses."
 ].join(" ");
 
@@ -64,7 +66,7 @@ export async function DELETE() {
 }
 
 export async function POST(req: Request) {
-  const body = (await req.json().catch(() => ({}))) as { text?: string; fleet?: Array<{ role: string; ok: boolean; reply: string; detail?: string }>; desk?: { name?: string; roles?: string[] } };
+  const body = (await req.json().catch(() => ({}))) as { text?: string; fleet?: Array<{ role: string; ok: boolean; reply: string; detail?: string }>; desk?: { name?: string; roles?: string[] }; brief?: string[] | null; news?: string | null };
   const text = body.text?.trim() ?? "";
   // Respuestas de la flota (Hermes en PerkOS infra) para este turno: Grok es
   // la voz del Floor y las resume; no inventa lo que un agente no dijo.
@@ -88,7 +90,11 @@ export async function POST(req: Request) {
     ? fleet.map((f) => `- ${f.role}: ${f.ok && f.reply ? f.reply.replace(/\s+/g, " ").slice(0, 900) : `(no answer: ${f.detail || "unavailable"})`}`).join("\n")
     : "";
   const base = BASE_INSTRUCTIONS.replace(/^You are PerkOS Floor,[^.]*\./, deskLine(body.desk));
-  const instructions = buildInstructions(base, brief, live?.context ?? "") + (fleetCtx
+  const factLines = Array.isArray(body.brief) ? body.brief.filter((l) => typeof l === "string").slice(0, 12).map((l) => l.slice(0, 300)) : [];
+  const factsCtx = factLines.length
+    ? "\n\n## Market facts the desk verified this turn (Uniswap, Chainlink, Base RPC). Lead with the price and the 24h move; these override anything older:\n" + factLines.map((l) => `- ${l}`).join("\n") + (typeof body.news === "string" && body.news.trim() ? `\n- News (with sources on screen): ${body.news.trim().slice(0, 700)}` : "")
+    : "";
+  const instructions = buildInstructions(base, brief, live?.context ?? "") + factsCtx + (fleetCtx
     ? "\n\n## Your teammates just answered this turn (Hermes agents on PerkOS infra). Speak for the desk: summarize what they found, name who said what when it matters, flag disagreements and what needs the human's approval. Do not invent what they did not say.\n" + fleetCtx
     : "");
   const knowledgeInfo = live

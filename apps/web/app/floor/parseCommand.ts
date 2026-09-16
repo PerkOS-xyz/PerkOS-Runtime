@@ -77,7 +77,8 @@ export function parseIntent(raw: string): Intent {
   const trade = parseTradeIntent(raw);
   if (trade) return trade;
   if (/\b(portfolio|portafolio|holdings|positions|posiciones|what do i (hold|own)|que tengo|qué tengo|mis acciones)\b/.test(t)) return { kind: "portfolio" };
-  const analyzeVerb = /\b(analy[sz]e|analiza|analizar|research|investiga|look into|check|revisa|mira)\b/;
+  // Tolerante a typos frecuentes al dictar/teclear: anayze, analize, analyse, analisa.
+  const analyzeVerb = /\b(ana(?:l|ly|lyz|liz|lys|y)[sz]?e?|analiza|analizar|analisa|analisis|análisis|research|investiga|look into|check|revisa|mira)\b/;
   if (analyzeVerb.test(t)) return { kind: "analyze", asset: assetAfter(t, analyzeVerb) };
   const quoteVerb = /\b(price of|precio de|how much is|how much for|cu[aá]nto (?:est[aá]|vale|cuesta)|quote for|cotiza)\b/;
   if (quoteVerb.test(t)) return { kind: "quote", asset: assetAfter(t, quoteVerb) };

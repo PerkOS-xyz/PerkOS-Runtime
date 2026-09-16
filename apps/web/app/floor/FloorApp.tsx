@@ -180,7 +180,7 @@ function Shell() {
       let fleetReplies: Array<{ role: string; ok: boolean; reply: string; detail?: string }> = [];
       const f = fleetRef.current;
       const readyRoles = f ? f.agents.filter((a) => a.state === "ready").map((a) => a.role) : [];
-      if (readyRoles.length && teamRef.current !== "hibernated") {
+      if (readyRoles.length) {
         // Turno de mesa secuencial (Scout -> Risk -> Trader/Auditor) por SSE:
         // cada agente habla en su orb y deja su burbuja; Risk decide.
         setCaption("The desk is working…");
@@ -264,7 +264,7 @@ function Shell() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, fleet: fleetReplies, desk: deskRef.current ? { name: deskRef.current.name, roles: deskRef.current.agents.map((a) => a.name) } : undefined }),
+        body: JSON.stringify({ text, fleet: fleetReplies, desk: deskRef.current ? { name: deskRef.current.name, roles: deskRef.current.agents.map((a) => a.name) } : undefined, brief: briefRef.current?.lines ?? null, news: briefRef.current?.news ?? null }),
         signal: ac.signal
       });
       if (!res.ok || !res.body) {
@@ -335,17 +335,24 @@ function Shell() {
   const teamRef = useRef<Team>("hibernated");
   teamRef.current = team;
   const pollRef = useRef(0);
+  const pollSinceRef = useRef(0);
 
   const applyFleet = useCallback((f: Fleet) => {
     setFleet(f);
     const ready = f.agents.filter((a) => a.state === "ready").length;
     flog("info", `fleet: ${f.status} · ${f.agents.map((a) => `${a.role}=${a.state}`).join(" ")}`);
-    if (f.status === "ready") { setTeam("ready"); setCaption(`Team is up · ${ready}/4 on PerkOS`); }
+    if (f.status === "ready" || (ready > 0 && !f.agents.some((a) => a.state === "provisioning" || a.state === "waking"))) { setTeam("ready"); setCaption(ready === f.agents.length ? `Team is up · ${ready}/${f.agents.length} on PerkOS` : `${ready}/${f.agents.length} awake on PerkOS`); }
     else if (f.status === "hibernated" || f.status === "none") { if (teamRef.current === "waking") setTeam("hibernated"); }
-    // Mientras provisiona/despierta, seguir mirando.
+    // Mientras provisiona/despierta, seguir mirando; con backoff (5 s los
+    // primeros 2 min, luego 20 s) para no martillar la API si algo se traba.
     window.clearTimeout(pollRef.current);
-    if (f.status === "provisioning" || f.status === "waking" || (f.status === "partial" && f.agents.some((a) => a.state === "provisioning" || a.state === "waking"))) {
-      pollRef.current = window.setTimeout(() => void fleetAction("status"), 5000);
+    const inFlight = f.agents.some((a) => a.state === "provisioning" || a.state === "waking");
+    if (inFlight) {
+      if (!pollSinceRef.current) pollSinceRef.current = Date.now();
+      const slow = Date.now() - pollSinceRef.current > 120_000;
+      pollRef.current = window.setTimeout(() => void fleetAction("status"), slow ? 20_000 : 5000);
+    } else {
+      pollSinceRef.current = 0;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

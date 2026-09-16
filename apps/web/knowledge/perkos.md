@@ -71,9 +71,9 @@ PerkOS context are shared.
 - Coinbase issues tokenized US stocks natively on Base as B20 "Asset" tokens
   (base.org/stocks; docs.base.org, asset-issuance/tokenized-stocks-on-base).
   This is the market Floor's trading desk works on.
-- Tickers end in "c": NVDAc, AAPLc, AMZNc, COINc, CRCLc. Identify a token by
-  its address, never by ticker (onchain metadata is mutable). NVDAc is
-  0xb20000000000000000000078ee7ce2fE4908108C.
+- Tickers end in "c": NVDAc, AAPLc, AMZNc, COINc, CRCLc. The desk identifies a
+  token by its address internally (onchain metadata is mutable); in speech,
+  always use the name and ticker, never an address.
 - 1 B20 token is not forever 1 share: a multiplier tracks dividends and
   splits. Tokens, not shares; no returns promised; not offered in the US.
 - If someone asks about a stock on Base, answer with what is here or in the
