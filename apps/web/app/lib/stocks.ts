@@ -28,7 +28,16 @@ export type Stock = {
   /** Ultimas 24 h, un punto por hora (Uniswap Data API). */
   sparkline?: number[];
 };
-export type StockPool = { address: `0x${string}`; fee: number; usdcDepth: number };
+export type Venue = "uniswap" | "aerodrome";
+export const VENUE_LABEL: Record<Venue, string> = { uniswap: "Uniswap V3", aerodrome: "Aerodrome" };
+export type StockPool = { venue: Venue; address: `0x${string}`; fee: number; tickSpacing?: number; usdcDepth: number };
+// Aerodrome Slipstream, deployment "Gauges V3" (el mas nuevo; los pools B20/USDC
+// viven ahi). README aerodrome-finance/slipstream, verificado on-chain 2026-09-16.
+export const AERO_FACTORY = "0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef" as const;
+export const AERO_QUOTER = "0x514c8B5f54112481E28028F1166Bd78501089259" as const;
+export const AERO_ROUTER = "0x698Cb2b6dd822994581fEa6eA4Fc755d1363A92F" as const;
+const AERO_TICK_SPACINGS = [1, 10, 50, 100, 200, 2000] as const;
+const aeroFactoryAbi = parseAbi(["function getPool(address,address,int24) view returns (address)", "function fee(address) view returns (uint24)"]);
 
 // Respaldo: B20 de Coinbase (docs.base.org, 2026-09-15). 8 decimales.
 const B20: Array<[string, string, `0x${string}`]> = [
@@ -151,21 +160,46 @@ export async function findUsdcPool(token: `0x${string}`): Promise<StockPool | nu
     if (!pool || pool === "0x0000000000000000000000000000000000000000") continue;
     const bal = await c.readContract({ address: USDC, abi: erc20, functionName: "balanceOf", args: [pool] });
     const usdcDepth = Number(formatUnits(bal, USDC_DECIMALS));
-    if (!best || usdcDepth > best.usdcDepth) best = { address: pool, fee, usdcDepth };
+    if (!best || usdcDepth > best.usdcDepth) best = { venue: "uniswap", address: pool, fee, usdcDepth };
   }
   return best;
 }
 
-// Profundidad de pool por token, con cache: 3 llamadas RPC por token, asi
-// que solo para los que se muestran (B20 de Coinbase + los de mas volumen).
-const poolCache = new Map<string, { at: number; pool: StockPool | null }>();
-export async function poolFor(token: `0x${string}`): Promise<StockPool | null> {
+/** Pool USDC/token mas profundo en Aerodrome Slipstream (CL, por tick spacing). */
+export async function findAeroPool(token: `0x${string}`): Promise<StockPool | null> {
+  const c = client();
+  let best: StockPool | null = null;
+  for (const ts of AERO_TICK_SPACINGS) {
+    const pool = await c.readContract({ address: AERO_FACTORY, abi: aeroFactoryAbi, functionName: "getPool", args: [USDC, token, ts] }).catch(() => null);
+    if (!pool || pool === "0x0000000000000000000000000000000000000000") continue;
+    const [bal, fee] = await Promise.all([
+      c.readContract({ address: USDC, abi: erc20, functionName: "balanceOf", args: [pool] }),
+      c.readContract({ address: AERO_FACTORY, abi: aeroFactoryAbi, functionName: "fee", args: [pool] }).catch(() => 500)
+    ]);
+    const usdcDepth = Number(formatUnits(bal, USDC_DECIMALS));
+    if (!best || usdcDepth > best.usdcDepth) best = { venue: "aerodrome", address: pool, fee: Number(fee), tickSpacing: ts, usdcDepth };
+  }
+  return best;
+}
+
+export type StockPools = { uniswap: StockPool | null; aerodrome: StockPool | null; best: StockPool | null };
+
+// Pools por token en los dos venues, con cache de 5 min (varias llamadas RPC
+// por token, asi que solo para los que se muestran o se cotizan).
+const poolCache = new Map<string, { at: number; pools: StockPools }>();
+export async function poolsFor(token: `0x${string}`): Promise<StockPools> {
   const k = token.toLowerCase();
   const c = poolCache.get(k);
-  if (c && Date.now() - c.at < 5 * 60_000) return c.pool;
-  const pool = await findUsdcPool(token).catch(() => null);
-  poolCache.set(k, { at: Date.now(), pool });
-  return pool;
+  if (c && Date.now() - c.at < 5 * 60_000) return c.pools;
+  const [uniswap, aerodrome] = await Promise.all([findUsdcPool(token).catch(() => null), findAeroPool(token).catch(() => null)]);
+  const best = [uniswap, aerodrome].filter((p): p is StockPool => Boolean(p)).sort((a, b) => b.usdcDepth - a.usdcDepth)[0] ?? null;
+  const pools = { uniswap, aerodrome, best };
+  poolCache.set(k, { at: Date.now(), pools });
+  return pools;
+}
+/** El pool mas profundo entre venues (compat con market brief y filas). */
+export async function poolFor(token: `0x${string}`): Promise<StockPool | null> {
+  return (await poolsFor(token)).best;
 }
 
 export type MarketRow = Stock & { pool: StockPool | null; tradeable: boolean };

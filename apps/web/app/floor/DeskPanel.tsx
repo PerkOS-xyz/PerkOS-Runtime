@@ -25,7 +25,8 @@ function printNote(title: string, html: string) {
 // EQLTY pero sin vault intermedio (las llaves son de la persona). El template
 // declarara `screens[]`; hoy el registro es este componente y el desk es uno.
 
-type Row = { symbol: string; ticker: string; name: string; issuer: string; address: string; priceUsd?: number; priceChange24hPct?: number; volume24hUsd?: number; logoUrl?: string; sparkline?: number[]; pool: { address: string; fee: number; usdcDepth: number } | null; tradeable: boolean };
+type Row = { symbol: string; ticker: string; name: string; issuer: string; address: string; priceUsd?: number; priceChange24hPct?: number; volume24hUsd?: number; logoUrl?: string; sparkline?: number[]; pool: { venue?: "uniswap" | "aerodrome"; address: string; fee: number; usdcDepth: number } | null; tradeable: boolean };
+const venueName = (v?: string) => (v === "aerodrome" ? "Aerodrome" : "Uniswap V3");
 type Position = { symbol: string; ticker: string; name: string; issuer: string; balance: string; valueUsd: number; priceUsd?: number; priceChange24hPct?: number; sparkline?: number[] };
 
 /** Linea de precio de las ultimas 24 h (un punto por hora). Sin ejes: es
@@ -141,7 +142,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
         </>
       ) : screen === "market" ? (
         <>
-          <p className="hint-line">Tokenized stocks on Base · Uniswap V3 · deepest USDC pool decides what the desk can trade.</p>
+          <p className="hint-line">Tokenized stocks on Base · Uniswap V3 and Aerodrome · the deepest USDC pool decides what the desk can trade, the best price decides where.</p>
           <input className="search" value={q} placeholder="Search a stock…" onChange={(e) => setQ(e.target.value)} />
           {err ? <p className="hint-line err">{err}</p> : null}
           {!rows ? <p className="hint-line">Loading the market…</p> : null}
@@ -150,7 +151,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
               <div className="detail-head">
                 <div>
                   <b>{detail.name} <span>{detail.symbol} · {issuerLabel(detail.issuer)}</span></b>
-                  <small>{detail.pool ? `Uniswap V3 · ${detail.pool.fee / 10_000}% · ${usd(detail.pool.usdcDepth, 0)} USDC deep` : "No USDC pool on Uniswap V3 Base"}</small>
+                  <small>{detail.pool ? `${venueName(detail.pool.venue)} · ${detail.pool.fee / 10_000}% · ${usd(detail.pool.usdcDepth, 0)} USDC deep` : "No USDC pool on Uniswap V3 or Aerodrome"}</small>
                 </div>
                 <div className="num">
                   <b>{usd(detail.priceUsd)}</b>
@@ -181,7 +182,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
                   </div>
                   <div className="cell num">
                     <b>{r.pool ? usd(r.pool.usdcDepth, 0) : "no pool"}</b>
-                    <small>{r.pool ? `USDC · ${r.pool.fee / 10_000}%` : "USDC"}</small>
+                    <small>{r.pool ? `${venueName(r.pool.venue)} · ${r.pool.fee / 10_000}%` : "USDC"}</small>
                   </div>
                   <div className="cell acts">
                     <button type="button" onClick={(e) => { e.stopPropagation(); onSay(`analyze ${r.ticker}`); }}>Analyze</button>
