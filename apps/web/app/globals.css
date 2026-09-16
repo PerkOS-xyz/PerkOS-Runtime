@@ -1263,7 +1263,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .orb.dim:not(.on) { opacity: 0; }
 
 /* El mapa necesita mas alto que ancho: panel un poco mas ancho, grafo vertical. */
-.desk-panel.map { width: min(560px, calc(100% - 48px)); }
+/* (el ancho por pantalla ya no aplica: el panel es un dock) */
 
 /* Tag de estado bajo cada agente: pastilla legible (Online / Hibernating / ...). */
 .orb small { font-size: 9px; letter-spacing: 0.1em; padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(120, 160, 255, 0.25); color: #9aabc8; background: rgba(6, 10, 22, 0.55); margin-top: -4px; }
@@ -1407,3 +1407,34 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 /* Esferas de los agentes al 90 % (pedido de Julio): la de Floor manda. */
 .orb.on { transform: translate(-50%, 0) scale(0.9); }
 .stage.split .orb.on { transform: translate(-50%, 0) scale(0.77); }
+
+/* ==== Panel del desk como dock (2026-09-16): todo el lado derecho ==== */
+.desk-panel.dock { right: 0; top: 56px; bottom: 0; width: 50%; border-radius: 18px 0 0 0; border-right: 0; border-bottom: 0; padding: 14px 18px 18px; animation: dockIn 260ms var(--split-ease) both; }
+@keyframes dockIn { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+.desk-panel.dock.max { width: 100%; border-radius: 0; border-left: 0; }
+.stage.desk-max .convo, .stage.desk-max .core-wrap, .stage.desk-max .whisper { display: none; }
+.stage.desk-open .dock-nav, .stage.desk-open nav.dock { right: auto; }
+.desk-panel .panel-acts { display: flex; gap: 6px; }
+.desk-panel .panel-acts .close svg { display: block; margin: auto; }
+/* En dock el chat ocupa la mitad izquierda entera. */
+.stage.desk-open .convo { width: calc(50% - 56px); max-width: none; }
+@container stage (max-width: 700px) {
+  .desk-panel.dock { left: 0; width: 100%; border-radius: 0; }
+}
+/* Knowledge map (force graph en canvas). */
+.kmap { position: relative; flex: 1; min-height: 0; border-radius: 12px; overflow: hidden; border: 1px solid rgba(120, 160, 255, 0.14); background: radial-gradient(rgba(120, 160, 255, 0.12) 1px, transparent 1.2px) 0 0 / 22px 22px, rgba(6, 10, 22, 0.55); }
+.kmap canvas { display: block; }
+.kmap .hint { position: absolute; left: 14px; top: 12px; }
+.kmap-legend { position: absolute; left: 10px; right: 10px; bottom: 8px; display: flex; flex-wrap: wrap; gap: 10px; font-size: 9.5px; color: #9aabc8; pointer-events: none; }
+.kmap-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+.kmap-legend em { margin-left: auto; font-style: normal; color: #6f7d99; }
+.kmap-tip { position: absolute; left: 12px; top: 12px; background: rgba(20, 24, 40, 0.96); border: 1px solid rgba(236, 27, 105, 0.45); border-radius: 8px; padding: 6px 10px; font-size: 10px; color: #c5d2ee; pointer-events: none; display: flex; flex-direction: column; gap: 2px; }
+.kmap-tip b { color: #fff; font-size: 11px; }
+.kmap-tip small { color: #ff8fa8; }
+
+/* Con el dock abierto en reposo, el composer se centra en la mitad izquierda. */
+.stage.desk-open .convo { left: 25%; transform: translateX(-50%); width: calc(50% - 56px); max-width: none; }
+.stage.split.desk-open .convo { left: 40px; transform: none; }
+
+/* Maximizado: el dock inferior se esconde; el panel tiene tabs y cerrar. */
+.stage.desk-max .desk-dock { display: none; }
