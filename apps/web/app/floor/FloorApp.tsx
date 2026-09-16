@@ -275,7 +275,7 @@ function Shell() {
         let turnLocal = newTurn(youId, text, readyRoles, quote ? { side: quote.side, symbol: quote.symbol, name: quote.name, amountIn: quote.amountIn, tokenIn: quote.tokenIn, quoteOut: quote.quoteOut, tokenOut: quote.tokenOut, priceUsd: quote.priceUsd, bankr: quote.bankr ? { priceUsd: quote.bankr.priceUsd } : null } : null, facts);
         setTurn(turnLocal);
         turnLiveRef.current = true;
-        decisionRef.current = { turnId: youId, draftId: [...messagesRef.current].reverse().find((m) => m.role === "draft" && m.tx?.stage === "idle")?.id };
+        decisionRef.current = { turnId: youId, draftId: heldDraftRef.current?.id ?? [...messagesRef.current].reverse().find((m) => m.role === "draft" && m.tx?.stage === "idle")?.id };
         // Floor abre el hilo como principal: a quien le habla y con que hechos.
         const factBits = [quote ? `Uniswap $${quote.priceUsd.toFixed(2)}` : "", quote?.bankr ? `Bankr $${quote.bankr.priceUsd.toFixed(2)}` : "", facts?.chainlinkUsd ? `Chainlink $${facts.chainlinkUsd.toFixed(2)}` : "", facts?.swaps24h !== undefined ? `${facts.swaps24h} swaps in 24h` : ""].filter(Boolean);
         const openLine = `@Scout @Risk ${text}${factBits.length ? `. Facts attached: ${factBits.join(", ")}.` : "."}`;
@@ -321,6 +321,8 @@ function Shell() {
               } else if (ev.step === "reply" && ev.role) {
                 setTalking(ev.role, false);
                 { const pid = phId(ev.role); setMessages((m) => m.filter((x) => x.id !== pid)); }
+                // La tarjeta de compra entra cuando Trader entrega, justo antes de su burbuja.
+                if (ev.role === "trader") releaseDraft(youId, floorId);
                 if (ev.ok && ev.reply) {
                   n += 1;
                   const id = youId + 2 + n;
@@ -341,6 +343,7 @@ function Shell() {
                     setVerdict(ev.verdict);
                     if (ev.verdict === "BLOCK") {
                       const why = ev.reply!.replace(/^\s*VERDICT\s*[:\-]\s*BLOCK\s*/i, "").trim();
+                      if (heldDraftRef.current?.tx?.stage === "idle") heldDraftRef.current = { ...heldDraftRef.current, tx: { ...heldDraftRef.current.tx, stage: "blocked", note: `Risk blocked: ${why.slice(0, 200)}` } };
                       setMessages((m) => m.map((x) => (x.role === "draft" && x.tx && (x.tx.stage === "idle") ? { ...x, tx: { ...x.tx, stage: "blocked", note: `Risk blocked: ${why.slice(0, 200)}` } } : x)));
                       setCaption("Risk blocked the order.");
                       const qd = quoteRef.current;
@@ -353,6 +356,7 @@ function Shell() {
               } else if (ev.step === "done") {
                 fleetReplies = ev.replies ?? [];
                 turnLiveRef.current = false;
+                releaseDraft(youId, floorId);
                 // Las cards se leen 2 s y se contraen a chips; la decision queda guardada.
                 window.setTimeout(() => setTurn((t) => (t && t.id === youId ? { ...t, collapsed: true } : t)), 2000);
                 {
@@ -380,6 +384,8 @@ function Shell() {
         setTalkingSet([]);
         setCaption("");
       }
+      // Sin mesa (o si Trader no entrego) la tarjeta entra antes de que hable Floor.
+      releaseDraft(youId, floorId);
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -655,28 +661,44 @@ function Shell() {
   // orb Approve. La conversacion sigue en paralelo (equipo + Grok comentan).
   // La orden en la mesa este turno (para el prompt de Risk/Trader/Auditor).
   const quoteRef = useRef<{ side: string; symbol: string; name: string; amountIn: string; tokenIn: string; quoteOut: string; tokenOut: string; priceUsd: number; pool: string; fee: number; poolUsdcDepth: number; minOut: string; bankr?: { priceUsd: number; outHuman: string; outSymbol: string; feeBps: number; priceImpactBps?: number } | null } | null>(null);
+  // El draft se retiene hasta que Trader entrega (o el turno cierra): la
+  // tarjeta de compra se lee al final del analisis, no antes.
+  const heldDraftRef = useRef<Msg | null>(null);
+  const releaseDraft = useCallback((turnId?: number, floorId?: number) => {
+    const d = heldDraftRef.current;
+    if (!d) return;
+    heldDraftRef.current = null;
+    const msg = { ...d, turnId };
+    setMessages((m) => {
+      const rest = floorId ? m.filter((x) => x.id !== floorId) : m;
+      const floor = floorId ? m.find((x) => x.id === floorId) : undefined;
+      return floor ? [...rest, msg, floor] : [...rest, msg];
+    });
+    if (d.draft) setCaption(`Trader drafted: ${d.draft.amountInHuman} ${d.draft.tokenIn.symbol} → ${d.draft.quoteOutHuman} ${d.draft.tokenOut.symbol}. Hold Approve to sign.`);
+  }, []);
   const tradeDraft = useCallback(async (intent: TradeIntent) => {
     const id = Date.now() + 3;
     const what = intent.stock ?? "NVDAc";
     const size = intent.side === "buy" ? `$${intent.amountUsd}` : intent.fraction === 1 ? "all your" : intent.fraction ? `${Math.round(intent.fraction * 100)}% of your` : intent.amountToken ? `${intent.amountToken}` : `$${intent.amountUsd} of`;
-    setMessages((m) => [...m.slice(-40), { id, role: "draft", who: "trader", text: `Drafting: ${intent.side} ${size} ${what}…`, streaming: true }]);
+    heldDraftRef.current = null;
+    setCaption(`Trader is drafting: ${intent.side} ${size} ${what}…`);
     touch();
     try {
       const res = await fetch("/api/trade/draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(intent) });
       const j = (await res.json().catch(() => ({}))) as Draft & { error?: string; detail?: string };
       if (!res.ok || !j.txs) {
         flog("error", `trade draft ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`);
-        setMessages((m) => m.map((x) => (x.id === id ? { ...x, text: `Could not draft the trade: ${j.detail ?? j.error ?? res.status}`, streaming: false } : x)));
+        setMessages((m) => [...m.slice(-60), { id, role: "draft", who: "trader", text: `Could not draft the trade: ${j.detail ?? j.error ?? res.status}` }]);
         return;
       }
       flog("info", `trade draft: ${j.side} ${j.amountInHuman} ${j.tokenIn.symbol} → ${j.quoteOutHuman} ${j.tokenOut.symbol} @ $${j.impliedPriceUsd.toFixed(2)} · pool $${j.poolUsdcDepth.toFixed(0)} · ${j.txs.length} tx · balances $${j.balanceUsdc} / ${j.balanceToken} ${j.stock.symbol}`);
-      setMessages((m) => m.map((x) => (x.id === id ? { ...x, text: "", streaming: false, draft: j, tx: { stage: "idle", hashes: [] } } : x)));
+      heldDraftRef.current = { id, role: "draft", who: "trader", text: "", draft: j, tx: { stage: "idle", hashes: [] } };
       quoteRef.current = { side: j.side, symbol: j.stock.symbol, name: j.stock.name, amountIn: j.amountInHuman, tokenIn: j.tokenIn.symbol, quoteOut: j.quoteOutHuman, tokenOut: j.tokenOut.symbol, priceUsd: j.impliedPriceUsd, pool: j.pool, fee: j.fee, poolUsdcDepth: j.poolUsdcDepth, minOut: (Number(j.minOut) / 10 ** j.tokenOut.decimals).toFixed(6), bankr: j.bankr ? { priceUsd: j.bankr.impliedPriceUsd, outHuman: j.bankr.outHuman, outSymbol: j.bankr.outSymbol, feeBps: j.bankr.feeBps, priceImpactBps: j.bankr.priceImpactBps } : null };
       if (j.bankr) flog("info", `bankr quote: ${j.bankr.outHuman} ${j.bankr.outSymbol} @ $${j.bankr.impliedPriceUsd.toFixed(2)} vs uniswap $${j.impliedPriceUsd.toFixed(2)}`);
-      setCaption(`Trader drafted: ${j.amountInHuman} ${j.tokenIn.symbol} → ${j.quoteOutHuman} ${j.tokenOut.symbol}. Hold Approve to sign.`);
+      setCaption("Order on the table. The desk is reviewing it…");
     } catch (e) {
       flog("error", `trade draft: ${(e as Error).message}`);
-      setMessages((m) => m.map((x) => (x.id === id ? { ...x, text: "Could not draft the trade.", streaming: false } : x)));
+      setMessages((m) => [...m.slice(-60), { id, role: "draft", who: "trader", text: "Could not draft the trade." }]);
     }
   }, [touch]);
 

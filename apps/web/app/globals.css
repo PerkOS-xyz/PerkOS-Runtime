@@ -1297,11 +1297,11 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .orb.st-ready.scout .ball, .orb.st-ready.risk .ball, .orb.st-ready.trader .ball, .orb.st-ready.auditor .ball { box-shadow: 0 0 28px color-mix(in srgb, var(--ag) 60%, transparent), 0 0 8px #ffffff40; }
 .orb.talking .ball { box-shadow: 0 0 36px var(--ag, #ec1b69), 0 0 12px #ffffff66; }
 /* Fila mas abierta en split: cuatro columnas de 12% para que quepan las cards. */
-.stage.split .scout { left: 54%; top: 10%; }
-.stage.split .risk { left: 66%; top: 10%; }
-.stage.split .trader { left: 78%; top: 10%; }
-.stage.split .auditor { left: 90%; top: 10%; }
-.stage.split .guest { left: 97%; top: 10%; }
+.stage.split .scout { left: 58.5%; top: 10%; }
+.stage.split .risk { left: 69.5%; top: 10%; }
+.stage.split .trader { left: 80.5%; top: 10%; }
+.stage.split .auditor { left: 91.5%; top: 10%; }
+.stage.split .guest { left: 97%; top: 24%; }
 /* Chat: la etiqueta de cada agente lleva su punto de color; Floor el coral. */
 .turn-k::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; vertical-align: middle; background: #6f7d99; }
 .turn.you .turn-k::before { display: none; }
@@ -1328,10 +1328,10 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .turn-fold:hover { border-color: rgba(236, 27, 105, 0.5); color: #e6ecff; }
 /* Capa de cards bajo las esferas (solo en split). */
 /* Reposo: bajo la fila centrada (30/43/57/70 %); split: bajo la fila derecha (54/66/78/90 %). */
-.ag-layer { position: absolute; left: 24%; width: 52%; top: calc(9% + 128px); z-index: 4; }
-.ag-layer.chips { top: calc(9% + 124px); }
-.stage.split .ag-layer { left: 48%; width: 48%; top: calc(10% + 118px); }
-.stage.split .ag-layer.chips { top: calc(10% + 114px); }
+.ag-layer { position: absolute; left: 24%; width: 52%; top: calc(9% + 140px); z-index: 4; }
+.ag-layer.chips { top: calc(9% + 136px); }
+.stage.split .ag-layer { left: 53%; width: 44%; top: calc(10% + 118px); }
+.stage.split .ag-layer.chips { top: calc(10% + 118px); }
 .stage.turn-live .core-wrap { top: 82%; transform: translate(-50%, -50%) scale(0.5); }
 .stage.turn-live .whisper { display: none; }
 .ag-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; align-items: start; }
@@ -1389,3 +1389,6 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
   .ag-bar.indet span, .ag-shimmer, .beams path.beam-path { animation: none; }
   .beams .beam-token { display: none; }
 }
+
+/* Con un panel del desk abierto, las cards y chips se apagan junto con la orbita. */
+.stage.desk-open .ag-layer { display: none; }
