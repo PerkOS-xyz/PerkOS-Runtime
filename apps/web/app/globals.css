@@ -1217,3 +1217,9 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .desk-panel .note-head .acts a { font-size: 10px; color: #7fb0ff; text-decoration: none; letter-spacing: 0.06em; }
 .desk-panel .note-head .acts button { padding: 4px 9px; font-size: 10px; }
 .desk-panel .note-open pre { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 10px 12px; border-radius: 10px; background: rgba(6, 10, 22, 0.5); font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: #e6ecff; white-space: pre-wrap; }
+
+/* Notes: barra (busqueda + resumen + memoria) y editor. */
+.desk-panel .notes-bar { display: flex; gap: 6px; align-items: center; }
+.desk-panel .notes-bar .search { flex: 1; }
+.desk-panel .notes-bar button { padding: 6px 10px; font-size: 10px; letter-spacing: 0.06em; white-space: nowrap; }
+.desk-panel .note-edit { flex: 1; min-height: 0; width: 100%; resize: none; padding: 10px 12px; border-radius: 10px; background: rgba(6, 10, 22, 0.6); border: 1px solid rgba(120, 160, 255, 0.25); color: #e6ecff; font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }

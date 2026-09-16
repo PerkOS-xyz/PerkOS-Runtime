@@ -8,6 +8,7 @@
     "start": "next start --hostname 127.0.0.1 --port 3000"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
     "@privy-io/react-auth": "^3.42.0",
     "@tanstack/react-query": "^5.102.8",
     "@xyflow/react": "^12.8.2",

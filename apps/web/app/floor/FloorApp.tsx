@@ -626,6 +626,37 @@ function Shell() {
     }
   }, [speak, touch]);
 
+  // Cierre del dia: el diario del desk se resume en memory.md (hechos,
+  // decisiones, preferencias, preguntas abiertas). Por voz o desde Notes.
+  const summarizeDay = useCallback(async (date?: string, quiet = false) => {
+    if (!quiet) setCaption("Summarizing the day into the desk's memory…");
+    try {
+      const r = await fetch("/api/kb/summarize", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(date ? { date } : { force: true }) });
+      const j = (await r.json().catch(() => ({}))) as { ok?: boolean; cached?: boolean; reason?: string; text?: string; error?: string; detail?: string };
+      if (!r.ok) { flog("warn", `summarize: ${j.error ?? r.status} ${j.detail ?? ""}`); if (!quiet) setCaption("Could not summarize the day."); return; }
+      if (j.reason === "nothing_to_summarize") { if (!quiet) { setCaption("Nothing to summarize yet."); speak("Nothing to summarize yet; talk to the desk first."); } return; }
+      flog("info", `summarize ${date ?? "today"}: ${j.cached ? "already done" : `${(j.text ?? "").length} chars`}`);
+      if (quiet) return;
+      const id = Date.now() + 9;
+      setMessages((m) => [...m.slice(-40), { id, role: "floor", text: j.text ?? "Saved to the desk's memory." }]);
+      touch();
+      setCaption("Saved to the desk's memory.");
+      speak("Done. I kept the facts, decisions and open questions in the desk's memory.");
+    } catch (e) {
+      flog("error", `summarize: ${(e as Error).message}`);
+    }
+  }, [speak, touch]);
+
+  // Al entrar con sesion PerkOS: si el diario de ayer quedo sin resumir, se
+  // resume en silencio (una vez por arranque).
+  const bootSummaryRef = useRef(false);
+  useEffect(() => {
+    if (!perkos.connected || bootSummaryRef.current) return;
+    bootSummaryRef.current = true;
+    const y = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+    void summarizeDay(y, true);
+  }, [perkos.connected, summarizeDay]);
+
   // "Analyze X": market brief instantaneo (on-chain + API) -> Analysis card
   // -> noticias con fuentes (Grok web_search) -> turno de mesa con ambos.
   // Memo de 15 min: repetir solo refresca el precio.
@@ -730,6 +761,7 @@ function Shell() {
     }
     if (cmd === "portfolio") { setDeskScreen("portfolio"); setCaption("Your positions on Base"); return; }
     if (cmd === "docs") { setDeskScreen("notes"); setCaption("What this desk remembers"); return; }
+    if (cmd === "summarize") { void summarizeDay(); return; }
     if (cmd === "approve") {
       const d = [...messagesRef.current].reverse().find((m) => m.role === "draft" && m.tx?.stage === "idle");
       if (d) { setCaption("Approving in your wallet…"); void approveDraft(d.id); } else setCaption("Nothing to approve.");
@@ -780,7 +812,7 @@ function Shell() {
       setSplit(false);
       if (perkosRef.current.connected && fleetRef.current?.agents.some((a) => a.state === "ready" || a.state === "waking")) void fleetAction("hibernate");
     }
-  }, [analyzeAsset, approveDraft, quoteAsset, chat, voice, fleetAction]);
+  }, [summarizeDay, analyzeAsset, approveDraft, quoteAsset, chat, voice, fleetAction]);
   runRef.current = run;
 
   const listen = useCallback(() => {
@@ -1195,7 +1227,7 @@ function Shell() {
         </nav>
       ) : null}
       {deskScreen ? (
-        <DeskPanel screen={deskScreen} focus={focusAsset} onScreen={setDeskScreen} onClose={() => setDeskScreen("")} onSay={(t) => runRef.current(t)} />
+        <DeskPanel screen={deskScreen} focus={focusAsset} onScreen={setDeskScreen} onClose={() => setDeskScreen("")} onSay={(t) => runRef.current(t)} onSummarize={() => void summarizeDay()} />
       ) : null}
 
       {/* El template del desk vive en el wizard (paso "Your team"): la escena
