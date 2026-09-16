@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 // Pantallas propias del desk (PerkOS Floor desk): Market y Portfolio, como en
 // EQLTY pero sin vault intermedio (las llaves son de la persona). El template
@@ -26,14 +26,14 @@ function Spark({ points, w = 96, h = 28, big = false }: { points?: number[]; w?:
   );
 }
 
-export type DeskScreen = "market" | "portfolio" | "notes";
+export type DeskScreen = "market" | "portfolio" | "notes" | "map";
 type Note = { id: string; desk: string; kind: string; title: string; ticker?: string; body: string; updatedAt: string };
 type Hit = { id: string; kind: string; title: string; ticker?: string; updatedAt: string; snippet: string };
 
 const usd = (n?: number, d = 2) => (n === undefined || !Number.isFinite(n) ? "–" : `$${n.toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d })}`);
 const issuerLabel = (i: string) => (i === "coinbase" ? "Coinbase" : i === "dinari" ? "Dinari" : i === "anchored" ? "Anchored" : i === "st0x" ? "ST0x" : i);
 
-export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onSummarize }: {
+export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onSummarize, map }: {
   screen: DeskScreen;
   /** Ticker o simbolo que el turno de mesa esta mirando ("AMZN"). */
   focus: string;
@@ -43,6 +43,8 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
   onSay: (text: string) => void;
   /** Cierre del dia: diario -> memory.md. */
   onSummarize?: () => void;
+  /** Mapa del desk (grafo), lo renderiza FloorApp que tiene el estado vivo. */
+  map?: ReactNode;
 }) {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [positions, setPositions] = useState<Position[] | null>(null);
@@ -87,17 +89,23 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
   const detail = (rows ?? []).find((r) => r.address === picked) ?? (rows ?? []).find(isFocus) ?? null;
 
   return (
-    <aside className="desk-panel" aria-label="Desk screens">
+    <aside className={`desk-panel ${screen}`} aria-label="Desk screens">
       <header>
         <div className="tabs" role="tablist">
           <button type="button" role="tab" aria-selected={screen === "market"} className={screen === "market" ? "on" : ""} onClick={() => onScreen("market")}>Market</button>
           <button type="button" role="tab" aria-selected={screen === "portfolio"} className={screen === "portfolio" ? "on" : ""} onClick={() => onScreen("portfolio")}>Portfolio</button>
           <button type="button" role="tab" aria-selected={screen === "notes"} className={screen === "notes" ? "on" : ""} onClick={() => onScreen("notes")}>Notes</button>
+          <button type="button" role="tab" aria-selected={screen === "map"} className={screen === "map" ? "on" : ""} onClick={() => onScreen("map")}>Map</button>
         </div>
         <button type="button" className="close" onClick={onClose} aria-label="Close">×</button>
       </header>
 
-      {screen === "market" ? (
+      {screen === "map" ? (
+        <>
+          <p className="hint-line">The desk as a graph: you sign, Floor speaks, the team hands off, the world is what they look at. Click a node.</p>
+          {map}
+        </>
+      ) : screen === "market" ? (
         <>
           <p className="hint-line">Tokenized stocks on Base · Uniswap V3 · deepest USDC pool decides what the desk can trade.</p>
           <input className="search" value={q} placeholder="Search a stock…" onChange={(e) => setQ(e.target.value)} />
