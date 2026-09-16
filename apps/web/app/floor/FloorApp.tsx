@@ -1940,9 +1940,9 @@ function AnalysisCard({ a, onSay }: {
       <div className="an-foot">
         <small>Updated {ago < 1 ? "just now" : `${ago} min ago`} · Uniswap Data API · Chainlink · Base RPC</small>
         <div className="draft-actions" style={{ gap: 6 }}>
-          <button type="button" onClick={() => onSay(`analyze ${b.stock.ticker} again`)}>Refresh</button>
-          <button type="button" disabled={!tradeable} onClick={() => onSay(`buy $5 of ${b.stock.symbol}`)}>Buy $5</button>
-          {b.holding ? <button type="button" onClick={() => onSay(`sell half of my ${b.stock.symbol}`)}>Sell half</button> : null}
+          <button type="button" className="pill" onClick={() => onSay(`analyze ${b.stock.ticker} again`)}>Refresh</button>
+          <button type="button" className="pill buy" disabled={!tradeable} onClick={() => onSay(`buy $5 of ${b.stock.symbol}`)}>Buy $5</button>
+          {b.holding ? <button type="button" className="pill" onClick={() => onSay(`sell half of my ${b.stock.symbol}`)}>Sell half</button> : null}
         </div>
       </div>
     </div>
