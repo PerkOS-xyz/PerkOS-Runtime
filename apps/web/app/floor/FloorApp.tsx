@@ -121,38 +121,55 @@ function Shell() {
   // persona no suba a leer; si sube, aparece el boton circular "ir al final".
   // Observadores de mutacion y tamano cubren el streaming y las cards que
   // crecen despues de montarse (draft, analysis), no solo los turnos nuevos.
+  // Solo un gesto de la persona (rueda, touch, teclado) despega el
+  // transcript del final: el scroll programatico tambien dispara "scroll" y
+  // leerlo como intencion hacia arriba era lo que cortaba el seguimiento.
+  // Seguimiento suave (scrollTo smooth, coalescido por frame) y un
+  // asentamiento 2 s despues del ultimo cambio, cuando ya termino de tipear.
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const stickRef = useRef(true);
   const observedRef = useRef<HTMLDivElement | null>(null);
+  const userGestureAt = useRef(0);
+  const followRaf = useRef(0);
+  const settleTimer = useRef(0);
   const [showJump, setShowJump] = useState(false);
-  const scrollToLatest = useCallback(() => {
+  const followLatest = useCallback((smooth = true) => {
     const el = transcriptRef.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
+    if (!el || !stickRef.current) return;
+    if (followRaf.current) return;
+    followRaf.current = requestAnimationFrame(() => {
+      followRaf.current = 0;
+      el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+    });
+    window.clearTimeout(settleTimer.current);
+    settleTimer.current = window.setTimeout(() => { if (stickRef.current) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" }); }, 2000);
+  }, []);
+  const scrollToLatest = useCallback(() => {
     stickRef.current = true;
     setShowJump(false);
-  }, []);
+    followLatest(true);
+  }, [followLatest]);
+  const markUserGesture = useCallback(() => { userGestureAt.current = Date.now(); }, []);
+  const onTranscriptKey = useCallback((e: React.KeyboardEvent) => { if (["ArrowUp", "PageUp", "Home", "ArrowDown", "PageDown", "End"].includes(e.key)) userGestureAt.current = Date.now(); }, []);
   const onTranscriptScroll = useCallback(() => {
     const el = transcriptRef.current;
     if (!el) return;
     const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
-    const atBottom = gap < 48;
-    stickRef.current = atBottom;
-    setShowJump(!atBottom && el.scrollHeight > el.clientHeight + 48);
+    if (gap < 48) { stickRef.current = true; setShowJump(false); return; }
+    if (Date.now() - userGestureAt.current < 600) { stickRef.current = false; setShowJump(true); }
   }, []);
   useEffect(() => {
     const el = transcriptRef.current;
     if (!el) return;
-    if (stickRef.current) requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
+    followLatest(true);
     if (observedRef.current === el) return;
     observedRef.current = el;
-    const follow = () => { if (stickRef.current) el.scrollTop = el.scrollHeight; };
-    const mo = new MutationObserver(follow);
+    const mo = new MutationObserver(() => followLatest(true));
     mo.observe(el, { childList: true, subtree: true, characterData: true });
-    const ro = new ResizeObserver(follow);
+    const ro = new ResizeObserver(() => followLatest(true));
     ro.observe(el);
     return () => { mo.disconnect(); ro.disconnect(); observedRef.current = null; };
-  }, [messages]);
+  }, [messages, followLatest]);
 
   const kbWriteRef = useRef<(p: { journal?: true; kind?: "journal" | "analysis" | "order" | "memory"; title?: string; body: string; ticker?: string }) => void>(() => undefined);
   const focusRef = useRef("");
@@ -1349,8 +1366,12 @@ function Shell() {
           que es la unica duena de posicion y ancho. En idle es solo el composer
           centrado abajo; en split ocupa la izquierda con un separador. */}
       <div className={`convo${split ? " split" : ""}`}>
-      {split && showJump ? <button type="button" className="jump-latest" onClick={scrollToLatest} aria-label="Jump to latest" title="Jump to latest">↓</button> : null}
-      <div className={`transcript${split ? " on" : ""}`} aria-live="polite" ref={transcriptRef} onScroll={onTranscriptScroll}>
+      {split && showJump ? (
+        <button type="button" className="jump-latest" onClick={scrollToLatest} aria-label="Jump to latest" title="Jump to latest">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+        </button>
+      ) : null}
+      <div className={`transcript${split ? " on" : ""}`} aria-live="polite" ref={transcriptRef} onScroll={onTranscriptScroll} onWheel={markUserGesture} onTouchMove={markUserGesture} onKeyDown={onTranscriptKey} tabIndex={-1}>
         {messages.map((m) => (
           <div key={m.id} className={`turn ${m.role}`}>
             <span className="turn-k">
