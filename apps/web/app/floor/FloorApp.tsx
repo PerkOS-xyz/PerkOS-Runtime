@@ -1509,7 +1509,7 @@ function Shell() {
           onDebug={setDebug}
           perkos={perkos}
           onReconnectPerkos={() => void ensurePerkos(true)}
-          rail={{ status: rail.status, oneclawAgentId: rail.oneclawAgentId, vaultId: rail.vaultId, linkedRoles: rail.linkedRoles, hasRail: Boolean(fleet?.agents.some((a) => a.rail)) }}
+          rail={{ status: rail.status, oneclawAgentId: rail.oneclawAgentId, vaultId: rail.vaultId, linkedRoles: rail.linkedRoles, lockUsd: fleet?.agents.find((a) => a.rail)?.rail?.lockUsd, hasRail: Boolean(fleet?.agents.some((a) => a.rail)) }}
           onLinkRail={() => { setSettings(false); openRailStep(); }}
           onLogout={logout}
           desk={desk ? { name: desk.name, chain: CHAINS[chainOf(desk)].name, builtOn: CHAINS[chainOf(desk)].builtOn, agents: desk.agents.map((a) => a.name), revision: desk.revision, fleetStatus: fleet?.status } : undefined}

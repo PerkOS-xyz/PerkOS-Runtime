@@ -16,9 +16,10 @@ const LABELS: Record<string, string> = {
 
 type PerkosState = { connected: boolean; busy: boolean; fundingUrl: string; note: string };
 // Rail de gasto 1Claw del Trader. Los limites (cadenas, allowlist, tope por tx,
-// tope diario, aprobacion) viven en 1Claw y los edita la persona en su cuenta;
-// Floor solo enlaza. Sin flota con rail no se muestra.
-type RailState = { status: string; oneclawAgentId?: string; vaultId?: string; linkedRoles?: string[]; hasRail: boolean };
+// tope diario, aprobacion) viven en 1Claw como guardrails del agente y los edita
+// la persona en su cuenta (1claw.co/agents/<id>); Floor solo enlaza con una fila
+// propia, con el logo, para que la opcion se vea. Sin flota con rail no se muestra.
+type RailState = { status: string; oneclawAgentId?: string; vaultId?: string; linkedRoles?: string[]; lockUsd?: number; hasRail: boolean };
 
 export default function SettingsPanel({ onClose, debug, onDebug, perkos, onReconnectPerkos, rail, onLinkRail, desk, onLogout }: {
   onClose: () => void;
@@ -80,6 +81,7 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
     : rail.status === "claim_pending" ? "Claim pending at 1Claw"
     : rail.status === "not_configured" ? "Not enabled on this PerkOS yet"
     : "Not linked · the Trader drafts only";
+  const railUrl = rail?.oneclawAgentId ? `https://1claw.co/agents/${encodeURIComponent(rail.oneclawAgentId)}` : "https://1claw.co/agents";
 
   // Panel lateral derecho, como las pantallas del dock: filas compactas
   // "etiqueta · valor" en tres secciones (Shell, Desk, About). Lo del shell
@@ -145,15 +147,16 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
             <div className="srow"><span>Chain</span><span className="v">{desk.chain} · {desk.builtOn}</span></div>
             <div className="srow"><span>Team</span><span className="v">{desk.agents.join(", ")} · template r{desk.revision}{desk.fleetStatus ? ` · ${desk.fleetStatus}` : ""}</span></div>
             {railText ? (
-              <div className="srow">
-                <span>Spend rail</span>
+              <div className="srow rail-row">
+                <span><img className="rail-mark" src="/1claw.svg" alt="" />1Claw</span>
                 <span className="v">
                   {railText}
-                  {rail?.status === "linked" && rail.oneclawAgentId ? <a href={`https://1claw.co/agents/${encodeURIComponent(rail.oneclawAgentId)}`} target="_blank" rel="noreferrer" title="Chains, allowlists, per-trade and daily caps, approval policy">Edit limits at 1Claw ↗</a> : null}
+                  {rail?.status === "linked" ? <a className="pill" href={railUrl} target="_blank" rel="noreferrer" title="Chains, allowlists, per-trade and daily caps, approval policy. Opens your 1Claw account in the browser.">Edit rails ↗</a> : null}
                   {rail && rail.status !== "linked" && rail.status !== "not_configured" && onLinkRail ? <button type="button" onClick={onLinkRail}>Link 1Claw</button> : null}
                 </span>
               </div>
             ) : null}
+            {rail?.status === "linked" && rail.lockUsd ? <p className="hint-line">The Trader spends only through 1Claw. Above ${rail.lockUsd} every spend waits for you.</p> : null}
             <div className="srow"><span>Second quote</span><span className="v">Bankr · read only</span></div>
             <div className="srow"><span>Knowledge</span><span className="v">Bundled notes · PerkOS Knowledge · local vault</span></div>
           </>
