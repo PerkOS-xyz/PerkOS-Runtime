@@ -63,16 +63,16 @@ export async function POST(req: Request) {
         // paralelo (Risk ya tiene la cotizacion; Scout le suma evidencia si
         // llega), y despues Trader y Auditor con ambos handoffs.
         const [scout, risk] = await Promise.all([
-          run("scout", `${head}\nAs Scout: read the verified facts and the news, then give the desk your read: what stands out (price vs Chainlink, 24h move and range, pool depth, catalysts) and one thing to watch. Do not repeat the numbers back; interpret them. Under 50 words, plain text.`),
-          run("risk", `${head}\nAs Risk: size and limits for this desk. Compare the desk's Uniswap quote with Bankr's second quote and with the Chainlink reference price in the facts; if any pair diverges beyond 1.5%, the pool is thin for the size, or the request is unclear, block. Reply with a first line exactly "VERDICT: GO" or "VERDICT: BLOCK", then the reason in under 40 words.`)
+          run("scout", `${head}\nAs Scout: read the verified facts and the news, then give the desk your read: what stands out (price vs Chainlink, 24h move and range, pool depth, catalysts) and one thing to watch. Do not repeat the numbers back; interpret them. Open with who receives your handoff, exactly "@Trader @Auditor", then the read. Under 50 words, plain text.`),
+          run("risk", `${head}\nAs Risk: size and limits for this desk. Compare the desk's Uniswap quote with Bankr's second quote and with the Chainlink reference price in the facts; if any pair diverges beyond 1.5%, the pool is thin for the size, or the request is unclear, block. Reply with a first line exactly "VERDICT: GO" or "VERDICT: BLOCK", then a second line starting "@Trader @Auditor" with the reason in under 40 words.`)
         ]);
         const scoutSaid = scout?.ok ? clip(scout.reply) : "(Scout did not answer)";
         const riskSaid = risk?.ok ? clip(risk.reply) : "(Risk did not answer)";
         const verdict = risk?.ok ? verdictOf(risk.reply) ?? "GO" : "BLOCK";
         const tail = `${head}\nScout said: ${scoutSaid}\nRisk said: ${riskSaid} (verdict ${verdict}).`;
         await Promise.all([
-          run("trader", `${tail}\nAs Trader: ${q ? (verdict === "GO" ? "restate the order the desk drafted (asset, size, route, min out) and exactly what the human must sign. You never execute." : "Risk blocked it: stand down and say what would need to change.") : "no order is on the table: say what you would draft if asked, in one line."} Under 60 words.`),
-          run("auditor", `${tail}\nAs Auditor: write the decision record for this turn: what was asked, what Scout found, Risk's verdict, the draft on the table (or none) and what evidence is missing. Under 80 words.`)
+          run("trader", `${tail}\nAs Trader (open with "@Floor"): ${q ? (verdict === "GO" ? "restate the order the desk drafted (asset, size, route, min out) and exactly what the human must sign. You never execute." : "Risk blocked it: stand down and say what would need to change.") : "no order is on the table: say what you would draft if asked, in one line."} Under 60 words.`),
+          run("auditor", `${tail}\nAs Auditor (open with "@Floor"): write the decision record for this turn: what was asked, what Scout found, Risk's verdict, the draft on the table (or none) and what evidence is missing. Under 80 words.`)
         ]);
         send({ step: "done", verdict, replies });
       } catch (e) {

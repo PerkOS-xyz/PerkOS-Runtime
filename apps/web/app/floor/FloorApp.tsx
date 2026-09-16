@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { parseIntent } from "./parseCommand";
 import DeskPanel, { type DeskScreen } from "./DeskPanel";
 import DeskMap from "./DeskMap";
+import AgentCards, { applyTurnEvent, newTurn, type DeskTurn, type Role as AgentRole } from "./AgentCards";
 import SettingsPanel from "./SettingsPanel";
 import Wizard from "./Wizard";
 import Ambient from "./Ambient";
@@ -73,7 +74,14 @@ function Shell() {
   type Brief = { at: string; stock: { symbol: string; ticker: string; name: string; issuer: string }; priceUsd?: number; change24hPct?: number; range24h?: { low: number; high: number; open: number; last: number }; volume24hUsd?: number; sparkline?: number[]; pool: { fee: number; usdcDepth: number; priceUsd?: number } | null; chainlink?: { priceUsd: number; ageMin: number; stale: boolean }; premiumPct?: number; swaps24h?: { count: number; usdcVolume: number; buys: number; sells: number }; holding?: { balance: string; valueUsd: number }; lines: string[] };
   type News = { text: string; sources: Array<{ url: string; title?: string }>; at: string };
   type Analysis = { brief: Brief; news?: News; scout?: string; risk?: string; verdict?: "GO" | "BLOCK"; prev?: { priceUsd?: number; at: string }; loadingNews?: boolean };
-  type Msg = { id: number; role: "you" | "floor" | "team" | "draft" | "analysis"; who?: string; text: string; streaming?: boolean; draft?: Draft; tx?: DraftTx; verdict?: "GO" | "BLOCK"; analysis?: Analysis };
+  type Msg = { id: number; role: "you" | "floor" | "team" | "draft" | "analysis"; who?: string; text: string; streaming?: boolean; draft?: Draft; tx?: DraftTx; verdict?: "GO" | "BLOCK"; analysis?: Analysis; turnId?: number; kind?: "open" | "side" };
+  // Agent graph del turno en curso (cards bajo las esferas) y turnos plegados.
+  const [turn, setTurn] = useState<DeskTurn | null>(null);
+  const turnRef = useRef<DeskTurn | null>(null);
+  turnRef.current = turn;
+  const turnLiveRef = useRef(false);
+  const [openTurns, setOpenTurns] = useState<number[]>([]);
+  const decisionRef = useRef<{ turnId: number; noteId?: string; draftId?: number } | null>(null);
   // Memo de analisis por activo: dentro de 15 min, "analyze" solo refresca
   // el precio; el turno de mesa y las noticias se reusan.
   const memoRef = useRef<Map<string, { msgId: number; at: number; analysis: Analysis }>>(new Map());
@@ -171,7 +179,7 @@ function Shell() {
     return () => { mo.disconnect(); ro.disconnect(); observedRef.current = null; };
   }, [messages, followLatest]);
 
-  const kbWriteRef = useRef<(p: { journal?: true; kind?: "journal" | "analysis" | "order" | "memory"; title?: string; body: string; ticker?: string }) => void>(() => undefined);
+  const kbWriteRef = useRef<(p: { journal?: true; kind?: "journal" | "analysis" | "order" | "memory" | "decision"; title?: string; body: string; ticker?: string }) => void>(() => undefined);
   const focusRef = useRef("");
   const chatAbort = useRef<AbortController | null>(null);
   const runRef = useRef<(t: string) => void>(() => undefined);
@@ -218,7 +226,7 @@ function Shell() {
     touch();
     const youId = Date.now();
     const floorId = youId + 1;
-    setMessages((m) => [...m.slice(-40), { id: youId, role: "you", text }, { id: floorId, role: "floor", text: "", streaming: true }]);
+    setMessages((m) => [...m.slice(-60), { id: youId, role: "you", text, turnId: youId }, { id: floorId, role: "floor", text: "", streaming: true, turnId: youId }]);
     const setFloor = (t: string, streaming: boolean) =>
       setMessages((m) => m.map((x) => (x.id === floorId ? { ...x, text: t, streaming } : x)));
     flog("info", `chat -> ${text.slice(0, 80)}`);
@@ -261,6 +269,17 @@ function Shell() {
         setVerdict("");
         const t1 = Date.now();
         const quote = quoteRef.current;
+        // Agent graph: una card por rol bajo su esfera, movida por los eventos reales.
+        const latestBrief = [...messagesRef.current].reverse().find((m) => m.role === "analysis")?.analysis?.brief;
+        const facts = latestBrief ? { premiumPct: latestBrief.premiumPct, change24hPct: latestBrief.change24hPct, swaps24h: latestBrief.swaps24h?.count, chainlinkUsd: latestBrief.chainlink?.priceUsd } : null;
+        let turnLocal = newTurn(youId, text, readyRoles, quote ? { side: quote.side, symbol: quote.symbol, name: quote.name, amountIn: quote.amountIn, tokenIn: quote.tokenIn, quoteOut: quote.quoteOut, tokenOut: quote.tokenOut, priceUsd: quote.priceUsd, bankr: quote.bankr ? { priceUsd: quote.bankr.priceUsd } : null } : null, facts);
+        setTurn(turnLocal);
+        turnLiveRef.current = true;
+        decisionRef.current = { turnId: youId, draftId: [...messagesRef.current].reverse().find((m) => m.role === "draft" && m.tx?.stage === "idle")?.id };
+        // Floor abre el hilo como principal: a quien le habla y con que hechos.
+        const factBits = [quote ? `Uniswap $${quote.priceUsd.toFixed(2)}` : "", quote?.bankr ? `Bankr $${quote.bankr.priceUsd.toFixed(2)}` : "", facts?.chainlinkUsd ? `Chainlink $${facts.chainlinkUsd.toFixed(2)}` : "", facts?.swaps24h !== undefined ? `${facts.swaps24h} swaps in 24h` : ""].filter(Boolean);
+        const openLine = `@Scout @Risk ${text}${factBits.length ? `. Facts attached: ${factBits.join(", ")}.` : "."}`;
+        setMessages((m) => [...m.filter((x) => x.id !== floorId), { id: youId + 90, role: "floor", kind: "open", text: openLine, turnId: youId }, { id: floorId, role: "floor", text: "", streaming: true, turnId: youId }]);
         const fr = await fetch("/api/fleet/desk", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -285,13 +304,18 @@ function Shell() {
               let ev: { step?: string; role?: string; ok?: boolean; reply?: string; detail?: string; ms?: number; verdict?: "GO" | "BLOCK"; replies?: typeof fleetReplies };
               try { ev = JSON.parse(line); } catch { continue; }
               const phId = (role: string) => youId + 100 + ["scout", "risk", "trader", "auditor"].indexOf(role);
+              if (ev.step === "start" || ev.step === "reply" || ev.step === "done") {
+                turnLocal = applyTurnEvent(turnLocal, ev);
+                const snap = turnLocal;
+                setTurn((t) => (t && t.id === youId ? snap : t));
+              }
               if (ev.step === "start" && ev.role) {
                 setTalking(ev.role, true);
                 setCaption(`${cap(ev.role)} is thinking…`);
                 // Burbuja "escribiendo" del agente hasta que llegue su respuesta.
                 const pid = phId(ev.role);
                 const who = ev.role;
-                setMessages((m) => [...m.filter((x) => x.id !== floorId && x.id !== pid), { id: pid, role: "team", who, text: "", streaming: true }, { id: floorId, role: "floor", text: "", streaming: true }]);
+                setMessages((m) => [...m.filter((x) => x.id !== floorId && x.id !== pid), { id: pid, role: "team", who, text: "", streaming: true, turnId: youId }, { id: floorId, role: "floor", text: "", streaming: true, turnId: youId }]);
                 // Scout y Risk entregan a Trader y Auditor: los haces salen de quien ya hablo.
                 if (ev.role === "trader" || ev.role === "auditor") setBeams((b) => [...b, ...handed.map((from) => ({ from, to: ev.role!, done: false }))]);
               } else if (ev.step === "reply" && ev.role) {
@@ -301,7 +325,7 @@ function Shell() {
                   n += 1;
                   const id = youId + 2 + n;
                   const r = ev.role;
-                  setMessages((m) => [...m.filter((x) => x.id !== floorId), { id, role: "team", who: r, text: ev.reply!, verdict: ev.verdict }, { id: floorId, role: "floor", text: "", streaming: true }]);
+                  setMessages((m) => [...m.filter((x) => x.id !== floorId), { id, role: "team", who: r, text: ev.reply!, verdict: ev.verdict, turnId: youId }, { id: floorId, role: "floor", text: "", streaming: true, turnId: youId }]);
                   flog("info", `desk ${r}: ${ev.ms} ms${ev.verdict ? ` · ${ev.verdict}` : ""}`);
                   touch();
                   // La Analysis card del activo en foco recoge lo que dicen Scout y Risk.
@@ -328,6 +352,18 @@ function Shell() {
                 }
               } else if (ev.step === "done") {
                 fleetReplies = ev.replies ?? [];
+                turnLiveRef.current = false;
+                // Las cards se leen 2 s y se contraen a chips; la decision queda guardada.
+                window.setTimeout(() => setTurn((t) => (t && t.id === youId ? { ...t, collapsed: true } : t)), 2000);
+                {
+                  const d = turnLocal;
+                  const q = d.quote;
+                  const stamp = new Date().toISOString().slice(0, 16).replace("T", " ").replace(":", "-");
+                  const title = q ? `${stamp} ${q.side} ${q.amountIn} ${q.tokenIn} ${q.symbol}` : `${stamp} ${text.slice(0, 40)}`;
+                  const who = (["scout", "risk", "trader", "auditor"] as const).map((r) => `- **${cap(r)}** (${d.agents[r].state}${d.agents[r].ms ? `, ${(d.agents[r].ms! / 1000).toFixed(1)} s` : ""}): ${(d.agents[r].text ?? "").replace(/\s+/g, " ").slice(0, 700)}`).join("\n");
+                  const body = `**Asked**: ${text}\n**Verdict**: ${d.verdict ?? "none"}\n${q ? `**Order**: ${q.side} ${q.amountIn} ${q.tokenIn} -> ${q.quoteOut} ${q.tokenOut} at $${q.priceUsd.toFixed(2)}${q.bankr ? ` (Bankr $${q.bankr.priceUsd.toFixed(2)})` : ""}\n` : ""}\n${who}\n\n\`\`\`json\n${JSON.stringify({ ...d, live: false, collapsed: true })}\n\`\`\``;
+                  kbWriteRef.current({ kind: "decision", title, body, ticker: q?.symbol?.replace(/c$/i, "") });
+                }
                 setBeams((b) => b.map((x) => ({ ...x, done: true })));
                 // Los haces se apagan solos al cerrar el turno (antes quedaban dibujados).
                 window.setTimeout(() => setBeams([]), 1500);
@@ -675,6 +711,10 @@ function Shell() {
         flog("info", `trade ${t.label}: confirmed`);
       }
       patch({ stage: "done", step: undefined, hashes: [...hashes] });
+      {
+        const last = hashes[hashes.length - 1];
+        setTurn((t) => (t ? { ...t, receipt: { hash: last?.hash, explorer: last?.explorer, status: "signed" } } : t));
+      }
       kbWriteRef.current({ kind: "order", ticker: d.stock.ticker, title: `${d.side} ${d.side === "buy" ? `$${d.amountInUsd}` : d.amountInHuman} ${d.stock.symbol} ${new Date().toISOString().slice(0, 16).replace("T", " ")}`, body: `- Side: ${d.side}\n- Asset: ${d.stock.name} (${d.stock.symbol}, ${d.stock.issuer})\n- Paid: ${d.amountInHuman} ${d.tokenIn.symbol}\n- Received (quoted): ${d.quoteOutHuman} ${d.tokenOut.symbol}\n- Price: $${d.impliedPriceUsd.toFixed(2)} per share\n- Pool: ${d.pool} (${d.fee / 10_000}%)\n- Signed by the human in their wallet.\n${hashes.map((h) => `- ${h.label}: ${h.explorer}`).join("\n")}` });
       setCaption(d.side === "buy" ? `Bought ${d.quoteOutHuman} ${d.stock.symbol} for $${d.amountInUsd} on Base.` : `Sold ${d.amountInHuman} ${d.stock.symbol} for $${d.quoteOutHuman} on Base.`);
       speak(d.side === "buy" ? `Done. You now hold ${Number(d.quoteOutHuman).toFixed(4)} ${d.stock.name} on Base, and the receipt is on chain.` : `Done. ${d.amountInHuman} ${d.stock.name} sold for ${Number(d.quoteOutHuman).toFixed(2)} dollars on Base, receipt on chain.`);
@@ -804,7 +844,7 @@ function Shell() {
 
   // Conocimiento local: cada turno deja rastro en ~/.perkos-floor/knowledge
   // (diario, analisis, ordenes). Best effort; nunca bloquea la escena.
-  const kbWrite = useCallback((payload: { journal?: true; kind?: "journal" | "analysis" | "order" | "memory"; title?: string; body: string; ticker?: string }) => {
+  const kbWrite = useCallback((payload: { journal?: true; kind?: "journal" | "analysis" | "order" | "memory" | "decision"; title?: string; body: string; ticker?: string }) => {
     void fetch("/api/kb/notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
       .then((r) => r.json().then((j) => { if (!r.ok) flog("warn", `kb: ${j.error ?? r.status}`); }))
       .catch((e) => flog("warn", `kb: ${(e as Error).message}`));
@@ -812,17 +852,56 @@ function Shell() {
   kbWriteRef.current = kbWrite;
   focusRef.current = focusAsset;
 
+  // Pregunta lateral mientras la mesa trabaja: solo Floor (principal) responde,
+  // sin cortar el turno de los agentes. Sin voz: la mesa ya esta hablando.
+  const sideChat = useCallback(async (text: string) => {
+    const tid = turnRef.current?.id;
+    const youId = Date.now();
+    const fid = youId + 1;
+    setMessages((m) => [...m, { id: youId, role: "you", text, turnId: tid }, { id: fid, role: "floor", kind: "side", text: "", streaming: true, turnId: tid }]);
+    stickRef.current = true;
+    try {
+      const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, fleet: [], side: true, desk: deskRef.current ? { name: deskRef.current.name, roles: deskRef.current.agents.map((a) => a.name) } : undefined, brief: briefRef.current?.lines ?? null, news: briefRef.current?.news ?? null, focus: focusRef.current || null }) });
+      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "", full = "";
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let i: number;
+        while ((i = buf.indexOf("\n\n")) >= 0) {
+          const line = buf.slice(0, i).replace(/^data:\s*/, "");
+          buf = buf.slice(i + 2);
+          if (!line) continue;
+          let ev: { delta?: string; error?: string };
+          try { ev = JSON.parse(line); } catch { continue; }
+          if (ev.error) throw new Error(ev.error);
+          if (typeof ev.delta === "string") { full += ev.delta; setMessages((m) => m.map((x) => (x.id === fid ? { ...x, text: full } : x))); }
+        }
+      }
+      setMessages((m) => m.map((x) => (x.id === fid ? { ...x, text: full, streaming: false } : x)));
+      flog("info", `side chat <- ${full.length} chars`);
+    } catch (e) {
+      flog("warn", `side chat: ${(e as Error).message}`);
+      setMessages((m) => m.map((x) => (x.id === fid ? { ...x, text: x.text || "Still working on it.", streaming: false } : x)));
+    }
+  }, []);
+
   const run = useCallback((raw: string) => {
     const spoken = raw.trim();
     const it = parseIntent(raw);
     const cmd = it.kind;
     flog("info", `intent: ${it.kind}${"asset" in it && it.asset ? ` · ${it.asset}` : ""}`);
     if (cmd === "chat" && spoken) {
+      if (turnLiveRef.current) { void sideChat(spoken); return; }
       quoteRef.current = null;
       briefRef.current = null;
       void chat(spoken);
       return;
     }
+    if (cmd === "history") { setDeskScreen("history"); setCaption("Every decision the desk made"); return; }
     if (cmd === "buy" || cmd === "sell") {
       quoteRef.current = null;
       if (it.asset) setFocusAsset(it.asset);
@@ -1234,7 +1313,7 @@ function Shell() {
   }
 
   return (
-    <div className={`stage${split ? " split" : ""}${debug ? " with-debug" : ""}${deskScreen ? " desk-open" : ""}`}>
+    <div className={`stage${split ? " split" : ""}${debug ? " with-debug" : ""}${deskScreen ? " desk-open" : ""}${turn && !turn.collapsed ? " turn-live" : ""}`}>
       <div className="dragbar" />
       <div className="mark">
         <img src="/logo-name.png" alt="PerkOS" />
@@ -1296,6 +1375,19 @@ function Shell() {
         <Orb className="auditor" label="Auditor" on={awake} state={orbState("auditor")} talking={talking.has("auditor")} refCb={(el) => { orbRefs.current.auditor = el; }} />
         <Orb className={`guest${guest ? "" : " dim"}`} label={guest ? "Grok Bot" : "Guest"} on={guest} />
       </div>
+      {turn && awake ? (
+        <div className={`ag-layer${turn.collapsed ? " chips" : ""}`}>
+          <AgentCards
+            turn={turn}
+            mode={turn.collapsed ? "chips" : "live"}
+            onExpand={() => setTurn((t) => (t ? { ...t, collapsed: false } : t))}
+            onFocus={(r: AgentRole) => { const els = document.querySelectorAll(`.turn.team[data-who="${r}"]`); const el = els[els.length - 1]; if (el) { stickRef.current = false; setShowJump(true); el.scrollIntoView({ behavior: "smooth", block: "center" }); } }}
+            canApprove={turn.verdict === "GO" && messages.some((m) => m.role === "draft" && m.tx?.stage === "idle")}
+            onApprove={() => { const d = [...messagesRef.current].reverse().find((m) => m.role === "draft" && m.tx?.stage === "idle"); if (d) void approveDraft(d.id); }}
+          />
+          {!turn.collapsed && !turn.live ? <button type="button" className="ag-collapse" onClick={() => setTurn((t) => (t ? { ...t, collapsed: true } : t))} aria-label="Collapse">×</button> : null}
+        </div>
+      ) : null}
 
       <div className={`slab docs${docs ? " on" : ""}`}>
         <div className="k">PROJECT</div>
@@ -1317,6 +1409,9 @@ function Shell() {
           </button>
           <button type="button" className={deskScreen === "map" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "map" ? "" : "map")} title="Map · the desk as a graph">
             <MapIcon /><span>Map</span>
+          </button>
+          <button type="button" className={deskScreen === "history" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "history" ? "" : "history")} title="History · every decision the desk made">
+            <HistoryIcon /><span>History</span>
           </button>
         </nav>
       ) : null}
@@ -1372,10 +1467,30 @@ function Shell() {
         </button>
       ) : null}
       <div className={`transcript${split ? " on" : ""}`} aria-live="polite" ref={transcriptRef} onScroll={onTranscriptScroll} onWheel={markUserGesture} onTouchMove={markUserGesture} onKeyDown={onTranscriptKey} tabIndex={-1}>
-        {messages.map((m) => (
-          <div key={m.id} className={`turn ${m.role}`}>
+        {(() => {
+          // Turnos anteriores plegados en una linea (patron de hilo de grupo);
+          // el turno en curso y los abiertos a mano se ven completos.
+          const latestTurn = turn?.id ?? [...messages].reverse().find((x) => x.turnId)?.turnId;
+          const out: React.ReactNode[] = [];
+          const folded = new Set<number>();
+          for (const m of messages) {
+            const tid = m.turnId;
+            if (tid && tid !== latestTurn && !openTurns.includes(tid)) {
+              if (folded.has(tid)) continue;
+              folded.add(tid);
+              const ask = messages.find((x) => x.turnId === tid && x.role === "you")?.text ?? "turn";
+              const v = messages.find((x) => x.turnId === tid && x.verdict)?.verdict;
+              out.push(
+                <button type="button" key={`fold-${tid}`} className="turn-fold" onClick={() => setOpenTurns((o) => [...o, tid])}>
+                  ▸ {ask.slice(0, 60)}{v ? <em className={`vchip ${v.toLowerCase()}`}>{v}</em> : null}<small>{new Date(tid).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</small>
+                </button>
+              );
+              continue;
+            }
+            out.push(
+          <div key={m.id} className={`turn ${m.role}${m.kind ? ` ${m.kind}` : ""}`} data-who={m.who ?? (m.role === "floor" ? "floor" : undefined)}>
             <span className="turn-k">
-              {m.role === "you" ? "You" : m.role === "team" ? `${cap(m.who ?? "team")} · PerkOS` : m.role === "draft" ? "Trader · draft" : m.role === "analysis" ? `Desk · ${m.who ?? "analysis"}` : "Floor"}
+              {m.role === "you" ? "You" : m.role === "team" ? `${cap(m.who ?? "team")} · PerkOS` : m.role === "draft" ? "Trader · draft" : m.role === "analysis" ? `Desk · ${m.who ?? "analysis"}` : m.kind === "open" ? "Floor · principal" : m.kind === "side" ? "Floor · to you" : "Floor"}
               {m.verdict ? <em className={`vchip ${m.verdict.toLowerCase()}`}>{m.verdict}</em> : null}
             </span>
             {m.role === "draft" && m.draft ? (
@@ -1384,12 +1499,15 @@ function Shell() {
               <AnalysisCard a={m.analysis} onSay={(t) => runRef.current(t)} />
             ) : (
               <div className="bubble">
-                {m.streaming && !m.text ? <span className="typing" aria-label="typing"><i /><i /><i /></span> : m.text}
+                {m.streaming && !m.text ? <span className="typing" aria-label="typing"><i /><i /><i /></span> : mentions(m.text)}
                 {m.streaming && m.text ? <i className="cursor" /> : null}
               </div>
             )}
           </div>
-        ))}
+            );
+          }
+          return out;
+        })()}
       </div>
 
       <form
@@ -1606,7 +1724,13 @@ function Beams({ beams, orbitRef, orbRefs }: { beams: Array<{ from: string; to: 
         const a = center(b.from);
         const c = center(b.to);
         if (!a || !c) return null;
-        return <line key={`${b.from}-${b.to}-${i}`} className={b.done ? "done" : ""} x1={a.x} y1={a.y} x2={c.x} y2={c.y} />;
+        const d = `M ${a.x} ${a.y} C ${a.x} ${(a.y + c.y) / 2}, ${c.x} ${(a.y + c.y) / 2}, ${c.x} ${c.y}`;
+        return (
+          <g key={`${b.from}-${b.to}-${i}`}>
+            <path className={`beam-path${b.done ? " done" : ""}`} d={d} />
+            {!b.done ? <circle className="beam-token" r="4"><animateMotion dur="0.9s" fill="freeze" path={d} /></circle> : null}
+          </g>
+        );
       })}
     </svg>
   );
@@ -1785,6 +1909,18 @@ function WalletIcon() {
   );
 }
 
+/** @Scout, @Risk, @Trader, @Auditor, @Floor como chips de color en las burbujas. */
+function mentions(text: string): React.ReactNode {
+  const parts = text.split(/(@(?:Scout|Risk|Trader|Auditor|Floor)\b)/g);
+  if (parts.length === 1) return text;
+  return parts.map((p, i) => {
+    const mm = p.match(/^@(Scout|Risk|Trader|Auditor|Floor)$/);
+    return mm ? <span key={i} className={`m ${mm[1].toLowerCase()}`}>{p}</span> : <span key={i}>{p}</span>;
+  });
+}
+function HistoryIcon() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /><path d="M12 7v5l3 2" /></svg>;
+}
 function cap(s: string): string {
   return s ? s[0].toUpperCase() + s.slice(1) : s;
 }

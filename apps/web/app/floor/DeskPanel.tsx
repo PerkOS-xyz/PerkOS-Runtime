@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import AgentCards, { type DeskTurn } from "./AgentCards";
 
 // Pantallas propias del desk (PerkOS Floor desk): Market y Portfolio, como en
 // EQLTY pero sin vault intermedio (las llaves son de la persona). El template
@@ -26,7 +27,7 @@ function Spark({ points, w = 96, h = 28, big = false }: { points?: number[]; w?:
   );
 }
 
-export type DeskScreen = "market" | "portfolio" | "notes" | "map";
+export type DeskScreen = "market" | "portfolio" | "notes" | "map" | "history";
 type Note = { id: string; desk: string; kind: string; title: string; ticker?: string; body: string; updatedAt: string };
 type Hit = { id: string; kind: string; title: string; ticker?: string; updatedAt: string; snippet: string };
 
@@ -96,11 +97,14 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
           <button type="button" role="tab" aria-selected={screen === "portfolio"} className={screen === "portfolio" ? "on" : ""} onClick={() => onScreen("portfolio")}>Portfolio</button>
           <button type="button" role="tab" aria-selected={screen === "notes"} className={screen === "notes" ? "on" : ""} onClick={() => onScreen("notes")}>Notes</button>
           <button type="button" role="tab" aria-selected={screen === "map"} className={screen === "map" ? "on" : ""} onClick={() => onScreen("map")}>Map</button>
+          <button type="button" role="tab" aria-selected={screen === "history"} className={screen === "history" ? "on" : ""} onClick={() => onScreen("history")}>History</button>
         </div>
         <button type="button" className="close" onClick={onClose} aria-label="Close">×</button>
       </header>
 
-      {screen === "map" ? (
+      {screen === "history" ? (
+        <History />
+      ) : screen === "map" ? (
         <>
           <p className="hint-line">The desk as a graph: you sign, Floor speaks, the team hands off, the world is what they look at. Click a node.</p>
           {map}
@@ -234,5 +238,55 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
         </>
       )}
     </aside>
+  );
+}
+
+
+/** History: cada decision de la mesa (nota decisions/ con el run en JSON) y su replay. */
+function History() {
+  const [rows, setRows] = useState<Array<{ id: string; title: string; ticker?: string; updatedAt: string }>>([]);
+  const [sel, setSel] = useState<string>("");
+  const [run, setRun] = useState<DeskTurn | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/kb/notes?kind=decision&limit=40").then((r) => r.json()).then((j) => { if (alive) setRows((j.notes ?? []).map((n: { id: string; title: string; ticker?: string; updatedAt: string }) => ({ id: n.id, title: n.title, ticker: n.ticker, updatedAt: n.updatedAt }))); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, []);
+  useEffect(() => {
+    if (!sel) return;
+    let alive = true;
+    setBusy(true);
+    fetch(`/api/kb/note?id=${encodeURIComponent(sel)}`).then((r) => r.json()).then((j) => {
+      if (!alive) return;
+      const m = String(j.body ?? "").match(/```json\n([\s\S]*?)\n```/);
+      setRun(m ? (JSON.parse(m[1]) as DeskTurn) : null);
+    }).catch(() => setRun(null)).finally(() => { if (alive) setBusy(false); });
+    return () => { alive = false; };
+  }, [sel]);
+  return (
+    <div className="history">
+      <p className="hint">Every decision the desk made, with who said what. Click one to see the run.</p>
+      {rows.length === 0 ? <p className="hint">No decisions yet. Ask the desk to draft a trade.</p> : null}
+      <div className="hist-list">
+        {rows.map((r) => (
+          <button type="button" key={r.id} className={`hist-row${sel === r.id ? " on" : ""}`} onClick={() => setSel(r.id)}>
+            <span className="d">{r.updatedAt.slice(5, 16).replace("T", " ")}</span>
+            <span className="t">{r.title.replace(/^\d{4}-\d{2}-\d{2} \d{2}-\d{2} /, "")}</span>
+            {r.ticker ? <span className="tk">{r.ticker}</span> : null}
+          </button>
+        ))}
+      </div>
+      {busy ? <p className="hint">Reading the run…</p> : null}
+      {run ? (
+        <div className="hist-run">
+          <div className="hist-meta">{run.verdict ? <em className={`vchip ${run.verdict.toLowerCase()}`}>{run.verdict}</em> : null} {run.endedAt && run.startedAt ? `${((run.endedAt - run.startedAt) / 1000).toFixed(1)} s` : ""} {run.receipt?.hash ? `· signed ${run.receipt.hash.slice(0, 10)}…` : "· unsigned"}</div>
+          <AgentCards turn={{ ...run, collapsed: false, live: false }} mode="replay" />
+          <div className="hist-who">
+            {(["scout", "risk", "trader", "auditor"] as const).map((r) => run.agents[r]?.text ? <p key={r}><b>{r}</b> {run.agents[r].text}</p> : null)}
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }

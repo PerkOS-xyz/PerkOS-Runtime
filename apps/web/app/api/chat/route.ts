@@ -67,7 +67,7 @@ export async function DELETE() {
 }
 
 export async function POST(req: Request) {
-  const body = (await req.json().catch(() => ({}))) as { text?: string; fleet?: Array<{ role: string; ok: boolean; reply: string; detail?: string }>; desk?: { name?: string; roles?: string[] }; brief?: string[] | null; news?: string | null; focus?: string | null };
+  const body = (await req.json().catch(() => ({}))) as { text?: string; fleet?: Array<{ role: string; ok: boolean; reply: string; detail?: string }>; desk?: { name?: string; roles?: string[] }; brief?: string[] | null; news?: string | null; focus?: string | null; side?: boolean };
   const text = body.text?.trim() ?? "";
   // Respuestas de la flota (Hermes en PerkOS infra) para este turno: Grok es
   // la voz del Floor y las resume; no inventa lo que un agente no dijo.
@@ -100,7 +100,10 @@ export async function POST(req: Request) {
   const localCtx = local.text
     ? "\n\n## What this desk already knows (local notes on this Mac; cite the date when you use them, prefer today's verified facts if they conflict):\n" + local.text
     : "";
-  const instructions = buildInstructions(base, brief, live?.context ?? "") + factsCtx + localCtx + (fleetCtx
+  const sideCtx = body.side === true
+    ? "\n\n## A desk turn is running right now\nThe person asked something while Scout, Risk, Trader and Auditor are still working. You are the principal: answer only this question, in one or two sentences, from the facts you already have. Do not speak for agents that have not answered yet; say they are still working if asked.\n"
+    : "";
+  const instructions = buildInstructions(base, brief, live?.context ?? "") + factsCtx + localCtx + sideCtx + (fleetCtx
     ? "\n\n## Your teammates just answered this turn (Hermes agents on PerkOS infra). Speak for the desk: summarize what they found, name who said what when it matters, flag disagreements and what needs the human's approval. Do not invent what they did not say.\n" + fleetCtx
     : "");
   const knowledgeInfo = live
