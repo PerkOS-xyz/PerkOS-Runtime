@@ -6,7 +6,7 @@ The runtime is the CPU. PerkOS is the OS. Floor is the door.
 
 ## What this is
 
-- Native app (`Floor.app` / AppImage), not a marketing site
+- Native app (`PerkOS.app` / AppImage), not a marketing site
 - Canvas dashboard: four core Hermes desks (Scout, Risk, Trader, Auditor) plus an invited guest
 - Voice + hands + LiveKit as the pipe, not the brain
 - Base only for the Runtime Agent Week demo (Dynamic, B20, Uniswap, x402)
@@ -30,6 +30,19 @@ npm start --prefix apps/desktop
 ```
 
 Ask the floor: `Hey PerkOS`, `Wake the team`, `Invite the guest`, `Show the documentation`, `Review the market`, `Stop`.
+
+## Package as PerkOS.app (macOS, Apple Silicon)
+
+```
+npm run package:mac --prefix apps/desktop
+```
+
+Builds the web app in production mode (`next build`, standalone output), makes the icon from the vertical logo and packs everything with electron-builder into `apps/desktop/release/mac-arm64/PerkOS.app`. The app starts the bundled server with Electron's own Node, so the Mac that runs it needs no Node install.
+
+- Build-time: `apps/web/.env.local` with the `NEXT_PUBLIC_*` values (they are inlined).
+- Run-time: `~/.perkos-floor/env` with the server keys (`BASE_RPC_URL`, `BANKR_API_KEY`, `KNOWLEDGE_*`), same `KEY=VALUE` format. The keys never travel inside the bundle.
+- Settings, session, vault and logs stay in `~/.perkos-floor/` (`logs/floor-app.log` is the server output of the packaged app).
+- The signature is ad-hoc: fine on the Mac that built it. Distributing to other Macs needs a Developer ID and notarization.
 
 ## Desk knowledge
 

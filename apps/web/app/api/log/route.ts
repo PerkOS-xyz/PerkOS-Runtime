@@ -4,7 +4,7 @@ import { join } from "node:path";
 // El log de debug de la UI tambien va a un archivo del repo (ignorado por git),
 // para poder leerlo con `tail -f apps/web/.floor-debug.log` sin abrir el panel.
 // Recibe lotes (array) o una linea suelta.
-const file = join(process.cwd(), ".floor-debug.log");
+const file = process.env.FLOOR_DEBUG_LOG?.trim() || join(process.cwd(), ".floor-debug.log");
 
 type Row = { level?: string; msg?: string; at?: number };
 
