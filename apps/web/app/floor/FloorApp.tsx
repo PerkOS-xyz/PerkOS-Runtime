@@ -1596,9 +1596,9 @@ function Shell() {
           solo se ve con equipo. Un "wake" por voz con 402 abre el pago directo. */}
 
       <div className="core-wrap">
-        <button className={`core ${coreClass}`} type="button" onClick={listen} aria-label="Talk to PerkOS" />
+        <button className={`core ${coreClass}`} type="button" onClick={listen} aria-label="Talk to Sparky" />
         <div className="mic-dock">
-          <div className="whisper">{speaking ? "Speaking" : thinking ? "Thinking" : listening ? "Listening" : awake ? "They draft. You approve." : "Hey PerkOS"}</div>
+          <div className="whisper">{speaking ? "Speaking" : thinking ? "Thinking" : listening ? "Listening" : awake ? "They draft. You approve." : "Hey Sparky"}</div>
         </div>
       </div>
 
@@ -1635,7 +1635,7 @@ function Shell() {
             out.push(
           <div key={m.id} className={`turn ${m.role}${m.kind ? ` ${m.kind}` : ""}`} data-who={m.who ?? (m.role === "floor" ? "floor" : undefined)}>
             <span className="turn-k">
-              {m.role === "you" ? "You" : m.role === "team" ? `${cap(m.who ?? "team")} · PerkOS` : m.role === "draft" ? "Desk · decision" : m.role === "analysis" ? `Desk · ${m.who ?? "analysis"}` : m.kind === "open" ? "Floor · principal" : m.kind === "side" ? "Floor · to you" : "Floor"}
+              {m.role === "you" ? "You" : m.role === "team" ? `${cap(m.who ?? "team")} · PerkOS` : m.role === "draft" ? "Desk · decision" : m.role === "analysis" ? `Desk · ${m.who ?? "analysis"}` : m.kind === "open" ? "Sparky · principal" : m.kind === "side" ? "Sparky · to you" : "Sparky"}
               {m.verdict ? <em className={`vchip ${m.verdict.toLowerCase()}`}>{m.verdict}</em> : null}
             </span>
             {m.role === "draft" && m.draft ? (
@@ -1701,10 +1701,10 @@ function Shell() {
           ref={askRef}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder={"Ask the floor. Try \"buy $3 of NVDAc\""}
+          placeholder={"Ask Sparky. Try \"buy $3 of NVDAc\""}
           spellCheck={false}
           autoComplete="off"
-          aria-label="Ask the floor"
+          aria-label="Ask Sparky"
         />
         <button
           type="button"
@@ -2060,13 +2060,14 @@ function WalletIcon() {
   );
 }
 
-/** @Scout, @Risk, @Trader, @Auditor, @Floor como chips de color en las burbujas. */
+/** @Scout, @Risk, @Trader, @Auditor, @Sparky como chips de color en las burbujas.
+ *  @Floor sigue reconocido por las decisiones guardadas antes del cambio de nombre. */
 function mentions(text: string): React.ReactNode {
-  const parts = text.split(/(@(?:Scout|Risk|Trader|Auditor|Floor)\b)/g);
+  const parts = text.split(/(@(?:Scout|Risk|Trader|Auditor|Sparky|Floor)\b)/g);
   if (parts.length === 1) return text;
   return parts.map((p, i) => {
-    const mm = p.match(/^@(Scout|Risk|Trader|Auditor|Floor)$/);
-    return mm ? <span key={i} className={`m ${mm[1].toLowerCase()}`}>{p}</span> : <span key={i}>{p}</span>;
+    const mm = p.match(/^@(Scout|Risk|Trader|Auditor|Sparky|Floor)$/);
+    return mm ? <span key={i} className={`m ${mm[1] === "Floor" ? "sparky" : mm[1].toLowerCase()}`}>{p}</span> : <span key={i}>{p}</span>;
   });
 }
 function HistoryIcon() {

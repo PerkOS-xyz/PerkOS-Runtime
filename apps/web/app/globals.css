@@ -1369,7 +1369,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .m.risk { color: #ffd08a; border-color: color-mix(in srgb, var(--ag-risk) 60%, transparent); background: color-mix(in srgb, var(--ag-risk) 12%, transparent); }
 .m.trader { color: #d8b4fe; border-color: color-mix(in srgb, var(--ag-trader) 60%, transparent); background: color-mix(in srgb, var(--ag-trader) 14%, transparent); }
 .m.auditor { color: #99f6e4; border-color: color-mix(in srgb, var(--ag-auditor) 60%, transparent); background: color-mix(in srgb, var(--ag-auditor) 12%, transparent); }
-.m.floor { color: #ff8fa8; border-color: rgba(236, 27, 105, 0.7); background: rgba(236, 27, 105, 0.15); }
+.m.floor, .m.sparky { color: #ff8fa8; border-color: rgba(236, 27, 105, 0.7); background: rgba(236, 27, 105, 0.15); }
 /* Turnos anteriores plegados. */
 .turn-fold { align-self: center; font: inherit; font-size: 10px; color: #9aabc8; border: 1px dashed rgba(120, 160, 255, 0.3); background: rgba(6, 10, 22, 0.5); border-radius: 999px; padding: 4px 12px; cursor: pointer; display: inline-flex; gap: 8px; align-items: center; }
 .turn-fold small { color: #6f7d99; }

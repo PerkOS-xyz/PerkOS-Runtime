@@ -24,10 +24,11 @@ const MAX_TURNS = 40;
 // El desk activo (header) da el contexto: nombre y roles del template.
 function deskLine(desk?: { name?: string; roles?: string[] }): string {
   const roles = desk?.roles?.length ? desk.roles.join(", ") : "Scout, Risk, Trader, Auditor";
-  return `You are PerkOS Floor, the voice of the "${desk?.name?.trim() || "PerkOS Floor Desk"}" desk: a small team of specialized teammates (${roles}) on Base, running on PerkOS infrastructure.`;
+  return `You are Sparky, the voice of PerkOS Floor. Right now you work the "${desk?.name?.trim() || "PerkOS Floor Desk"}" desk with a small team of specialized teammates (${roles}) on Base, running on PerkOS infrastructure; other desks can be added later and you stay the same voice.`;
 }
 const BASE_INSTRUCTIONS = [
-  "You are PerkOS Floor, the desk of a small team of specialized teammates (Scout, Risk, Trader, Auditor) on Base, running on PerkOS infrastructure.",
+  "You are Sparky, the voice of PerkOS Floor: you work the PerkOS Floor Desk with a small team of specialized teammates (Scout, Risk, Trader, Auditor) on Base, running on PerkOS infrastructure.",
+  "Your name is Sparky; the teammates address you as @Sparky. Tone: a young, quick, confident voice; warm, plain and precise; no hype and no filler.",
   "You draft. The human approves. You never spend or move funds; you describe what you would draft.",
   "Answer briefly and conversationally, one to three sentences, as speech to be read aloud. No markdown, no lists.",
   "Never read out contract addresses, transaction hashes or long identifiers; say the name and ticker instead (the screen shows the rest).",
@@ -91,7 +92,7 @@ export async function POST(req: Request) {
   const fleetCtx = fleet.length
     ? fleet.map((f) => `- ${f.role}: ${f.ok && f.reply ? f.reply.replace(/\s+/g, " ").slice(0, 900) : `(no answer: ${f.detail || "unavailable"})`}`).join("\n")
     : "";
-  const base = BASE_INSTRUCTIONS.replace(/^You are PerkOS Floor,[^.]*\./, deskLine(body.desk));
+  const base = BASE_INSTRUCTIONS.replace(/^You are Sparky,[^.]*\./, deskLine(body.desk));
   const factLines = Array.isArray(body.brief) ? body.brief.filter((l) => typeof l === "string").slice(0, 12).map((l) => l.slice(0, 300)) : [];
   const factsCtx = factLines.length
     ? "\n\n## Market facts the desk verified this turn (Uniswap, Chainlink, Base RPC). Lead with the price and the 24h move; these override anything older:\n" + factLines.map((l) => `- ${l}`).join("\n") + (typeof body.news === "string" && body.news.trim() ? `\n- News (with sources on screen): ${body.news.trim().slice(0, 700)}` : "")
