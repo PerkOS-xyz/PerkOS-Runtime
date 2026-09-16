@@ -1148,6 +1148,8 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .chain-mark { display: inline-block; width: 14px; height: 14px; border-radius: 5%; flex: none; box-shadow: 0 0 10px rgba(0, 0, 255, 0.35); }
 .chain-mark.sm { width: 10px; height: 10px; margin-right: 7px; box-shadow: none; }
 .chain-mark.big { width: 28px; height: 28px; box-shadow: 0 0 18px rgba(0, 0, 255, 0.45); }
+/* Logotipo en bloques de Base, a la altura de las mayusculas del wordmark. */
+.chain-logo { height: 30px; width: auto; display: block; filter: drop-shadow(0 0 10px rgba(0, 0, 255, 0.35)); }
 /* Lockup de partnership (invertido): wordmark + "+" + marca de la cadena.
    Peso optico parejo (la marca a la altura de las minusculas del wordmark),
    espacio a cada lado del "+" del orden del stem de la "b". */
