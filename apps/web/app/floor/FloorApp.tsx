@@ -1069,6 +1069,18 @@ function Shell() {
         <b>PerkOS Floor</b>
         <small>They draft. You approve. Base only.</small>
       </div>
+      {/* Dock del desk: las pantallas propias del desk activo, a un clic
+          (tambien por voz: "show the market", "show my portfolio"). */}
+      {desk && !wizard ? (
+        <nav className="desk-dock" aria-label="Desk screens">
+          <button type="button" className={deskScreen === "market" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "market" ? "" : "market")} title="Market · tokenized stocks on Base">
+            <ChartIcon /><span>Market</span>
+          </button>
+          <button type="button" className={deskScreen === "portfolio" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "portfolio" ? "" : "portfolio")} title="Portfolio · your positions on Base">
+            <WalletIcon /><span>Portfolio</span>
+          </button>
+        </nav>
+      ) : null}
       {deskScreen ? (
         <DeskPanel screen={deskScreen} focus={focusAsset} onScreen={setDeskScreen} onClose={() => setDeskScreen("")} onSay={(t) => runRef.current(t)} />
       ) : null}
@@ -1392,6 +1404,23 @@ function DraftCard({ draft, tx, onApprove }: {
         <small>{tx.stage === "done" ? "Receipt on Base. Your keys, your trade." : tx.stage === "blocked" ? "Risk said no. Nothing to sign." : "They draft. You sign in your wallet."}</small>
       </div>
     </div>
+  );
+}
+
+function ChartIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 17l5-6 4 3 4-6 5 4" />
+      <path d="M3 21h18" />
+    </svg>
+  );
+}
+function WalletIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="6" width="18" height="13" rx="2.5" />
+      <path d="M3 10h18M16 14h2" />
+    </svg>
   );
 }
 
