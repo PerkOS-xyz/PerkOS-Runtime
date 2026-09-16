@@ -1151,10 +1151,11 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .desk-id .desk-menu { left: 50%; transform: translateX(-50%); top: 40px; }
 /* Panel abierto: el pill al centro de la mitad libre, sin slogan (el lockup
    queda en la fila 2, nada choca). Maximizado: banda compacta, pill visible. */
-.stage.desk-open .desk-id { left: 25%; }
+/* El pill del desk no se mueve nunca: centro de la ventana en todos los estados. */
 .stage.desk-open .desk-id small { display: none; }
-.stage.desk-max .desk-id { left: 50%; opacity: 1; pointer-events: auto; }
-.stage.desk-max .mark { top: 20px; }
+.stage.desk-max .desk-id { opacity: 1; pointer-events: auto; }
+/* Maximizado: lockup compacto a la derecha de los semaforos de macOS (x 16-70). */
+.stage.desk-max .mark { top: 15px; left: 92px; }
 .stage.desk-max .mark img { height: 28px; }
 .stage.desk-max .mark .chain-logo { height: 17px; }
 .stage.desk-max .mark .plus { font-size: 16px; }
@@ -1615,7 +1616,8 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .desk-panel.max .hist-body { display: grid; grid-template-columns: minmax(280px, 34%) 1fr; gap: 16px; align-items: start; }
 .desk-panel.max .hist-left { overflow: auto; max-height: calc(100vh - 220px); }
 .desk-panel.max .hist-right { border: 1px solid rgba(120, 160, 255, 0.14); border-radius: 12px; padding: 12px 16px; background: rgba(6, 10, 22, 0.35); min-height: 240px; }
-.hist-right .hint.dim { color: var(--mute); }
+.hist-right .hint.dim { display: none; color: var(--mute); }
+.desk-panel.max .hist-right .hint.dim { display: block; }
 /* Quality maximizado: outlooks a la izquierda, turnos a la derecha. */
 .desk-panel.max .qlog { display: grid; grid-template-columns: minmax(280px, 34%) 1fr; grid-auto-rows: max-content; gap: 8px 16px; }
 .desk-panel.max .qlog > .hint { grid-column: 1 / -1; }
@@ -1645,3 +1647,30 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 /* Equipo hibernado: la fila sigue visible, apagada, con sus etiquetas. Un
    desk que espera se lee mejor que una escena vacia (nunca reordena). */
 .orb.st-hibernated:not(.on) { opacity: 0.6; transform: translate(-50%, 0) scale(0.9); }
+
+/* ==== Settings como panel lateral derecho (mockup 9): filas etiqueta / valor ==== */
+.settings { align-items: stretch; justify-content: flex-end; padding: 0; overflow: hidden; background: rgba(3, 4, 10, 0.35); }
+.settings-dock {
+  width: clamp(380px, 46%, 560px); height: calc(100% - 56px); margin: 56px 0 0; padding: 16px 22px 24px;
+  overflow-y: auto; display: flex; flex-direction: column;
+  background: linear-gradient(180deg, rgba(14, 18, 32, 0.97), rgba(6, 10, 22, 0.97));
+  border-left: 1px solid rgba(120, 160, 255, 0.18); border-radius: 18px 0 0 0;
+  animation: dockIn 260ms var(--split-ease) both;
+}
+.settings-dock header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.settings-dock header b { font-size: 13px; font-weight: 600; letter-spacing: 0.04em; color: var(--ink); }
+.settings-dock .close { width: 28px; height: 28px; border-radius: 50%; border: 1px solid rgba(232, 238, 255, 0.18); background: transparent; color: var(--mute); font: inherit; font-size: 16px; line-height: 1; cursor: pointer; }
+.settings-dock .sec { margin: 18px 0 4px; font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); }
+.settings-dock .srow { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid rgba(232, 238, 255, 0.08); font-size: 11.5px; }
+.settings-dock .srow > span:first-child { color: var(--ink); flex: none; }
+.settings-dock .srow .v { color: var(--mute); text-align: right; display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; line-height: 1.4; }
+.settings-dock .srow .v button, .settings-dock .xai-connect .cta { padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(232, 238, 255, 0.2); background: transparent; color: var(--ink); font: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; box-shadow: none; animation: none; }
+.settings-dock .srow .v button:disabled { opacity: 0.5; cursor: default; }
+.settings-dock .srow .v input:not([type="checkbox"]) { width: 120px; background: #05070c; border: 1px solid #1a2233; border-radius: 8px; color: var(--ink); font: inherit; font-size: 11.5px; padding: 4px 8px; }
+.settings-dock .srow .v a { color: #ff5a6a; text-decoration: none; }
+.settings-dock .srow .v em { font-style: normal; color: #7fe0a8; font-size: 10px; }
+.settings-dock .hint-line { margin: 8px 0 0; font-size: 10.5px; color: var(--mute); }
+.settings-dock .xai-connect { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.settings-dock .xai-connect .device-code { font-size: 18px; letter-spacing: 0.2em; color: var(--ink); }
+.settings-dock .check { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--mute); }
+.settings-dock .kbd { color: var(--mute); font-size: 10px; letter-spacing: 0.06em; }
