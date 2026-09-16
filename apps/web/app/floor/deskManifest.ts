@@ -22,8 +22,8 @@ export function chainOf(desk: DeskLike): ChainId {
   return "base";
 }
 
-export function deskManifest(desk: DeskLike): { chain: ChainId; tagline: string; screens: DeskScreenId[] } {
+export function deskManifest(desk: DeskLike): { chain: ChainId; tagline: string; venues: string; screens: DeskScreenId[] } {
   const chain = chainOf(desk);
-  if (chain === "robinhood") return { chain, tagline: desk?.tagline ?? "Tokenized stocks on Robinhood Chain", screens: ["market", "portfolio"] };
-  return { chain, tagline: desk?.tagline ?? "Tokenized stocks on Base", screens: ["market", "portfolio"] };
+  if (chain === "robinhood") return { chain, tagline: desk?.tagline ?? "Tokenized stocks on Robinhood Chain", venues: "Robinhood Chain", screens: ["market", "portfolio"] };
+  return { chain, tagline: desk?.tagline ?? "Tokenized stocks on Base", venues: "Uniswap V3 and Aerodrome on Base · Bankr second quote", screens: ["market", "portfolio"] };
 }

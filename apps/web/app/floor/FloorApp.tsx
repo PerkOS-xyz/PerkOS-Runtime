@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { parseIntent } from "./parseCommand";
 import DeskPanel, { type DeskScreen } from "./DeskPanel";
 import KnowledgeMap, { type GraphNode } from "./KnowledgeMap";
-import { chainOf, ChainMark, deskManifest } from "./ChainMark";
+import { CHAINS, chainOf, ChainMark, deskManifest } from "./ChainMark";
 import AgentCards, { applyTurnEvent, newTurn, type DeskTurn, type Role as AgentRole } from "./AgentCards";
 import SettingsPanel from "./SettingsPanel";
 import Wizard from "./Wizard";
@@ -1468,9 +1468,8 @@ function Shell() {
           {/* Desk actual + quick switch (como org/proyecto en PerkOS App). */}
           {desks.length ? (
             <div className={`deskpick${deskMenu ? " open" : ""}`}>
-              <button type="button" className="desk-cur" onClick={() => setDeskMenu((v) => !v)} aria-haspopup="listbox" aria-expanded={deskMenu} title="Switch desk">
+              <button type="button" className={`desk-cur st-${fleet?.status ?? "none"}`} onClick={() => setDeskMenu((v) => !v)} aria-haspopup="listbox" aria-expanded={deskMenu} title={`Switch desk · team ${fleet?.status ?? "not loaded"}`}>
                 <ChainMark chain={chainOf(desk)} />
-                <i className={`dot ${fleet?.status ?? "none"}`} />
                 {desk?.name ?? "No desk"}
                 <b>▾</b>
               </button>
@@ -1512,6 +1511,7 @@ function Shell() {
           onReconnectPerkos={() => void ensurePerkos(true)}
           rail={{ status: rail.status, oneclawAgentId: rail.oneclawAgentId, vaultId: rail.vaultId, linkedRoles: rail.linkedRoles, hasRail: Boolean(fleet?.agents.some((a) => a.rail)) }}
           onLinkRail={() => { setSettings(false); openRailStep(); }}
+          desk={desk ? { name: desk.name, chain: CHAINS[chainOf(desk)].name, builtOn: CHAINS[chainOf(desk)].builtOn, agents: desk.agents.map((a) => a.name), revision: desk.revision, fleetStatus: fleet?.status } : undefined}
         />
       ) : null}
 
@@ -1542,6 +1542,7 @@ function Shell() {
         <b>PerkOS Floor</b>
         <small>They draft. You approve. Base only.</small>
       </div>
+      {desk && !wizard ? <div className="venue-line">{deskManifest(desk).venues}</div> : null}
       {/* Dock del desk: las pantallas propias del desk activo, a un clic
           (tambien por voz: "show the market", "show my portfolio"). Primero
           las del desk (Market, Portfolio), luego las del shell (Notes, Map, History). */}
@@ -1595,7 +1596,7 @@ function Shell() {
       <div className="core-wrap">
         <button className={`core ${coreClass}`} type="button" onClick={listen} aria-label="Talk to PerkOS" />
         <div className="mic-dock">
-          <div className="whisper">{speaking ? "Speaking" : thinking ? "Thinking" : listening ? "Listening" : awake ? "The floor is live" : "Hey PerkOS"}</div>
+          <div className="whisper">{speaking ? "Speaking" : thinking ? "Thinking" : listening ? "Listening" : awake ? "They draft. You approve." : "Hey PerkOS"}</div>
         </div>
       </div>
 
@@ -1698,7 +1699,7 @@ function Shell() {
           ref={askRef}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="Ask the floor"
+          placeholder={"Ask the floor. Try \"buy $3 of NVDAc\""}
           spellCheck={false}
           autoComplete="off"
           aria-label="Ask the floor"

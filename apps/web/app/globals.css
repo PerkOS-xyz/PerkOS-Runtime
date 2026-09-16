@@ -39,13 +39,14 @@ button, input, select, a, .wizard-card, .gear, .mark {
 }
 .mark {
   position: absolute;
-  /* Debajo de los semaforos de macOS (x16,y16), no al lado: asi el wordmark
-     puede crecer sin pelearse con ellos ni con la dragbar (top 0-44px). */
-  top: 56px; left: 20px;
+  /* Fila 2 de la cabecera (fila 1: pill del desk y cuenta): debajo de los
+     semaforos, sin pelearse con la dragbar (top 0-44px). */
+  top: 52px; left: 24px;
   z-index: 4;
 }
+.mark img.chain-logo { height: 22px; filter: none; }
 .mark img {
-  height: 50px;
+  height: 36px;
   width: auto;
   display: block;
   filter: brightness(1.05);
@@ -169,7 +170,7 @@ button, input, select, a, .wizard-card, .gear, .mark {
    centrado. Antes era un flex column: cada cosa agregada subia la esfera. */
 .core-wrap {
   position: absolute;
-  left: 50%; top: 52%;
+  left: 50%; top: 56%;
   transform: translate(-50%, -50%);
   z-index: 3;
 }
@@ -358,11 +359,11 @@ button, input, select, a, .wizard-card, .gear, .mark {
 
 /* Fila en reposo un poco mas abajo: la identidad del desk (marca de la cadena,
    nombre, "Tokenized stocks on Base") vive arriba al centro y necesita aire. */
-.scout { left: 30%; top: 17%; }
-.risk { left: 43.3%; top: 17%; }
-.trader { left: 56.6%; top: 17%; }
-.auditor { left: 70%; top: 17%; }
-.guest { left: 83%; top: 17%; }
+.scout { left: 34%; top: 21%; }
+.risk { left: 46.7%; top: 21%; }
+.trader { left: 59.3%; top: 21%; }
+.auditor { left: 72%; top: 21%; }
+.guest { left: 84%; top: 21%; }
 
 .slab {
   position: absolute;
@@ -1135,29 +1136,40 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
    switch + una linea de que vende. La cuenta queda a la derecha como utilidad. */
 .desk-id {
   position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 60;
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
   -webkit-app-region: no-drag;
   transition: left var(--split-ms) var(--split-ease), opacity 200ms ease;
 }
-.desk-id small { font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; color: #c5d2ee; white-space: nowrap; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6); margin-top: 2px; }
-.desk-id .deskpick .desk-cur { padding: 5px 12px 5px 9px; font-size: 12px; letter-spacing: 0.04em; }
-.desk-id .desk-menu { left: 50%; transform: translateX(-50%); top: 36px; }
+/* Slogan del desk: 12 px con tracking (minimo legible en proyector). */
+.desk-id small { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: #9aa4bb; white-space: nowrap; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6); }
+/* Pill del desk: nombre a 15 px, estado del equipo en el color del borde (sin punto). */
+.desk-id .deskpick .desk-cur { padding: 6px 13px 6px 10px; font-size: 15px; font-weight: 500; letter-spacing: 0.02em; gap: 9px; }
+.desk-id .deskpick .desk-cur.st-ready { border-color: rgba(127, 224, 168, 0.55); }
+.desk-id .deskpick .desk-cur.st-waking, .desk-id .deskpick .desk-cur.st-provisioning { border-color: rgba(255, 179, 71, 0.6); }
+.desk-id .deskpick .desk-cur.st-hibernated { border-color: rgba(127, 176, 255, 0.5); }
+.desk-id .deskpick .desk-cur.st-partial { border-color: rgba(255, 138, 146, 0.6); }
+.desk-id .desk-menu { left: 50%; transform: translateX(-50%); top: 40px; }
+/* Panel abierto: el pill al centro de la mitad libre, sin slogan (el lockup
+   queda en la fila 2, nada choca). Maximizado: banda compacta, pill visible. */
 .stage.desk-open .desk-id { left: 25%; }
-.stage.desk-max .desk-id { opacity: 0; pointer-events: none; }
-/* "The Square" de Base: cuadrado, radio 5 %, Base Blue #0000ff (brand.base.org). */
-.chain-mark { display: inline-block; width: 14px; height: 14px; border-radius: 5%; flex: none; box-shadow: 0 0 10px rgba(0, 0, 255, 0.35); }
-.chain-mark.sm { width: 10px; height: 10px; margin-right: 7px; box-shadow: none; }
-.chain-mark.big { width: 28px; height: 28px; box-shadow: 0 0 18px rgba(0, 0, 255, 0.45); }
-/* Logotipo en bloques de Base, a la altura de las mayusculas del wordmark. */
-.chain-logo { height: 30px; width: auto; display: block; filter: drop-shadow(0 0 10px rgba(0, 0, 255, 0.35)); }
-/* Lockup de partnership (invertido): wordmark + "+" + marca de la cadena.
-   Peso optico parejo (la marca a la altura de las minusculas del wordmark),
-   espacio a cada lado del "+" del orden del stem de la "b". */
-.mark { display: flex; align-items: center; gap: 16px; }
-.mark .plus { font-size: 28px; font-weight: 300; line-height: 1; color: var(--ink); opacity: 0.85; transform: translateY(-1px); }
+.stage.desk-open .desk-id small { display: none; }
+.stage.desk-max .desk-id { left: 50%; opacity: 1; pointer-events: auto; }
+.stage.desk-max .mark { top: 20px; }
+.stage.desk-max .mark img { height: 28px; }
+.stage.desk-max .mark .chain-logo { height: 17px; }
+.stage.desk-max .mark .plus { font-size: 16px; }
+/* Marcas de la cadena: activos oficiales de Base (brand kit). Sin brillos. */
+.chain-mark { display: block; width: 12px; height: 12px; flex: none; }
+.chain-mark.sm { width: 10px; height: 10px; margin-right: 7px; }
+.chain-mark.ring { border-radius: 50%; border: 1px solid var(--mute); background: transparent; }
+.chain-mark.ring.big { width: 22px; height: 22px; }
+.chain-logo { height: 22px; width: auto; display: block; }
+/* Lockup de partnership (invertido, brand.base.org/partnerships): wordmark +
+   "+" fino + Basemark al x-height del wordmark. */
+.mark { display: flex; align-items: center; gap: 14px; }
+.mark .plus { font-size: 20px; font-weight: 300; line-height: 1; color: var(--mute); transform: translateY(-1px); }
 /* Dock: separador entre las pantallas del desk y las del shell. */
 .dock-sep { width: 1px; height: 22px; align-self: center; margin: 0 4px; background: rgba(232, 238, 255, 0.18); }
-.chain-mark.robinhood { border-radius: 50%; box-shadow: 0 0 10px rgba(0, 200, 5, 0.3); }
 .desk-menu li button span { display: inline-flex; align-items: center; }
 
 /* Dock del desk (abajo a la izquierda): pantallas propias del desk activo. */
@@ -1267,7 +1279,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 /* Fila del equipo (2026-09-16, pedido de Julio): los 4 agentes en linea
    arriba de la esfera, de izquierda a derecha en el orden del proceso
    Scout -> Risk -> Trader -> Auditor, cada uno con su tag de estado. */
-.guest { left: 83%; top: 17%; }
+.guest { left: 84%; top: 21%; }
 .orb.st-hibernated .ball { filter: saturate(0.35) brightness(0.7); opacity: 0.85; }
 .orb.dim.on { opacity: 0.45; }
 .stage.split .scout { left: 60%; top: 10%; }
@@ -1522,7 +1534,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 /* Con un panel abierto el dock inferior sobra: el panel tiene tabs y cerrar. */
 .stage.desk-open .desk-dock { display: none; }
 /* Sin chat, la esfera de Floor se queda en el centro de la mitad izquierda. */
-.stage.desk-open:not(.split) .core-wrap { left: 25%; top: 42%; transform: translate(-50%, -50%) scale(0.8); }
+.stage.desk-open:not(.split) .core-wrap { left: 25%; top: 50%; transform: translate(-50%, -50%) scale(0.9); }
 .stage.desk-open:not(.split) .whisper { display: block; }
 .stage.desk-open:not(.split) .caption { left: 25%; }
 
@@ -1574,3 +1586,62 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 /* Turno sin chat abierto: la esfera se aparta arriba a la izquierda, nunca sobre el composer. */
 .stage.turn-live:not(.split) .core-wrap { left: 12%; top: 9%; transform: translate(-50%, -50%) scale(0.42); }
 .stage.turn-live:not(.split) .whisper { display: none; }
+
+/* ==== Disposicion 2026-09-16: banda del shell estable, escena en porcentajes ==== */
+/* En reposo la linea de estado ("Team is up") va debajo de la fila que describe. */
+.stage:not(.split):not(.desk-open):not(.turn-live) .caption { left: 50%; top: calc(21% + 118px); bottom: auto; transform: translateX(-50%); text-align: center; max-width: 560px; }
+/* Linea de venues abajo a la izquierda, solo en reposo. */
+.venue-line { position: absolute; left: 28px; bottom: 34px; z-index: 5; font-size: 11px; color: var(--mute); letter-spacing: 0.02em; }
+.stage.split .venue-line, .stage.desk-open .venue-line, .stage.turn-live .venue-line { display: none; }
+/* Dock: minimo legible. */
+.desk-dock button { font-size: 11px; }
+@media (prefers-reduced-motion: reduce) {
+  .core, .orb .ball, .deskpick .dot { animation: none !important; }
+}
+
+/* ==== Paneles: hoja de contenido; maximizado centrado y maestro-detalle ==== */
+.desk-panel .sheet { display: flex; flex-direction: column; gap: 10px; min-height: 0; flex: 1; }
+.desk-panel.max { padding: 14px 24px 24px; }
+.desk-panel.max .sheet { width: 100%; max-width: 1180px; margin: 0 auto; }
+.desk-panel.max .sheet.notes, .desk-panel.max .sheet.history, .desk-panel.max .sheet.map { max-width: none; }
+/* Notes maximizado: lista 34 % a la izquierda, nota a la derecha. */
+.md-split { display: grid; grid-template-columns: minmax(280px, 34%) 1fr; gap: 16px; min-height: 0; flex: 1; align-items: stretch; }
+.md-split .rows.notes { overflow: auto; }
+.md-split .note-open { min-height: 0; overflow: auto; border: 1px solid rgba(120, 160, 255, 0.14); border-radius: 12px; padding: 12px 16px; background: rgba(6, 10, 22, 0.35); }
+.md-split .note-open.empty { display: grid; place-items: center; color: var(--mute); }
+/* History: lista y replay apilados; maximizado, lado a lado. */
+.hist-body { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.hist-left, .hist-right { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.desk-panel.max .hist-body { display: grid; grid-template-columns: minmax(280px, 34%) 1fr; gap: 16px; align-items: start; }
+.desk-panel.max .hist-left { overflow: auto; max-height: calc(100vh - 220px); }
+.desk-panel.max .hist-right { border: 1px solid rgba(120, 160, 255, 0.14); border-radius: 12px; padding: 12px 16px; background: rgba(6, 10, 22, 0.35); min-height: 240px; }
+.hist-right .hint.dim { color: var(--mute); }
+/* Quality maximizado: outlooks a la izquierda, turnos a la derecha. */
+.desk-panel.max .qlog { display: grid; grid-template-columns: minmax(280px, 34%) 1fr; grid-auto-rows: max-content; gap: 8px 16px; }
+.desk-panel.max .qlog > .hint { grid-column: 1 / -1; }
+.desk-panel.max .qlog-outlooks { grid-column: 1; grid-row: 2 / span 4; }
+.desk-panel.max .qlog-totals, .desk-panel.max .qlog > .hist-list, .desk-panel.max .qlog-turn { grid-column: 2; }
+/* Portfolio: KPIs discretos y estado vacio con una accion. */
+.desk-panel .kpi { display: flex; gap: 10px; }
+.desk-panel .kpi div { flex: 1; border: 1px solid rgba(120, 160, 255, 0.14); border-radius: 12px; padding: 10px 12px; background: rgba(6, 10, 22, 0.3); }
+.desk-panel .kpi b { display: block; font-size: 16px; color: var(--ink); }
+.desk-panel .kpi small { font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--mute); }
+.desk-panel .empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 48px 16px; text-align: center; color: var(--mute); font-size: 12px; }
+.desk-panel .empty b { color: var(--ink); font-size: 14px; }
+.desk-panel .empty button { margin-top: 10px; padding: 7px 14px; border-radius: 999px; border: 1px solid rgba(236, 27, 105, 0.5); background: transparent; color: #ff5a6a; font: inherit; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; }
+/* Settings: secciones Shell, Desk y About, para que la division tambien se vea. */
+.settings-card .sec { margin: 14px 0 2px; font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); border-top: 1px solid rgba(232, 238, 255, 0.1); padding-top: 10px; }
+.settings-card .sec:first-of-type { border-top: 0; padding-top: 0; margin-top: 6px; }
+/* Filas de notas como botones (teclado y lector de pantalla), sin estilo de boton. */
+.desk-panel .rows.notes li { padding: 0; }
+.desk-panel .rows.notes .rowbtn { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; padding: 8px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; text-transform: none; letter-spacing: 0; }
+.desk-panel .rows.notes .rowbtn b { font-size: 12px; font-weight: 600; }
+.desk-panel .rows.notes .rowbtn small { font-size: 10px; color: var(--mute); }
+/* Settings es una capa modal: por encima de la banda del shell. */
+.settings { z-index: 90; }
+/* La card de Settings puede ser mas alta que la ventana: se desplaza. */
+.settings { align-items: flex-start; overflow-y: auto; padding: 28px 0; }
+.settings .settings-card { margin: auto; }
+/* Equipo hibernado: la fila sigue visible, apagada, con sus etiquetas. Un
+   desk que espera se lee mejor que una escena vacia (nunca reordena). */
+.orb.st-hibernated:not(.on) { opacity: 0.6; transform: translate(-50%, 0) scale(0.9); }
