@@ -72,6 +72,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
   const [rows, setRows] = useState<Row[] | null>(null);
   const [positions, setPositions] = useState<Position[] | null>(null);
   const [total, setTotal] = useState(0);
+  const [usdc, setUsdc] = useState<number | undefined>(undefined);
   const [q, setQ] = useState("");
   const [err, setErr] = useState("");
   const [notes, setNotes] = useState<Note[] | null>(null);
@@ -100,7 +101,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
       setOpen(null);
       fetch("/api/kb/notes?limit=40").then((r) => r.json()).then((j) => { if (live) setNotes(j.notes ?? []); }).catch((e) => live && setErr(String(e)));
     } else {
-      fetch("/api/market/portfolio").then((r) => r.json()).then((j) => { if (!live) return; if (j.error) { setErr(j.detail ?? j.error); setPositions([]); } else { setPositions(j.positions ?? []); setTotal(j.totalUsd ?? 0); } }).catch((e) => live && setErr(String(e)));
+      fetch("/api/market/portfolio").then((r) => r.json()).then((j) => { if (!live) return; if (j.error) { setErr(j.detail ?? j.error); setPositions([]); } else { setPositions(j.positions ?? []); setTotal(j.totalUsd ?? 0); setUsdc(typeof j.usdc === "number" ? j.usdc : undefined); } }).catch((e) => live && setErr(String(e)));
     }
     return () => { live = false; };
   }, [screen]);
@@ -111,6 +112,45 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
   const isFocus = (r: Row) => Boolean(f && (r.ticker.toLowerCase() === f || r.symbol.toLowerCase() === f || r.name.toLowerCase().includes(f)));
   const detail = (rows ?? []).find((r) => r.address === picked) ?? (rows ?? []).find(isFocus) ?? null;
 
+  // Notes: lista y nota abierta como piezas; maximizado las pone lado a lado (maestro-detalle).
+  const noteOpen = open ? (
+    <div className="note-open">
+              <div className="note-head">
+                <b>{open.title}</b>
+                <div className="acts">
+                  <a href={`obsidian://open?path=${encodeURIComponent(open.path)}`} title="Open in Obsidian">Obsidian ↗</a>
+                  {editing ? (
+                    <>
+                      <button type="button" disabled={saving} onClick={() => void saveNote()}>{saving ? "Saving…" : "Save"}</button>
+                      <button type="button" onClick={() => setEditing(false)}>Cancel</button>
+                    </>
+                  ) : (
+                    <>
+                      <button type="button" onClick={() => { setDraftBody(open.body); setEditing(true); }}>Edit</button>
+                      <button type="button" onClick={() => printNote(open.title, renderMd(open.body))} title="Print or save as PDF">Print / PDF</button>
+                    </>
+                  )}
+                  <button type="button" onClick={() => { setOpen(null); setEditing(false); }}>Back</button>
+                </div>
+              </div>
+              {editing ? <textarea className="note-edit" value={draftBody} onChange={(e) => setDraftBody(e.target.value)} spellCheck={false} /> : <div className="note-md" dangerouslySetInnerHTML={{ __html: renderMd(open.body) }} />}
+            </div>
+  ) : null;
+  const notesList = (
+    <ul className="rows notes">
+              {(hits ?? notes ?? []).map((n) => (
+                <li key={n.id} className={open?.id === n.id ? "focus" : ""}>
+                  <button type="button" className="rowbtn" onClick={() => { fetch(`/api/kb/note?id=${encodeURIComponent(n.id)}`).then((r) => r.json()).then((j) => { if (j.body !== undefined) setOpen(j); }).catch(() => undefined); }}>
+                    <b>{n.title}</b>
+                    <small>{n.kind}{n.ticker ? ` · ${n.ticker}` : ""} · {n.updatedAt.slice(0, 16).replace("T", " ")}</small>
+                    {"snippet" in n ? <small className="snip">{(n as Hit).snippet}</small> : null}
+                  </button>
+                </li>
+              ))}
+              {!notes && !hits ? <li><div className="cell name"><small>Reading the vault…</small></div></li> : null}
+              {notes && notes.length === 0 && !hits ? <li><div className="cell name"><small>Nothing yet. Every turn, analysis and order will be written here.</small></div></li> : null}
+            </ul>
+  );
   return (
     <aside className={`desk-panel dock ${screen}${max ? " max" : ""}`} aria-label="Desk screens">
       <header>
@@ -132,6 +172,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
           <button type="button" className="close" onClick={onClose} aria-label="Close">×</button>
         </div>
       </header>
+      <div className={`sheet ${screen}`}>
 
       {screen === "history" ? (
         <History />
@@ -209,50 +250,29 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
             <button type="button" onClick={() => { fetch("/api/kb/notes?kind=memory").then((r) => r.json()).then((j) => { const m = (j.notes ?? [])[0]; if (m) fetch(`/api/kb/note?id=${encodeURIComponent(m.id)}`).then((r2) => r2.json()).then((n) => { if (n.body !== undefined) { setOpen(n); setEditing(false); } }); }); }} title="The desk's stable memory (editable)">Memory</button>
           </div>
           {err ? <p className="hint-line err">{err}</p> : null}
-          {open ? (
-            <div className="note-open">
-              <div className="note-head">
-                <b>{open.title}</b>
-                <div className="acts">
-                  <a href={`obsidian://open?path=${encodeURIComponent(open.path)}`} title="Open in Obsidian">Obsidian ↗</a>
-                  {editing ? (
-                    <>
-                      <button type="button" disabled={saving} onClick={() => void saveNote()}>{saving ? "Saving…" : "Save"}</button>
-                      <button type="button" onClick={() => setEditing(false)}>Cancel</button>
-                    </>
-                  ) : (
-                    <>
-                      <button type="button" onClick={() => { setDraftBody(open.body); setEditing(true); }}>Edit</button>
-                      <button type="button" onClick={() => printNote(open.title, renderMd(open.body))} title="Print or save as PDF">Print / PDF</button>
-                    </>
-                  )}
-                  <button type="button" onClick={() => { setOpen(null); setEditing(false); }}>Back</button>
-                </div>
-              </div>
-              {editing ? <textarea className="note-edit" value={draftBody} onChange={(e) => setDraftBody(e.target.value)} spellCheck={false} /> : <div className="note-md" dangerouslySetInnerHTML={{ __html: renderMd(open.body) }} />}
-            </div>
-          ) : (
-            <ul className="rows notes">
-              {(hits ?? notes ?? []).map((n) => (
-                <li key={n.id} onClick={() => { fetch(`/api/kb/note?id=${encodeURIComponent(n.id)}`).then((r) => r.json()).then((j) => { if (j.body !== undefined) setOpen(j); }).catch(() => undefined); }}>
-                  <div className="cell name">
-                    <b>{n.title}</b>
-                    <small>{n.kind}{n.ticker ? ` · ${n.ticker}` : ""} · {n.updatedAt.slice(0, 16).replace("T", " ")}</small>
-                    {"snippet" in n ? <small className="snip">{(n as Hit).snippet}</small> : null}
-                  </div>
-                </li>
-              ))}
-              {!notes && !hits ? <li><div className="cell name"><small>Reading the vault…</small></div></li> : null}
-              {notes && notes.length === 0 && !hits ? <li><div className="cell name"><small>Nothing yet. Every turn, analysis and order will be written here.</small></div></li> : null}
-            </ul>
-          )}
+          {max ? (
+            <div className="md-split">{notesList}{noteOpen ?? <div className="note-open empty"><p className="hint">Pick a note to read it here.</p></div>}</div>
+          ) : open ? noteOpen : notesList}
         </>
       ) : (
         <>
           <p className="hint-line">Your tokenized stocks on Base, in your wallet. Sell drafts an order; Send moves them out.</p>
           {err ? <p className="hint-line err">{err}</p> : null}
-          {!positions ? <p className="hint-line">Reading your wallet…</p> : positions.length === 0 ? <p className="hint-line">No tokenized stocks yet. Try "buy $5 of NVIDIA".</p> : null}
-          {positions && positions.length ? <div className="total"><span>Total</span><b>{usd(total)}</b></div> : null}
+          {!positions ? <p className="hint-line">Reading your wallet…</p> : null}
+          {positions ? (
+            <div className="kpi">
+              <div><b>{usdc === undefined ? "…" : usd(usdc)}</b><small>USDC on Base</small></div>
+              <div><b>{positions.length}</b><small>positions</small></div>
+              <div><b>{usd(total)}</b><small>value</small></div>
+            </div>
+          ) : null}
+          {positions && positions.length === 0 ? (
+            <div className="empty">
+              <b>No tokenized stocks yet</b>
+              <span>The desk drafts, you sign. Start small.</span>
+              <button type="button" onClick={() => onSay("buy $5 of NVDAc")}>Try "buy $5 of NVDAc"</button>
+            </div>
+          ) : null}
           <ul className="rows">
             <li className="head" aria-hidden="true">
               <div className="cell name"><small>Position · issuer</small></div>
@@ -285,6 +305,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
           </ul>
         </>
       )}
+      </div>
     </aside>
   );
 }
@@ -320,7 +341,7 @@ function History() {
         <button type="button" role="tab" aria-selected={view === "log"} className={view === "log" ? "on" : ""} onClick={() => setView("log")}>Quality</button>
       </div>
       {view === "log" ? <QualityLog /> : null}
-      {view === "log" ? null : <>
+      {view === "log" ? null : <div className="hist-body"><div className="hist-left">
       <p className="hint">Every decision the desk made, with who said what. Click one to see the run.</p>
       {rows.length === 0 ? <p className="hint">No decisions yet. Ask the desk to draft a trade.</p> : null}
       <div className="hist-list">
@@ -332,7 +353,9 @@ function History() {
           </button>
         ))}
       </div>
+      </div><div className="hist-right">
       {busy ? <p className="hint">Reading the run…</p> : null}
+      {!busy && !run ? <p className="hint dim">Pick a decision to replay it here.</p> : null}
       {run ? (
         <div className="hist-run">
           <div className="hist-meta">{run.verdict ? <em className={`vchip ${run.verdict.toLowerCase()}`}>{run.verdict}</em> : null} {run.endedAt && run.startedAt ? `${((run.endedAt - run.startedAt) / 1000).toFixed(1)} s` : ""} {run.receipt?.hash ? `· signed ${run.receipt.hash.slice(0, 10)}…` : "· unsigned"}</div>
@@ -342,7 +365,7 @@ function History() {
           </div>
         </div>
       ) : null}
-      </>}
+      </div></div>}
     </div>
   );
 }

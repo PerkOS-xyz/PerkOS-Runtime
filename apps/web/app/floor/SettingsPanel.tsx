@@ -19,8 +19,10 @@ type PerkosState = { connected: boolean; busy: boolean; fundingUrl: string; note
 // Floor solo enlaza. Sin flota con rail no se muestra.
 type RailState = { status: string; oneclawAgentId?: string; vaultId?: string; linkedRoles?: string[]; hasRail: boolean };
 
-export default function SettingsPanel({ onClose, debug, onDebug, perkos, onReconnectPerkos, rail, onLinkRail }: {
+export default function SettingsPanel({ onClose, debug, onDebug, perkos, onReconnectPerkos, rail, onLinkRail, desk }: {
   onClose: () => void;
+  /** Desk activo: lo que cambia al cambiar de desk (cadena, equipo, revision). */
+  desk?: { name: string; chain: string; builtOn: string; agents: string[]; revision: number; fleetStatus?: string };
   debug: boolean;
   onDebug: (v: boolean) => void;
   perkos: PerkosState;
@@ -54,6 +56,7 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
     <div className="settings">
       <form className="settings-card" onSubmit={saveModel}>
         <div className="k">SETTINGS</div>
+        <div className="sec">Shell</div>
         <b>LLM</b>
         <p className="hint-line">
           {llm ? `${LABELS[llm.provider] ?? llm.provider} · ${llm.connected ? "connected" : "not connected"}` : "…"}
@@ -76,6 +79,17 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
         <div className="row">
           <button type="button" onClick={onReconnectPerkos} disabled={perkos.busy}>{perkos.connected ? "Re-sign PerkOS" : "Connect PerkOS"}</button>
         </div>
+        {desk ? (
+          <>
+            <div className="sec">Desk · {desk.name}</div>
+            <b>Chain</b>
+            <p className="hint-line">{desk.chain} · {desk.builtOn} · every approved trade settles onchain</p>
+            <b>Team</b>
+            <p className="hint-line">{desk.agents.join(", ")} · template r{desk.revision}{desk.fleetStatus ? ` · ${desk.fleetStatus}` : ""}</p>
+            <b>Knowledge</b>
+            <p className="hint-line">Bundled desk notes · PerkOS Knowledge (public tier) · local vault in ~/.perkos-floor</p>
+          </>
+        ) : null}
         {rail?.hasRail ? (
           <>
             <b>Spend rail · 1Claw</b>
@@ -101,6 +115,8 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
             ) : null}
           </>
         ) : null}
+        <div className="sec">About</div>
+        <p className="hint-line">PerkOS Floor 0.1.0 · Built on Base · They draft. You approve.</p>
         <b>Debug</b>
         <label className="check">
           <input type="checkbox" checked={debug} onChange={(e) => onDebug(e.target.checked)} />

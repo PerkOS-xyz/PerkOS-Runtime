@@ -224,6 +224,13 @@ export async function marketRows(limit = 24): Promise<MarketRow[]> {
 
 export type Position = Stock & { balance: string; balanceRaw: string; valueUsd: number };
 
+/** Saldo USDC de la wallet en Base (lo que la mesa puede gastar). */
+export async function usdcBalance(wallet: `0x${string}`): Promise<number> {
+  const c = client();
+  const bal = await c.readContract({ address: USDC, abi: erc20, functionName: "balanceOf", args: [wallet] });
+  return Number(bal) / 10 ** USDC_DECIMALS;
+}
+
 /** Posiciones de la wallet en acciones tokenizadas (un multicall). */
 export async function portfolio(wallet: `0x${string}`): Promise<Position[]> {
   const all = await listStocks();
