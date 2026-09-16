@@ -2,6 +2,24 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import AgentCards, { type DeskTurn } from "./AgentCards";
+import { marked } from "marked";
+import DOMPurify from "dompurify";
+
+/** Markdown -> HTML saneado para la vista previa de una nota (sin frontmatter). */
+function renderMd(body: string): string {
+  const src = body.replace(/^---\n[\s\S]*?\n---\n/, "");
+  const html = marked.parse(src, { async: false, gfm: true, breaks: true }) as string;
+  return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+}
+/** Imprime solo la nota (Print > Save as PDF en macOS). */
+function printNote(title: string, html: string) {
+  const w = window.open("", "_blank", "width=820,height=900");
+  if (!w) return;
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title.replace(/</g, "&lt;")}</title><style>body{font:14px/1.55 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#111;max-width:760px;margin:40px auto;padding:0 24px}h1,h2,h3{line-height:1.25}code,pre{font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}pre{background:#f4f4f6;padding:12px;border-radius:8px;overflow:auto;white-space:pre-wrap}table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:4px 8px}small.src{display:block;margin-top:32px;color:#777}</style></head><body>${html}<small class="src">PerkOS Floor · ${new Date().toLocaleString()}</small></body></html>`);
+  w.document.close();
+  w.focus();
+  window.setTimeout(() => { w.print(); }, 300);
+}
 
 // Pantallas propias del desk (PerkOS Floor desk): Market y Portfolio, como en
 // EQLTY pero sin vault intermedio (las llaves son de la persona). El template
@@ -195,12 +213,15 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
                       <button type="button" onClick={() => setEditing(false)}>Cancel</button>
                     </>
                   ) : (
-                    <button type="button" onClick={() => { setDraftBody(open.body); setEditing(true); }}>Edit</button>
+                    <>
+                      <button type="button" onClick={() => { setDraftBody(open.body); setEditing(true); }}>Edit</button>
+                      <button type="button" onClick={() => printNote(open.title, renderMd(open.body))} title="Print or save as PDF">Print / PDF</button>
+                    </>
                   )}
                   <button type="button" onClick={() => { setOpen(null); setEditing(false); }}>Back</button>
                 </div>
               </div>
-              {editing ? <textarea className="note-edit" value={draftBody} onChange={(e) => setDraftBody(e.target.value)} spellCheck={false} /> : <pre>{open.body}</pre>}
+              {editing ? <textarea className="note-edit" value={draftBody} onChange={(e) => setDraftBody(e.target.value)} spellCheck={false} /> : <div className="note-md" dangerouslySetInnerHTML={{ __html: renderMd(open.body) }} />}
             </div>
           ) : (
             <ul className="rows notes">
