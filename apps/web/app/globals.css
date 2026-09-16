@@ -1187,3 +1187,14 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .transcript > :first-child { margin-top: auto; }
 .transcript::-webkit-scrollbar { width: 6px; }
 .transcript::-webkit-scrollbar-thumb { background: rgba(120, 160, 255, 0.25); border-radius: 999px; }
+
+/* Notes del desk. */
+.desk-panel .rows.notes li { grid-template-columns: 1fr; cursor: pointer; }
+.desk-panel .rows.notes small.snip { margin-top: 3px; color: #c5d2ee; white-space: normal; line-height: 1.4; }
+.desk-panel .note-open { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.desk-panel .note-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.desk-panel .note-head b { font-size: 13px; font-weight: 500; }
+.desk-panel .note-head .acts { display: flex; gap: 8px; align-items: center; }
+.desk-panel .note-head .acts a { font-size: 10px; color: #7fb0ff; text-decoration: none; letter-spacing: 0.06em; }
+.desk-panel .note-head .acts button { padding: 4px 9px; font-size: 10px; }
+.desk-panel .note-open pre { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 10px 12px; border-radius: 10px; background: rgba(6, 10, 22, 0.5); font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: #e6ecff; white-space: pre-wrap; }

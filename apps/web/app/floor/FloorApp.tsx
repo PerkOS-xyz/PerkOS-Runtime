@@ -123,6 +123,9 @@ function Shell() {
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80 + 200;
     if (nearBottom) el.scrollTop = el.scrollHeight;
   }, [messages]);
+
+  const kbWriteRef = useRef<(p: { journal?: true; kind?: "journal" | "analysis" | "order" | "memory"; title?: string; body: string; ticker?: string }) => void>(() => undefined);
+  const focusRef = useRef("");
   const chatAbort = useRef<AbortController | null>(null);
   const runRef = useRef<(t: string) => void>(() => undefined);
 
@@ -180,7 +183,7 @@ function Shell() {
       let fleetReplies: Array<{ role: string; ok: boolean; reply: string; detail?: string }> = [];
       const f = fleetRef.current;
       const readyRoles = f ? f.agents.filter((a) => a.state === "ready").map((a) => a.role) : [];
-      if (readyRoles.length && teamRef.current !== "hibernated") {
+      if (readyRoles.length) {
         // Turno de mesa secuencial (Scout -> Risk -> Trader/Auditor) por SSE:
         // cada agente habla en su orb y deja su burbuja; Risk decide.
         setCaption("The desk is working…");
@@ -240,6 +243,8 @@ function Shell() {
                       const why = ev.reply!.replace(/^\s*VERDICT\s*[:\-]\s*BLOCK\s*/i, "").trim();
                       setMessages((m) => m.map((x) => (x.role === "draft" && x.tx && (x.tx.stage === "idle") ? { ...x, tx: { ...x.tx, stage: "blocked", note: `Risk blocked: ${why.slice(0, 200)}` } } : x)));
                       setCaption("Risk blocked the order.");
+                      const qd = quoteRef.current;
+                      if (qd) kbWriteRef.current({ kind: "order", ticker: qd.symbol.replace(/c$/i, ""), title: `blocked ${qd.side} ${qd.amountIn} ${qd.tokenIn} ${qd.symbol} ${new Date().toISOString().slice(0, 16).replace("T", " ")}`, body: `- ${qd.side} ${qd.amountIn} ${qd.tokenIn} -> ${qd.quoteOut} ${qd.tokenOut} at $${qd.priceUsd.toFixed(2)}\n- Risk: BLOCK. ${why.slice(0, 600)}` });
                     }
                   }
                 } else {
@@ -264,7 +269,7 @@ function Shell() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, fleet: fleetReplies, desk: deskRef.current ? { name: deskRef.current.name, roles: deskRef.current.agents.map((a) => a.name) } : undefined }),
+        body: JSON.stringify({ text, fleet: fleetReplies, desk: deskRef.current ? { name: deskRef.current.name, roles: deskRef.current.agents.map((a) => a.name) } : undefined, brief: briefRef.current?.lines ?? null, news: briefRef.current?.news ?? null, focus: focusRef.current || null }),
         signal: ac.signal
       });
       if (!res.ok || !res.body) {
@@ -321,6 +326,9 @@ function Shell() {
       if (pending.trim()) speak(pending);
       setFloor(full, false);
       flog("info", `chat <- ${full.length} chars`);
+      // Diario del desk: la pregunta, lo que dijo el equipo y la respuesta.
+      const teamLines = fleetReplies.filter((r) => r.ok && r.reply).map((r) => `- **${cap(r.role)}**: ${r.reply.replace(/\s+/g, " ").slice(0, 600)}`).join("\n");
+      kbWriteRef.current({ journal: true, body: `**You**: ${text}\n${teamLines ? `${teamLines}\n` : ""}- **Floor**: ${full.replace(/\s+/g, " ").slice(0, 900)}` });
     } catch (e) {
       if ((e as Error).name !== "AbortError") flog("error", `chat: ${(e as Error).message}`);
       setMessages((m) => m.map((x) => (x.id === floorId ? { ...x, streaming: false } : x)));
@@ -335,17 +343,24 @@ function Shell() {
   const teamRef = useRef<Team>("hibernated");
   teamRef.current = team;
   const pollRef = useRef(0);
+  const pollSinceRef = useRef(0);
 
   const applyFleet = useCallback((f: Fleet) => {
     setFleet(f);
     const ready = f.agents.filter((a) => a.state === "ready").length;
     flog("info", `fleet: ${f.status} · ${f.agents.map((a) => `${a.role}=${a.state}`).join(" ")}`);
-    if (f.status === "ready") { setTeam("ready"); setCaption(`Team is up · ${ready}/4 on PerkOS`); }
+    if (f.status === "ready" || (ready > 0 && !f.agents.some((a) => a.state === "provisioning" || a.state === "waking"))) { setTeam("ready"); setCaption(ready === f.agents.length ? `Team is up · ${ready}/${f.agents.length} on PerkOS` : `${ready}/${f.agents.length} awake on PerkOS`); }
     else if (f.status === "hibernated" || f.status === "none") { if (teamRef.current === "waking") setTeam("hibernated"); }
-    // Mientras provisiona/despierta, seguir mirando.
+    // Mientras provisiona/despierta, seguir mirando; con backoff (5 s los
+    // primeros 2 min, luego 20 s) para no martillar la API si algo se traba.
     window.clearTimeout(pollRef.current);
-    if (f.status === "provisioning" || f.status === "waking" || (f.status === "partial" && f.agents.some((a) => a.state === "provisioning" || a.state === "waking"))) {
-      pollRef.current = window.setTimeout(() => void fleetAction("status"), 5000);
+    const inFlight = f.agents.some((a) => a.state === "provisioning" || a.state === "waking");
+    if (inFlight) {
+      if (!pollSinceRef.current) pollSinceRef.current = Date.now();
+      const slow = Date.now() - pollSinceRef.current > 120_000;
+      pollRef.current = window.setTimeout(() => void fleetAction("status"), slow ? 20_000 : 5000);
+    } else {
+      pollSinceRef.current = 0;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -578,6 +593,7 @@ function Shell() {
         flog("info", `trade ${t.label}: confirmed`);
       }
       patch({ stage: "done", step: undefined, hashes: [...hashes] });
+      kbWriteRef.current({ kind: "order", ticker: d.stock.ticker, title: `${d.side} ${d.side === "buy" ? `$${d.amountInUsd}` : d.amountInHuman} ${d.stock.symbol} ${new Date().toISOString().slice(0, 16).replace("T", " ")}`, body: `- Side: ${d.side}\n- Asset: ${d.stock.name} (${d.stock.symbol}, ${d.stock.issuer})\n- Paid: ${d.amountInHuman} ${d.tokenIn.symbol}\n- Received (quoted): ${d.quoteOutHuman} ${d.tokenOut.symbol}\n- Price: $${d.impliedPriceUsd.toFixed(2)} per share\n- Pool: ${d.pool} (${d.fee / 10_000}%)\n- Signed by the human in their wallet.\n${hashes.map((h) => `- ${h.label}: ${h.explorer}`).join("\n")}` });
       setCaption(d.side === "buy" ? `Bought ${d.quoteOutHuman} ${d.stock.symbol} for $${d.amountInUsd} on Base.` : `Sold ${d.amountInHuman} ${d.stock.symbol} for $${d.quoteOutHuman} on Base.`);
       speak(d.side === "buy" ? `Done. You now hold ${Number(d.quoteOutHuman).toFixed(4)} ${d.stock.name} on Base, and the receipt is on chain.` : `Done. ${d.amountInHuman} ${d.stock.name} sold for ${Number(d.quoteOutHuman).toFixed(2)} dollars on Base, receipt on chain.`);
       touch();
@@ -660,6 +676,8 @@ function Shell() {
         if (!ok) flog("warn", `news: ${j.error ?? ""} ${j.detail ?? ""}`); else flog("info", `news ${b.stock.ticker}: ${String(j.text).length} chars · ${(j.sources ?? []).length} sources${j.cached ? " · cached" : ""}`);
         const memo2 = memoRef.current.get(key);
         if (memo2) memo2.analysis = { ...memo2.analysis, news, loadingNews: false };
+        // Nota de analisis: hechos + noticias con fuentes (Scout/Risk van al diario).
+        kbWriteRef.current({ kind: "analysis", ticker: b.stock.ticker, title: `${b.stock.name} (${b.stock.symbol}) · ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC`, body: `${b.lines.map((l) => `- ${l}`).join("\n")}${news ? `\n\n## News\n${news.text}\n${news.sources.map((s, i) => `[${i + 1}] ${s.url}`).join("\n")}` : ""}` });
         setMessages((m) => m.map((x) => (x.id === id && x.analysis ? { ...x, analysis: { ...x.analysis, news, loadingNews: false } } : x)));
         if (briefRef.current?.msgId === id && news) briefRef.current = { ...briefRef.current, news: news.text };
         return news;
@@ -670,6 +688,16 @@ function Shell() {
     await chat(spoken);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chat, speak, touch]);
+
+  // Conocimiento local: cada turno deja rastro en ~/.perkos-floor/knowledge
+  // (diario, analisis, ordenes). Best effort; nunca bloquea la escena.
+  const kbWrite = useCallback((payload: { journal?: true; kind?: "journal" | "analysis" | "order" | "memory"; title?: string; body: string; ticker?: string }) => {
+    void fetch("/api/kb/notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+      .then((r) => r.json().then((j) => { if (!r.ok) flog("warn", `kb: ${j.error ?? r.status}`); }))
+      .catch((e) => flog("warn", `kb: ${(e as Error).message}`));
+  }, []);
+  kbWriteRef.current = kbWrite;
+  focusRef.current = focusAsset;
 
   const run = useCallback((raw: string) => {
     const spoken = raw.trim();
@@ -701,6 +729,7 @@ function Shell() {
       return;
     }
     if (cmd === "portfolio") { setDeskScreen("portfolio"); setCaption("Your positions on Base"); return; }
+    if (cmd === "docs") { setDeskScreen("notes"); setCaption("What this desk remembers"); return; }
     if (cmd === "approve") {
       const d = [...messagesRef.current].reverse().find((m) => m.role === "draft" && m.tx?.stage === "idle");
       if (d) { setCaption("Approving in your wallet…"); void approveDraft(d.id); } else setCaption("Nothing to approve.");
@@ -728,10 +757,6 @@ function Shell() {
     if (cmd === "invite") {
       setGuest(true);
       setCaption("Guest on the floor. No spend.");
-    }
-    if (cmd === "docs") {
-      setDocs(true);
-      setCaption("Project notes");
     }
     if (cmd === "market") {
       setDeskScreen("market");
@@ -1164,6 +1189,9 @@ function Shell() {
           <button type="button" className={deskScreen === "portfolio" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "portfolio" ? "" : "portfolio")} title="Portfolio · your positions on Base">
             <WalletIcon /><span>Portfolio</span>
           </button>
+          <button type="button" className={deskScreen === "notes" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "notes" ? "" : "notes")} title="Notes · what this desk remembers (local, Obsidian-compatible)">
+            <NotesIcon /><span>Notes</span>
+          </button>
         </nav>
       ) : null}
       {deskScreen ? (
@@ -1569,6 +1597,14 @@ function ChartIcon() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M3 17l5-6 4 3 4-6 5 4" />
       <path d="M3 21h18" />
+    </svg>
+  );
+}
+function NotesIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M6 3h9l4 4v14H6z" />
+      <path d="M9 12h7M9 16h7M9 8h3" />
     </svg>
   );
 }

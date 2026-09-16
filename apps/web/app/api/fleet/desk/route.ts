@@ -1,5 +1,6 @@
 import { loadSettings } from "../../../lib/settingsStore";
 import { askOne, type FleetReply, type FleetRole } from "../../../lib/fleet";
+import { contextFor } from "../../../lib/kb";
 
 // POST /api/fleet/desk { text, roles, quote? } -> SSE
 // Turno de mesa: (Scout || Risk) -> (Trader || Auditor), cada uno con los
@@ -33,6 +34,8 @@ export async function POST(req: Request) {
   const briefLines = Array.isArray(body.brief) ? body.brief.filter((l) => typeof l === "string").slice(0, 12).map((l) => l.slice(0, 300)) : [];
   const factsLine = briefLines.length ? `\nMarket facts the desk already verified (use them, do not contradict them): ${briefLines.join(" ")}` : "";
   const newsLine = typeof body.news === "string" && body.news.trim() ? `\nNews the desk found (with sources): ${body.news.trim().slice(0, 900)}` : "";
+  const local = await contextFor(text, s.fleetTemplateId, q?.symbol?.replace(/c$/i, "") ?? undefined, 1400).catch(() => ({ text: "", hits: [] }));
+  const memoryLine = local.text ? `\nWhat this desk already knows from earlier sessions (local notes, dated): ${local.text.replace(/\n/g, " ")}` : "";
 
   const enc = new TextEncoder();
   const stream = new ReadableStream({
@@ -49,7 +52,7 @@ export async function POST(req: Request) {
         return r;
       };
       try {
-        const head = `Human request to the desk: "${text}". ${quoteLine}${factsLine}${newsLine}`;
+        const head = `Human request to the desk: "${text}". ${quoteLine}${factsLine}${newsLine}${memoryLine}`;
         // Hermes tarda 20-60 s por turno en frio: Scout y Risk corren en
         // paralelo (Risk ya tiene la cotizacion; Scout le suma evidencia si
         // llega), y despues Trader y Auditor con ambos handoffs.
