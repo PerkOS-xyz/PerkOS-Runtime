@@ -13,7 +13,7 @@ export type Command =
   | "unknown";
 
 export type Intent =
-  | { kind: "listen" | "wake" | "invite" | "stop" | "settings" | "docs" | "market" | "portfolio" | "approve" | "cancel" | "chat" }
+  | { kind: "listen" | "wake" | "invite" | "stop" | "settings" | "docs" | "market" | "portfolio" | "approve" | "cancel" | "summarize" | "chat" }
   | { kind: "analyze" | "quote"; asset?: string }
   | { kind: "buy"; asset?: string; amountUsd: number }
   | { kind: "sell"; asset?: string; amountUsd?: number; amountToken?: number; fraction?: number };
@@ -74,6 +74,7 @@ export function parseIntent(raw: string): Intent {
   if (/\binvite\b/.test(t) || /\binvita\b/.test(t)) return { kind: "invite" };
   if (/^(approve|approved|go ahead|do it|sign it|confirm|aprueba|aprobado|dale|confirma)\b/.test(t)) return { kind: "approve" };
   if (/^(cancel|cancela|discard|descarta|never mind|forget it)\b/.test(t)) return { kind: "cancel" };
+  if (/\b(summari[sz]e|recap|wrap up|resume|resumen|resumir)\b/.test(t) && /\b(today|the day|day|session|hoy|el d[ií]a|la sesi[oó]n|what we learned|lo que aprendimos)\b/.test(t)) return { kind: "summarize" };
   const trade = parseTradeIntent(raw);
   if (trade) return trade;
   if (/\b(portfolio|portafolio|holdings|positions|posiciones|what do i (hold|own)|que tengo|qué tengo|mis acciones)\b/.test(t)) return { kind: "portfolio" };

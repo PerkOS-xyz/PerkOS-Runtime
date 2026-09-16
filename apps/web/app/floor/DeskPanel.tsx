@@ -33,7 +33,7 @@ type Hit = { id: string; kind: string; title: string; ticker?: string; updatedAt
 const usd = (n?: number, d = 2) => (n === undefined || !Number.isFinite(n) ? "–" : `$${n.toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d })}`);
 const issuerLabel = (i: string) => (i === "coinbase" ? "Coinbase" : i === "dinari" ? "Dinari" : i === "anchored" ? "Anchored" : i === "st0x" ? "ST0x" : i);
 
-export default function DeskPanel({ screen, focus, onScreen, onClose, onSay }: {
+export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onSummarize }: {
   screen: DeskScreen;
   /** Ticker o simbolo que el turno de mesa esta mirando ("AMZN"). */
   focus: string;
@@ -41,6 +41,8 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay }: {
   onClose: () => void;
   /** Manda una frase por el mismo router que el chat ("buy $5 of AAPLc"). */
   onSay: (text: string) => void;
+  /** Cierre del dia: diario -> memory.md. */
+  onSummarize?: () => void;
 }) {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [positions, setPositions] = useState<Position[] | null>(null);
@@ -51,6 +53,18 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay }: {
   const [hits, setHits] = useState<Hit[] | null>(null);
   const [open, setOpen] = useState<(Note & { path: string }) | null>(null);
   const [nq, setNq] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [draftBody, setDraftBody] = useState("");
+  const [saving, setSaving] = useState(false);
+  const saveNote = async () => {
+    if (!open) return;
+    setSaving(true);
+    try {
+      const r = await fetch("/api/kb/note", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: open.id, body: draftBody }) });
+      const j = await r.json();
+      if (r.ok && j.body !== undefined) { setOpen(j); setEditing(false); }
+    } finally { setSaving(false); }
+  };
 
   useEffect(() => {
     let live = true;
@@ -139,7 +153,11 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay }: {
       ) : screen === "notes" ? (
         <>
           <p className="hint-line">What this desk remembers: journal, analyses, orders and memory. Local Markdown in ~/.perkos-floor/knowledge, Obsidian-compatible.</p>
-          <input className="search" value={nq} placeholder="Search the desk's notes…" onChange={(e) => { const v = e.target.value; setNq(v); if (v.trim().length < 2) { setHits(null); return; } fetch(`/api/kb/search?q=${encodeURIComponent(v)}`).then((r) => r.json()).then((j) => setHits(j.hits ?? [])).catch(() => setHits([])); }} />
+          <div className="notes-bar">
+            <input className="search" value={nq} placeholder="Search the desk's notes (meaning, not just words)…" onChange={(e) => { const v = e.target.value; setNq(v); if (v.trim().length < 2) { setHits(null); return; } fetch(`/api/kb/search?q=${encodeURIComponent(v)}`).then((r) => r.json()).then((j) => setHits(j.hits ?? [])).catch(() => setHits([])); }} />
+            {onSummarize ? <button type="button" onClick={onSummarize} title="Summarize today's journal into memory.md">Summarize today</button> : null}
+            <button type="button" onClick={() => { fetch("/api/kb/notes?kind=memory").then((r) => r.json()).then((j) => { const m = (j.notes ?? [])[0]; if (m) fetch(`/api/kb/note?id=${encodeURIComponent(m.id)}`).then((r2) => r2.json()).then((n) => { if (n.body !== undefined) { setOpen(n); setEditing(false); } }); }); }} title="The desk's stable memory (editable)">Memory</button>
+          </div>
           {err ? <p className="hint-line err">{err}</p> : null}
           {open ? (
             <div className="note-open">
@@ -147,10 +165,18 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay }: {
                 <b>{open.title}</b>
                 <div className="acts">
                   <a href={`obsidian://open?path=${encodeURIComponent(open.path)}`} title="Open in Obsidian">Obsidian ↗</a>
-                  <button type="button" onClick={() => setOpen(null)}>Back</button>
+                  {editing ? (
+                    <>
+                      <button type="button" disabled={saving} onClick={() => void saveNote()}>{saving ? "Saving…" : "Save"}</button>
+                      <button type="button" onClick={() => setEditing(false)}>Cancel</button>
+                    </>
+                  ) : (
+                    <button type="button" onClick={() => { setDraftBody(open.body); setEditing(true); }}>Edit</button>
+                  )}
+                  <button type="button" onClick={() => { setOpen(null); setEditing(false); }}>Back</button>
                 </div>
               </div>
-              <pre>{open.body}</pre>
+              {editing ? <textarea className="note-edit" value={draftBody} onChange={(e) => setDraftBody(e.target.value)} spellCheck={false} /> : <pre>{open.body}</pre>}
             </div>
           ) : (
             <ul className="rows notes">

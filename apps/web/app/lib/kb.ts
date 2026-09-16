@@ -2,6 +2,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import MiniSearch from "minisearch";
+import { createHash } from "node:crypto";
 
 // Conocimiento local del desk: un vault Markdown (Obsidian-compatible) en
 // ~/.perkos-floor/knowledge/<desk>/... que Floor escribe en cada turno y lee
@@ -13,6 +14,11 @@ import MiniSearch from "minisearch";
 //   <desk>/orders/<draft-id>.md              draft, veredicto, hashes
 //   <desk>/memory.md                         hechos estables, editable a mano
 //   app/*.md                                 notas del app (compartidas)
+//   shared/*.md                              notas de la persona para todos los desks
+//
+// Fase 2: embeddings locales (Transformers.js, all-MiniLM-L6-v2 q8, 384 dims,
+// ~23 MB en ~/.perkos-floor/models) en .index/vectors.json; busqueda hibrida
+// BM25 + coseno (fusion RRF). Resumenes del diario a memory.md via Grok.
 
 export const KB_DIR = process.env.PERKOS_KB_DIR?.trim() || join(homedir(), ".perkos-floor", "knowledge");
 
@@ -32,6 +38,73 @@ type Doc = Note & { text: string };
 let index: MiniSearch<Doc> | null = null;
 let docs = new Map<string, Doc>();
 let scannedAt = 0;
+
+// ---- vectores ------------------------------------------------------------
+type Vec = { hash: string; vec: number[] };
+const VEC_FILE = join(KB_DIR, ".index", "vectors.json");
+let vectors: Map<string, Vec> | null = null;
+let extractorP: Promise<((texts: string[]) => Promise<number[][]>) | null> | null = null;
+let embedding = false;
+
+async function loadVectors(): Promise<Map<string, Vec>> {
+  if (vectors) return vectors;
+  try {
+    const raw = JSON.parse(await readFile(VEC_FILE, "utf8")) as Record<string, Vec>;
+    vectors = new Map(Object.entries(raw));
+  } catch {
+    vectors = new Map();
+  }
+  return vectors;
+}
+async function saveVectors() {
+  if (!vectors) return;
+  await mkdir(join(KB_DIR, ".index"), { recursive: true, mode: 0o700 });
+  await writeFile(VEC_FILE, JSON.stringify(Object.fromEntries(vectors)), { mode: 0o600 });
+}
+/** Modelo local, perezoso; null si no se puede cargar (la busqueda sigue con BM25). */
+function extractor() {
+  if (extractorP) return extractorP;
+  extractorP = (async () => {
+    try {
+      const { pipeline, env } = await import("@huggingface/transformers");
+      env.cacheDir = join(homedir(), ".perkos-floor", "models");
+      const pipe = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2", { dtype: "q8" });
+      return async (texts: string[]) => {
+        const out = await pipe(texts, { pooling: "mean", normalize: true });
+        return out.tolist() as number[][];
+      };
+    } catch (e) {
+      console.warn("[kb] embeddings unavailable:", (e as Error).message);
+      return null;
+    }
+  })();
+  return extractorP;
+}
+const embedText = (d: Doc) => `${d.title}\n${d.text.slice(0, 1500)}`;
+const hashOf = (t: string) => createHash("sha1").update(t).digest("hex").slice(0, 16);
+/** Embebe lo que falte o cambio; en segundo plano, de a 16. */
+export async function embedMissing(): Promise<number> {
+  if (embedding) return 0;
+  embedding = true;
+  try {
+    const vecs = await loadVectors();
+    const todo = [...docs.values()].filter((d) => vecs.get(d.id)?.hash !== hashOf(embedText(d)));
+    for (const id of [...vecs.keys()]) if (!docs.has(id)) vecs.delete(id);
+    if (!todo.length) return 0;
+    const embed = await extractor();
+    if (!embed) return 0;
+    for (let i = 0; i < todo.length; i += 16) {
+      const batch = todo.slice(i, i + 16);
+      const out = await embed(batch.map(embedText));
+      batch.forEach((d, j) => vecs.set(d.id, { hash: hashOf(embedText(d)), vec: out[j] }));
+    }
+    await saveVectors();
+    return todo.length;
+  } finally {
+    embedding = false;
+  }
+}
+const cosine = (a: number[], b: number[]) => { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; };
 
 function newIndex() {
   return new MiniSearch<Doc>({
@@ -98,6 +171,7 @@ export async function reindex(force = false): Promise<number> {
   index = next;
   docs = nextDocs;
   scannedAt = Date.now();
+  void embedMissing().catch(() => undefined);
   return docs.size;
 }
 
@@ -108,6 +182,7 @@ async function upsertIndex(rel: string) {
   if (docs.has(rel)) index.discard(rel);
   docs.set(rel, d);
   index.add(d);
+  void embedMissing().catch(() => undefined);
 }
 
 function front(meta: Record<string, string | undefined>): string {
@@ -127,6 +202,7 @@ export async function writeNote(n: { desk: string; kind: NoteKind; title: string
   else if (n.kind === "analysis") rel = `${desk}/analysis/${(n.ticker ?? "asset").toUpperCase()}/${stamp()}.md`;
   else if (n.kind === "order") rel = `${desk}/orders/${safe(n.title)}.md`;
   else if (n.kind === "memory") rel = `${desk}/memory.md`;
+  else if (n.desk === "shared") rel = `shared/${safe(n.title)}.md`;
   else rel = `app/${safe(n.title)}.md`;
   const full = join(KB_DIR, rel);
   await mkdir(join(full, ".."), { recursive: true, mode: 0o700 });
@@ -155,30 +231,52 @@ export async function appendJournal(desk: string, entry: string): Promise<string
 
 export type Hit = { id: string; desk: string; kind: NoteKind; title: string; ticker?: string; updatedAt: string; score: number; snippet: string };
 
-/** Busqueda BM25 con boost por desk, por ticker en foco y por recencia. */
+function docBoost(s: Doc | undefined, opts: { desk?: string; ticker?: string }): number {
+  let b = 1;
+  const shared = s?.desk === "app" || s?.desk === "shared";
+  if (opts.desk && s?.desk === safe(opts.desk)) b *= 1.5;
+  if (opts.desk && s?.desk !== safe(opts.desk) && !shared) b *= 0.5;
+  if (opts.ticker && s?.ticker?.toUpperCase() === opts.ticker.toUpperCase()) b *= 1.6;
+  if (s?.kind === "memory") b *= 1.3;
+  const age = s?.updatedAt ? (Date.now() - Date.parse(s.updatedAt)) / 86_400_000 : 30;
+  b *= age < 1 ? 1.4 : age < 7 ? 1.15 : age < 30 ? 1 : 0.8;
+  return b;
+}
+
+/** Busqueda hibrida: BM25 (MiniSearch) + coseno (MiniLM) fusionados por RRF,
+ *  con boost por desk, ticker en foco, memoria y recencia. */
 export async function searchLocal(query: string, opts: { desk?: string; ticker?: string; k?: number } = {}): Promise<Hit[]> {
   await reindex();
   if (!index || !query.trim()) return [];
   const k = opts.k ?? 6;
-  const raw = index.search(query, { boostDocument: (id, _term, stored) => {
-    const s = stored as Doc | undefined;
-    let b = 1;
-    if (opts.desk && s?.desk === safe(opts.desk)) b *= 1.5;
-    if (opts.desk && s?.desk !== safe(opts.desk) && s?.desk !== "app") b *= 0.5;
-    if (opts.ticker && s?.ticker?.toUpperCase() === opts.ticker.toUpperCase()) b *= 1.6;
-    const age = s?.updatedAt ? (Date.now() - Date.parse(s.updatedAt)) / 86_400_000 : 30;
-    b *= age < 1 ? 1.4 : age < 7 ? 1.15 : age < 30 ? 1 : 0.8;
-    return b;
-  } });
-  return raw.slice(0, k).map((r) => {
-    const d = docs.get(String(r.id));
+  const lexical = index.search(query, { boostDocument: (_id, _term, stored) => docBoost(stored as Doc | undefined, opts) });
+  const rank = new Map<string, { score: number; terms: string[] }>();
+  lexical.slice(0, 20).forEach((r, i) => rank.set(String(r.id), { score: 1 / (60 + i), terms: r.terms ?? [] }));
+  // Semantica (si el modelo esta): top-20 por coseno, mismo boost, fusion RRF.
+  try {
+    const vecs = await loadVectors();
+    if (vecs.size) {
+      const embed = await extractor();
+      if (embed) {
+        const [q] = await embed([query]);
+        const sem = [...vecs.entries()]
+          .map(([id, v]) => ({ id, s: cosine(q, v.vec) * docBoost(docs.get(id), opts) }))
+          .filter((x) => x.s > 0.12)
+          .sort((a, b) => b.s - a.s)
+          .slice(0, 20);
+        sem.forEach((x, i) => { const cur = rank.get(x.id); rank.set(x.id, { score: (cur?.score ?? 0) + 1 / (60 + i), terms: cur?.terms ?? [] }); });
+      }
+    }
+  } catch { /* BM25 solo */ }
+  const fused = [...rank.entries()].sort((a, b) => b[1].score - a[1].score).slice(0, k);
+  return fused.map(([id, r]) => {
+    const d = docs.get(id);
     const body = d?.body ?? "";
-    // Snippet alrededor del primer termino que matchea.
-    const term = (r.terms?.[0] ?? "").toLowerCase();
+    const term = (r.terms[0] ?? query.split(/\s+/)[0] ?? "").toLowerCase();
     const i = term ? body.toLowerCase().indexOf(term) : -1;
     const start = Math.max(0, i - 120);
     const snippet = (i >= 0 ? body.slice(start, start + 360) : body.slice(0, 360)).replace(/\s+/g, " ").trim();
-    return { id: String(r.id), desk: d?.desk ?? "", kind: d?.kind ?? "journal", title: d?.title ?? String(r.id), ticker: d?.ticker, updatedAt: d?.updatedAt ?? "", score: r.score, snippet };
+    return { id, desk: d?.desk ?? "", kind: d?.kind ?? "journal", title: d?.title ?? id, ticker: d?.ticker, updatedAt: d?.updatedAt ?? "", score: r.score, snippet };
   });
 }
 
@@ -198,7 +296,7 @@ export async function listNotes(opts: { desk?: string; kind?: NoteKind; limit?: 
   await reindex();
   const desk = opts.desk ? safe(opts.desk) : undefined;
   return [...docs.values()]
-    .filter((d) => (!desk || d.desk === desk || d.desk === "app") && (!opts.kind || d.kind === opts.kind))
+    .filter((d) => (!desk || d.desk === desk || d.desk === "app" || d.desk === "shared") && (!opts.kind || d.kind === opts.kind))
     .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
     .slice(0, opts.limit ?? 40)
     .map(({ text: _t, ...n }) => { void _t; return n; });
@@ -215,4 +313,51 @@ export async function readNoteBody(id: string): Promise<Note | null> {
 /** Ruta absoluta (para "Open in Obsidian" / Finder). */
 export function notePath(id: string): string {
   return join(KB_DIR, id);
+}
+
+/** Diario de una fecha (o hoy) del desk, crudo. */
+export async function readJournal(desk: string, date = today()): Promise<{ id: string; body: string; summarized: boolean } | null> {
+  const rel = `${safe(desk)}/journal/${date}.md`;
+  try {
+    const raw = await readFile(join(KB_DIR, rel), "utf8");
+    const { meta, body } = parseFront(raw);
+    return { id: rel, body, summarized: meta.summarized === "true" };
+  } catch {
+    return null;
+  }
+}
+export async function markSummarized(desk: string, date: string): Promise<void> {
+  const rel = `${safe(desk)}/journal/${date}.md`;
+  const full = join(KB_DIR, rel);
+  let raw = "";
+  try { raw = await readFile(full, "utf8"); } catch { return; }
+  if (/^summarized: true$/m.test(raw)) return;
+  raw = raw.replace(/^---\n([\s\S]*?)\n---\n/, (m, inner) => `---\n${inner}\nsummarized: true\n---\n`);
+  await writeFile(full, raw, { mode: 0o600 });
+  await upsertIndex(rel);
+}
+/** Agrega una seccion fechada a memory.md del desk (crea si no existe). */
+export async function appendMemory(desk: string, heading: string, body: string): Promise<string> {
+  const rel = `${safe(desk)}/memory.md`;
+  const full = join(KB_DIR, rel);
+  await mkdir(join(full, ".."), { recursive: true, mode: 0o700 });
+  let cur = "";
+  try { cur = await readFile(full, "utf8"); } catch {}
+  if (!cur) cur = `${front({ title: `${desk} · memory`, desk: safe(desk), kind: "memory", updated: new Date().toISOString(), source: "PerkOS Floor" })}\n# ${desk} · memory\n\nStable facts, decisions and preferences this desk should keep. Edit freely; Floor appends dated summaries below.\n`;
+  cur = cur.replace(/^updated: .*$/m, `updated: ${new Date().toISOString()}`);
+  await writeFile(full, `${cur}\n## ${heading}\n${scrub(body).trim()}\n`, { mode: 0o600 });
+  await upsertIndex(rel);
+  return rel;
+}
+/** Reemplaza el cuerpo completo de una nota existente (editor de Notes). */
+export async function replaceNote(id: string, body: string): Promise<boolean> {
+  if (/\.\./.test(id) || !id.endsWith(".md")) return false;
+  const full = join(KB_DIR, id);
+  let raw = "";
+  try { raw = await readFile(full, "utf8"); } catch { return false; }
+  const m = raw.match(/^---\n[\s\S]*?\n---\n/);
+  const head = (m ? m[0] : "").replace(/^updated: .*$/m, `updated: ${new Date().toISOString()}`);
+  await writeFile(full, `${head}${scrub(body).replace(/^\n+/, "")}`, { mode: 0o600 });
+  await upsertIndex(id);
+  return true;
 }
