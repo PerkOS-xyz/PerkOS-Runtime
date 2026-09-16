@@ -1736,3 +1736,81 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 /* Con chips bajo la fila, Sparky baja un poco para que la llama no los roce. */
 .stage.turn-chips:not(.split):not(.desk-open) .core-wrap { top: 57%; }
 .settings-dock .srow .v select { background: #05070c; border: 1px solid #1a2233; border-radius: 8px; color: var(--ink); font: inherit; font-size: 11.5px; padding: 4px 8px; }
+
+/* ==== Responsive (2026-09-16): la escena en tres anchos y en ventanas bajas ====
+   Chrome en px desde las esquinas, contenido en % del stage. Breakpoints por
+   container query del stage: 1100 (medio), 900 (compacto), 640 (angosto). */
+@container stage (max-width: 1100px) {
+  .who > span { display: none; }
+}
+@container stage (max-width: 900px) {
+  .desk-id small { display: none; }
+  .desk-id .deskpick .desk-cur { font-size: 13px; padding: 5px 11px 5px 9px; }
+  .mark { top: 50px; }
+  .mark img { height: 30px; }
+  .mark img.chain-logo { height: 18px; }
+  .mark .plus { font-size: 16px; }
+  /* Fila de agentes: cuatro en 20/40/60/80, sin invitado, mas chicos. */
+  .scout { left: 20%; top: 19%; } .risk { left: 40%; top: 19%; } .trader { left: 60%; top: 19%; } .auditor { left: 80%; top: 19%; }
+  .guest { display: none; }
+  .orb.on { transform: translate(-50%, 0) scale(0.78); }
+  .orb.st-hibernated:not(.on) { transform: translate(-50%, 0) scale(0.78); }
+  .stage:not(.split):not(.desk-open):not(.turn-live) .caption { top: calc(19% + 118px); font-size: 11px; }
+  .ag-layer { left: 10%; width: 80%; top: calc(19% + 136px); }
+  .ag-layer.chips { top: calc(19% + 136px); }
+  /* Sparky escala con el ancho y la altura; nunca mas de 216 px. */
+  .core { width: clamp(120px, min(28vw, 28vh), 216px); height: clamp(120px, min(28vw, 28vh), 216px); }
+  .stage:not(.split):not(.desk-open):not(.turn-live) .core-wrap { top: 52%; }
+  .whisper { font-size: 10px; letter-spacing: 0.16em; }
+  /* Compositor arriba del dock; dock centrado y solo iconos; sin linea de venues. */
+  .convo { bottom: 92px; }
+  .desk-dock { right: 50%; transform: translateX(50%); bottom: 20px; gap: 6px; }
+  .desk-dock button { padding: 8px 10px; }
+  .desk-dock button span { display: none; }
+  .dock-sep { margin: 0 2px; }
+  .venue-line { display: none; }
+  .settings-dock { width: clamp(300px, 60%, 560px); max-width: 100%; }
+}
+@container stage (max-width: 640px) {
+  .desk-id { top: 12px; }
+  .desk-id .deskpick .desk-cur { font-size: 12px; padding: 4px 10px 4px 8px; gap: 7px; }
+  .who { right: 56px; gap: 8px; }
+  .who .pk, .who button { display: none; }
+  .mark { top: 48px; left: 16px; gap: 10px; }
+  .mark img { height: 26px; }
+  .mark img.chain-logo { height: 15px; }
+  .scout { left: 16%; } .risk { left: 38.5%; } .trader { left: 61%; } .auditor { left: 83.5%; }
+  .orb.on { transform: translate(-50%, 0) scale(0.66); }
+  .orb.st-hibernated:not(.on) { transform: translate(-50%, 0) scale(0.66); }
+  .orb span { font-size: 9px; letter-spacing: 0.08em; }
+  .orb small { font-size: 8px; padding: 1px 6px; }
+  .orb em.rail img { width: 20px; height: 20px; }
+  .orb em.rail { font-size: 8.5px; padding: 2px 8px 2px 3px; gap: 5px; }
+  .stage:not(.split):not(.desk-open):not(.turn-live) .caption { top: calc(19% + 104px); font-size: 10px; max-width: calc(100% - 32px); }
+  .ag-layer { left: 4%; width: 92%; top: calc(19% + 122px); }
+  .ag-layer.chips { top: calc(19% + 122px); }
+  .core { width: clamp(110px, min(40vw, 24vh), 200px); height: clamp(110px, min(40vw, 24vh), 200px); }
+  .stage:not(.split):not(.desk-open):not(.turn-live) .core-wrap { top: 50%; }
+  .stage.turn-chips:not(.split):not(.desk-open) .core-wrap { top: 53%; }
+  .mic-dock { top: calc(100% + 28px); }
+  .whisper { font-size: 9px; }
+  .convo { width: calc(100% - 24px); bottom: 84px; }
+  .ask-top { display: none; }
+  .ask input { padding: 10px 6px; font-size: 12px; }
+  .ask-btn { width: 34px; height: 34px; }
+  .desk-dock { bottom: 14px; }
+  .settings-dock { width: 100%; border-radius: 0; margin-top: 52px; height: calc(100% - 52px); }
+  .desk-panel.dock { top: 52px; }
+}
+/* Ventanas bajas: menos altura para Sparky y todo un poco mas arriba. */
+@media (max-height: 760px) {
+  .core { max-width: 24vh; max-height: 24vh; }
+  .stage:not(.split):not(.desk-open):not(.turn-live) .core-wrap { top: 50%; }
+  .scout, .risk, .trader, .auditor, .guest { top: 18%; }
+  .stage:not(.split):not(.desk-open):not(.turn-live) .caption { top: calc(18% + 112px); }
+  .ag-layer, .ag-layer.chips { top: calc(18% + 130px); }
+  .mic-dock { top: calc(100% + 24px); }
+  .convo { bottom: 72px; }
+  .desk-dock { bottom: 16px; }
+  .venue-line { bottom: 22px; }
+}
