@@ -241,7 +241,7 @@ function Shell() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, fleet: fleetReplies }),
+        body: JSON.stringify({ text, fleet: fleetReplies, desk: deskRef.current ? { name: deskRef.current.name, roles: deskRef.current.agents.map((a) => a.name) } : undefined }),
         signal: ac.signal
       });
       if (!res.ok || !res.body) {
@@ -333,6 +333,28 @@ function Shell() {
   const [deskId, setDeskId] = useState("floor-desk");
   const [deskNote, setDeskNote] = useState("");
   const desk = desks.find((d) => d.id === deskId) ?? desks[0] ?? null;
+  const deskRef = useRef<DeskTemplate | null>(null);
+  deskRef.current = desk;
+  // Quick switch de desk (header): guarda la eleccion, recarga la flota y
+  // cierra las pantallas del desk anterior. La esfera habla desde el nuevo.
+  const [deskMenu, setDeskMenu] = useState(false);
+  const selectDesk = useCallback(async (id: string) => {
+    setDeskMenu(false);
+    if (id === deskId) return;
+    setDeskId(id);
+    setFleet(null);
+    setDeskScreen("");
+    setFocusAsset("");
+    try {
+      const res = await fetch("/api/fleet", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "select", templateId: id }) });
+      const j = (await res.json().catch(() => ({}))) as Fleet & { error?: string; detail?: string };
+      if (res.ok && j.agents) { applyFleet(j); setCaption(`${desks.find((d) => d.id === id)?.name ?? id} desk`); }
+      else flog("warn", `desk select ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`);
+    } catch (e) {
+      flog("error", `desk select: ${(e as Error).message}`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deskId, desks]);
   const loadDesks = useCallback(async () => {
     try {
       const res = await fetch(`/api/fleet/templates?lang=${encodeURIComponent((navigator.language || "en").slice(0, 2))}`);
@@ -989,6 +1011,31 @@ function Shell() {
       </button>
       {who ? (
         <div className="who">
+          {/* Desk actual + quick switch (como org/proyecto en PerkOS App). */}
+          {desks.length ? (
+            <div className={`deskpick${deskMenu ? " open" : ""}`}>
+              <button type="button" className="desk-cur" onClick={() => setDeskMenu((v) => !v)} aria-haspopup="listbox" aria-expanded={deskMenu} title="Switch desk">
+                <i className={`dot ${fleet?.status ?? "none"}`} />
+                {desk?.name ?? "No desk"}
+                <b>▾</b>
+              </button>
+              {deskMenu ? (
+                <ul role="listbox" className="desk-menu">
+                  {desks.map((d) => (
+                    <li key={d.id} role="option" aria-selected={d.id === deskId}>
+                      <button type="button" className={d.id === deskId ? "on" : ""} onClick={() => void selectDesk(d.id)}>
+                        <span>{d.name}</span>
+                        <small>{d.agents.length} agents{d.id === deskId && fleet ? ` · ${fleet.status}` : ""}</small>
+                      </button>
+                    </li>
+                  ))}
+                  <li className="add">
+                    <button type="button" onClick={() => { setDeskMenu(false); setWizardStart(3); setWizard(true); }}>+ Add a desk</button>
+                  </li>
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
           <span>{who}</span>
           <em className={`pk${perkos.connected ? " on" : ""}`} title={perkos.connected ? "PerkOS session active" : perkos.note || "PerkOS not connected"}>PerkOS</em>
           <button type="button" onClick={logout}>

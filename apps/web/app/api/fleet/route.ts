@@ -19,13 +19,20 @@ async function who(): Promise<{ wallet: string; templateId: string }> {
   return { wallet: s.wallet, templateId: s.fleetTemplateId };
 }
 
-// GET /api/fleet -> estado de las orbs del template elegido
-export async function GET() {
-  try { const w = await who(); return Response.json(await fleetStatus(w.wallet, w.templateId)); } catch (e) { return fail(e); }
+const TEMPLATE_ID = /^[a-z][a-z0-9-]{0,63}$/;
+
+// GET /api/fleet[?templateId=] -> estado de las orbs del desk elegido (o de otro, para el switcher)
+export async function GET(req: Request) {
+  const q = new URL(req.url).searchParams.get("templateId") ?? "";
+  try {
+    const w = await who();
+    return Response.json(await fleetStatus(w.wallet, TEMPLATE_ID.test(q) ? q : w.templateId));
+  } catch (e) { return fail(e); }
 }
 
-// POST /api/fleet { action: "wake" | "hibernate", templateId? }
-// wake con templateId lo guarda como el template del usuario (la card elegida).
+// POST /api/fleet { action: "wake" | "hibernate" | "select", templateId? }
+// wake/select con templateId lo guarda como el desk del usuario (quick switch
+// en el header); select solo cambia y devuelve el estado, sin despertar.
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as { action?: string; templateId?: string };
   try {
@@ -38,6 +45,12 @@ export async function POST(req: Request) {
         await saveSettings({ ...s, fleetTemplateId: templateId });
       }
       return Response.json(await wakeFleet(w.wallet, templateId));
+    }
+    if (body.action === "select") {
+      if (typeof body.templateId !== "string" || !TEMPLATE_ID.test(body.templateId)) return Response.json({ error: "templateId" }, { status: 400 });
+      const s = await loadSettings();
+      if (body.templateId !== s.fleetTemplateId) await saveSettings({ ...s, fleetTemplateId: body.templateId });
+      return Response.json(await fleetStatus(w.wallet, body.templateId));
     }
     if (body.action === "hibernate") return Response.json(await hibernateFleet(w.wallet));
     return Response.json({ error: "action" }, { status: 400 });

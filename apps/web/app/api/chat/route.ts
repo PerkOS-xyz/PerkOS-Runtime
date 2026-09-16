@@ -20,6 +20,11 @@ const MAX_TURNS = 40;
 
 // Contexto hibrido: estas reglas + brief estatico (knowledge/perkos.md) +
 // contexto vivo de PerkOS Knowledge por turno (lib/knowledge.ts).
+// El desk activo (header) da el contexto: nombre y roles del template.
+function deskLine(desk?: { name?: string; roles?: string[] }): string {
+  const roles = desk?.roles?.length ? desk.roles.join(", ") : "Scout, Risk, Trader, Auditor";
+  return `You are PerkOS Floor, the voice of the "${desk?.name?.trim() || "PerkOS Floor desk"}" desk: a small team of specialized teammates (${roles}) on Base, running on PerkOS infrastructure.`;
+}
 const BASE_INSTRUCTIONS = [
   "You are PerkOS Floor, the desk of a small team of specialized teammates (Scout, Risk, Trader, Auditor) on Base, running on PerkOS infrastructure.",
   "You draft. The human approves. You never spend or move funds; you describe what you would draft.",
@@ -59,7 +64,7 @@ export async function DELETE() {
 }
 
 export async function POST(req: Request) {
-  const body = (await req.json().catch(() => ({}))) as { text?: string; fleet?: Array<{ role: string; ok: boolean; reply: string; detail?: string }> };
+  const body = (await req.json().catch(() => ({}))) as { text?: string; fleet?: Array<{ role: string; ok: boolean; reply: string; detail?: string }>; desk?: { name?: string; roles?: string[] } };
   const text = body.text?.trim() ?? "";
   // Respuestas de la flota (Hermes en PerkOS infra) para este turno: Grok es
   // la voz del Floor y las resume; no inventa lo que un agente no dijo.
@@ -82,7 +87,8 @@ export async function POST(req: Request) {
   const fleetCtx = fleet.length
     ? fleet.map((f) => `- ${f.role}: ${f.ok && f.reply ? f.reply.replace(/\s+/g, " ").slice(0, 900) : `(no answer: ${f.detail || "unavailable"})`}`).join("\n")
     : "";
-  const instructions = buildInstructions(BASE_INSTRUCTIONS, brief, live?.context ?? "") + (fleetCtx
+  const base = BASE_INSTRUCTIONS.replace(/^You are PerkOS Floor,[^.]*\./, deskLine(body.desk));
+  const instructions = buildInstructions(base, brief, live?.context ?? "") + (fleetCtx
     ? "\n\n## Your teammates just answered this turn (Hermes agents on PerkOS infra). Speak for the desk: summarize what they found, name who said what when it matters, flag disagreements and what needs the human's approval. Do not invent what they did not say.\n" + fleetCtx
     : "");
   const knowledgeInfo = live
