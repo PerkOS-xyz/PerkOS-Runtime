@@ -170,8 +170,8 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
             <li className="head" aria-hidden="true">
               <div className="cell name"><small>Stock · issuer</small></div>
               <div className="cell chart"><small>24h</small></div>
-              <div className="cell num"><small>Price · 24h move</small></div>
-              <div className="cell num"><small>Liquidity · venue · fee</small></div>
+              <div className="cell num"><small>Price · 24h</small></div>
+              <div className="cell num"><small>Liquidity · venue</small></div>
               <div className="cell acts"><small>Actions</small></div>
             </li>
             {list.map((r) => {
