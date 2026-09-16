@@ -1474,7 +1474,7 @@ function StopIcon() {
 }
 
 function Orb({ className, label, on, state = "", rail, onRail, talking, verdict, refCb }: { className: string; label: string; on: boolean; state?: string; rail?: { linked: boolean; lockUsd: number }; onRail?: () => void; talking?: boolean; verdict?: "GO" | "BLOCK" | ""; refCb?: (el: HTMLDivElement | null) => void }) {
-  const sub = talking ? "thinking…" : state === "ready" ? "PerkOS" : state === "provisioning" ? "provisioning…" : state === "waking" ? "waking…" : state === "hibernated" ? "asleep" : state === "failed" ? "failed" : state === "planned" ? "not created" : "";
+  const sub = talking ? "Thinking" : state === "ready" ? "Online" : state === "provisioning" ? "Provisioning" : state === "waking" ? "Waking" : state === "hibernated" ? "Hibernating" : state === "failed" ? "Failed" : state === "planned" ? "Not created" : "";
   return (
     <div ref={refCb} className={`orb ${className}${on ? " on" : ""}${state ? ` st-${state}` : ""}${talking ? " talking" : ""}`} title={sub}>
       <div className="ball" />
