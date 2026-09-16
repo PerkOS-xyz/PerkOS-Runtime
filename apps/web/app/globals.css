@@ -1492,3 +1492,25 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .desk-panel .rows li.head:hover { background: rgba(6, 10, 22, 0.95); }
 .desk-panel .rows li.head .cell small { font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: #6f7d99; }
 .desk-panel .rows li.head .cell.acts small { text-align: right; width: 100%; }
+
+/* ==== Split (2026-09-16, pedido de Julio): en cuanto hay chat, Floor se va
+   junto al chat y los 4 agentes quedan centrados en el area derecha; con las
+   cards abiertas la fila sube para que el bloque (fila + cards) siga centrado. ==== */
+.stage.split .core-wrap { left: 23%; top: 9%; transform: translate(-50%, -50%) scale(0.42); transition: left var(--split-ms) var(--split-ease), top var(--split-ms) var(--split-ease), transform var(--split-ms) var(--split-ease); }
+.stage.split .whisper { display: none; }
+.stage.split .scout { left: 58.5%; top: 40%; }
+.stage.split .risk { left: 69.5%; top: 40%; }
+.stage.split .trader { left: 80.5%; top: 40%; }
+.stage.split .auditor { left: 91.5%; top: 40%; }
+.stage.split .guest { left: 97%; top: 54%; }
+.stage.split .ag-layer { top: calc(40% + 118px); transition: top var(--split-ms) var(--split-ease); }
+.stage.split .ag-layer.chips { top: calc(40% + 118px); }
+.stage.split.turn-live .scout, .stage.split.turn-live .risk, .stage.split.turn-live .trader, .stage.split.turn-live .auditor { top: 16%; }
+.stage.split.turn-live .guest { top: 30%; }
+.stage.split.turn-live .ag-layer { top: calc(16% + 118px); }
+/* Con un panel abierto la esfera se queda arriba del chat, como antes. */
+.stage.split.desk-open .core-wrap { left: calc(40px + clamp(280px, 46%, 620px) / 2); top: 81px; transform: translate(-50%, -50%) scale(0.27); }
+/* El caption de estado va a la izquierda: el dock de pantallas ocupa la derecha. */
+.caption { left: 28px; transform: none; max-width: calc(100% - 560px); text-align: left; }
+/* La esfera junto al chat no pisa la primera burbuja. */
+.stage.split .convo { top: 140px; }
