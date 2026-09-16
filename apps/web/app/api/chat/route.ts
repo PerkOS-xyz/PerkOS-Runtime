@@ -24,7 +24,7 @@ const MAX_TURNS = 40;
 // El desk activo (header) da el contexto: nombre y roles del template.
 function deskLine(desk?: { name?: string; roles?: string[] }): string {
   const roles = desk?.roles?.length ? desk.roles.join(", ") : "Scout, Risk, Trader, Auditor";
-  return `You are PerkOS Floor, the voice of the "${desk?.name?.trim() || "PerkOS Floor desk"}" desk: a small team of specialized teammates (${roles}) on Base, running on PerkOS infrastructure.`;
+  return `You are PerkOS Floor, the voice of the "${desk?.name?.trim() || "PerkOS Floor Desk"}" desk: a small team of specialized teammates (${roles}) on Base, running on PerkOS infrastructure.`;
 }
 const BASE_INSTRUCTIONS = [
   "You are PerkOS Floor, the desk of a small team of specialized teammates (Scout, Risk, Trader, Auditor) on Base, running on PerkOS infrastructure.",

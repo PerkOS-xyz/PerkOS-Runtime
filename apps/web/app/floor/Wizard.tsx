@@ -12,7 +12,7 @@ import { useWallet } from "./wallet/context";
 
 export type DeskCard = { id: string; name: string; description: string; idleMinutes: number; agents: Array<{ role: string; name: string; duty: string }> };
 export type TeamStep = {
-  /** Una card por template fleet publicado en PerkOS. Hoy: PerkOS Floor desk. */
+  /** Una card por template fleet publicado en PerkOS. Hoy: PerkOS Floor Desk. */
   desks: DeskCard[];
   desk: DeskCard | null;
   deskNote: string;

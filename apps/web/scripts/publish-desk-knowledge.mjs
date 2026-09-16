@@ -45,7 +45,7 @@ for (const f of files) {
     validation_status: "validated",
     sanitization_status: "sanitized",
     visibility: "public",
-    evidence: urls.map((url) => ({ type: url.includes("basescan.org") ? "explorer" : "official_doc", url, verified: true, note: "verified by the PerkOS Floor desk, 2026-09-16" })),
+    evidence: urls.map((url) => ({ type: url.includes("basescan.org") ? "explorer" : "official_doc", url, verified: true, note: "verified by the PerkOS Floor Desk, 2026-09-16" })),
     metadata: { app: "perkos-floor", file: f }
   });
 }
