@@ -1075,3 +1075,34 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
   .desk-panel .rows li { grid-template-columns: 1.4fr 0.9fr auto; }
   .desk-panel .rows li .cell.num:nth-child(3) { display: none; }
 }
+
+/* Desk actual en el header + quick switch (como org/proyecto en PerkOS App). */
+.deskpick { position: relative; }
+.deskpick .desk-cur {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 4px 10px 4px 8px; border-radius: 999px;
+  border: 1px solid rgba(232, 238, 255, 0.18); background: rgba(6, 10, 22, 0.35);
+  color: var(--ink); font-size: 11px; letter-spacing: 0.06em; text-transform: none; cursor: pointer;
+}
+.deskpick .desk-cur b { font-weight: 400; color: var(--mute); font-size: 9px; }
+.deskpick .dot { width: 7px; height: 7px; border-radius: 50%; background: #6f7d99; box-shadow: 0 0 6px #6f7d9966; }
+.deskpick .dot.ready { background: #7fe0a8; box-shadow: 0 0 8px #7fe0a899; }
+.deskpick .dot.waking, .deskpick .dot.provisioning { background: #ffb347; animation: orbPulse 1.2s ease-in-out infinite; }
+.deskpick .dot.hibernated { background: #7fb0ff; }
+.deskpick .dot.partial { background: #ff8a92; }
+.desk-menu {
+  position: absolute; top: 34px; left: 0; min-width: 240px; z-index: 70;
+  list-style: none; margin: 0; padding: 6px;
+  border-radius: 14px; border: 1px solid rgba(120, 160, 255, 0.22);
+  background: linear-gradient(180deg, rgba(18, 32, 64, 0.94), rgba(6, 10, 22, 0.92));
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); backdrop-filter: blur(16px);
+}
+.desk-menu li button {
+  width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  padding: 8px 10px; border-radius: 10px; border: 1px solid transparent; background: transparent;
+  color: var(--ink); font: inherit; font-size: 12px; text-transform: none; letter-spacing: 0.02em; cursor: pointer; text-align: left;
+}
+.desk-menu li button:hover { background: rgba(120, 160, 255, 0.08); }
+.desk-menu li button.on { border-color: rgba(236, 27, 105, 0.5); }
+.desk-menu li button small { font-size: 10px; color: var(--mute); }
+.desk-menu li.add button { color: #ff5a6a; font-size: 11px; letter-spacing: 0.08em; }
