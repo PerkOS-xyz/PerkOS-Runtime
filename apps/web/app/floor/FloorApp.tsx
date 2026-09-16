@@ -69,7 +69,14 @@ function Shell() {
   type Draft = { id: string; chainId: number; side: "buy" | "sell"; stock: { symbol: string; ticker: string; name: string; issuer: string; address: string; decimals: number }; pool: string; fee: number; poolUsdcDepth: number; tokenIn: { symbol: string; decimals: number }; tokenOut: { symbol: string; decimals: number }; amountInHuman: string; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; deadline: number; quotedAt: string; needsApproval: boolean; balanceUsdc: string; balanceToken: string; txs: Array<{ label: "approve" | "swap"; to: `0x${string}`; data: `0x${string}`; value: "0x0" }> };
   type TradeIntent = { side: "buy" | "sell"; stock?: string; amountUsd?: number; amountToken?: number; fraction?: number };
   type DraftTx = { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; step?: "approve" | "swap"; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
-  type Msg = { id: number; role: "you" | "floor" | "team" | "draft"; who?: string; text: string; streaming?: boolean; draft?: Draft; tx?: DraftTx; verdict?: "GO" | "BLOCK" };
+  type Brief = { at: string; stock: { symbol: string; ticker: string; name: string; issuer: string }; priceUsd?: number; change24hPct?: number; range24h?: { low: number; high: number; open: number; last: number }; volume24hUsd?: number; sparkline?: number[]; pool: { fee: number; usdcDepth: number; priceUsd?: number } | null; chainlink?: { priceUsd: number; ageMin: number; stale: boolean }; premiumPct?: number; swaps24h?: { count: number; usdcVolume: number; buys: number; sells: number }; holding?: { balance: string; valueUsd: number }; lines: string[] };
+  type News = { text: string; sources: Array<{ url: string; title?: string }>; at: string };
+  type Analysis = { brief: Brief; news?: News; scout?: string; risk?: string; verdict?: "GO" | "BLOCK"; prev?: { priceUsd?: number; at: string }; loadingNews?: boolean };
+  type Msg = { id: number; role: "you" | "floor" | "team" | "draft" | "analysis"; who?: string; text: string; streaming?: boolean; draft?: Draft; tx?: DraftTx; verdict?: "GO" | "BLOCK"; analysis?: Analysis };
+  // Memo de analisis por activo: dentro de 15 min, "analyze" solo refresca
+  // el precio; el turno de mesa y las noticias se reusan.
+  const memoRef = useRef<Map<string, { msgId: number; at: number; analysis: Analysis }>>(new Map());
+  const briefRef = useRef<{ lines: string[]; news?: string; msgId?: number } | null>(null);
   // Turno de mesa: quien habla ahora, el haz entre orbs y el veredicto de Risk.
   const [talkingSet, setTalkingSet] = useState<string[]>([]);
   const setTalking = (role: string, on = true) => setTalkingSet((s) => (on ? (s.includes(role) ? s : [...s, role]) : s.filter((x) => x !== role)));
@@ -175,7 +182,7 @@ function Shell() {
         const fr = await fetch("/api/fleet/desk", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, roles: readyRoles, quote }),
+          body: JSON.stringify({ text, roles: readyRoles, quote, brief: briefRef.current?.lines ?? null, news: briefRef.current?.news ?? null }),
           signal: ac.signal
         });
         if (fr.ok && fr.body) {
@@ -209,6 +216,13 @@ function Shell() {
                   setMessages((m) => [...m.filter((x) => x.id !== floorId), { id, role: "team", who: r, text: ev.reply!, verdict: ev.verdict }, { id: floorId, role: "floor", text: "", streaming: true }]);
                   flog("info", `desk ${r}: ${ev.ms} ms${ev.verdict ? ` · ${ev.verdict}` : ""}`);
                   touch();
+                  // La Analysis card del activo en foco recoge lo que dicen Scout y Risk.
+                  const aid = briefRef.current?.msgId;
+                  if (aid && (r === "scout" || r === "risk")) {
+                    setMessages((m) => m.map((x) => (x.id === aid && x.analysis ? { ...x, analysis: { ...x.analysis, [r]: ev.reply, ...(ev.verdict ? { verdict: ev.verdict } : {}) } } : x)));
+                    const memo = [...memoRef.current.values()].find((v) => v.msgId === aid);
+                    if (memo) memo.analysis = { ...memo.analysis, [r]: ev.reply!, ...(ev.verdict ? { verdict: ev.verdict } : {}) };
+                  }
                   if (r === "risk" || r === "scout") handed.push(r);
                   if (r === "trader" || r === "auditor") setBeams((b) => b.map((x) => (x.to === r ? { ...x, done: true } : x)));
                   if (ev.verdict) {
@@ -587,6 +601,67 @@ function Shell() {
     }
   }, [speak, touch]);
 
+  // "Analyze X": market brief instantaneo (on-chain + API) -> Analysis card
+  // -> noticias con fuentes (Grok web_search) -> turno de mesa con ambos.
+  // Memo de 15 min: repetir solo refresca el precio.
+  const analyzeAsset = useCallback(async (asset: string, spoken: string, force = false) => {
+    setFocusAsset(asset);
+    setDeskScreen("market");
+    touch();
+    const key = asset.toLowerCase();
+    const memo = memoRef.current.get(key);
+    const fresh = memo && Date.now() - memo.at < 15 * 60_000 && !force;
+    setCaption(fresh ? `Refreshing ${asset}…` : `Reading the market for ${asset}…`);
+    let brief: Brief | null = null;
+    try {
+      const r = await fetch(`/api/market/brief?asset=${encodeURIComponent(asset)}`);
+      const j = (await r.json().catch(() => ({}))) as Brief & { error?: string; detail?: string };
+      if (!r.ok || !j.stock) { flog("warn", `brief ${r.status}: ${j.error ?? ""} ${j.detail ?? ""}`); setCaption(j.detail ?? `I don't see "${asset}" among the tokenized stocks on Base.`); return; }
+      brief = j;
+    } catch (e) {
+      flog("error", `brief: ${(e as Error).message}`);
+      return;
+    }
+    const b = brief!;
+    flog("info", `brief ${b.stock.symbol}: $${b.priceUsd?.toFixed(2)} ${b.change24hPct?.toFixed(2)}% · pool $${b.pool?.usdcDepth.toFixed(0) ?? "-"} · chainlink $${b.chainlink?.priceUsd.toFixed(2) ?? "-"} (${b.chainlink?.ageMin ?? "-"} min) · premium ${b.premiumPct?.toFixed(2) ?? "-"}% · swaps24h ${b.swaps24h?.count ?? "-"}`);
+    if (fresh && memo) {
+      // Solo el precio cambia a cada momento: actualizar la card y decirlo.
+      const prev = memo.analysis.brief.priceUsd;
+      const next = { ...memo.analysis, brief: b, prev: { priceUsd: prev, at: memo.analysis.brief.at } };
+      memo.analysis = next;
+      setMessages((m) => m.map((x) => (x.id === memo.msgId ? { ...x, analysis: next } : x)));
+      const delta = prev && b.priceUsd ? ((b.priceUsd / prev) - 1) * 100 : undefined;
+      const line = `${b.stock.name} is $${b.priceUsd?.toFixed(2)}${delta !== undefined ? ` (${delta > 0 ? "+" : ""}${delta.toFixed(2)}% since the last look)` : ""}${b.premiumPct !== undefined ? `, pool ${b.premiumPct > 0 ? "+" : ""}${b.premiumPct.toFixed(2)}% vs Chainlink` : ""}. The rest of the analysis stands.`;
+      setCaption(line.slice(0, 100));
+      speak(line);
+      briefRef.current = { lines: b.lines, news: memo.analysis.news?.text, msgId: memo.msgId };
+      return;
+    }
+    const id = Date.now() + 7;
+    const analysis: Analysis = { brief: b, loadingNews: true };
+    memoRef.current.set(key, { msgId: id, at: Date.now(), analysis });
+    setMessages((m) => [...m.slice(-40), { id, role: "analysis", who: b.stock.symbol, text: "", analysis }]);
+    briefRef.current = { lines: b.lines, msgId: id };
+    setCaption(`${b.stock.name} $${b.priceUsd?.toFixed(2)} · asking the desk…`);
+    // Noticias con fuentes (Grok web_search), en paralelo con el turno de mesa.
+    const newsP = fetch("/api/market/news", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker: b.stock.ticker, name: b.stock.name }) })
+      .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => {
+        const news: News | undefined = ok && j.text ? { text: j.text, sources: j.sources ?? [], at: j.at } : undefined;
+        if (!ok) flog("warn", `news: ${j.error ?? ""} ${j.detail ?? ""}`); else flog("info", `news ${b.stock.ticker}: ${String(j.text).length} chars · ${(j.sources ?? []).length} sources${j.cached ? " · cached" : ""}`);
+        const memo2 = memoRef.current.get(key);
+        if (memo2) memo2.analysis = { ...memo2.analysis, news, loadingNews: false };
+        setMessages((m) => m.map((x) => (x.id === id && x.analysis ? { ...x, analysis: { ...x.analysis, news, loadingNews: false } } : x)));
+        if (briefRef.current?.msgId === id && news) briefRef.current = { ...briefRef.current, news: news.text };
+        return news;
+      })
+      .catch((e) => { flog("error", `news: ${(e as Error).message}`); return undefined; });
+    // Dar hasta 12 s a las noticias para que entren en el prompt de la mesa.
+    await Promise.race([newsP, new Promise((r) => setTimeout(r, 12_000))]);
+    await chat(spoken);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chat, speak, touch]);
+
   const run = useCallback((raw: string) => {
     const spoken = raw.trim();
     const it = parseIntent(raw);
@@ -594,6 +669,7 @@ function Shell() {
     flog("info", `intent: ${it.kind}${"asset" in it && it.asset ? ` · ${it.asset}` : ""}`);
     if (cmd === "chat" && spoken) {
       quoteRef.current = null;
+      briefRef.current = null;
       void chat(spoken);
       return;
     }
@@ -606,8 +682,8 @@ function Shell() {
     }
     if (cmd === "analyze") {
       quoteRef.current = null;
-      if (it.asset) { setFocusAsset(it.asset); setDeskScreen("market"); }
-      void chat(spoken);
+      if (it.asset) void analyzeAsset(it.asset, spoken, /\b(again|deep|fresh|de nuevo|otra vez|a fondo)\b/i.test(spoken));
+      else void chat(spoken);
       return;
     }
     if (cmd === "quote") {
@@ -670,7 +746,7 @@ function Shell() {
       setSplit(false);
       if (perkosRef.current.connected && fleetRef.current?.agents.some((a) => a.state === "ready" || a.state === "waking")) void fleetAction("hibernate");
     }
-  }, [approveDraft, quoteAsset, chat, voice, fleetAction]);
+  }, [analyzeAsset, approveDraft, quoteAsset, chat, voice, fleetAction]);
   runRef.current = run;
 
   const listen = useCallback(() => {
@@ -1103,11 +1179,13 @@ function Shell() {
         {messages.map((m) => (
           <div key={m.id} className={`turn ${m.role}`}>
             <span className="turn-k">
-              {m.role === "you" ? "You" : m.role === "team" ? `${cap(m.who ?? "team")} · PerkOS` : m.role === "draft" ? "Trader · draft" : "Floor"}
+              {m.role === "you" ? "You" : m.role === "team" ? `${cap(m.who ?? "team")} · PerkOS` : m.role === "draft" ? "Trader · draft" : m.role === "analysis" ? `Desk · ${m.who ?? "analysis"}` : "Floor"}
               {m.verdict ? <em className={`vchip ${m.verdict.toLowerCase()}`}>{m.verdict}</em> : null}
             </span>
             {m.role === "draft" && m.draft ? (
               <DraftCard draft={m.draft} tx={m.tx ?? { stage: "idle", hashes: [] }} onApprove={() => void approveDraft(m.id)} />
+            ) : m.role === "analysis" && m.analysis ? (
+              <AnalysisCard a={m.analysis} onSay={(t) => runRef.current(t)} />
             ) : (
               <div className="bubble">
                 {m.text}
@@ -1335,6 +1413,76 @@ function Beams({ beams, orbitRef, orbRefs }: { beams: Array<{ from: string; to: 
         return <line key={`${b.from}-${b.to}-${i}`} className={b.done ? "done" : ""} x1={a.x} y1={a.y} x2={c.x} y2={c.y} />;
       })}
     </svg>
+  );
+}
+
+/** Analysis card: lo verificado por Floor (precio, 24 h, pool vs Chainlink,
+ *  swaps, tenencia), las noticias con fuentes y la lectura de Scout/Risk. */
+function AnalysisCard({ a, onSay }: {
+  a: { brief: { at: string; stock: { symbol: string; ticker: string; name: string; issuer: string }; priceUsd?: number; change24hPct?: number; range24h?: { low: number; high: number; open: number; last: number }; volume24hUsd?: number; sparkline?: number[]; pool: { fee: number; usdcDepth: number; priceUsd?: number } | null; chainlink?: { priceUsd: number; ageMin: number; stale: boolean }; premiumPct?: number; swaps24h?: { count: number; usdcVolume: number; buys: number; sells: number }; holding?: { balance: string; valueUsd: number } }; news?: { text: string; sources: Array<{ url: string; title?: string }> }; scout?: string; risk?: string; verdict?: "GO" | "BLOCK"; prev?: { priceUsd?: number; at: string }; loadingNews?: boolean };
+  onSay: (t: string) => void;
+}) {
+  const b = a.brief;
+  const sp = b.sparkline ?? [];
+  const w = 420, h = 64;
+  let path = "";
+  if (sp.length >= 2) {
+    const min = Math.min(...sp), max = Math.max(...sp), span = max - min || 1, step = w / (sp.length - 1);
+    path = sp.map((v, i) => `${i === 0 ? "M" : "L"}${(i * step).toFixed(1)},${(h - 2 - ((v - min) / span) * (h - 4)).toFixed(1)}`).join(" ");
+  }
+  const up = (b.change24hPct ?? 0) >= 0;
+  const ago = Math.max(0, Math.round((Date.now() - Date.parse(b.at)) / 60_000));
+  const issuer = b.stock.issuer === "coinbase" ? "Coinbase B20" : b.stock.issuer;
+  const tradeable = Boolean(b.pool && b.pool.usdcDepth >= 100);
+  return (
+    <div className={`analysis-card${a.verdict ? ` v-${a.verdict.toLowerCase()}` : ""}`}>
+      <div className="an-head">
+        <div>
+          <b>{b.stock.name} <span>{b.stock.symbol} · {issuer}</span></b>
+          <small>{b.pool ? `Uniswap V3 ${b.pool.fee / 10_000}% · $${Math.round(b.pool.usdcDepth).toLocaleString("en-US")} USDC deep` : "no USDC pool on Base"}{b.chainlink ? ` · Chainlink $${b.chainlink.priceUsd.toFixed(2)}${b.chainlink.stale ? ` (market closed, ${Math.round(b.chainlink.ageMin / 60)} h)` : ""}` : ""}{b.premiumPct !== undefined ? ` · pool ${b.premiumPct > 0 ? "+" : ""}${b.premiumPct.toFixed(2)}%` : ""}</small>
+        </div>
+        <div className="num">
+          <b>${b.priceUsd?.toFixed(2) ?? "–"}</b>
+          <small className={up ? "up" : "down"}>{b.change24hPct !== undefined ? `${b.change24hPct > 0 ? "+" : ""}${b.change24hPct.toFixed(2)}% · 24 h` : "24 h"}{a.prev?.priceUsd && b.priceUsd ? ` · ${((b.priceUsd / a.prev.priceUsd - 1) * 100) >= 0 ? "+" : ""}${((b.priceUsd / a.prev.priceUsd - 1) * 100).toFixed(2)}% since last look` : ""}</small>
+        </div>
+      </div>
+      {path ? (
+        <svg className={`spark big ${up ? "up" : "down"}`} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden>
+          <path className="fill" d={`${path} L${w},${h} L0,${h} Z`} />
+          <path d={path} />
+        </svg>
+      ) : null}
+      <dl className="draft-rows">
+        {b.range24h ? <><dt>24 h range</dt><dd>${b.range24h.low.toFixed(2)} – ${b.range24h.high.toFixed(2)} <small>open ${b.range24h.open.toFixed(2)}</small></dd></> : null}
+        {b.volume24hUsd !== undefined ? <><dt>Volume</dt><dd>${Math.round(b.volume24hUsd).toLocaleString("en-US")} <small>24 h, all venues</small></dd></> : null}
+        {b.swaps24h ? <><dt>On the pool</dt><dd>{b.swaps24h.count} swaps · ${b.swaps24h.usdcVolume.toLocaleString("en-US")} <small>{b.swaps24h.buys} buys / {b.swaps24h.sells} sells</small></dd></> : null}
+        <dt>You hold</dt><dd>{b.holding ? `${b.holding.balance} ${b.stock.symbol} (~$${b.holding.valueUsd.toFixed(2)})` : "none"}</dd>
+      </dl>
+      <div className="an-block">
+        <span className="k">NEWS · GROK SEARCH</span>
+        {a.loadingNews ? <p className="hint-line">Searching what moved it…</p> : a.news ? (
+          <>
+            <p>{a.news.text}</p>
+            {a.news.sources.length ? <p className="sources">{a.news.sources.map((s, i) => <a key={s.url} href={s.url} target="_blank" rel="noreferrer">[{i + 1}] {s.title || new URL(s.url).hostname}</a>)}</p> : null}
+          </>
+        ) : <p className="hint-line">No news found.</p>}
+      </div>
+      {(a.scout || a.risk) ? (
+        <div className="an-block">
+          <span className="k">DESK</span>
+          {a.scout ? <p><b>Scout</b> {a.scout}</p> : null}
+          {a.risk ? <p><b>Risk</b>{a.verdict ? <em className={`vchip ${a.verdict.toLowerCase()}`}>{a.verdict}</em> : null} {a.risk.replace(/^\s*VERDICT\s*[:\-]\s*(GO|BLOCK)\s*/i, "")}</p> : null}
+        </div>
+      ) : null}
+      <div className="an-foot">
+        <small>Updated {ago < 1 ? "just now" : `${ago} min ago`} · Uniswap Data API · Chainlink · Base RPC</small>
+        <div className="draft-actions" style={{ gap: 6 }}>
+          <button type="button" onClick={() => onSay(`analyze ${b.stock.ticker} again`)}>Refresh</button>
+          <button type="button" disabled={!tradeable} onClick={() => onSay(`buy $5 of ${b.stock.symbol}`)}>Buy $5</button>
+          {b.holding ? <button type="button" onClick={() => onSay(`sell half of my ${b.stock.symbol}`)}>Sell half</button> : null}
+        </div>
+      </div>
+    </div>
   );
 }
 

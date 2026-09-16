@@ -17,7 +17,7 @@ function verdictOf(reply: string): "GO" | "BLOCK" | undefined {
 const clip = (s: string, n = 700) => s.replace(/\s+/g, " ").trim().slice(0, n);
 
 export async function POST(req: Request) {
-  const body = (await req.json().catch(() => ({}))) as { text?: string; roles?: string[]; quote?: Quote | null };
+  const body = (await req.json().catch(() => ({}))) as { text?: string; roles?: string[]; quote?: Quote | null; brief?: string[] | null; news?: string | null };
   const text = body.text?.trim() ?? "";
   if (!text) return Response.json({ error: "text" }, { status: 400 });
   const ready = new Set((body.roles ?? []).filter((r): r is FleetRole => ["scout", "risk", "trader", "auditor"].includes(r)));
@@ -28,6 +28,11 @@ export async function POST(req: Request) {
   const quoteLine = q
     ? `The desk's Uniswap V3 quote on Base: ${q.side} ${q.amountIn} ${q.tokenIn} -> ${q.quoteOut} ${q.tokenOut} (${q.name}, ${q.symbol}) at $${q.priceUsd.toFixed(2)} per share, pool ${q.pool.slice(0, 8)} fee ${q.fee / 10_000}% with $${q.poolUsdcDepth.toFixed(0)} USDC of depth, min out ${q.minOut}.`
     : "No order is on the table this turn.";
+  // Lo que Floor ya sabe del activo (market brief on-chain + noticias con
+  // fuentes): el equipo razona sobre numeros, no sobre la nada.
+  const briefLines = Array.isArray(body.brief) ? body.brief.filter((l) => typeof l === "string").slice(0, 12).map((l) => l.slice(0, 300)) : [];
+  const factsLine = briefLines.length ? `\nMarket facts the desk already verified (use them, do not contradict them): ${briefLines.join(" ")}` : "";
+  const newsLine = typeof body.news === "string" && body.news.trim() ? `\nNews the desk found (with sources): ${body.news.trim().slice(0, 900)}` : "";
 
   const enc = new TextEncoder();
   const stream = new ReadableStream({
@@ -44,12 +49,12 @@ export async function POST(req: Request) {
         return r;
       };
       try {
-        const head = `Human request to the desk: "${text}". ${quoteLine}`;
+        const head = `Human request to the desk: "${text}". ${quoteLine}${factsLine}${newsLine}`;
         // Hermes tarda 20-60 s por turno en frio: Scout y Risk corren en
         // paralelo (Risk ya tiene la cotizacion; Scout le suma evidencia si
         // llega), y despues Trader y Auditor con ambos handoffs.
         const [scout, risk] = await Promise.all([
-          run("scout", `${head}\nAs Scout: what is the signal here for tokenized stocks on Base? What did you check, and how fresh is it? Under 80 words, plain text.`),
+          run("scout", `${head}\nAs Scout: read the verified facts and the news, then give the desk your read: what stands out (price vs Chainlink, 24h move and range, pool depth, catalysts) and one thing to watch. Do not repeat the numbers back; interpret them. Under 80 words, plain text.`),
           run("risk", `${head}\nAs Risk: size and limits for this desk. Compare the desk's Uniswap quote with any second price you can get; if they diverge beyond 1.5%, the pool is thin for the size, or the request is unclear, block. Reply with a first line exactly "VERDICT: GO" or "VERDICT: BLOCK", then the reason in under 60 words.`)
         ]);
         const scoutSaid = scout?.ok ? clip(scout.reply) : "(Scout did not answer)";
