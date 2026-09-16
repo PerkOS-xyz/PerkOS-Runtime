@@ -1735,3 +1735,4 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .stage.turn-chips:not(.split):not(.desk-open) .caption { display: none; }
 /* Con chips bajo la fila, Sparky baja un poco para que la llama no los roce. */
 .stage.turn-chips:not(.split):not(.desk-open) .core-wrap { top: 57%; }
+.settings-dock .srow .v select { background: #05070c; border: 1px solid #1a2233; border-radius: 8px; color: var(--ink); font: inherit; font-size: 11.5px; padding: 4px 8px; }

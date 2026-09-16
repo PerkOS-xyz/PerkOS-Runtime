@@ -139,6 +139,10 @@ export function useVoice({ onTranscript, onInterrupt, onStatus }: Opts) {
     const u = new SpeechSynthesisUtterance(text);
     u.lang = "en-US";
     u.rate = 1.02;
+    // Fallback del sistema: una voz masculina en ingles si la hay (Sparky).
+    const voices = window.speechSynthesis.getVoices();
+    const pick = voices.find((v) => /^(Daniel|Eddy \(English \(US\)\)|Fred|Aaron|Alex|Rishi|Arthur)$/.test(v.name) && v.lang.startsWith("en")) ?? voices.find((v) => /Daniel|Eddy|Fred|Aaron|Alex/.test(v.name));
+    if (pick) u.voice = pick;
     u.onend = () => resolve();
     u.onerror = () => resolve();
     window.speechSynthesis.speak(u);

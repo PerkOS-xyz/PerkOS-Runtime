@@ -1,4 +1,4 @@
-import { DEFAULT_MODELS, loadSettings, publicSettings, saveSettings, type Effort, type Provider, type Settings } from "../../lib/settingsStore";
+import { DEFAULT_MODELS, loadSettings, publicSettings, saveSettings, type Effort, type Provider, type Settings, isVoice } from "../../lib/settingsStore";
 import { displayName } from "../../lib/displayName";
 
 const PROVIDERS: Provider[] = ["xai-oauth", "xai", "openai", "anthropic", "local"];
@@ -23,7 +23,8 @@ export async function POST(req: Request) {
   const effort: Effort = body.effort === "low" || body.effort === "medium" || body.effort === "high" ? body.effort : cur.effort;
   const fleetTemplateId =
     typeof body.fleetTemplateId === "string" && /^[a-z][a-z0-9-]{0,63}$/.test(body.fleetTemplateId) ? body.fleetTemplateId : cur.fleetTemplateId;
-  const next: Settings = { provider, model, effort, apiKey, baseUrl, wallet, onboarded, fleetTemplateId };
+  const voice = isVoice(body.voice) ? body.voice : cur.voice;
+  const next: Settings = { provider, model, effort, apiKey, baseUrl, wallet, onboarded, fleetTemplateId, voice };
   await saveSettings(next);
   return Response.json(publicSettings(next));
 }

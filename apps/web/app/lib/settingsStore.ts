@@ -23,7 +23,13 @@ export type Settings = {
   // fleet). Hoy solo floor-desk; el paso "Choose your team" muestra una card
   // por template publicado.
   fleetTemplateId: string;
+  // Voz de Floor (xAI TTS voice_id). Sparky habla con "rex"; las voces validas
+  // se probaron contra /v1/tts el 2026-09-16 (mika y valentin no existen).
+  voice: Voice;
 };
+
+import { DEFAULT_VOICE, isVoice, type Voice } from "./voices";
+export { VOICES, DEFAULT_VOICE, isVoice, type Voice } from "./voices";
 
 export const DEFAULT_FLEET_TEMPLATE = "floor-desk";
 
@@ -63,10 +69,11 @@ export async function loadSettings(): Promise<Settings> {
       baseUrl: typeof raw.baseUrl === "string" ? raw.baseUrl : "",
       onboarded: Boolean(raw.onboarded),
       wallet: typeof raw.wallet === "string" ? raw.wallet : "",
-      fleetTemplateId: typeof raw.fleetTemplateId === "string" && /^[a-z][a-z0-9-]{0,63}$/.test(raw.fleetTemplateId) ? raw.fleetTemplateId : DEFAULT_FLEET_TEMPLATE
+      fleetTemplateId: typeof raw.fleetTemplateId === "string" && /^[a-z][a-z0-9-]{0,63}$/.test(raw.fleetTemplateId) ? raw.fleetTemplateId : DEFAULT_FLEET_TEMPLATE,
+      voice: isVoice(raw.voice) ? raw.voice : DEFAULT_VOICE
     };
   } catch {
-    return { provider: "xai-oauth", model: DEFAULT_MODELS["xai-oauth"], effort: "low", apiKey: "", baseUrl: "", onboarded: false, wallet: "", fleetTemplateId: DEFAULT_FLEET_TEMPLATE };
+    return { provider: "xai-oauth", model: DEFAULT_MODELS["xai-oauth"], effort: "low", apiKey: "", baseUrl: "", onboarded: false, wallet: "", fleetTemplateId: DEFAULT_FLEET_TEMPLATE, voice: DEFAULT_VOICE };
   }
 }
 
@@ -95,6 +102,7 @@ export function publicSettings(s: Settings) {
     masked: maskKey(s.apiKey),
     baseUrl: s.baseUrl,
     onboarded: s.onboarded,
-    wallet: maskWallet(s.wallet)
+    wallet: maskWallet(s.wallet),
+    voice: s.voice
   };
 }
