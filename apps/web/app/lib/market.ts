@@ -146,7 +146,7 @@ function briefLines(b: MarketBrief): string[] {
   L.push(`${b.stock.name} (${b.stock.symbol}, ${issuer}) on Base: $${b.priceUsd?.toFixed(2) ?? "?"}${b.change24hPct !== undefined ? ` (${b.change24hPct > 0 ? "+" : ""}${b.change24hPct.toFixed(2)}% in 24h)` : ""}.`);
   if (b.range24h) L.push(`24h range $${b.range24h.low.toFixed(2)} to $${b.range24h.high.toFixed(2)}, opened $${b.range24h.open.toFixed(2)}, last $${b.range24h.last.toFixed(2)}.`);
   if (b.volume24hUsd !== undefined) L.push(`24h volume across venues: $${Math.round(b.volume24hUsd).toLocaleString("en-US")}.`);
-  if (b.chainlink) L.push(`Chainlink reference price for the stock: $${b.chainlink.priceUsd.toFixed(2)}, updated ${b.chainlink.ageMin} min ago${b.chainlink.stale ? " (market closed, feed frozen)" : ""}.`);
+  if (b.chainlink) L.push(`Chainlink reference price for the stock: $${b.chainlink.priceUsd.toFixed(2)}, updated ${b.chainlink.ageMin} min ago${b.chainlink.stale ? " (feed frozen: US equity market closed; the token itself trades 24/7 onchain)" : ""}.`);
   if (b.pool) L.push(`${VENUE_LABEL[b.pool.venue]} pool ${b.pool.fee / 10_000}% holds $${Math.round(b.pool.usdcDepth).toLocaleString("en-US")} USDC${b.pool.priceUsd ? `, pool price $${b.pool.priceUsd.toFixed(2)}` : ""}${b.premiumPct !== undefined ? ` (${b.premiumPct > 0 ? "+" : ""}${b.premiumPct.toFixed(2)}% vs Chainlink)` : ""}.`);
   else L.push("No USDC pool on Uniswap V3 or Aerodrome on Base: not tradeable from this desk.");
   if (b.swaps24h) L.push(`${b.swaps24h.count} swaps in the last 24h on that pool ($${b.swaps24h.usdcVolume.toLocaleString("en-US")} USDC): ${b.swaps24h.buys} buys, ${b.swaps24h.sells} sells.`);

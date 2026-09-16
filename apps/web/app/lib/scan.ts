@@ -42,7 +42,7 @@ async function scanRow(r: MarketRow): Promise<ScanRow> {
   const parts = [
     `${r.symbol} (${r.name}): $${r.priceUsd?.toFixed(2) ?? "?"}${r.priceChange24hPct !== undefined ? ` ${r.priceChange24hPct > 0 ? "+" : ""}${r.priceChange24hPct.toFixed(2)}% 24h` : ""}`,
     low !== undefined && high !== undefined ? `range $${low.toFixed(2)} to $${high.toFixed(2)}` : "",
-    cl ? `Chainlink $${cl.priceUsd.toFixed(2)}${cl.stale ? ` (frozen ${cl.ageMin} min, market closed)` : ""}${premiumPct !== undefined ? `, pool ${premiumPct > 0 ? "+" : ""}${premiumPct.toFixed(2)}% vs ref` : ""}` : "no Chainlink feed",
+    cl ? `Chainlink $${cl.priceUsd.toFixed(2)}${cl.stale ? ` (feed frozen ${cl.ageMin} min: US equity market closed, the token trades 24/7 onchain)` : ""}${premiumPct !== undefined ? `, pool ${premiumPct > 0 ? "+" : ""}${premiumPct.toFixed(2)}% vs ref` : ""}` : "no Chainlink feed",
     r.pool ? `${venue} pool $${Math.round(r.pool.usdcDepth).toLocaleString("en-US")} USDC` : "no pool",
     r.volume24hUsd !== undefined ? `volume $${Math.round(r.volume24hUsd).toLocaleString("en-US")} across venues` : ""
   ].filter(Boolean);

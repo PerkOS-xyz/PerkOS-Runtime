@@ -1514,3 +1514,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .caption { left: 28px; transform: none; max-width: calc(100% - 560px); text-align: left; }
 /* La esfera junto al chat no pisa la primera burbuja. */
 .stage.split .convo { top: 140px; }
+
+/* Turno sin chat abierto: la esfera se aparta arriba a la izquierda, nunca sobre el composer. */
+.stage.turn-live:not(.split) .core-wrap { left: 12%; top: 9%; transform: translate(-50%, -50%) scale(0.42); }
+.stage.turn-live:not(.split) .whisper { display: none; }
