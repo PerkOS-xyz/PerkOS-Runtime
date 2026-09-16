@@ -32,7 +32,7 @@ function lintReplies(mode: string, facts: string, replies: FleetReply[]): string
     const t = r.reply;
     if (/market (is |was |remains )?(closed|shut)/i.test(t) && !/24\/7/.test(t)) flags.push(`${r.role}:says-market-closed`);
     if ((r.role === "scout" || r.role === "risk") && !/@(Trader|Auditor)/.test(t)) flags.push(`${r.role}:no-mention`);
-    if ((r.role === "trader" || r.role === "auditor") && !/@Floor/.test(t)) flags.push(`${r.role}:no-mention`);
+    if ((r.role === "trader" || r.role === "auditor") && !/@Sparky/.test(t)) flags.push(`${r.role}:no-mention`);
     const pcts = (t.match(/-?\d+(?:\.\d+)?\s?%/g) ?? []).map((x) => Math.abs(parseFloat(x)).toFixed(1));
     const unknown = [...new Set(pcts.filter((p) => !factPcts.has(p) && !known.has(p)))];
     if (unknown.length) flags.push(`${r.role}:pct-not-in-facts(${unknown.slice(0, 3).join(",")})`);
@@ -153,15 +153,15 @@ export async function POST(req: Request) {
         const verdict = mode === "order" ? (risk?.ok ? verdictOf(risk.reply) ?? "GO" : "BLOCK") : undefined;
         const tail = `${head}\nScout said: ${scoutSaid}\nRisk said: ${riskSaid}${verdict ? ` (verdict ${verdict})` : ""}.`;
         const T = mode === "order"
-          ? `As Trader (open with "@Floor"): ${q ? (verdict === "GO" ? "restate the order the desk drafted (asset, size, venue, min out) and exactly what the human must sign. You never execute." : "Risk blocked it: stand down and say what would need to change. You never execute.") : "no order is on the table: say what you would draft if asked, in one line. You never execute."} Under 60 words.`
+          ? `As Trader (open with "@Sparky"): ${q ? (verdict === "GO" ? "restate the order the desk drafted (asset, size, venue, min out) and exactly what the human must sign. You never execute." : "Risk blocked it: stand down and say what would need to change. You never execute.") : "no order is on the table: say what you would draft if asked, in one line. You never execute."} Under 60 words.`
           : mode === "analyze"
-            ? `As Trader (open with "@Floor"): if the human wanted exposure to this stock, give the entry plan: venue, size in USDC as a share of the pool, take profit level, and a stop or a time exit; or say why you would wait and for what. You never execute. Under 60 words.`
-            : `As Trader (open with "@Floor"): entry plan for the top pick the desk is converging on: the venue named in that stock's fact line (Aerodrome or Uniswap, never assume), size in USDC, take profit level, stop or time exit, and when you would add the second pick. You never execute. Under 70 words.`;
+            ? `As Trader (open with "@Sparky"): if the human wanted exposure to this stock, give the entry plan: venue, size in USDC as a share of the pool, take profit level, and a stop or a time exit; or say why you would wait and for what. You never execute. Under 60 words.`
+            : `As Trader (open with "@Sparky"): entry plan for the top pick the desk is converging on: the venue named in that stock's fact line (Aerodrome or Uniswap, never assume), size in USDC, take profit level, stop or time exit, and when you would add the second pick. You never execute. Under 70 words.`;
         const A = mode === "order"
-          ? `As Auditor (open with "@Floor"): write the decision record for this turn: what was asked, what Scout found, Risk's verdict, the draft on the table (or none) and what evidence is missing. Under 80 words.`
+          ? `As Auditor (open with "@Sparky"): write the decision record for this turn: what was asked, what Scout found, Risk's verdict, the draft on the table (or none) and what evidence is missing. Under 80 words.`
           : mode === "analyze"
-            ? `As Auditor (open with "@Floor"): write the analysis record: the thesis in one line, the evidence that supports it with its tags like [F2], the main risk, and what to check next (date or event). Under 80 words.`
-            : `As Auditor (open with "@Floor"): write the dated outlook record: the picks with their reasons and fact tags like [F2], the one to avoid, the risk rules, and the review date one month out. Under 100 words.`;
+            ? `As Auditor (open with "@Sparky"): write the analysis record: the thesis in one line, the evidence that supports it with its tags like [F2], the main risk, and what to check next (date or event). Under 80 words.`
+            : `As Auditor (open with "@Sparky"): write the dated outlook record: the picks with their reasons and fact tags like [F2], the one to avoid, the risk rules, and the review date one month out. Under 100 words.`;
         await Promise.all([
           run("trader", `${tail}\n${T}`),
           run("auditor", `${tail}\n${A}`)

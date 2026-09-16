@@ -68,7 +68,7 @@ export function parseTradeIntent(text: string): Extract<Intent, { kind: "buy" | 
 export function parseIntent(raw: string): Intent {
   const t = norm(raw);
   if (!t) return { kind: "chat" };
-  if (/\bhey perkos\b/.test(t) || t === "perkos" || t === "hey perk os") return { kind: "listen" };
+  if (/\bhey (perkos|sparky)\b/.test(t) || t === "perkos" || t === "sparky" || t === "hey perk os") return { kind: "listen" };
   if (t === "stop" || t === "para" || t === "basta") return { kind: "stop" };
   if (/\bsettings\b/.test(t) || /\bconfig/.test(t) || /\bajustes\b/.test(t)) return { kind: "settings" };
   // Pregunta abierta de inversion: la mesa escanea el mercado y recomienda.

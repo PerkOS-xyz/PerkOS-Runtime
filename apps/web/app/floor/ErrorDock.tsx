@@ -34,7 +34,7 @@ export default function ErrorDock({ open, onOpen }: { open: boolean; onOpen: (v:
     window.addEventListener("floor:log", onLog);
     window.addEventListener("error", onErr);
     window.addEventListener("unhandledrejection", onRej);
-    add("info", "Floor ready");
+    add("info", "Sparky ready");
     return () => {
       window.removeEventListener("floor:log", onLog);
       window.removeEventListener("error", onErr);

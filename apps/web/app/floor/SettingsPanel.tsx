@@ -20,8 +20,10 @@ type PerkosState = { connected: boolean; busy: boolean; fundingUrl: string; note
 // Floor solo enlaza. Sin flota con rail no se muestra.
 type RailState = { status: string; oneclawAgentId?: string; vaultId?: string; linkedRoles?: string[]; hasRail: boolean };
 
-export default function SettingsPanel({ onClose, debug, onDebug, perkos, onReconnectPerkos, rail, onLinkRail, desk }: {
+export default function SettingsPanel({ onClose, debug, onDebug, perkos, onReconnectPerkos, rail, onLinkRail, desk, onLogout }: {
   onClose: () => void;
+  /** Cerrar sesion (en ventanas angostas el header no muestra Log out). */
+  onLogout?: () => void;
   /** Desk activo: lo que cambia al cambiar de desk (cadena, equipo, revision). */
   desk?: { name: string; chain: string; builtOn: string; agents: string[]; revision: number; fleetStatus?: string };
   debug: boolean;
@@ -34,7 +36,7 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
   const [llm, setLlm] = useState<Llm | null>(null);
   const [model, setModel] = useState("");
   const [saved, setSaved] = useState(false);
-  const [voice, setVoice] = useState<Voice>("rex");
+  const [voice, setVoice] = useState<Voice>("leo");
   const [previewing, setPreviewing] = useState(false);
 
   const refresh = () =>
@@ -96,6 +98,7 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
           <span className="v">
             {perkos.busy ? "Connecting…" : perkos.connected ? "PerkOS session active" : perkos.note || "Not connected"}
             <button type="button" onClick={onReconnectPerkos} disabled={perkos.busy}>{perkos.connected ? "Re-sign" : "Connect"}</button>
+            {onLogout ? <button type="button" onClick={onLogout}>Log out</button> : null}
           </span>
         </div>
         {perkos.fundingUrl ? (

@@ -178,7 +178,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
         <History />
       ) : screen === "map" ? (
         <>
-          <p className="hint-line">The desk as a graph: you sign, Floor speaks, the team hands off, the world is what they look at. Click a node.</p>
+          <p className="hint-line">The desk as a graph: you sign, Sparky speaks, the team hands off, the world is what they look at. Click a node.</p>
           {map}
         </>
       ) : screen === "market" ? (

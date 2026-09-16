@@ -460,7 +460,7 @@ function Shell() {
       releaseDraft(youId);
       // Diario del desk: la pregunta, lo que dijo el equipo y la respuesta.
       const teamLines = fleetReplies.filter((r) => r.ok && r.reply).map((r) => `- **${cap(r.role)}**: ${r.reply.replace(/\s+/g, " ").slice(0, 600)}`).join("\n");
-      kbWriteRef.current({ journal: true, body: `**You**: ${text}\n${teamLines ? `${teamLines}\n` : ""}- **Floor**: ${full.replace(/\s+/g, " ").slice(0, 900)}` });
+      kbWriteRef.current({ journal: true, body: `**You**: ${text}\n${teamLines ? `${teamLines}\n` : ""}- **Sparky**: ${full.replace(/\s+/g, " ").slice(0, 900)}` });
     } catch (e) {
       if ((e as Error).name !== "AbortError") flog("error", `chat: ${(e as Error).message}`);
       setMessages((m) => m.map((x) => (x.id === floorId ? { ...x, streaming: false } : x)));
@@ -1511,6 +1511,7 @@ function Shell() {
           onReconnectPerkos={() => void ensurePerkos(true)}
           rail={{ status: rail.status, oneclawAgentId: rail.oneclawAgentId, vaultId: rail.vaultId, linkedRoles: rail.linkedRoles, hasRail: Boolean(fleet?.agents.some((a) => a.rail)) }}
           onLinkRail={() => { setSettings(false); openRailStep(); }}
+          onLogout={logout}
           desk={desk ? { name: desk.name, chain: CHAINS[chainOf(desk)].name, builtOn: CHAINS[chainOf(desk)].builtOn, agents: desk.agents.map((a) => a.name), revision: desk.revision, fleetStatus: fleet?.status } : undefined}
         />
       ) : null}
@@ -1543,6 +1544,8 @@ function Shell() {
         <small>They draft. You approve. Base only.</small>
       </div>
       {desk && !wizard ? <div className="venue-line">{deskManifest(desk).venues}</div> : null}
+      {/* Sonda de tamano (ancho x alto): descomentar para calibrar breakpoints. */}
+      {/* <SizeProbe /> */}
       {/* Dock del desk: las pantallas propias del desk activo, a un clic
           (tambien por voz: "show the market", "show my portfolio"). Primero
           las del desk (Market, Portfolio), luego las del shell (Notes, Map, History). */}
@@ -1594,9 +1597,9 @@ function Shell() {
           solo se ve con equipo. Un "wake" por voz con 402 abre el pago directo. */}
 
       <div className="core-wrap">
-        <button className={`core ${coreClass}`} type="button" onClick={listen} aria-label="Talk to PerkOS" />
+        <button className={`core ${coreClass}`} type="button" onClick={listen} aria-label="Talk to Sparky" />
         <div className="mic-dock">
-          <div className="whisper">{speaking ? "Speaking" : thinking ? "Thinking" : listening ? "Listening" : awake ? "They draft. You approve." : "Hey PerkOS"}</div>
+          <div className="whisper">{speaking ? "Speaking" : thinking ? "Thinking" : listening ? "Listening" : awake ? "They draft. You approve." : "Hey Sparky"}</div>
         </div>
       </div>
 
@@ -1633,7 +1636,7 @@ function Shell() {
             out.push(
           <div key={m.id} className={`turn ${m.role}${m.kind ? ` ${m.kind}` : ""}`} data-who={m.who ?? (m.role === "floor" ? "floor" : undefined)}>
             <span className="turn-k">
-              {m.role === "you" ? "You" : m.role === "team" ? `${cap(m.who ?? "team")} · PerkOS` : m.role === "draft" ? "Desk · decision" : m.role === "analysis" ? `Desk · ${m.who ?? "analysis"}` : m.kind === "open" ? "Floor · principal" : m.kind === "side" ? "Floor · to you" : "Floor"}
+              {m.role === "you" ? "You" : m.role === "team" ? `${cap(m.who ?? "team")} · PerkOS` : m.role === "draft" ? "Desk · decision" : m.role === "analysis" ? `Desk · ${m.who ?? "analysis"}` : m.kind === "open" ? "Sparky · principal" : m.kind === "side" ? "Sparky · to you" : "Sparky"}
               {m.verdict ? <em className={`vchip ${m.verdict.toLowerCase()}`}>{m.verdict}</em> : null}
             </span>
             {m.role === "draft" && m.draft ? (
@@ -1699,10 +1702,10 @@ function Shell() {
           ref={askRef}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder={"Ask the floor. Try \"buy $3 of NVDAc\""}
+          placeholder={"Ask Sparky. Try \"buy $3 of NVDAc\""}
           spellCheck={false}
           autoComplete="off"
-          aria-label="Ask the floor"
+          aria-label="Ask Sparky"
         />
         <button
           type="button"
@@ -2058,13 +2061,14 @@ function WalletIcon() {
   );
 }
 
-/** @Scout, @Risk, @Trader, @Auditor, @Floor como chips de color en las burbujas. */
+/** @Scout, @Risk, @Trader, @Auditor, @Sparky como chips de color en las burbujas.
+ *  @Floor sigue reconocido por las decisiones guardadas antes del cambio de nombre. */
 function mentions(text: string): React.ReactNode {
-  const parts = text.split(/(@(?:Scout|Risk|Trader|Auditor|Floor)\b)/g);
+  const parts = text.split(/(@(?:Scout|Risk|Trader|Auditor|Sparky|Floor)\b)/g);
   if (parts.length === 1) return text;
   return parts.map((p, i) => {
-    const mm = p.match(/^@(Scout|Risk|Trader|Auditor|Floor)$/);
-    return mm ? <span key={i} className={`m ${mm[1].toLowerCase()}`}>{p}</span> : <span key={i}>{p}</span>;
+    const mm = p.match(/^@(Scout|Risk|Trader|Auditor|Sparky|Floor)$/);
+    return mm ? <span key={i} className={`m ${mm[1] === "Floor" ? "sparky" : mm[1].toLowerCase()}`}>{p}</span> : <span key={i}>{p}</span>;
   });
 }
 function HistoryIcon() {
@@ -2072,4 +2076,19 @@ function HistoryIcon() {
 }
 function cap(s: string): string {
   return s ? s[0].toUpperCase() + s.slice(1) : s;
+}
+
+// Sonda de tamano (ronda responsive 2026-09-16): ancho x alto de la ventana
+// abajo a la derecha, para calibrar breakpoints en vivo. Apagada por defecto;
+// se activa descomentando <SizeProbe /> en la escena.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function SizeProbe() {
+  const [size, setSize] = useState("");
+  useEffect(() => {
+    const read = () => setSize(`${window.innerWidth} × ${window.innerHeight}`);
+    read();
+    window.addEventListener("resize", read);
+    return () => window.removeEventListener("resize", read);
+  }, []);
+  return <div className="size-probe" aria-hidden="true">{size}</div>;
 }
