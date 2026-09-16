@@ -146,3 +146,56 @@ export async function findUsdcPool(token: `0x${string}`): Promise<StockPool | nu
   }
   return best;
 }
+
+// Profundidad de pool por token, con cache: 3 llamadas RPC por token, asi
+// que solo para los que se muestran (B20 de Coinbase + los de mas volumen).
+const poolCache = new Map<string, { at: number; pool: StockPool | null }>();
+export async function poolFor(token: `0x${string}`): Promise<StockPool | null> {
+  const k = token.toLowerCase();
+  const c = poolCache.get(k);
+  if (c && Date.now() - c.at < 5 * 60_000) return c.pool;
+  const pool = await findUsdcPool(token).catch(() => null);
+  poolCache.set(k, { at: Date.now(), pool });
+  return pool;
+}
+
+export type MarketRow = Stock & { pool: StockPool | null; tradeable: boolean };
+
+/** Acciones para la pantalla Market: catalogo + pool USDC para las visibles. */
+export async function marketRows(limit = 24): Promise<MarketRow[]> {
+  const all = await listStocks();
+  const shown = [...all]
+    .sort((a, b) => Number(b.issuer === "coinbase") - Number(a.issuer === "coinbase") || (b.volume24hUsd ?? 0) - (a.volume24hUsd ?? 0))
+    .slice(0, limit);
+  const rows: MarketRow[] = [];
+  // Concurrencia corta: el RPC publico limita.
+  for (let i = 0; i < shown.length; i += 3) {
+    const batch = await Promise.all(shown.slice(i, i + 3).map(async (s) => {
+      const pool = await poolFor(s.address);
+      return { ...s, pool, tradeable: Boolean(pool && pool.usdcDepth >= 100) };
+    }));
+    rows.push(...batch);
+  }
+  return rows.sort((a, b) => (b.pool?.usdcDepth ?? 0) - (a.pool?.usdcDepth ?? 0) || (b.volume24hUsd ?? 0) - (a.volume24hUsd ?? 0));
+}
+
+export type Position = Stock & { balance: string; balanceRaw: string; valueUsd: number };
+
+/** Posiciones de la wallet en acciones tokenizadas (un multicall). */
+export async function portfolio(wallet: `0x${string}`): Promise<Position[]> {
+  const all = await listStocks();
+  const c = client();
+  const res = await c.multicall({
+    contracts: all.map((s) => ({ address: s.address, abi: erc20, functionName: "balanceOf" as const, args: [wallet] as const })),
+    allowFailure: true
+  });
+  const out: Position[] = [];
+  for (let i = 0; i < all.length; i++) {
+    const r = res[i];
+    if (!r || r.status !== "success" || !r.result || (r.result as bigint) === 0n) continue;
+    const s = await withDecimals(all[i]);
+    const bal = Number(formatUnits(r.result as bigint, s.decimals));
+    out.push({ ...s, balance: bal.toFixed(Math.min(6, s.decimals)), balanceRaw: (r.result as bigint).toString(), valueUsd: bal * (s.priceUsd ?? 0) });
+  }
+  return out.sort((a, b) => b.valueUsd - a.valueUsd);
+}

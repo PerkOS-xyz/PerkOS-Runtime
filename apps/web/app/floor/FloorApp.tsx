@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { parseCommand } from "./parseCommand";
+import { parseIntent } from "./parseCommand";
+import DeskPanel, { type DeskScreen } from "./DeskPanel";
 import SettingsPanel from "./SettingsPanel";
 import Wizard from "./Wizard";
 import Ambient from "./Ambient";
@@ -32,6 +33,9 @@ function Shell() {
   const [guest, setGuest] = useState(false);
   const [docs, setDocs] = useState(false);
   const [market, setMarket] = useState(false);
+  // Pantallas propias del desk (Market / Portfolio) y el activo enfocado.
+  const [deskScreen, setDeskScreen] = useState<DeskScreen | "">("");
+  const [focusAsset, setFocusAsset] = useState("");
   // El prompt "Hey PerkOS" vive bajo el microfono (.whisper). Esta linea es solo
   // el transcript de lo hablado o tecleado, asi que arranca vacia.
   const [caption, setCaption] = useState("");
@@ -540,20 +544,64 @@ function Shell() {
     }
   }, [wallet, speak, touch]);
 
+  // Cotizacion inmediata (sin agentes): "price of Apple".
+  const quoteAsset = useCallback(async (asset: string) => {
+    const id = Date.now() + 5;
+    setMessages((m) => [...m.slice(-40), { id, role: "floor", text: "", streaming: true }]);
+    touch();
+    try {
+      const r = await fetch(`/api/market/stocks?depth=1&limit=40&q=${encodeURIComponent(asset)}`);
+      const j = (await r.json().catch(() => ({}))) as { stocks?: Array<{ symbol: string; name: string; issuer: string; priceUsd?: number; priceChange24hPct?: number; pool: { usdcDepth: number; fee: number } | null; tradeable: boolean }> };
+      const pick = (j.stocks ?? []).find((x) => x.issuer === "coinbase") ?? (j.stocks ?? [])[0];
+      const text = !pick
+        ? `I don't see "${asset}" among the tokenized stocks on Base.`
+        : `${pick.name} (${pick.symbol}, ${pick.issuer === "coinbase" ? "Coinbase B20" : pick.issuer}) is $${(pick.priceUsd ?? 0).toFixed(2)}${pick.priceChange24hPct !== undefined ? ` (${pick.priceChange24hPct > 0 ? "+" : ""}${pick.priceChange24hPct.toFixed(2)}% today)` : ""}. ${pick.pool ? `The USDC pool on Uniswap holds $${pick.pool.usdcDepth.toFixed(0)}${pick.tradeable ? ", enough for a small order." : ", too thin to trade."}` : "There is no USDC pool on Uniswap V3 Base for it."}`;
+      setMessages((m) => m.map((x) => (x.id === id ? { ...x, text, streaming: false } : x)));
+      speak(text);
+      setCaption(text.slice(0, 90));
+    } catch (e) {
+      setMessages((m) => m.map((x) => (x.id === id ? { ...x, text: "Could not fetch the quote.", streaming: false } : x)));
+      flog("error", `quote: ${(e as Error).message}`);
+    }
+  }, [speak, touch]);
+
   const run = useCallback((raw: string) => {
     const spoken = raw.trim();
-    const cmd = parseCommand(raw);
-    // Todo lo que no es un comando del canvas es conversacion.
-    if (cmd === "unknown" && spoken) {
-      // Intencion de compra: "buy $5 of NVIDIA" / "compra 5 dolares de nvda".
-      const intent = parseTradeIntent(spoken);
+    const it = parseIntent(raw);
+    const cmd = it.kind;
+    flog("info", `intent: ${it.kind}${"asset" in it && it.asset ? ` · ${it.asset}` : ""}`);
+    if (cmd === "chat" && spoken) {
       quoteRef.current = null;
-      if (intent) {
-        // Primero la cotizacion (la orden en la mesa), despues el turno de mesa.
-        void tradeDraft(intent).then(() => chat(spoken));
-      } else {
-        void chat(spoken);
-      }
+      void chat(spoken);
+      return;
+    }
+    if (cmd === "buy" || cmd === "sell") {
+      quoteRef.current = null;
+      if (it.asset) setFocusAsset(it.asset);
+      // Primero la cotizacion (la orden en la mesa), despues el turno de mesa.
+      void tradeDraft({ side: cmd, stock: it.asset, amountUsd: it.amountUsd, amountToken: "amountToken" in it ? it.amountToken : undefined, fraction: "fraction" in it ? it.fraction : undefined }).then(() => chat(spoken));
+      return;
+    }
+    if (cmd === "analyze") {
+      quoteRef.current = null;
+      if (it.asset) { setFocusAsset(it.asset); setDeskScreen("market"); }
+      void chat(spoken);
+      return;
+    }
+    if (cmd === "quote") {
+      if (it.asset) { setFocusAsset(it.asset); setDeskScreen("market"); void quoteAsset(it.asset); }
+      else void chat(spoken);
+      return;
+    }
+    if (cmd === "portfolio") { setDeskScreen("portfolio"); setCaption("Your positions on Base"); return; }
+    if (cmd === "approve") {
+      const d = [...messagesRef.current].reverse().find((m) => m.role === "draft" && m.tx?.stage === "idle");
+      if (d) { setCaption("Approving in your wallet…"); void approveDraft(d.id); } else setCaption("Nothing to approve.");
+      return;
+    }
+    if (cmd === "cancel") {
+      setMessages((m) => m.map((x) => (x.role === "draft" && x.tx && (x.tx.stage === "idle" || x.tx.stage === "blocked") ? { ...x, tx: { ...x.tx, stage: "failed", note: "Cancelled." } } : x)));
+      setCaption("Draft discarded.");
       return;
     }
     if (spoken) setCaption(spoken);
@@ -579,8 +627,8 @@ function Shell() {
       setCaption("Project notes");
     }
     if (cmd === "market") {
-      setMarket(true);
-      setCaption("NVDAc on Base");
+      setDeskScreen("market");
+      setCaption("Tokenized stocks on Base");
     }
     if (cmd === "settings") {
       setSettings(true);
@@ -592,6 +640,7 @@ function Shell() {
       setGuest(false);
       setDocs(false);
       setMarket(false);
+      setDeskScreen("");
       setSettings(false);
       setCaption("");
       voice.stopAll();
@@ -599,7 +648,7 @@ function Shell() {
       setSplit(false);
       if (perkosRef.current.connected && fleetRef.current?.agents.some((a) => a.state === "ready" || a.state === "waking")) void fleetAction("hibernate");
     }
-  }, [chat, voice, fleetAction]);
+  }, [approveDraft, quoteAsset, chat, voice, fleetAction]);
   runRef.current = run;
 
   const listen = useCallback(() => {
@@ -839,6 +888,8 @@ function Shell() {
     setGuest(false);
     setDocs(false);
     setMarket(false);
+    setDeskScreen("");
+    setFocusAsset("");
     setSettings(false);
     setCaption("");
     // Solo el wallet: el LLM conectado queda en ~/.perkos-floor (como cualquier app de AI).
@@ -928,7 +979,7 @@ function Shell() {
   }
 
   return (
-    <div className={`stage${split ? " split" : ""}${debug ? " with-debug" : ""}`}>
+    <div className={`stage${split ? " split" : ""}${debug ? " with-debug" : ""}${deskScreen ? " desk-open" : ""}`}>
       <div className="dragbar" />
       <div className="mark">
         <img src="/logo-name.png" alt="PerkOS" />
@@ -971,11 +1022,9 @@ function Shell() {
         <b>PerkOS Floor</b>
         <small>They draft. You approve. Base only.</small>
       </div>
-      <div className={`slab market${market ? " on" : ""}`}>
-        <div className="k">B20</div>
-        <b>NVDAc</b>
-        <small>0xb200…08108C · tokens, not shares</small>
-      </div>
+      {deskScreen ? (
+        <DeskPanel screen={deskScreen} focus={focusAsset} onScreen={setDeskScreen} onClose={() => setDeskScreen("")} onSay={(t) => runRef.current(t)} />
+      ) : null}
 
       {/* El template del desk vive en el wizard (paso "Your team"): la escena
           solo se ve con equipo. Un "wake" por voz con 402 abre el pago directo. */}
@@ -1297,43 +1346,6 @@ function DraftCard({ draft, tx, onApprove }: {
       </div>
     </div>
   );
-}
-
-/** "buy $5 of Apple", "compra 10 dolares de nvidia", "sell half my NVDAc",
- *  "vende todo mi AAPL", "sell 0.01 NVDA". null si no es una orden. */
-function parseTradeIntent(text: string): { side: "buy" | "sell"; stock?: string; amountUsd?: number; amountToken?: number; fraction?: number } | null {
-  const t = text.trim();
-  const sideM = t.match(/\b(buy|purchase|compra(?:r)?|sell|vende(?:r)?|vend[eé]|liquida(?:r)?)\b/i);
-  if (!sideM) return null;
-  const side: "buy" | "sell" = /^(sell|vend|liquid)/i.test(sideM[1]) ? "sell" : "buy";
-  const num = (v?: string) => (v ? Number(v.replace(",", ".")) : undefined);
-  const usd = t.match(/\$\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*(?:usd|usdc|dollars?|bucks|d[oó]lares)/i);
-  const amountUsd = num(usd?.[1] ?? usd?.[2]);
-  const frac = /\b(all|everything|todo|toda|todas)\b/i.test(t) ? 1 : /\b(half|mitad)\b/i.test(t) ? 0.5 : /\b(quarter|cuarto)\b/i.test(t) ? 0.25 : undefined;
-  // El activo: la palabra tras "of/de/my/mi/mis", o un ticker/alias suelto.
-  const after = t.match(/\b(?:of|de|my|mi|mis)\s+(?:my\s+|mis?\s+)?([A-Za-z][A-Za-z0-9.]{0,24})/i)?.[1];
-  const stop = /^(usd|usdc|dollars?|bucks|d[oó]lares|worth|shares?|acciones?|stock|tokens?|on|en|base|the|el|la|los|las|un|una)$/i;
-  let stock = after && !stop.test(after) ? after : undefined;
-  if (!stock) {
-    // "buy apple for $5" / "vende tesla": la palabra que sigue al verbo.
-    const afterVerb = t.slice((sideM.index ?? 0) + sideM[0].length).match(/^\s+([A-Za-z][A-Za-z0-9.]{0,24})/)?.[1];
-    if (afterVerb && !stop.test(afterVerb) && !/^(my|mi|mis|some|a|an)$/i.test(afterVerb)) stock = afterVerb;
-  }
-  if (!stock) {
-    const tick = t.match(/\b([A-Z]{2,6}c?)\b/)?.[1];
-    if (tick && !/^(USD|USDC|BUY|SELL)$/i.test(tick)) stock = tick;
-  }
-  // "sell 0.01 NVDA": cantidad de tokens sin signo de dolar.
-  const tok = !usd ? t.match(/\b(\d+(?:[.,]\d+)?)\s+(?:shares?\s+(?:of\s+)?|acciones\s+de\s+)?([A-Za-z][A-Za-z0-9]{0,24})/i) : null;
-  const amountToken = side === "sell" && tok && !stop.test(tok[2]) ? num(tok[1]) : undefined;
-  if (side === "sell" && amountToken !== undefined && !stock) stock = tok?.[2];
-  // Sin activo ni monto no es una orden ("should I buy?" es conversacion).
-  if (!stock && amountUsd === undefined && frac === undefined && amountToken === undefined) return null;
-  if (side === "buy") return { side, stock, amountUsd: Math.min(100, amountUsd && amountUsd > 0 ? amountUsd : 5) };
-  if (frac !== undefined) return { side, stock, fraction: frac };
-  if (amountToken !== undefined) return { side, stock, amountToken };
-  if (amountUsd !== undefined) return { side, stock, amountUsd: Math.min(100, amountUsd) };
-  return { side, stock, fraction: 1 };
 }
 
 function cap(s: string): string {
