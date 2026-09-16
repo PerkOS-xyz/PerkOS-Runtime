@@ -1544,7 +1544,8 @@ function Shell() {
         <small>They draft. You approve. Base only.</small>
       </div>
       {desk && !wizard ? <div className="venue-line">{deskManifest(desk).venues}</div> : null}
-      <SizeProbe />
+      {/* Sonda de tamano (ancho x alto): descomentar para calibrar breakpoints. */}
+      {/* <SizeProbe /> */}
       {/* Dock del desk: las pantallas propias del desk activo, a un clic
           (tambien por voz: "show the market", "show my portfolio"). Primero
           las del desk (Market, Portfolio), luego las del shell (Notes, Map, History). */}
@@ -2077,8 +2078,10 @@ function cap(s: string): string {
   return s ? s[0].toUpperCase() + s.slice(1) : s;
 }
 
-// Temporal (ronda responsive 2026-09-16): ancho x alto de la ventana abajo a
-// la derecha, para calibrar los breakpoints en vivo. Se quita al cerrar la ronda.
+// Sonda de tamano (ronda responsive 2026-09-16): ancho x alto de la ventana
+// abajo a la derecha, para calibrar breakpoints en vivo. Apagada por defecto;
+// se activa descomentando <SizeProbe /> en la escena.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function SizeProbe() {
   const [size, setSize] = useState("");
   useEffect(() => {
