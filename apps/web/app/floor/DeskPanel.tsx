@@ -21,7 +21,7 @@ function printNote(title: string, html: string) {
   window.setTimeout(() => { w.print(); }, 300);
 }
 
-// Pantallas propias del desk (PerkOS Floor desk): Market y Portfolio, como en
+// Pantallas propias del desk (PerkOS Floor Desk): Market y Portfolio, como en
 // EQLTY pero sin vault intermedio (las llaves son de la persona). El template
 // declarara `screens[]`; hoy el registro es este componente y el desk es uno.
 
