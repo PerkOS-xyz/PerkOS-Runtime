@@ -104,6 +104,11 @@ async function poolPriceUsd(c: ReturnType<typeof client>, pool: `0x${string}`, s
   }
 }
 
+/** Referencia Chainlink por ticker (total-return, 24/5). undefined si no hay feed. */
+export async function chainlinkRef(ticker: string): Promise<MarketBrief["chainlink"]> {
+  return chainlink(client(), ticker);
+}
+
 async function chainlink(c: ReturnType<typeof client>, ticker: string): Promise<MarketBrief["chainlink"]> {
   const feed = CHAINLINK[ticker.toUpperCase()];
   if (!feed) return undefined;
