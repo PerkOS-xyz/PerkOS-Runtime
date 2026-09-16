@@ -1,4 +1,5 @@
 import { getXaiAccessToken, XAI_OAUTH_BASE_URL, XAI_USER_AGENT } from "../../../lib/xaiOAuth";
+import { isVoice, loadSettings } from "../../../lib/settingsStore";
 
 // TTS con la cuenta xAI del usuario. Forma de Hermes (tts_tool_providers._generate_xai_tts):
 // POST /v1/tts {text, voice_id, language} -> mp3. Hermes documenta que con el bearer de
@@ -9,6 +10,8 @@ export async function POST(req: Request) {
   if (!text) return Response.json({ error: "text" }, { status: 400 });
   const token = await getXaiAccessToken().catch(() => null);
   if (!token) return Response.json({ error: "llm_not_connected" }, { status: 401 });
+  // Voz: la del pedido (vista previa en Settings) o la guardada (Sparky habla con rex).
+  const voice = isVoice(body.voice) ? body.voice : (await loadSettings()).voice;
 
   const res = await fetch(`${XAI_OAUTH_BASE_URL}/tts`, {
     method: "POST",
@@ -17,7 +20,7 @@ export async function POST(req: Request) {
       "Content-Type": "application/json",
       "User-Agent": XAI_USER_AGENT
     },
-    body: JSON.stringify({ text, voice_id: body.voice?.trim() || "eve", language: body.language?.trim() || "en" }),
+    body: JSON.stringify({ text, voice_id: voice, language: body.language?.trim() || "en" }),
     signal: AbortSignal.timeout(60_000)
   });
   if (!res.ok) {

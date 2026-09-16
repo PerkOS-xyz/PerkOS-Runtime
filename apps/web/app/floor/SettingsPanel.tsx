@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import XaiConnect from "./XaiConnect";
+import { VOICES, VOICE_LABEL, type Voice } from "../lib/voices";
 
 type Llm = { provider: string; model: string; connected: boolean };
 
@@ -33,11 +34,31 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
   const [llm, setLlm] = useState<Llm | null>(null);
   const [model, setModel] = useState("");
   const [saved, setSaved] = useState(false);
+  const [voice, setVoice] = useState<Voice>("rex");
+  const [previewing, setPreviewing] = useState(false);
 
   const refresh = () =>
-    fetch("/api/llm/status")
-      .then((r) => r.json())
-      .then((s: Llm) => { setLlm(s); setModel(s.model); });
+    Promise.all([
+      fetch("/api/llm/status").then((r) => r.json()).then((s: Llm) => { setLlm(s); setModel(s.model); }),
+      fetch("/api/settings").then((r) => r.json()).then((s: { voice?: Voice }) => { if (s.voice && (VOICES as readonly string[]).includes(s.voice)) setVoice(s.voice); }).catch(() => undefined)
+    ]);
+
+  // La voz se guarda al elegirla y se puede escuchar antes de cerrar.
+  const pickVoice = (v: Voice) => {
+    setVoice(v);
+    void fetch("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ voice: v }) });
+  };
+  const preview = async () => {
+    setPreviewing(true);
+    try {
+      const r = await fetch("/api/voice/tts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: "Sparky here. They draft. You approve.", voice }) });
+      if (!r.ok) return;
+      const url = URL.createObjectURL(await r.blob());
+      const a = new Audio(url);
+      a.onended = () => URL.revokeObjectURL(url);
+      await a.play().catch(() => undefined);
+    } finally { setPreviewing(false); }
+  };
 
   useEffect(() => { void refresh(); }, []);
 
@@ -85,6 +106,15 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
           <span className="v">
             {llm ? `${LABELS[llm.provider] ?? llm.provider} · ${llm.connected ? "connected" : "not connected"}` : "…"}
             <XaiConnect label={llm?.connected ? "Reconnect" : "Connect"} onConnected={() => void refresh()} />
+          </span>
+        </div>
+        <div className="srow">
+          <span>Voice</span>
+          <span className="v">
+            <select value={voice} onChange={(e) => pickVoice(e.target.value as Voice)} aria-label="Voice">
+              {VOICES.map((v) => <option key={v} value={v}>{VOICE_LABEL[v]}</option>)}
+            </select>
+            <button type="button" onClick={() => void preview()} disabled={previewing || !llm?.connected}>{previewing ? "Playing…" : "Preview"}</button>
           </span>
         </div>
         <div className="srow">
