@@ -1,8 +1,11 @@
+import { guard } from "../../../lib/guard";
 import { getXaiAccessToken, XAI_OAUTH_BASE_URL, XAI_USER_AGENT } from "../../../lib/xaiOAuth";
 
 // STT con la cuenta xAI del usuario. Forma de Hermes (transcription_cloud._transcribe_xai
 // y voice-client-direct.ts): POST /v1/stt multipart, file + format=true (+language).
 export async function POST(req: Request) {
+  const denied = guard(req);
+  if (denied) return denied;
   const token = await getXaiAccessToken().catch(() => null);
   if (!token) return Response.json({ error: "llm_not_connected" }, { status: 401 });
   const inForm = await req.formData().catch(() => null);

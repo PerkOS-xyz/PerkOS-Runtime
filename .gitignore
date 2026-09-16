@@ -42,3 +42,4 @@ apps/desktop/release/
 .perkos-debug.log
 *.floor-debug.log
 .floor-debug.log
+__pycache__/

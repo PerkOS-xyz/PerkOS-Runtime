@@ -1,3 +1,4 @@
+import { guard } from "../../../lib/guard";
 import { verifyMessage } from "viem";
 import { takeNonce } from "../../../lib/nonceStore";
 import { loadSettings, publicSettings, saveSettings } from "../../../lib/settingsStore";
@@ -5,6 +6,8 @@ import { loadSettings, publicSettings, saveSettings } from "../../../lib/setting
 type Body = { address?: string; nonce?: string; signature?: string };
 
 export async function POST(req: Request) {
+  const denied = guard(req);
+  if (denied) return denied;
   const body = (await req.json()) as Body;
   const address = body.address?.trim() ?? "";
   const nonce = body.nonce?.trim() ?? "";

@@ -1,3 +1,4 @@
+import { guard } from "../../lib/guard";
 let last = { id: 0, text: "" };
 const waiters: Array<(v: typeof last) => void> = [];
 
@@ -17,6 +18,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const denied = guard(req);
+  if (denied) return denied;
   const body = (await req.json()) as { text?: string };
   const text = (body.text ?? "").trim();
   if (!text) return Response.json(last, { status: 400 });

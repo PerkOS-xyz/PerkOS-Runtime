@@ -1,3 +1,4 @@
+import { guard } from "../../../lib/guard";
 import { loadSettings } from "../../../lib/settingsStore";
 import { appendJournal, listNotes, writeNote, type NoteKind } from "../../../lib/kb";
 
@@ -15,6 +16,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const denied = guard(req);
+  if (denied) return denied;
   const b = (await req.json().catch(() => ({}))) as { kind?: unknown; title?: unknown; body?: unknown; ticker?: unknown; journal?: unknown; desk?: unknown };
   const s = await loadSettings();
   const desk = typeof b.desk === "string" && b.desk === "app" ? "app" : s.fleetTemplateId;

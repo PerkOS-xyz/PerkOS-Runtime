@@ -1,3 +1,4 @@
+import { guard } from "../../../lib/guard";
 import { loadSettings } from "../../../lib/settingsStore";
 import { listOutlooks, reviewDue, reviewOutlook } from "../../../lib/review";
 
@@ -10,6 +11,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const denied = guard(req);
+  if (denied) return denied;
   const s = await loadSettings();
   const body = (await req.json().catch(() => ({}))) as { id?: unknown; force?: unknown };
   if (typeof body.id === "string" && body.id) {

@@ -1,4 +1,4 @@
-import { startXaiDeviceLogin } from "../../../../lib/xaiOAuth";
+import { rememberPendingDevice, startXaiDeviceLogin } from "../../../../lib/xaiOAuth";
 
 // Paso 1 del login por suscripcion: pide el device code.
 // El cliente muestra userCode, abre verificationUriComplete en el browser del
@@ -6,6 +6,7 @@ import { startXaiDeviceLogin } from "../../../../lib/xaiOAuth";
 export async function POST() {
   try {
     const start = await startXaiDeviceLogin();
+    await rememberPendingDevice(start.deviceCode);
     return Response.json(start);
   } catch (e) {
     return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 502 });
