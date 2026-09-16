@@ -50,7 +50,7 @@ export default function Wizard({ onDone, start = 0, team, rail }: { onDone: () =
       <div className="wizard">
         <Ambient cine>
           <div className="wizard-card ident">
-            <img className="cine-mark" src="/logo-vertical.png" alt="PerkOS" />
+            <img className="cine-mark" src="/logo.png" alt="PerkOS" />
             <p className="cine-line">Your business just hired its first team.</p>
             <small className="cine-sub">They draft. You approve.</small>
             <button className="cine-cta" type="button" onClick={() => setStep(1)}>

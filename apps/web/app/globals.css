@@ -1280,7 +1280,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
    composer). Split: la esfera esta a la derecha, la orbita se reagrupa ahi y
    no queda detras del transcript. Con un panel del desk abierto la orbita se
    apaga: la esfera mini ya cuenta el estado. Dormido != invisible. */
-/* Fila del equipo (2026-09-16, pedido de Julio): los 4 agentes en linea
+/* Fila del equipo (decision de producto 2026-09-16): los 4 agentes en linea
    arriba de la esfera, de izquierda a derecha en el orden del proceso
    Scout -> Risk -> Trader -> Auditor, cada uno con su tag de estado. */
 .guest { left: 84%; top: 21%; }
@@ -1479,7 +1479,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .draft-card .decision.done { color: #9fc2ff; border-color: rgba(61, 126, 255, 0.6); }
 .draft-more { font: inherit; font-size: 9.5px; letter-spacing: 0.08em; color: #9aabc8; background: transparent; border: 1px solid rgba(120, 160, 255, 0.25); border-radius: 999px; padding: 2px 9px; cursor: pointer; }
 .draft-more:hover { color: #e6ecff; border-color: rgba(236, 27, 105, 0.5); }
-/* Esferas de los agentes al 90 % (pedido de Julio): la de Floor manda. */
+/* Esferas de los agentes al 90 % (decision de producto): la principal manda. */
 .orb.on { transform: translate(-50%, 0) scale(0.9); }
 .stage.split .orb.on { transform: translate(-50%, 0) scale(0.77); }
 
@@ -1567,7 +1567,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .desk-panel .rows li.head .cell small { font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: #6f7d99; }
 .desk-panel .rows li.head .cell.acts small { text-align: right; width: 100%; }
 
-/* ==== Split (2026-09-16, pedido de Julio): en cuanto hay chat, Floor se va
+/* ==== Split (decision de producto 2026-09-16): en cuanto hay chat, Floor se va
    junto al chat y los 4 agentes quedan centrados en el area derecha; con las
    cards abiertas la fila sube para que el bloque (fila + cards) siga centrado. ==== */
 .stage.split .core-wrap { left: 23%; top: 9%; transform: translate(-50%, -50%) scale(0.42); transition: left var(--split-ms) var(--split-ease), top var(--split-ms) var(--split-ease), transform var(--split-ms) var(--split-ease); }
