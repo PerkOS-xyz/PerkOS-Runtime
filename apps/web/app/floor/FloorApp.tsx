@@ -1450,7 +1450,7 @@ function Shell() {
   }
 
   return (
-    <div className={`stage${split ? " split" : ""}${debug ? " with-debug" : ""}${deskScreen ? " desk-open" : ""}${deskScreen && deskMax ? " desk-max" : ""}${turn && !turn.collapsed ? " turn-live" : ""}`}>
+    <div className={`stage${split ? " split" : ""}${debug ? " with-debug" : ""}${deskScreen ? " desk-open" : ""}${deskScreen && deskMax ? " desk-max" : ""}${turn && !turn.collapsed ? " turn-live" : ""}${turn?.collapsed ? " turn-chips" : ""}`}>
       <div className="dragbar" />
       {/* Lockup de partnership invertido (brand.base.org/partnerships: el
           partner lidera cuando es su lanzamiento): PerkOS + la cadena del desk.

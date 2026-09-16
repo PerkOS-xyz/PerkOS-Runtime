@@ -1376,8 +1376,10 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .turn-fold:hover { border-color: rgba(236, 27, 105, 0.5); color: #e6ecff; }
 /* Capa de cards bajo las esferas (solo en split). */
 /* Reposo: bajo la fila centrada (30/43/57/70 %); split: bajo la fila derecha (54/66/78/90 %). */
-.ag-layer { position: absolute; left: 24%; width: 52%; top: calc(9% + 140px); z-index: 4; }
-.ag-layer.chips { top: calc(9% + 136px); }
+/* Cards y chips bajo la fila en reposo (fila al 21 %, 34 %..72 %): debajo de
+   las etiquetas y del badge 1Claw del Trader. */
+.ag-layer { position: absolute; left: 27%; width: 52%; top: calc(21% + 150px); z-index: 4; }
+.ag-layer.chips { top: calc(21% + 150px); }
 .stage.split .ag-layer { left: 53%; width: 44%; top: calc(10% + 118px); }
 .stage.split .ag-layer.chips { top: calc(10% + 118px); }
 .stage.turn-live .core-wrap { top: 82%; transform: translate(-50%, -50%) scale(0.5); transition: left var(--split-ms) var(--split-ease), top var(--split-ms) var(--split-ease), transform var(--split-ms) var(--split-ease); }
@@ -1729,3 +1731,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .an-foot .draft-actions button.pill:disabled { opacity: 0.35; cursor: default; }
 .an-foot .draft-actions button.pill.buy { color: #ff5a6a; border-color: rgba(236, 27, 105, 0.6); background: rgba(236, 27, 105, 0.08); }
 .an-foot .draft-actions button.pill.buy:hover { background: rgba(236, 27, 105, 0.16); }
+/* Con los chips del turno cerrado bajo la fila, la linea de estado cede el sitio. */
+.stage.turn-chips:not(.split):not(.desk-open) .caption { display: none; }
+/* Con chips bajo la fila, Sparky baja un poco para que la llama no los roce. */
+.stage.turn-chips:not(.split):not(.desk-open) .core-wrap { top: 57%; }
