@@ -292,6 +292,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
 
 /** History: cada decision de la mesa (nota decisions/ con el run en JSON) y su replay. */
 function History() {
+  const [view, setView] = useState<"decisions" | "log">("decisions");
   const [rows, setRows] = useState<Array<{ id: string; title: string; ticker?: string; updatedAt: string }>>([]);
   const [sel, setSel] = useState<string>("");
   const [run, setRun] = useState<DeskTurn | null>(null);
@@ -314,6 +315,12 @@ function History() {
   }, [sel]);
   return (
     <div className="history">
+      <div className="hist-seg" role="tablist" aria-label="History views">
+        <button type="button" role="tab" aria-selected={view === "decisions"} className={view === "decisions" ? "on" : ""} onClick={() => setView("decisions")}>Decisions</button>
+        <button type="button" role="tab" aria-selected={view === "log"} className={view === "log" ? "on" : ""} onClick={() => setView("log")}>Quality</button>
+      </div>
+      {view === "log" ? <QualityLog /> : null}
+      {view === "log" ? null : <>
       <p className="hint">Every decision the desk made, with who said what. Click one to see the run.</p>
       {rows.length === 0 ? <p className="hint">No decisions yet. Ask the desk to draft a trade.</p> : null}
       <div className="hist-list">
@@ -333,6 +340,77 @@ function History() {
           <div className="hist-who">
             {(["scout", "risk", "trader", "auditor"] as const).map((r) => run.agents[r]?.text ? <p key={r}><b>{r}</b> {run.agents[r].text}</p> : null)}
           </div>
+        </div>
+      ) : null}
+      </>}
+    </div>
+  );
+}
+
+/** Quality: el log de turnos de la mesa (~/.perkos-floor/logs) con las
+ * senales del lint, para ver donde falla cada rol sin abrir el JSONL. */
+type LogReply = { role: string; ok: boolean; ms?: number; reply?: string; detail?: string };
+type LogEntry = { at: string; mode: string; text: string; ms: number; verdict: string | null; flags: string[]; replies: LogReply[] };
+const FLAG_HELP: Record<string, string> = {
+  "no-answer": "did not answer in time",
+  "says-market-closed": "said the market is closed; the token trades 24/7, only the reference pauses",
+  "no-mention": "did not hand off with an @mention",
+  "pct-not-in-facts": "quoted a percentage that is not in the facts, the news or the memory",
+  "size-over-limit": "recommended a size above the 100 USDC limit",
+  "over-length": "longer than the role's word budget",
+  "no-verdict": "Risk gave no GO or BLOCK on an order",
+  "no-risk-level": "Risk gave no risk level"
+};
+const flagName = (f: string) => f.replace(/^[a-z]+:/, "").replace(/\(.*\)$/, "");
+const flagRole = (f: string) => (f.match(/^([a-z]+):/)?.[1] ?? "");
+function QualityLog() {
+  const [data, setData] = useState<{ count: number; totals: Record<string, number>; entries: LogEntry[] } | null>(null);
+  const [sel, setSel] = useState<number>(-1);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/desk/log?limit=40").then((r) => r.json()).then((j) => { if (alive) setData({ count: j.count ?? 0, totals: j.totals ?? {}, entries: j.entries ?? [] }); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, []);
+  if (!data) return <p className="hint">Reading the desk log…</p>;
+  const byFlag: Record<string, number> = {};
+  for (const [k, n] of Object.entries(data.totals)) byFlag[flagName(k)] = (byFlag[flagName(k)] ?? 0) + n;
+  const flagged = data.entries.filter((e) => e.flags.length).length;
+  const cur = sel >= 0 ? data.entries[sel] : null;
+  return (
+    <div className="qlog">
+      <p className="hint">Every turn the desk ran, with the automatic checks on each reply. A flag is a signal to review, not a verdict.</p>
+      {data.count === 0 ? <p className="hint">No turns logged yet. Ask the desk something.</p> : (
+        <div className="qlog-totals">
+          <span className="n">{data.count} turns · {flagged} with flags</span>
+          {Object.entries(byFlag).sort((a, b) => b[1] - a[1]).map(([f, n]) => <em key={f} title={FLAG_HELP[f] ?? f}>{f} <b>{n}</b></em>)}
+        </div>
+      )}
+      <div className="hist-list">
+        {data.entries.map((e, i) => (
+          <button type="button" key={e.at + i} className={`hist-row qlog-row${sel === i ? " on" : ""}`} onClick={() => setSel(sel === i ? -1 : i)}>
+            <span className="d">{e.at.slice(5, 16).replace("T", " ")}</span>
+            <span className="t"><i className={`mode ${e.mode}`}>{e.mode}</i> {e.text}</span>
+            <span className={`tk${e.flags.length ? " warn" : " ok"}`}>{e.flags.length ? `${e.flags.length} flag${e.flags.length > 1 ? "s" : ""}` : "clean"} · {(e.ms / 1000).toFixed(0)} s</span>
+          </button>
+        ))}
+      </div>
+      {cur ? (
+        <div className="qlog-turn">
+          {(["scout", "risk", "trader", "auditor"] as const).map((r) => {
+            const rep = cur.replies.find((x) => x.role === r);
+            const flags = cur.flags.filter((f) => flagRole(f) === r);
+            return (
+              <div key={r} className={`qlog-reply ${r}`}>
+                <div className="qlog-h">
+                  <b>{r}</b>
+                  <span>{rep?.ms ? `${(rep.ms / 1000).toFixed(1)} s` : rep ? "" : "did not run"}</span>
+                  {flags.map((f) => <em key={f} title={FLAG_HELP[flagName(f)] ?? f}>{f.replace(/^[a-z]+:/, "")}</em>)}
+                  {rep && !flags.length ? <em className="ok">clean</em> : null}
+                </div>
+                {rep ? <p>{rep.ok && rep.reply ? rep.reply : `no answer${rep.detail ? `: ${rep.detail}` : ""}`}</p> : null}
+              </div>
+            );
+          })}
         </div>
       ) : null}
     </div>

@@ -1388,6 +1388,23 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .hist-run .ag-cards { grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .hist-who { font-size: 10.5px; color: #c5d2ee; display: flex; flex-direction: column; gap: 4px; }
 .hist-who b { text-transform: capitalize; color: #9aabc8; margin-right: 4px; }
+.hist-seg { display: flex; gap: 6px; }
+.hist-seg button { padding: 4px 10px; border-radius: 999px; font: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--mute); background: transparent; border: 1px solid rgba(120, 160, 255, 0.18); cursor: pointer; }
+.qlog { display: flex; flex-direction: column; gap: 8px; }
+.qlog-totals { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; font-size: 10px; }
+.qlog-totals .n { color: #9aabc8; margin-right: 4px; }
+.qlog-totals em { font-style: normal; padding: 1px 7px; border-radius: 999px; border: 1px solid rgba(255, 179, 71, 0.45); color: #ffd18a; }
+.qlog-totals em b { font-weight: 600; margin-left: 3px; }
+.qlog-row .t .mode { font-style: normal; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: #9fc2ff; margin-right: 6px; }
+.qlog-row .tk.warn { color: #ffd18a; } .qlog-row .tk.ok { color: #7fe0a8; }
+.qlog-turn { display: flex; flex-direction: column; gap: 8px; }
+.qlog-reply { --ag: #9aabc8; border-left: 2px solid color-mix(in srgb, var(--ag) 60%, transparent); padding: 2px 0 2px 10px; }
+.qlog-reply.scout { --ag: var(--ag-scout); } .qlog-reply.risk { --ag: var(--ag-risk); } .qlog-reply.trader { --ag: var(--ag-trader); } .qlog-reply.auditor { --ag: var(--ag-auditor); }
+.qlog-h { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 10px; color: #9aabc8; }
+.qlog-h b { text-transform: capitalize; color: var(--ag); }
+.qlog-h em { font-style: normal; padding: 0 6px; border-radius: 999px; border: 1px solid rgba(255, 179, 71, 0.45); color: #ffd18a; font-size: 9px; }
+.qlog-h em.ok { border-color: rgba(61, 200, 120, 0.5); color: #7fe0a8; }
+.qlog-reply p { margin: 4px 0 0; font-size: 10.5px; line-height: 1.45; color: #c5d2ee; white-space: pre-wrap; }
 @media (prefers-reduced-motion: reduce) {
   .ag-bar.indet span, .ag-shimmer, .beams path.beam-path { animation: none; }
   .beams .beam-token { display: none; }

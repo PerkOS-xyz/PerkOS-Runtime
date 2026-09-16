@@ -19,6 +19,8 @@ const clip = (s: string, n = 700) => s.replace(/\s+/g, " ").trim().slice(0, n);
 
 // Lint de calidad por turno: senales automaticas de donde mejorar (no bloquean).
 // Se registran en ~/.perkos-floor/logs/desk-quality.jsonl con prompts y respuestas.
+// `facts` es todo lo que el agente tuvo delante (quote, hechos, noticias,
+// memoria): un porcentaje que sale de ahi no es invento.
 function lintReplies(mode: string, facts: string, replies: FleetReply[]): string[] {
   const flags: string[] = [];
   const factPcts = new Set((facts.match(/-?\d+(?:\.\d+)?\s?%/g) ?? []).map((x) => Math.abs(parseFloat(x)).toFixed(1)));
@@ -150,7 +152,7 @@ export async function POST(req: Request) {
           run("trader", `${tail}\n${T}`),
           run("auditor", `${tail}\n${A}`)
         ]);
-        const flags = lintReplies(mode, `${quoteLine}${factsLine}`, replies);
+        const flags = lintReplies(mode, `${quoteLine}${factsLine}${newsLine}${memoryLine}`, replies);
         void logDeskTurn({ at: new Date().toISOString(), mode, text, ms: Date.now() - turnStart, verdict: verdict ?? null, flags, quote: q ? { side: q.side, symbol: q.symbol, priceUsd: q.priceUsd, venue: q.venue ?? null, bankr: q.bankr?.priceUsd ?? null } : null, facts: briefLines, news: newsLine.slice(0, 1200), memory: memoryLine.slice(0, 1200), prompts, replies: replies.map((r) => ({ role: r.role, ok: r.ok, ms: r.ms, reply: r.reply, detail: r.detail })) });
         send({ step: "done", verdict, replies, flags });
       } catch (e) {
