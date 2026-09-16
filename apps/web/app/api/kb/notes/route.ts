@@ -4,7 +4,7 @@ import { appendJournal, listNotes, writeNote, type NoteKind } from "../../../lib
 // GET  /api/kb/notes?kind=&limit=      -> notas recientes del desk activo (+ app)
 // POST /api/kb/notes { kind, title, body, ticker?, journal? } -> escribe una nota
 //      o agrega al diario del dia (journal: true).
-const KINDS: NoteKind[] = ["journal", "analysis", "order", "memory", "app"];
+const KINDS: NoteKind[] = ["journal", "analysis", "order", "memory", "decision", "app"];
 
 export async function GET(req: Request) {
   const u = new URL(req.url);

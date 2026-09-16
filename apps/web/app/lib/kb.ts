@@ -22,7 +22,7 @@ import { createHash } from "node:crypto";
 
 export const KB_DIR = process.env.PERKOS_KB_DIR?.trim() || join(homedir(), ".perkos-floor", "knowledge");
 
-export type NoteKind = "journal" | "analysis" | "order" | "memory" | "app";
+export type NoteKind = "journal" | "analysis" | "order" | "memory" | "decision" | "app";
 export type Note = {
   id: string;        // ruta relativa al vault
   desk: string;      // "floor-desk" | "app"
@@ -201,6 +201,7 @@ export async function writeNote(n: { desk: string; kind: NoteKind; title: string
   else if (n.kind === "journal") rel = `${desk}/journal/${today()}.md`;
   else if (n.kind === "analysis") rel = `${desk}/analysis/${(n.ticker ?? "asset").toUpperCase()}/${stamp()}.md`;
   else if (n.kind === "order") rel = `${desk}/orders/${safe(n.title)}.md`;
+  else if (n.kind === "decision") rel = `${desk}/decisions/${safe(n.title)}.md`;
   else if (n.kind === "memory") rel = `${desk}/memory.md`;
   else if (n.desk === "shared") rel = `shared/${safe(n.title)}.md`;
   else rel = `app/${safe(n.title)}.md`;

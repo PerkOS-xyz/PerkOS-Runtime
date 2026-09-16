@@ -1286,3 +1286,109 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .typing i:nth-child(2) { animation-delay: 0.2s; }
 .typing i:nth-child(3) { animation-delay: 0.4s; }
 @keyframes typingDot { 0%, 80%, 100% { transform: translateY(0); opacity: 0.35; } 40% { transform: translateY(-3px); opacity: 1; } }
+
+/* ==== Agent graph (2026-09-16): color por agente, cards bajo las esferas ==== */
+:root { --ag-scout: #3d7eff; --ag-risk: #ffb347; --ag-trader: #a855f7; --ag-auditor: #2dd4bf; --ag-floor: #ec1b69; }
+.orb.scout { --ag: var(--ag-scout); } .orb.risk { --ag: var(--ag-risk); } .orb.trader { --ag: var(--ag-trader); } .orb.auditor { --ag: var(--ag-auditor); }
+.orb.scout .ball, .orb.risk .ball, .orb.trader .ball, .orb.auditor .ball {
+  background: radial-gradient(circle at 35% 30%, #ffffff, var(--ag) 42%, #070a1a);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--ag) 55%, transparent);
+}
+.orb.st-ready.scout .ball, .orb.st-ready.risk .ball, .orb.st-ready.trader .ball, .orb.st-ready.auditor .ball { box-shadow: 0 0 28px color-mix(in srgb, var(--ag) 60%, transparent), 0 0 8px #ffffff40; }
+.orb.talking .ball { box-shadow: 0 0 36px var(--ag, #ec1b69), 0 0 12px #ffffff66; }
+/* Fila mas abierta en split: cuatro columnas de 12% para que quepan las cards. */
+.stage.split .scout { left: 58.5%; top: 10%; }
+.stage.split .risk { left: 69.5%; top: 10%; }
+.stage.split .trader { left: 80.5%; top: 10%; }
+.stage.split .auditor { left: 91.5%; top: 10%; }
+.stage.split .guest { left: 97%; top: 24%; }
+/* Chat: la etiqueta de cada agente lleva su punto de color; Floor el coral. */
+.turn-k::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; vertical-align: middle; background: #6f7d99; }
+.turn.you .turn-k::before { display: none; }
+.turn.floor .turn-k::before { background: var(--ag-floor); box-shadow: 0 0 8px rgba(236, 27, 105, 0.7); }
+.turn.team[data-who="scout"] .turn-k::before { background: var(--ag-scout); box-shadow: 0 0 8px var(--ag-scout); }
+.turn.team[data-who="risk"] .turn-k::before { background: var(--ag-risk); box-shadow: 0 0 8px var(--ag-risk); }
+.turn.team[data-who="trader"] .turn-k::before { background: var(--ag-trader); box-shadow: 0 0 8px var(--ag-trader); }
+.turn.team[data-who="auditor"] .turn-k::before { background: var(--ag-auditor); box-shadow: 0 0 8px var(--ag-auditor); }
+.turn.team[data-who="scout"] .bubble { border-left: 2px solid color-mix(in srgb, var(--ag-scout) 60%, transparent); }
+.turn.team[data-who="risk"] .bubble { border-left: 2px solid color-mix(in srgb, var(--ag-risk) 60%, transparent); }
+.turn.team[data-who="trader"] .bubble { border-left: 2px solid color-mix(in srgb, var(--ag-trader) 60%, transparent); }
+.turn.team[data-who="auditor"] .bubble { border-left: 2px solid color-mix(in srgb, var(--ag-auditor) 60%, transparent); }
+.turn.floor.open .bubble { background: rgba(236, 27, 105, 0.1); border-color: rgba(236, 27, 105, 0.4); }
+.turn.floor.side .bubble { border-style: dashed; }
+.m { display: inline-block; font-size: 10px; padding: 0 7px; border-radius: 999px; border: 1px solid; margin-right: 3px; line-height: 16px; vertical-align: baseline; }
+.m.scout { color: #9fc2ff; border-color: color-mix(in srgb, var(--ag-scout) 60%, transparent); background: color-mix(in srgb, var(--ag-scout) 14%, transparent); }
+.m.risk { color: #ffd08a; border-color: color-mix(in srgb, var(--ag-risk) 60%, transparent); background: color-mix(in srgb, var(--ag-risk) 12%, transparent); }
+.m.trader { color: #d8b4fe; border-color: color-mix(in srgb, var(--ag-trader) 60%, transparent); background: color-mix(in srgb, var(--ag-trader) 14%, transparent); }
+.m.auditor { color: #99f6e4; border-color: color-mix(in srgb, var(--ag-auditor) 60%, transparent); background: color-mix(in srgb, var(--ag-auditor) 12%, transparent); }
+.m.floor { color: #ff8fa8; border-color: rgba(236, 27, 105, 0.7); background: rgba(236, 27, 105, 0.15); }
+/* Turnos anteriores plegados. */
+.turn-fold { align-self: center; font: inherit; font-size: 10px; color: #9aabc8; border: 1px dashed rgba(120, 160, 255, 0.3); background: rgba(6, 10, 22, 0.5); border-radius: 999px; padding: 4px 12px; cursor: pointer; display: inline-flex; gap: 8px; align-items: center; }
+.turn-fold small { color: #6f7d99; }
+.turn-fold:hover { border-color: rgba(236, 27, 105, 0.5); color: #e6ecff; }
+/* Capa de cards bajo las esferas (solo en split). */
+/* Reposo: bajo la fila centrada (30/43/57/70 %); split: bajo la fila derecha (54/66/78/90 %). */
+.ag-layer { position: absolute; left: 24%; width: 52%; top: calc(9% + 140px); z-index: 4; }
+.ag-layer.chips { top: calc(9% + 136px); }
+.stage.split .ag-layer { left: 53%; width: 44%; top: calc(10% + 118px); }
+.stage.split .ag-layer.chips { top: calc(10% + 118px); }
+.stage.turn-live .core-wrap { top: 82%; transform: translate(-50%, -50%) scale(0.5); }
+.stage.turn-live .whisper { display: none; }
+.ag-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; align-items: start; }
+.ag-card { --ag: #3d7eff; background: linear-gradient(180deg, rgba(20, 24, 40, 0.96), rgba(12, 14, 26, 0.96)); border: 1px solid color-mix(in srgb, var(--ag) 35%, transparent); border-radius: 14px; padding: 8px 8px 9px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35), 0 0 18px color-mix(in srgb, var(--ag) 18%, transparent); animation: turnIn 220ms var(--split-ease) both; font-size: 10px; }
+.ag-card.scout { --ag: var(--ag-scout); } .ag-card.risk { --ag: var(--ag-risk); } .ag-card.trader { --ag: var(--ag-trader); } .ag-card.auditor { --ag: var(--ag-auditor); }
+.ag-card.active { border-color: color-mix(in srgb, var(--ag) 75%, transparent); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35), 0 0 0 1px color-mix(in srgb, var(--ag) 30%, transparent), 0 0 28px color-mix(in srgb, var(--ag) 40%, transparent); }
+.ag-card.go { border-color: rgba(61, 200, 120, 0.7); box-shadow: 0 0 22px rgba(61, 200, 120, 0.25); }
+.ag-card.block { border-color: rgba(255, 90, 106, 0.7); box-shadow: 0 0 22px rgba(255, 90, 106, 0.25); }
+.ag-lbl { display: flex; justify-content: space-between; font-size: 9px; letter-spacing: 0.08em; color: #6f7d99; margin: 0 2px 6px; }
+.ag-lbl span:first-child { color: color-mix(in srgb, var(--ag) 80%, #fff); }
+.ag-screen { background: radial-gradient(120% 80% at 50% 0%, #1b2136, #0a0d18); border-radius: 10px; padding: 8px; display: flex; flex-direction: column; gap: 6px; min-height: 72px; }
+.ag-metric { font-size: 14px; font-weight: 600; color: #e6ecff; letter-spacing: -0.01em; line-height: 1.1; }
+.ag-metric.dim { color: #9aabc8; }
+.ag-metric small { display: block; font-size: 8.5px; color: #9aabc8; font-weight: 400; letter-spacing: 0.08em; text-transform: uppercase; margin-top: 3px; }
+.ag-bar { height: 4px; border-radius: 99px; background: #1c2238; overflow: hidden; }
+.ag-bar span { display: block; height: 100%; background: var(--ag); transition: width 0.6s ease; }
+.ag-bar.indet span { width: 40%; background: linear-gradient(90deg, transparent, var(--ag), transparent); animation: agSlide 1.1s ease-in-out infinite; }
+@keyframes agSlide { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
+.ag-shimmer { height: 12px; border-radius: 6px; background: linear-gradient(90deg, #1c2238 25%, #2a3150 50%, #1c2238 75%); background-size: 200% 100%; animation: agSh 1.4s linear infinite; }
+@keyframes agSh { to { background-position: -200% 0; } }
+.ag-slot { border: 1.5px dashed color-mix(in srgb, var(--ag) 50%, transparent); background: radial-gradient(ellipse at center, color-mix(in srgb, var(--ag) 14%, transparent), transparent 70%); border-radius: 8px; min-height: 34px; display: flex; align-items: center; justify-content: center; text-align: center; color: #9aabc8; font-size: 9px; padding: 4px 6px; }
+.ag-steps { list-style: none; margin: 7px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 9px; color: #7f8aa6; }
+.ag-steps li { display: flex; align-items: center; gap: 6px; }
+.ag-steps i { width: 7px; height: 7px; border-radius: 50%; border: 1px solid #4d587a; flex: none; }
+.ag-steps li.done { color: #cfe9d9; } .ag-steps li.done i { background: #3dc878; border-color: #3dc878; }
+.ag-steps li.active { color: #fff; } .ag-steps li.active i { background: var(--ag); border-color: var(--ag); box-shadow: 0 0 8px var(--ag); }
+.ag-pills { display: flex; gap: 5px; margin-top: 7px; }
+.ag-pills button { flex: 1; font: inherit; font-size: 9px; background: #1c1f30; color: #dfe6f7; border-radius: 999px; padding: 4px 0; border: 1px solid rgba(120, 160, 255, 0.18); cursor: pointer; }
+.ag-pills button.cta { background: var(--ag-floor); color: #fff; border-color: transparent; box-shadow: 0 0 0 3px rgba(236, 27, 105, 0.15), 0 6px 18px rgba(236, 27, 105, 0.4); }
+.ag-chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.ag-chip { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: inherit; font-size: 9.5px; color: #dfe6f7; background: rgba(20, 24, 40, 0.92); border: 1px solid rgba(120, 160, 255, 0.2); border-radius: 999px; padding: 5px 8px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: turnIn 220ms var(--split-ease) both; }
+.ag-chip i { width: 7px; height: 7px; border-radius: 50%; background: #3d7eff; flex: none; }
+.ag-chip.green i { background: #3dc878; } .ag-chip.red i { background: #ff5a6a; } .ag-chip.dim i { background: #6f7d99; }
+.ag-collapse { position: absolute; top: -10px; right: -6px; width: 22px; height: 22px; border-radius: 50%; border: 1px solid rgba(120, 160, 255, 0.3); background: rgba(12, 14, 26, 0.92); color: #9aabc8; font: inherit; cursor: pointer; }
+/* Con las cards abiertas la esfera baja y se achica para no chocar. */
+.stage.split.turn-live .core-wrap { top: 80%; transform: translate(-50%, -50%) scale(0.55); }
+.stage.split.turn-live .whisper { display: none; }
+/* Beam con bezier y token que viaja una vez. */
+.beams path.beam-path { fill: none; stroke: rgba(255, 179, 71, 0.75); stroke-width: 1.4; stroke-dasharray: 6 8; animation: beamMarch 1.1s linear infinite; }
+.beams path.beam-path.done { stroke: rgba(127, 176, 255, 0.35); stroke-dasharray: none; animation: none; opacity: 0.6; transition: opacity 1.2s ease; }
+.beams .beam-token { fill: #ffb347; filter: drop-shadow(0 0 6px #ffb347); }
+@keyframes beamMarch { to { stroke-dashoffset: -28; } }
+/* History. */
+.history { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow: auto; }
+.hist-list { display: flex; flex-direction: column; gap: 5px; }
+.hist-row { display: grid; grid-template-columns: 78px 1fr auto; gap: 8px; align-items: center; font: inherit; font-size: 11px; text-align: left; color: #e6ecff; background: rgba(20, 24, 40, 0.9); border: 1px solid rgba(120, 160, 255, 0.18); border-radius: 10px; padding: 7px 10px; cursor: pointer; }
+.hist-row.on { border-color: rgba(236, 27, 105, 0.55); }
+.hist-row .d { color: #6f7d99; font-size: 10px; } .hist-row .tk { color: #9fc2ff; font-size: 10px; }
+.hist-run { display: flex; flex-direction: column; gap: 8px; }
+.hist-meta { font-size: 10px; color: #9aabc8; display: flex; gap: 8px; align-items: center; }
+.hist-run .ag-cards { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.hist-who { font-size: 10.5px; color: #c5d2ee; display: flex; flex-direction: column; gap: 4px; }
+.hist-who b { text-transform: capitalize; color: #9aabc8; margin-right: 4px; }
+@media (prefers-reduced-motion: reduce) {
+  .ag-bar.indet span, .ag-shimmer, .beams path.beam-path { animation: none; }
+  .beams .beam-token { display: none; }
+}
+
+/* Con un panel del desk abierto, las cards y chips se apagan junto con la orbita. */
+.stage.desk-open .ag-layer { display: none; }
