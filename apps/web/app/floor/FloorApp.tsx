@@ -67,7 +67,7 @@ function Shell() {
   // "draft": carta del Trader (cotizacion Uniswap V3 Base + calldata) con la
   // orb Approve; la wallet de la persona firma approve + swap. `tx` es el
   // progreso de la firma; `draft` es lo que devolvio /api/trade/draft.
-  type Draft = { id: string; chainId: number; side: "buy" | "sell"; stock: { symbol: string; ticker: string; name: string; issuer: string; address: string; decimals: number }; pool: string; fee: number; poolUsdcDepth: number; tokenIn: { symbol: string; decimals: number }; tokenOut: { symbol: string; decimals: number }; amountInHuman: string; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; deadline: number; quotedAt: string; needsApproval: boolean; balanceUsdc: string; balanceToken: string; txs: Array<{ label: "approve" | "swap"; to: `0x${string}`; data: `0x${string}`; value: "0x0" }> };
+  type Draft = { id: string; chainId: number; side: "buy" | "sell"; stock: { symbol: string; ticker: string; name: string; issuer: string; address: string; decimals: number }; pool: string; fee: number; poolUsdcDepth: number; tokenIn: { symbol: string; decimals: number }; tokenOut: { symbol: string; decimals: number }; amountInHuman: string; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; deadline: number; quotedAt: string; needsApproval: boolean; balanceUsdc: string; balanceToken: string; txs: Array<{ label: "approve" | "swap"; to: `0x${string}`; data: `0x${string}`; value: "0x0" }>; bankr?: { impliedPriceUsd: number; outHuman: string; outSymbol: string; feeBps: number; priceImpactBps?: number } | null };
   type TradeIntent = { side: "buy" | "sell"; stock?: string; amountUsd?: number; amountToken?: number; fraction?: number };
   type DraftTx = { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; step?: "approve" | "swap"; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
   type Brief = { at: string; stock: { symbol: string; ticker: string; name: string; issuer: string }; priceUsd?: number; change24hPct?: number; range24h?: { low: number; high: number; open: number; last: number }; volume24hUsd?: number; sparkline?: number[]; pool: { fee: number; usdcDepth: number; priceUsd?: number } | null; chainlink?: { priceUsd: number; ageMin: number; stale: boolean }; premiumPct?: number; swaps24h?: { count: number; usdcVolume: number; buys: number; sells: number }; holding?: { balance: string; valueUsd: number }; lines: string[] };
@@ -96,6 +96,8 @@ function Shell() {
   const [fleet, setFleet] = useState<Fleet | null>(null);
   const fleetRef = useRef<Fleet | null>(null);
   fleetRef.current = fleet;
+  const fleetAtRef = useRef(0);
+  const fleetActionRef = useRef<(action: "status" | "wake" | "hibernate") => Promise<Fleet | null | undefined>>(async () => null);
   const perkosRef = useRef(perkos);
   perkosRef.current = perkos;
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -115,14 +117,41 @@ function Shell() {
     }, 120_000);
   }, []);
   const askRef = useRef<HTMLInputElement | null>(null);
-  // Autoscroll del transcript al ultimo turno, salvo que la persona haya
-  // subido a leer (mas de 80 px por encima del final).
+  // Autoscroll del transcript (patron de chat): pegado al final mientras la
+  // persona no suba a leer; si sube, aparece el boton circular "ir al final".
+  // Observadores de mutacion y tamano cubren el streaming y las cards que
+  // crecen despues de montarse (draft, analysis), no solo los turnos nuevos.
   const transcriptRef = useRef<HTMLDivElement | null>(null);
+  const stickRef = useRef(true);
+  const observedRef = useRef<HTMLDivElement | null>(null);
+  const [showJump, setShowJump] = useState(false);
+  const scrollToLatest = useCallback(() => {
+    const el = transcriptRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    stickRef.current = true;
+    setShowJump(false);
+  }, []);
+  const onTranscriptScroll = useCallback(() => {
+    const el = transcriptRef.current;
+    if (!el) return;
+    const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const atBottom = gap < 48;
+    stickRef.current = atBottom;
+    setShowJump(!atBottom && el.scrollHeight > el.clientHeight + 48);
+  }, []);
   useEffect(() => {
     const el = transcriptRef.current;
     if (!el) return;
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80 + 200;
-    if (nearBottom) el.scrollTop = el.scrollHeight;
+    if (stickRef.current) requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
+    if (observedRef.current === el) return;
+    observedRef.current = el;
+    const follow = () => { if (stickRef.current) el.scrollTop = el.scrollHeight; };
+    const mo = new MutationObserver(follow);
+    mo.observe(el, { childList: true, subtree: true, characterData: true });
+    const ro = new ResizeObserver(follow);
+    ro.observe(el);
+    return () => { mo.disconnect(); ro.disconnect(); observedRef.current = null; };
   }, [messages]);
 
   const kbWriteRef = useRef<(p: { journal?: true; kind?: "journal" | "analysis" | "order" | "memory"; title?: string; body: string; ticker?: string }) => void>(() => undefined);
@@ -176,13 +205,36 @@ function Shell() {
     const setFloor = (t: string, streaming: boolean) =>
       setMessages((m) => m.map((x) => (x.id === floorId ? { ...x, text: t, streaming } : x)));
     flog("info", `chat -> ${text.slice(0, 80)}`);
+    stickRef.current = true;
+    setShowJump(false);
     let full = "";
     let pending = "";
     try {
       // Con la flota despierta, primero responden los agentes (Hermes en PerkOS
       // infra) y Grok, la voz del Floor, resume. Sin flota: Grok solo.
       let fleetReplies: Array<{ role: string; ok: boolean; reply: string; detail?: string }> = [];
-      const f = fleetRef.current;
+      // Warm-up: el curator hiberna la flota a los 15 min y el snapshot local
+      // puede ser viejo. Refrescar, despertar si duerme y esperar a que los
+      // agentes esten listos antes de preguntar; si no, el turno son 4 timeouts.
+      let f0 = fleetRef.current;
+      if (f0 && Date.now() - fleetAtRef.current > 60_000) f0 = (await fleetActionRef.current("status")) ?? f0;
+      const asleep = (x: Fleet | null | undefined) => Boolean(x && x.agents.some((a) => a.state === "hibernated" || a.state === "waking"));
+      if (asleep(f0)) {
+        setCaption("Waking the team on PerkOS…");
+        setTeam("waking");
+        f0 = (await fleetActionRef.current("wake")) ?? f0;
+        const t0 = Date.now();
+        while (asleep(f0) && Date.now() - t0 < 240_000 && !ac.signal.aborted) {
+          await new Promise((r) => setTimeout(r, 5000));
+          f0 = (await fleetActionRef.current("status")) ?? f0;
+        }
+        if (!asleep(f0) && !ac.signal.aborted) {
+          // ECS ya corre; Hermes tarda ~40 s mas en unirse al relay.
+          setCaption("Team is booting…");
+          await new Promise((r) => setTimeout(r, 40_000));
+        }
+      }
+      const f = f0;
       const readyRoles = f ? f.agents.filter((a) => a.state === "ready").map((a) => a.role) : [];
       if (readyRoles.length) {
         // Turno de mesa secuencial (Scout -> Risk -> Trader/Auditor) por SSE:
@@ -215,13 +267,19 @@ function Shell() {
               if (!line) continue;
               let ev: { step?: string; role?: string; ok?: boolean; reply?: string; detail?: string; ms?: number; verdict?: "GO" | "BLOCK"; replies?: typeof fleetReplies };
               try { ev = JSON.parse(line); } catch { continue; }
+              const phId = (role: string) => youId + 100 + ["scout", "risk", "trader", "auditor"].indexOf(role);
               if (ev.step === "start" && ev.role) {
                 setTalking(ev.role, true);
                 setCaption(`${cap(ev.role)} is thinking…`);
+                // Burbuja "escribiendo" del agente hasta que llegue su respuesta.
+                const pid = phId(ev.role);
+                const who = ev.role;
+                setMessages((m) => [...m.filter((x) => x.id !== floorId && x.id !== pid), { id: pid, role: "team", who, text: "", streaming: true }, { id: floorId, role: "floor", text: "", streaming: true }]);
                 // Scout y Risk entregan a Trader y Auditor: los haces salen de quien ya hablo.
                 if (ev.role === "trader" || ev.role === "auditor") setBeams((b) => [...b, ...handed.map((from) => ({ from, to: ev.role!, done: false }))]);
               } else if (ev.step === "reply" && ev.role) {
                 setTalking(ev.role, false);
+                { const pid = phId(ev.role); setMessages((m) => m.filter((x) => x.id !== pid)); }
                 if (ev.ok && ev.reply) {
                   n += 1;
                   const id = youId + 2 + n;
@@ -350,6 +408,7 @@ function Shell() {
 
   const applyFleet = useCallback((f: Fleet) => {
     setFleet(f);
+    fleetAtRef.current = Date.now();
     const ready = f.agents.filter((a) => a.state === "ready").length;
     flog("info", `fleet: ${f.status} · ${f.agents.map((a) => `${a.role}=${a.state}`).join(" ")}`);
     if (f.status === "ready" || (ready > 0 && !f.agents.some((a) => a.state === "provisioning" || a.state === "waking"))) { setTeam("ready"); setCaption(ready === f.agents.length ? `Team is up · ${ready}/${f.agents.length} on PerkOS` : `${ready}/${f.agents.length} awake on PerkOS`); }
@@ -364,6 +423,8 @@ function Shell() {
       pollRef.current = window.setTimeout(() => void fleetAction("status"), slow ? 20_000 : 5000);
     } else {
       pollSinceRef.current = 0;
+      // Latido lento: si el curator duerme la flota, los tags pasan a Hibernating.
+      if (f.status === "ready") pollRef.current = window.setTimeout(() => void fleetAction("status"), 60_000);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -422,7 +483,6 @@ function Shell() {
   // persona paga, polling del saldo; cuando la infra queda habilitada, se
   // reintenta el deploy solo. Sin deep link de vuelta: el polling alcanza.
   const payPollRef = useRef(0);
-  const fleetActionRef = useRef<(a: "status" | "wake" | "hibernate") => Promise<void>>(async () => undefined);
   const wizardRef = useRef(false);
   wizardRef.current = wizard;
   const deskIdRef = useRef("floor-desk");
@@ -483,6 +543,7 @@ function Shell() {
       }
       applyFleet(j);
       if (action === "hibernate") setTeam("hibernated");
+      return j;
     } catch (e) {
       flog("error", `fleet ${action}: ${(e as Error).message}`);
     }
@@ -540,7 +601,7 @@ function Shell() {
   // V3 (Base) y arma approve + swap; la carta aparece en el transcript con la
   // orb Approve. La conversacion sigue en paralelo (equipo + Grok comentan).
   // La orden en la mesa este turno (para el prompt de Risk/Trader/Auditor).
-  const quoteRef = useRef<{ side: string; symbol: string; name: string; amountIn: string; tokenIn: string; quoteOut: string; tokenOut: string; priceUsd: number; pool: string; fee: number; poolUsdcDepth: number; minOut: string } | null>(null);
+  const quoteRef = useRef<{ side: string; symbol: string; name: string; amountIn: string; tokenIn: string; quoteOut: string; tokenOut: string; priceUsd: number; pool: string; fee: number; poolUsdcDepth: number; minOut: string; bankr?: { priceUsd: number; outHuman: string; outSymbol: string; feeBps: number; priceImpactBps?: number } | null } | null>(null);
   const tradeDraft = useCallback(async (intent: TradeIntent) => {
     const id = Date.now() + 3;
     const what = intent.stock ?? "NVDAc";
@@ -557,7 +618,8 @@ function Shell() {
       }
       flog("info", `trade draft: ${j.side} ${j.amountInHuman} ${j.tokenIn.symbol} → ${j.quoteOutHuman} ${j.tokenOut.symbol} @ $${j.impliedPriceUsd.toFixed(2)} · pool $${j.poolUsdcDepth.toFixed(0)} · ${j.txs.length} tx · balances $${j.balanceUsdc} / ${j.balanceToken} ${j.stock.symbol}`);
       setMessages((m) => m.map((x) => (x.id === id ? { ...x, text: "", streaming: false, draft: j, tx: { stage: "idle", hashes: [] } } : x)));
-      quoteRef.current = { side: j.side, symbol: j.stock.symbol, name: j.stock.name, amountIn: j.amountInHuman, tokenIn: j.tokenIn.symbol, quoteOut: j.quoteOutHuman, tokenOut: j.tokenOut.symbol, priceUsd: j.impliedPriceUsd, pool: j.pool, fee: j.fee, poolUsdcDepth: j.poolUsdcDepth, minOut: (Number(j.minOut) / 10 ** j.tokenOut.decimals).toFixed(6) };
+      quoteRef.current = { side: j.side, symbol: j.stock.symbol, name: j.stock.name, amountIn: j.amountInHuman, tokenIn: j.tokenIn.symbol, quoteOut: j.quoteOutHuman, tokenOut: j.tokenOut.symbol, priceUsd: j.impliedPriceUsd, pool: j.pool, fee: j.fee, poolUsdcDepth: j.poolUsdcDepth, minOut: (Number(j.minOut) / 10 ** j.tokenOut.decimals).toFixed(6), bankr: j.bankr ? { priceUsd: j.bankr.impliedPriceUsd, outHuman: j.bankr.outHuman, outSymbol: j.bankr.outSymbol, feeBps: j.bankr.feeBps, priceImpactBps: j.bankr.priceImpactBps } : null };
+      if (j.bankr) flog("info", `bankr quote: ${j.bankr.outHuman} ${j.bankr.outSymbol} @ $${j.bankr.impliedPriceUsd.toFixed(2)} vs uniswap $${j.impliedPriceUsd.toFixed(2)}`);
       setCaption(`Trader drafted: ${j.amountInHuman} ${j.tokenIn.symbol} → ${j.quoteOutHuman} ${j.tokenOut.symbol}. Hold Approve to sign.`);
     } catch (e) {
       flog("error", `trade draft: ${(e as Error).message}`);
@@ -1260,6 +1322,7 @@ function Shell() {
               beams={beams}
               focus={(() => { const a = [...messages].reverse().find((m) => m.role === "analysis")?.analysis; return a ? { symbol: a.brief.stock.symbol, name: a.brief.stock.name, priceUsd: a.brief.priceUsd, change24hPct: a.brief.change24hPct } : focusAsset ? { symbol: focusAsset.toUpperCase(), name: focusAsset } : null; })()}
               orders={messages.filter((m) => m.role === "draft" && m.draft).slice(-3).reverse().map((m) => ({ id: m.id, label: `${m.draft!.side === "buy" ? `Buy $${m.draft!.amountInUsd}` : `Sell ${m.draft!.amountInHuman}`} ${m.draft!.stock.symbol}`, stage: m.tx?.stage ?? "idle", symbol: m.draft!.stock.symbol }))}
+              bankr={(() => { const d = [...messages].reverse().find((m) => m.role === "draft" && m.draft?.bankr)?.draft; return d?.bankr ? { priceUsd: d.bankr.impliedPriceUsd, deltaPct: ((d.impliedPriceUsd / d.bankr.impliedPriceUsd) - 1) * 100 } : null; })()}
               turnLive={talkingSet.length > 0 || thinking}
               onPick={(kind, id) => {
                 if (kind === "asset") { setFocusAsset(id); setDeskScreen("market"); }
@@ -1286,7 +1349,8 @@ function Shell() {
           que es la unica duena de posicion y ancho. En idle es solo el composer
           centrado abajo; en split ocupa la izquierda con un separador. */}
       <div className={`convo${split ? " split" : ""}`}>
-      <div className={`transcript${split ? " on" : ""}`} aria-live="polite" ref={transcriptRef}>
+      {split && showJump ? <button type="button" className="jump-latest" onClick={scrollToLatest} aria-label="Jump to latest" title="Jump to latest">↓</button> : null}
+      <div className={`transcript${split ? " on" : ""}`} aria-live="polite" ref={transcriptRef} onScroll={onTranscriptScroll}>
         {messages.map((m) => (
           <div key={m.id} className={`turn ${m.role}`}>
             <span className="turn-k">
@@ -1299,8 +1363,8 @@ function Shell() {
               <AnalysisCard a={m.analysis} onSay={(t) => runRef.current(t)} />
             ) : (
               <div className="bubble">
-                {m.text}
-                {m.streaming ? <i className="cursor" /> : null}
+                {m.streaming && !m.text ? <span className="typing" aria-label="typing"><i /><i /><i /></span> : m.text}
+                {m.streaming && m.text ? <i className="cursor" /> : null}
               </div>
             )}
           </div>
@@ -1600,7 +1664,7 @@ function AnalysisCard({ a, onSay }: {
 /** Carta del draft del Trader + orb Approve (se mantiene 2 s para firmar).
  *  Sin llaves aqui: Approve manda las tx a la wallet de la persona. */
 function DraftCard({ draft, tx, onApprove }: {
-  draft: { side: "buy" | "sell"; stock: { symbol: string; ticker: string; name: string; issuer: string }; tokenIn: { symbol: string; decimals: number }; tokenOut: { symbol: string; decimals: number }; amountInHuman: string; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; pool: string; fee: number; poolUsdcDepth: number; deadline: number; needsApproval: boolean; balanceUsdc: string; balanceToken: string; txs: Array<{ label: string }> };
+  draft: { side: "buy" | "sell"; stock: { symbol: string; ticker: string; name: string; issuer: string }; tokenIn: { symbol: string; decimals: number }; tokenOut: { symbol: string; decimals: number }; amountInHuman: string; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; pool: string; fee: number; poolUsdcDepth: number; deadline: number; needsApproval: boolean; balanceUsdc: string; balanceToken: string; txs: Array<{ label: string }>; bankr?: { impliedPriceUsd: number; outHuman: string; outSymbol: string; feeBps: number; priceImpactBps?: number } | null };
   tx: { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; step?: string; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
   onApprove: () => void;
 }) {
@@ -1628,6 +1692,7 @@ function DraftCard({ draft, tx, onApprove }: {
         <dt>You pay</dt><dd>{buy ? `$${draft.amountInUsd.toFixed(2)} USDC` : `${draft.amountInHuman} ${draft.stock.symbol}`}</dd>
         <dt>You get</dt><dd>≈ {draft.quoteOutHuman} {draft.tokenOut.symbol} <small>(min {minOutHuman}, {draft.slippageBps / 100}% slippage)</small></dd>
         <dt>Price</dt><dd>${draft.impliedPriceUsd.toFixed(2)} / share</dd>
+        {draft.bankr ? <><dt>Second quote</dt><dd>Bankr ${draft.bankr.impliedPriceUsd.toFixed(2)} / share · {draft.bankr.outHuman} {draft.bankr.outSymbol || draft.tokenOut.symbol} · {(((draft.impliedPriceUsd / draft.bankr.impliedPriceUsd) - 1) * 100).toFixed(2)}% vs Uniswap · read-only, never executes</dd></> : null}
         <dt>Route</dt><dd>{draft.tokenIn.symbol} → {draft.tokenOut.symbol} · pool {draft.pool.slice(0, 6)}…{draft.pool.slice(-4)} · {draft.fee / 10_000}% · ${draft.poolUsdcDepth.toFixed(0)} USDC deep</dd>
         <dt>Signatures</dt><dd>{draft.txs.map((t) => t.label).join(" + ")}{draft.needsApproval ? "" : ` (${draft.tokenIn.symbol} already approved)`}</dd>
       </dl>

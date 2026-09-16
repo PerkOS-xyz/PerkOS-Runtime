@@ -19,6 +19,8 @@ export type DeskMapProps = {
   beams: Array<{ from: string; to: string; done: boolean }>;
   focus?: { symbol: string; name: string; priceUsd?: number; change24hPct?: number } | null;
   orders: MapOrder[];
+  /** Segunda cotizacion (Bankr) de la ultima orden: fuente de precio, sin gasto. */
+  bankr?: { priceUsd: number; deltaPct: number } | null;
   turnLive: boolean;
   onPick: (kind: "agent" | "asset" | "order" | "floor" | "you", id: string) => void;
 };
@@ -73,6 +75,10 @@ export default function DeskMap(p: DeskMapProps) {
       edges.push({ id: "scout-asset", source: "agent:scout", target: `asset:${p.focus.symbol}`, style: { stroke: BLUE }, type: "smoothstep" });
       edges.push({ id: "risk-asset", source: "agent:risk", target: `asset:${p.focus.symbol}`, style: { stroke: BLUE }, type: "smoothstep" });
     }
+    if (p.bankr) {
+      nodes.push({ id: "source:bankr", position: { x: cx - W / 2, y: row.world + 130 }, data: { label: L("Bankr", `second quote · $${p.bankr.priceUsd.toFixed(2)} · ${p.bankr.deltaPct > 0 ? "+" : ""}${p.bankr.deltaPct.toFixed(2)}% vs uniswap`) }, style: nodeStyle(GREY), sourcePosition: Position.Top, targetPosition: Position.Bottom });
+      edges.push({ id: "bankr-risk", source: "source:bankr", target: "agent:risk", style: { stroke: GREY }, type: "smoothstep", markerEnd: { type: MarkerType.ArrowClosed, color: "#9aabc8" } });
+    }
     p.orders.slice(0, 3).forEach((o, i) => {
       const accent = o.stage === "done" ? GREEN : o.stage === "blocked" ? RED : o.stage === "failed" ? GREY : AMBER;
       nodes.push({ id: `order:${o.id}`, position: { x: cx + 20, y: row.world + i * 60 }, data: { label: L(o.label, o.stage === "idle" ? "waiting for your approval" : o.stage) }, style: nodeStyle(accent), targetPosition: Position.Top, sourcePosition: Position.Bottom });
@@ -97,6 +103,7 @@ export default function DeskMap(p: DeskMapProps) {
         proOptions={{ hideAttribution: true }}
         onNodeClick={(_e, n) => {
           const [kind, id] = n.id.includes(":") ? (n.id.split(":") as [string, string]) : [n.id, n.id];
+          if (kind === "source") return;
           p.onPick(kind === "agent" ? "agent" : kind === "asset" ? "asset" : kind === "order" ? "order" : kind === "floor" ? "floor" : "you", id);
         }}
         colorMode="dark"

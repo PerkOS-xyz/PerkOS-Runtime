@@ -1,5 +1,6 @@
 import { loadSettings } from "../../../lib/settingsStore";
 import { draftTrade, TradeError } from "../../../lib/uniswap";
+import { bankrQuote } from "../../../lib/bankr";
 
 // POST /api/trade/draft { side?, stock?, amountUsd?, amountToken?, fraction? } -> TradeDraft
 // side default "buy", stock default NVDAc. Nada se firma aqui: la wallet de la
@@ -17,7 +18,11 @@ export async function POST(req: Request) {
   const s = await loadSettings();
   if (!/^0x[0-9a-fA-F]{40}$/.test(s.wallet)) return Response.json({ error: "wallet_required" }, { status: 401 });
   try {
-    return Response.json(await draftTrade({ recipient: s.wallet as `0x${string}`, side, stock, amountUsd, amountToken, fraction }));
+    const d = await draftTrade({ recipient: s.wallet as `0x${string}`, side, stock, amountUsd, amountToken, fraction });
+    // Segunda cotizacion: mismo lado y monto en Bankr (read-only). Si tarda o
+    // falla, el draft sale igual solo con Uniswap.
+    d.bankr = await bankrQuote({ side, stockAddress: d.stock.address, stockDecimals: d.stock.decimals, amountInHuman: d.amountInHuman });
+    return Response.json(d);
   } catch (e) {
     if (e instanceof TradeError) return Response.json({ error: e.code.toLowerCase(), detail: e.message }, { status: 422 });
     return Response.json({ error: "quote_failed", detail: (e as Error).message }, { status: 502 });

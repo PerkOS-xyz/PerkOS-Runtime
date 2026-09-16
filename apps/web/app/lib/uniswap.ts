@@ -1,3 +1,4 @@
+import type { BankrQuote } from "./bankr";
 import { createPublicClient, encodeFunctionData, formatUnits, http, parseAbi, type Hex } from "viem";
 import { base } from "viem/chains";
 import { BASE_CHAIN_ID, USDC, USDC_DECIMALS, findUsdcPool, resolveStock, type Stock, type StockPool } from "./stocks";
@@ -56,6 +57,8 @@ export type TradeDraft = {
   balanceUsdc: string;
   balanceToken: string;
   txs: TradeTx[];
+  /** Segunda cotizacion (Bankr, read-only). null si no hay key o fallo. */
+  bankr?: BankrQuote | null;
 };
 
 export class TradeError extends Error {
