@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { parseIntent } from "./parseCommand";
 import DeskPanel, { type DeskScreen } from "./DeskPanel";
+import DeskMap from "./DeskMap";
 import SettingsPanel from "./SettingsPanel";
 import Wizard from "./Wizard";
 import Ambient from "./Ambient";
@@ -763,6 +764,7 @@ function Shell() {
     }
     if (cmd === "portfolio") { setDeskScreen("portfolio"); setCaption("Your positions on Base"); return; }
     if (cmd === "docs") { setDeskScreen("notes"); setCaption("What this desk remembers"); return; }
+    if (cmd === "map") { setDeskScreen("map"); setCaption("The desk as a graph"); return; }
     if (cmd === "summarize") { void summarizeDay(); return; }
     if (cmd === "approve") {
       const d = [...messagesRef.current].reverse().find((m) => m.role === "draft" && m.tx?.stage === "idle");
@@ -1234,10 +1236,40 @@ function Shell() {
           <button type="button" className={deskScreen === "notes" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "notes" ? "" : "notes")} title="Notes · what this desk remembers (local, Obsidian-compatible)">
             <NotesIcon /><span>Notes</span>
           </button>
+          <button type="button" className={deskScreen === "map" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "map" ? "" : "map")} title="Map · the desk as a graph">
+            <MapIcon /><span>Map</span>
+          </button>
         </nav>
       ) : null}
       {deskScreen ? (
-        <DeskPanel screen={deskScreen} focus={focusAsset} onScreen={setDeskScreen} onClose={() => setDeskScreen("")} onSay={(t) => runRef.current(t)} onSummarize={() => void summarizeDay()} />
+        <DeskPanel
+          screen={deskScreen}
+          focus={focusAsset}
+          onScreen={setDeskScreen}
+          onClose={() => setDeskScreen("")}
+          onSay={(t) => runRef.current(t)}
+          onSummarize={() => void summarizeDay()}
+          map={(
+            <DeskMap
+              deskName={desk?.name ?? "desk"}
+              agents={(fleet?.agents ?? []).map((a) => {
+                const last = [...messages].reverse().find((m) => m.role === "team" && m.who === a.role);
+                return { role: a.role, label: cap(a.role), state: a.state, talking: talking.has(a.role), rail: a.rail ? { linked: Boolean(a.railLinked), lockUsd: a.rail.lockUsd } : undefined, last: last?.text, verdict: a.role === "risk" ? verdict : "" };
+              })}
+              guest={{ on: guest, label: guest ? "Grok Bot" : "Guest" }}
+              beams={beams}
+              focus={(() => { const a = [...messages].reverse().find((m) => m.role === "analysis")?.analysis; return a ? { symbol: a.brief.stock.symbol, name: a.brief.stock.name, priceUsd: a.brief.priceUsd, change24hPct: a.brief.change24hPct } : focusAsset ? { symbol: focusAsset.toUpperCase(), name: focusAsset } : null; })()}
+              orders={messages.filter((m) => m.role === "draft" && m.draft).slice(-3).reverse().map((m) => ({ id: m.id, label: `${m.draft!.side === "buy" ? `Buy $${m.draft!.amountInUsd}` : `Sell ${m.draft!.amountInHuman}`} ${m.draft!.stock.symbol}`, stage: m.tx?.stage ?? "idle", symbol: m.draft!.stock.symbol }))}
+              turnLive={talkingSet.length > 0 || thinking}
+              onPick={(kind, id) => {
+                if (kind === "asset") { setFocusAsset(id); setDeskScreen("market"); }
+                else if (kind === "agent" && id !== "guest") { const a = fleet?.agents.find((x) => x.role === id); setCaption(a ? `${cap(id)} · ${a.state}${a.rail ? (a.railLinked ? " · 1Claw linked" : " · rail not linked") : ""}` : cap(id)); }
+                else if (kind === "order") { setDeskScreen(""); setSplit(true); }
+                else if (kind === "floor") setCaption(`${desk?.name ?? "Desk"} · ${fleet?.agents.filter((x) => x.state === "ready").length ?? 0} awake`);
+              }}
+            />
+          )}
+        />
       ) : null}
 
       {/* El template del desk vive en el wizard (paso "Your team"): la escena
@@ -1639,6 +1671,14 @@ function ChartIcon() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M3 17l5-6 4 3 4-6 5 4" />
       <path d="M3 21h18" />
+    </svg>
+  );
+}
+function MapIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="5" cy="12" r="2.2" /><circle cx="19" cy="6" r="2.2" /><circle cx="19" cy="18" r="2.2" />
+      <path d="M7 11l10-4M7 13l10 4" />
     </svg>
   );
 }

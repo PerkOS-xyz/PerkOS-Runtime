@@ -13,7 +13,7 @@ export type Command =
   | "unknown";
 
 export type Intent =
-  | { kind: "listen" | "wake" | "sleep" | "invite" | "stop" | "settings" | "docs" | "market" | "portfolio" | "approve" | "cancel" | "summarize" | "chat" }
+  | { kind: "listen" | "wake" | "sleep" | "invite" | "stop" | "settings" | "docs" | "market" | "portfolio" | "map" | "approve" | "cancel" | "summarize" | "chat" }
   | { kind: "analyze" | "quote"; asset?: string }
   | { kind: "buy"; asset?: string; amountUsd: number }
   | { kind: "sell"; asset?: string; amountUsd?: number; amountToken?: number; fraction?: number };
@@ -80,6 +80,7 @@ export function parseIntent(raw: string): Intent {
   const trade = parseTradeIntent(raw);
   if (trade) return trade;
   if (/\b(portfolio|portafolio|holdings|positions|posiciones|what do i (hold|own)|que tengo|qué tengo|mis acciones)\b/.test(t)) return { kind: "portfolio" };
+  if (/\b(show|open|see|ver|muestra|abre)\b.*\b(map|graph|mapa|grafo|the team)\b|^(map|mapa|team map|desk map)$/.test(t)) return { kind: "map" };
   // Tolerante a typos frecuentes al dictar/teclear: anayze, analize, analyse, analisa.
   const analyzeVerb = /\b(ana(?:l|ly|lyz|liz|lys|y)[sz]?e?|analiza|analizar|analisa|analisis|análisis|research|investiga|look into|check|revisa|mira)\b/;
   if (analyzeVerb.test(t)) return { kind: "analyze", asset: assetAfter(t, analyzeVerb) };
