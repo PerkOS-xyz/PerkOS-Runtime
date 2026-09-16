@@ -1,7 +1,7 @@
 // Bankr en la mesa: segunda cotizacion (Wallet API `swap-quote`, key
 // read-only: cotiza, nunca ejecuta) y, para Analyze, una pregunta al agente
 // (Agent API, requiere Bankr Club; 30-70 s, por eso va con cache y nunca
-// dentro del turno de mesa). La key vive en BANKR_API_KEY (cuenta @perk_os,
+// dentro del turno de mesa). La key vive en BANKR_API_KEY (read-only, sobre una
 // wallet vacia). Sin key, todo devuelve null y la mesa sigue solo con Uniswap.
 
 const BASE = "https://api.bankr.bot";

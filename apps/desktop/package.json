@@ -6,7 +6,6 @@
   "scripts": {
     "start": "electron .",
     "brand": "bash brand-electron.sh",
-    "postinstall": "bash brand-electron.sh",
     "package:mac": "bash package-mac.sh"
   },
   "devDependencies": {

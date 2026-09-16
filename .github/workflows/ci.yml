@@ -1,0 +1,32 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit -p .
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_PRIVY_APP_ID: ci-placeholder
+          NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID: ci-placeholder
+  desktop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check apps/desktop/main.cjs && node --check apps/desktop/after-pack.cjs && bash -n apps/desktop/package-mac.sh

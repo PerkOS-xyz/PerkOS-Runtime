@@ -1,0 +1,2 @@
+# xAI device-flow OAuth client id (public, RFC 8628); not a secret.
+a95cbc7477762b9bd9eb4f53f4feaf0c69eef875:apps/web/app/lib/xaiOAuth.ts:generic-api-key:12
