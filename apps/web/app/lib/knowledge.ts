@@ -169,7 +169,7 @@ export async function publishDeskItems(items: DeskItem[]): Promise<{ ok: boolean
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${token}`, "x-agent-id": agentId },
       body: JSON.stringify({
-        source: "perkos-floor",
+        source: "perkos-xyz",
         visibility: "public",
         contribution_type: "desk-knowledge",
         items: items.map((it) => ({
@@ -186,7 +186,7 @@ export async function publishDeskItems(items: DeskItem[]): Promise<{ ok: boolean
           sanitization_status: "sanitized",
           visibility: "public",
           evidence: it.evidence ?? [],
-          metadata: { app: "perkos-floor", ...(it.metadata ?? {}) }
+          metadata: { app: "perkos-xyz", ...(it.metadata ?? {}) }
         }))
       }),
       signal: AbortSignal.timeout(20_000)

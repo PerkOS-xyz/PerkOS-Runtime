@@ -2,7 +2,7 @@
 title: "Tokenized stocks on Base: what they are"
 kind: app
 updated: "2026-09-16T12:00:00.000Z"
-source: PerkOS Floor
+source: PerkOS
 sources: https://docs.base.org/base-chain/tokenized-stocks, https://www.coinbase.com/blog/stocks-just-got-updated, https://docs.chain.link/data-feeds
 ---
 

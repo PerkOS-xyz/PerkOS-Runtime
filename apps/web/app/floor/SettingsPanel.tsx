@@ -140,7 +140,7 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
             </label>
           </span>
         </div>
-        <p className="hint-line">Stored in ~/.perkos-floor. Never git. Never the vault.</p>
+        <p className="hint-line">Stored in ~/.perkos-xyz. Never git. Never the vault.</p>
 
         {desk ? (
           <>
@@ -164,7 +164,7 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
         ) : null}
 
         <div className="sec">About</div>
-        <div className="srow"><span>PerkOS Floor</span><span className="v">{ver.version || "…"}{ver.build ? ` (${ver.build})` : ""} · {desk?.builtOn ?? "Built on Base"} · They draft. You approve.</span></div>
+        <div className="srow"><span>PerkOS</span><span className="v">{ver.version || "…"}{ver.build ? ` (${ver.build})` : ""} · {desk?.builtOn ?? "Built on Base"} · They draft. You approve.</span></div>
       </form>
     </div>
   );

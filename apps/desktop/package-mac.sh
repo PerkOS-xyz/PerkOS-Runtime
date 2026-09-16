@@ -4,7 +4,7 @@
 # Output: release/PerkOS-<version>-arm64.dmg and release/mac-arm64/PerkOS.app.
 #
 # Signing: uses the "Developer ID Application" identity that expires last
-# (FLOOR_SIGN_IDENTITY=<sha1|name> to pick another), hardened runtime. Without
+# (PERKOS_SIGN_IDENTITY=<sha1|name> to pick another), hardened runtime. Without
 # one the build is ad-hoc signed and only runs on the Mac that built it. Notarization runs when Apple credentials are present:
 #   APPLE_KEYCHAIN_PROFILE=<profile stored with `xcrun notarytool store-credentials`>
 #   or APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD + APPLE_TEAM_ID
@@ -26,13 +26,13 @@ python3 "$HERE/make-dmg-background.py" "$HERE/icon.png" "$HERE/build/dmg-backgro
 
 echo "3/4 electron-builder (dmg) + signing"
 # By SHA-1: names can be ambiguous when the keychain holds several Developer ID
-# certificates. FLOOR_SIGN_IDENTITY=<hash or exact name> forces one. Signing
+# certificates. PERKOS_SIGN_IDENTITY=<hash or exact name> forces one. Signing
 # and notarization happen in after-pack.cjs; electron-builder only packs.
 IDENTITY="$(python3 "$HERE/pick-identity.py")"
 NOTARIZE=false
 if [ -n "${APPLE_KEYCHAIN_PROFILE:-}" ] || { [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ]; }; then NOTARIZE=true; fi
 [ -n "$IDENTITY" ] && echo "identity: Developer ID ($IDENTITY) · notarize: $NOTARIZE" || echo "identity: none (ad-hoc) · notarize: skipped"
-(cd "$HERE" && FLOOR_SIGN_HASH="$IDENTITY" CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac dmg --arm64 \
+(cd "$HERE" && PERKOS_SIGN_HASH="$IDENTITY" CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac dmg --arm64 \
   --config.buildVersion="$SHA" --config.extraMetadata.buildSha="$SHA" --config.mac.identity=null --config.mac.notarize=false)
 
 echo "4/4 verify"

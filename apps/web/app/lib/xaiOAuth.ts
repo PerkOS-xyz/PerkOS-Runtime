@@ -6,8 +6,8 @@
 // API (TTS/STT devuelven 403; Hermes lo documenta en tools/xai_http.py).
 
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
+import { HOME_DIR } from "./home";
 
 export const XAI_OAUTH_CLIENT_ID = "b1a00492-073a-47ea-816f-4c329264a828";
 export const XAI_OAUTH_SCOPE = "openid profile email offline_access grok-cli:access api:access";
@@ -15,7 +15,8 @@ export const XAI_OAUTH_ISSUER = "https://auth.x.ai";
 // Hermes: DEFAULT_XAI_OAUTH_BASE_URL, override por XAI_BASE_URL.
 export const XAI_OAUTH_BASE_URL = (process.env.XAI_BASE_URL?.trim().replace(/\/+$/, "") || "https://api.x.ai/v1");
 export const XAI_DEFAULT_MODEL = "grok-4.6";
-export const XAI_USER_AGENT = "PerkOSFloor/0.1.0";
+export const XAI_USER_AGENT = `PerkOS/${process.env.PERKOS_APP_VERSION?.trim() || "dev"}`;
+// Originator registrado con el client id en xAI: se queda aunque el app ya no se llame Floor.
 export const XAI_ORIGINATOR = "perkos-floor";
 
 const DISCOVERY_URL = `${XAI_OAUTH_ISSUER}/.well-known/openid-configuration`;
@@ -185,9 +186,9 @@ export async function refreshXaiTokens(tokens: XaiTokens): Promise<XaiTokens> {
   return { ...next, refreshToken: next.refreshToken || tokens.refreshToken };
 }
 
-// --- persistencia: ~/.perkos-floor/xai-oauth.json (0600) -------------------
+// --- persistencia: ~/.perkos-xyz/xai-oauth.json (0600) ---------------------
 
-const dir = join(homedir(), ".perkos-floor");
+const dir = HOME_DIR;
 const file = join(dir, "xai-oauth.json");
 
 export async function loadXaiTokens(): Promise<XaiTokens | null> {

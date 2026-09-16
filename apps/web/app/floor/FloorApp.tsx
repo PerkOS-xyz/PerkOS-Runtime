@@ -900,7 +900,7 @@ function Shell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chat, speak, touch]);
 
-  // Conocimiento local: cada turno deja rastro en ~/.perkos-floor/knowledge
+  // Conocimiento local: cada turno deja rastro en ~/.perkos-xyz/knowledge
   // (diario, analisis, ordenes). Best effort; nunca bloquea la escena.
   const kbWrite = useCallback((payload: { journal?: true; kind?: "journal" | "analysis" | "order" | "memory" | "decision"; title?: string; body: string; ticker?: string }) => {
     void fetch("/api/kb/notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
@@ -1363,7 +1363,7 @@ function Shell() {
     setFocusAsset("");
     setSettings(false);
     setCaption("");
-    // Solo el wallet: el LLM conectado queda en ~/.perkos-floor (como cualquier app de AI).
+    // Solo el wallet: el LLM conectado queda en ~/.perkos-xyz (como cualquier app de AI).
     void fetch("/api/settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1540,7 +1540,7 @@ function Shell() {
 
       <div className={`slab docs${docs ? " on" : ""}`}>
         <div className="k">PROJECT</div>
-        <b>PerkOS Floor</b>
+        <b>PerkOS</b>
         <small>They draft. You approve. Base only.</small>
       </div>
       {desk && !wizard ? <div className="venue-line">{deskManifest(desk).venues}</div> : null}

@@ -1,5 +1,5 @@
 const { app, BrowserWindow, shell, session, powerSaveBlocker } = require("electron");
-app.setName("PerkOS Floor");
+app.setName("PerkOS");
 
 const { spawn } = require("child_process");
 const fs = require("fs");
@@ -9,7 +9,12 @@ const os = require("os");
 const path = require("path");
 
 const mac = process.platform === "darwin";
-const HOME_DIR = path.join(os.homedir(), ".perkos-floor");
+// Carpeta de la persona. Hasta 0.2.0 era ~/.perkos-floor: se migra una vez
+// (renombre completo) si la nueva no existe; el servidor hace la misma
+// comprobacion (apps/web/app/lib/home.ts). PERKOS_HOME la mueve para pruebas.
+const LEGACY_HOME = path.join(os.homedir(), ".perkos-floor");
+const HOME_DIR = process.env.PERKOS_HOME?.trim() || path.join(os.homedir(), ".perkos-xyz");
+try { if (!process.env.PERKOS_HOME?.trim() && !fs.existsSync(HOME_DIR) && fs.existsSync(LEGACY_HOME)) fs.renameSync(LEGACY_HOME, HOME_DIR); } catch {}
 // Version for Settings › About: package.json version + git short SHA. The
 // packaged app gets the SHA injected by electron-builder (extraMetadata.buildSha).
 const APP_VERSION = app.getVersion();
@@ -19,12 +24,20 @@ const APP_BUILD = (() => {
 })();
 let child = null;
 
-// Pruebas: FLOOR_USER_DATA aisla el perfil de Chromium (sesion Privy, storage)
+// Pruebas: PERKOS_USER_DATA aisla el perfil de Chromium (sesion Privy, storage)
 // para abrir el .app junto a la version de desarrollo sin pisar su perfil.
-if (process.env.FLOOR_USER_DATA) app.setPath("userData", process.env.FLOOR_USER_DATA);
+if (process.env.PERKOS_USER_DATA) app.setPath("userData", process.env.PERKOS_USER_DATA);
+// El perfil se llamaba "PerkOS Floor" hasta 0.2.0: se renombra una vez para
+// conservar la sesion de Privy y el storage.
+try {
+  const appData = app.getPath("appData");
+  const oldProfile = path.join(appData, "PerkOS Floor");
+  const newProfile = path.join(appData, app.getName());
+  if (!process.env.PERKOS_USER_DATA && !fs.existsSync(newProfile) && fs.existsSync(oldProfile)) fs.renameSync(oldProfile, newProfile);
+} catch {}
 
 // Floor.app empaquetado: las claves del servidor (BANKR_API_KEY, BASE_RPC_URL,
-// KNOWLEDGE_*) no viajan dentro del bundle. Se leen de ~/.perkos-floor/env,
+// KNOWLEDGE_*) no viajan dentro del bundle. Se leen de ~/.perkos-xyz/env,
 // formato KEY=VALUE como apps/web/.env.local. En desarrollo Next lee .env.local.
 function homeEnv() {
   const out = {};
@@ -92,8 +105,8 @@ function startWeb(port) {
     const web = path.join(process.resourcesPath, "web");
     const logs = path.join(HOME_DIR, "logs");
     fs.mkdirSync(logs, { recursive: true });
-    const log = fs.createWriteStream(path.join(logs, "floor-app.log"), { flags: "a" });
-    log.write(`\n[${new Date().toISOString()}] Floor.app ${app.getVersion()} · port ${port}\n`);
+    const log = fs.createWriteStream(path.join(logs, "perkos-app.log"), { flags: "a" });
+    log.write(`\n[${new Date().toISOString()}] PerkOS.app ${app.getVersion()} · port ${port}\n`);
     child = spawn(process.execPath, [path.join(web, "server.js")], {
       cwd: web,
       env: {
@@ -101,11 +114,11 @@ function startWeb(port) {
         ...homeEnv(),
         ELECTRON_RUN_AS_NODE: "1",
         NODE_ENV: "production",
-        FLOOR_APP_VERSION: APP_VERSION,
-        FLOOR_APP_BUILD: APP_BUILD,
+        PERKOS_APP_VERSION: APP_VERSION,
+        PERKOS_APP_BUILD: APP_BUILD,
         HOSTNAME: "127.0.0.1",
         PORT: String(port),
-        FLOOR_DEBUG_LOG: path.join(logs, "floor-debug.log")
+        PERKOS_DEBUG_LOG: path.join(logs, "perkos-debug.log")
       },
       stdio: ["ignore", "pipe", "pipe"]
     });
@@ -116,7 +129,7 @@ function startWeb(port) {
   const web = path.join(__dirname, "../web");
   child = spawn("npx", ["next", "dev", "--hostname", "127.0.0.1", "--port", String(port)], {
     cwd: web,
-    env: { ...process.env, FLOOR_APP_VERSION: APP_VERSION, FLOOR_APP_BUILD: APP_BUILD },
+    env: { ...process.env, PERKOS_APP_VERSION: APP_VERSION, PERKOS_APP_BUILD: APP_BUILD },
     stdio: ["ignore", "pipe", "pipe"]
   });
   child.stdout?.on("data", (b) => process.stdout.write(b));
@@ -124,7 +137,7 @@ function startWeb(port) {
 }
 
 async function url() {
-  if (process.env.FLOOR_URL) return process.env.FLOOR_URL;
+  if (process.env.PERKOS_URL) return process.env.PERKOS_URL;
   const port = await takePort();
   startWeb(port);
   // Debe quedarse en 127.0.0.1 (o localhost). Privy lee window.location.hostname
@@ -137,7 +150,7 @@ async function create() {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
-    title: "PerkOS Floor",
+    title: "PerkOS",
     // Linux / Windows toman el icono de la ventana; macOS usa el del Dock (abajo).
     icon: path.join(__dirname, "icon.png"),
     backgroundColor: "#00000000",

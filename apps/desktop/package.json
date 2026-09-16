@@ -1,6 +1,6 @@
 {
-  "name": "perkos-floor-desktop",
-  "version": "0.2.0",
+  "name": "perkos-xyz-desktop",
+  "version": "0.3.0",
   "private": true,
   "main": "main.cjs",
   "scripts": {
@@ -13,10 +13,10 @@
     "electron": "^37.2.0",
     "electron-builder": "^26.15.3"
   },
-  "description": "PerkOS Floor. Tokenized stocks on Base, worked by a desk of agents. They draft. You approve.",
+  "description": "PerkOS for the desktop. A desk of agents works tokenized stocks on Base. They draft. You approve.",
   "author": "PerkOS",
   "build": {
-    "appId": "xyz.perkos.floor",
+    "appId": "xyz.perkos.app",
     "productName": "PerkOS",
     "copyright": "PerkOS",
     "directories": {

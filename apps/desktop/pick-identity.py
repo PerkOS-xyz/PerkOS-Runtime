@@ -1,16 +1,16 @@
 # Prints the SHA-1 of the "Developer ID Application" identity to sign with:
-# FLOOR_SIGN_IDENTITY if set (hash or exact name), else the valid identity
+# PERKOS_SIGN_IDENTITY if set (hash or exact name), else the valid identity
 # whose certificate expires last. Prints nothing when there is none.
 import os, re, subprocess, sys
 from datetime import datetime
 
-want = os.environ.get("FLOOR_SIGN_IDENTITY", "").strip()
+want = os.environ.get("PERKOS_SIGN_IDENTITY", "").strip()
 valid = subprocess.run(["security", "find-identity", "-v", "-p", "codesigning"], capture_output=True, text=True).stdout
 ids = re.findall(r'\)\s+([0-9A-F]{40})\s+"(Developer ID Application: [^"]+)"', valid)
 if want:
     for h, name in ids:
         if want in (h, name): print(h); sys.exit(0)
-    sys.exit(f"FLOOR_SIGN_IDENTITY not found among valid identities: {want}")
+    sys.exit(f"PERKOS_SIGN_IDENTITY not found among valid identities: {want}")
 best = None
 certs = subprocess.run(["security", "find-certificate", "-a", "-Z", "-p", "-c", "Developer ID Application"], capture_output=True, text=True).stdout
 for block in re.split(r"(?=SHA-1 hash: )", certs):

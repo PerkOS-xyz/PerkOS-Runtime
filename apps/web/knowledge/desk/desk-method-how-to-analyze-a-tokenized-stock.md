@@ -2,7 +2,7 @@
 title: "Desk method: how to analyze a tokenized stock"
 kind: app
 updated: "2026-09-16T12:00:00.000Z"
-source: PerkOS Floor
+source: PerkOS
 sources: https://docs.chain.link/data-feeds, https://docs.base.org/base-chain/tokenized-stocks
 ---
 

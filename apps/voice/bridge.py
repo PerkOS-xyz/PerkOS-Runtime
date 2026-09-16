@@ -13,7 +13,7 @@ import sys
 import urllib.error
 import urllib.request
 
-FLOOR = os.environ.get("FLOOR_URL", "http://127.0.0.1:3000").rstrip("/")
+FLOOR = os.environ.get("PERKOS_URL", "http://127.0.0.1:3000").rstrip("/")
 
 
 def post(text: str) -> None:

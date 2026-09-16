@@ -1,11 +1,11 @@
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import MiniSearch from "minisearch";
 import { createHash } from "node:crypto";
+import { homePath } from "./home";
 
 // Conocimiento local del desk: un vault Markdown (Obsidian-compatible) en
-// ~/.perkos-floor/knowledge/<desk>/... que Floor escribe en cada turno y lee
+// ~/.perkos-xyz/knowledge/<desk>/... que Floor escribe en cada turno y lee
 // indexado (MiniSearch, BM25 en memoria, reconstruido desde los archivos al
 // arrancar) para dar contexto a la esfera y a la mesa. Nunca secretos.
 //
@@ -17,10 +17,10 @@ import { createHash } from "node:crypto";
 //   shared/*.md                              notas de la persona para todos los desks
 //
 // Fase 2: embeddings locales (Transformers.js, all-MiniLM-L6-v2 q8, 384 dims,
-// ~23 MB en ~/.perkos-floor/models) en .index/vectors.json; busqueda hibrida
+// ~23 MB en ~/.perkos-xyz/models) en .index/vectors.json; busqueda hibrida
 // BM25 + coseno (fusion RRF). Resumenes del diario a memory.md via Grok.
 
-export const KB_DIR = process.env.PERKOS_KB_DIR?.trim() || join(homedir(), ".perkos-floor", "knowledge");
+export const KB_DIR = process.env.PERKOS_KB_DIR?.trim() || homePath("knowledge");
 
 export type NoteKind = "journal" | "analysis" | "order" | "memory" | "decision" | "app" | "profile";
 export type Note = {
@@ -67,7 +67,7 @@ function extractor() {
   extractorP = (async () => {
     try {
       const { pipeline, env } = await import("@huggingface/transformers");
-      env.cacheDir = join(homedir(), ".perkos-floor", "models");
+      env.cacheDir = homePath("models");
       const pipe = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2", { dtype: "q8" });
       return async (texts: string[]) => {
         const out = await pipe(texts, { pooling: "mean", normalize: true });
@@ -258,7 +258,7 @@ export async function writeNote(n: { desk: string; kind: NoteKind; title: string
   else rel = `app/${safe(n.title)}.md`;
   const full = join(KB_DIR, rel);
   await mkdir(join(full, ".."), { recursive: true, mode: 0o700 });
-  const meta = { title: n.title, desk, kind: n.kind, ticker: n.ticker, updated: new Date().toISOString(), source: "PerkOS Floor" };
+  const meta = { title: n.title, desk, kind: n.kind, ticker: n.ticker, updated: new Date().toISOString(), source: "PerkOS" };
   await writeFile(full, `${front(meta)}\n# ${n.title}\n\n${scrub(n.body).trim()}\n`, { mode: 0o600 });
   await upsertIndex(rel);
   return rel;
@@ -273,7 +273,7 @@ export async function appendJournal(desk: string, entry: string): Promise<string
   try { cur = await readFile(full, "utf8"); } catch {}
   const time = new Date().toISOString().slice(11, 16);
   if (!cur) {
-    cur = `${front({ title: `${desk} · ${today()}`, desk: safe(desk), kind: "journal", updated: new Date().toISOString(), source: "PerkOS Floor" })}\n# ${desk} · ${today()}\n`;
+    cur = `${front({ title: `${desk} · ${today()}`, desk: safe(desk), kind: "journal", updated: new Date().toISOString(), source: "PerkOS" })}\n# ${desk} · ${today()}\n`;
   }
   cur = cur.replace(/^updated: .*$/m, `updated: ${new Date().toISOString()}`);
   await writeFile(full, `${cur}\n## ${time} UTC\n${scrub(entry).trim()}\n`, { mode: 0o600 });
@@ -395,7 +395,7 @@ export async function appendMemory(desk: string, heading: string, body: string):
   await mkdir(join(full, ".."), { recursive: true, mode: 0o700 });
   let cur = "";
   try { cur = await readFile(full, "utf8"); } catch {}
-  if (!cur) cur = `${front({ title: `${desk} · memory`, desk: safe(desk), kind: "memory", updated: new Date().toISOString(), source: "PerkOS Floor" })}\n# ${desk} · memory\n\nStable facts, decisions and preferences this desk should keep. Edit freely; Floor appends dated summaries below.\n`;
+  if (!cur) cur = `${front({ title: `${desk} · memory`, desk: safe(desk), kind: "memory", updated: new Date().toISOString(), source: "PerkOS" })}\n# ${desk} · memory\n\nStable facts, decisions and preferences this desk should keep. Edit freely; Floor appends dated summaries below.\n`;
   cur = cur.replace(/^updated: .*$/m, `updated: ${new Date().toISOString()}`);
   await writeFile(full, `${cur}\n## ${heading}\n${scrub(body).trim()}\n`, { mode: 0o600 });
   await upsertIndex(rel);

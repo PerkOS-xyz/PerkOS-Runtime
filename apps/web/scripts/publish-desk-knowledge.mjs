@@ -46,7 +46,7 @@ for (const f of files) {
     sanitization_status: "sanitized",
     visibility: "public",
     evidence: urls.map((url) => ({ type: url.includes("basescan.org") ? "explorer" : "official_doc", url, verified: true, note: "verified by the PerkOS Floor Desk, 2026-09-16" })),
-    metadata: { app: "perkos-floor", file: f }
+    metadata: { app: "perkos-xyz", file: f }
   });
 }
 console.log(`${items.length} note(s):`);
@@ -56,7 +56,7 @@ if (!TOKEN) { console.error("KNOWLEDGE_INGEST_TOKEN is not set"); process.exit(2
 const res = await fetch(`${BASE}/api/ingest/research`, {
   method: "POST",
   headers: { "content-type": "application/json", authorization: `Bearer ${TOKEN}`, "x-agent-id": AGENT },
-  body: JSON.stringify({ source: "perkos-floor", visibility: "public", contribution_type: "desk-knowledge", items })
+  body: JSON.stringify({ source: "perkos-xyz", visibility: "public", contribution_type: "desk-knowledge", items })
 });
 const j = await res.json().catch(() => ({}));
 console.log(`HTTP ${res.status}`, JSON.stringify({ ok: j.ok, upserted: j.upserted, accepted: Array.isArray(j.accepted) ? j.accepted.map((a) => `${a.path} ${a.publicationStatus}`) : undefined, error: j.error }, null, 1));

@@ -21,7 +21,7 @@ def render(scale):
         f2 = ImageFont.truetype("/System/Library/Fonts/Menlo.ttc", 11 * scale)
     except Exception:
         f = f2 = ImageFont.load_default()
-    d.text((72 * scale, 30 * scale), f"PERKOS FLOOR  {version}".strip(), fill=(150, 160, 190, 255), font=f)
+    d.text((72 * scale, 30 * scale), f"PERKOS  {version}".strip(), fill=(150, 160, 190, 255), font=f)
     d.text((300 * scale, 355 * scale), "DRAG PERKOS TO APPLICATIONS", fill=(120, 130, 160, 255), font=f2, anchor="mm")
     d.text((300 * scale, 378 * scale), "They draft. You approve.", fill=(236, 27, 105, 255), font=f2, anchor="mm")
     # arrow between the two icons (icons sit at x=170 and x=430, y=210)
