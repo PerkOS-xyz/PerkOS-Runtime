@@ -1,6 +1,6 @@
 import { loadSettings } from "../../../lib/settingsStore";
 import { askOne, type FleetReply, type FleetRole } from "../../../lib/fleet";
-import { contextFor } from "../../../lib/kb";
+import { contextFor, kbBusy } from "../../../lib/kb";
 import { queryDeskKnowledge } from "../../../lib/knowledge";
 
 // POST /api/fleet/desk { text, roles, quote? } -> SSE
@@ -71,6 +71,7 @@ export async function POST(req: Request) {
   const text = body.text?.trim() ?? "";
   if (!text) return Response.json({ error: "text" }, { status: 400 });
   const ready = new Set((body.roles ?? []).filter((r): r is FleetRole => ["scout", "risk", "trader", "auditor"].includes(r)));
+  kbBusy(true);
   const q = body.quote ?? null;
   const s = await loadSettings();
   if (!s.wallet) return Response.json({ error: "perkos_session_required" }, { status: 401 });
@@ -171,6 +172,7 @@ export async function POST(req: Request) {
       } catch (e) {
         send({ step: "error", detail: (e as Error).message });
       } finally {
+        kbBusy(false);
         controller.close();
       }
     }

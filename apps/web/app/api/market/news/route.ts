@@ -8,7 +8,7 @@ export async function POST(req: Request) {
   const ticker = typeof body.ticker === "string" ? body.ticker.trim().toUpperCase().slice(0, 12) : "";
   const name = typeof body.name === "string" ? body.name.trim().slice(0, 60) : ticker;
   if (!ticker) return Response.json({ error: "ticker" }, { status: 400 });
-  const hit = body.force ? undefined : cachedNews(ticker);
+  const hit = body.force ? undefined : await cachedNews(ticker);
   if (hit) return Response.json({ ...hit, cached: true });
   const r = await newsFor(ticker, name, body.force === true);
   if ("error" in r) return Response.json({ error: r.error, detail: r.detail }, { status: r.status });

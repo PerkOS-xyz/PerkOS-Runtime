@@ -85,6 +85,14 @@ const embedText = (d: Doc) => `${d.title}\n${d.text.slice(0, 900)}`;
 // textos y cediendo el event loop entre lotes, para que un turno de mesa o un
 // status de flota nunca esperen minutos detras de una indexacion.
 const yieldLoop = () => new Promise<void>((r) => setImmediate(r));
+// Compuerta: mientras una mesa o el principal trabajan (rutas /api/fleet/desk
+// y /api/chat), los lotes de embeddings esperan. Un lote de 4 textos bloquea
+// el loop varios segundos; quince notas nuevas (perfiles, outlook, siembra)
+// retrasaron un turno 3 min. Con la compuerta el turno paga a lo sumo un lote.
+let busyUntil = 0;
+export function kbBusy(on: boolean, maxMs = 5 * 60_000) { busyUntil = on ? Date.now() + maxMs : 0; }
+const isBusy = () => busyUntil > Date.now();
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 let embedTimer: ReturnType<typeof setTimeout> | null = null;
 function scheduleEmbed(delayMs = 4000) {
   if (embedTimer) clearTimeout(embedTimer);
@@ -104,6 +112,7 @@ export async function embedMissing(): Promise<number> {
     if (!embed) return 0;
     const t0 = Date.now();
     for (let i = 0; i < todo.length; i += 4) {
+      while (isBusy()) await sleep(500);
       const batch = todo.slice(i, i + 4);
       const out = await embed(batch.map(embedText));
       batch.forEach((d, j) => vecs.set(d.id, { hash: hashOf(embedText(d)), vec: out[j] }));

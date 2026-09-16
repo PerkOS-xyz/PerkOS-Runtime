@@ -1,5 +1,6 @@
 import { createPublicClient, http, parseAbi } from "viem";
 import { base } from "viem/chains";
+import { DiskCache } from "./diskCache";
 
 // Historico de precio por activo desde las rondas del feed Chainlink en Base
 // (total-return, 24/5, ~1 ronda cada pocas horas por desviacion). Tres
@@ -41,8 +42,8 @@ export type PriceHistory = {
   line: string;
 };
 
-const cache = new Map<string, { at: number; h: PriceHistory }>();
 const TTL = 6 * 60 * 60_000;
+const cache = new DiskCache<PriceHistory>("history", TTL);
 
 function client() {
   const url = process.env.BASE_RPC_URL?.trim() || "https://base-rpc.publicnode.com";
@@ -73,8 +74,8 @@ const fmt = (n: number) => `${n > 0 ? "+" : ""}${n.toFixed(1)}%`;
 /** Historico de `days` dias (o lo que la fase del feed cubra). undefined si no hay feed o falla. */
 export async function priceHistory(ticker: string, days = 30): Promise<PriceHistory | undefined> {
   const key = `${ticker.toUpperCase()}:${days}`;
-  const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < TTL) return hit.h;
+  const hit = await cache.get(key);
+  if (hit) return hit;
   const feed = CHAINLINK_FEEDS[ticker.toUpperCase()];
   if (!feed) return undefined;
   try {
@@ -120,7 +121,7 @@ export async function priceHistory(ticker: string, days = 30): Promise<PriceHist
       changePct: pct(last, first), fromLowPct: pct(last, low), fromHighPct: pct(last, high), points, at: new Date().toISOString(),
       line: `${Math.round(covered)}-day reference range $${low.toFixed(2)} to $${high.toFixed(2)} (since ${since.toLocaleDateString("en-US", { month: "short", day: "numeric" })}), ${fmt(pct(last, first))} over the period, now ${fmt(pct(last, low))} from the low and ${fmt(pct(last, high))} from the high.`
     };
-    cache.set(key, { at: Date.now(), h });
+    await cache.set(key, h);
     return h;
   } catch {
     return undefined;

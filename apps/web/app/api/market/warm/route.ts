@@ -16,7 +16,7 @@ async function warm() {
   const rows = [...scan.rows];
   const worker = async () => {
     for (let r = rows.shift(); r; r = rows.shift()) {
-      if (!cachedNews(r.ticker)) { const n = await newsFor(r.ticker, r.name).catch(() => null); if (n && !("error" in n)) news += 1; }
+      if (!(await cachedNews(r.ticker))) { const n = await newsFor(r.ticker, r.name).catch(() => null); if (n && !("error" in n)) news += 1; }
       if (!(await cachedProfile(r.ticker))) { const p = await assetProfile(r.ticker, r.name).catch(() => undefined); if (p) profiles += 1; }
     }
   };

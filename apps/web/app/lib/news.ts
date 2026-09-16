@@ -1,22 +1,23 @@
 import { getXaiAccessToken, XAI_OAUTH_BASE_URL } from "./xaiOAuth";
 import { loadSettings } from "./settingsStore";
+import { DiskCache } from "./diskCache";
 
 // Noticias por activo: que movio la accion en 24 h y el proximo catalizador,
 // con fuentes (Grok web_search + x_search, Responses API). Cache 15 min en
-// memoria. La ruta /api/market/news y el precalentamiento usan esta funcion.
+// disco (compartida entre rutas). La ruta /api/market/news y el
+// precalentamiento usan esta funcion.
 export type News = { text: string; sources: Array<{ url: string; title?: string }>; at: string };
-const cache = new Map<string, News>();
-const inflight = new Map<string, Promise<News | { error: string; detail?: string; status: number }>>();
 export const NEWS_TTL = 15 * 60_000;
+const cache = new DiskCache<News>("news", NEWS_TTL);
+const inflight = new Map<string, Promise<News | { error: string; detail?: string; status: number }>>();
 
-export function cachedNews(ticker: string): News | undefined {
-  const hit = cache.get(ticker.toUpperCase());
-  return hit && Date.now() - Date.parse(hit.at) < NEWS_TTL ? hit : undefined;
+export async function cachedNews(ticker: string): Promise<News | undefined> {
+  return cache.get(ticker.toUpperCase());
 }
 
 export async function newsFor(ticker: string, name: string, force = false): Promise<News | { error: string; detail?: string; status: number }> {
   const T = ticker.toUpperCase();
-  if (!force) { const hit = cachedNews(T); if (hit) return hit; }
+  if (!force) { const hit = await cachedNews(T); if (hit) return hit; }
   const running = inflight.get(T);
   if (running) return running;
   const p = (async () => {
@@ -43,7 +44,7 @@ export async function newsFor(ticker: string, name: string, force = false): Prom
     const seen = new Set<string>();
     const sources = blocks.flatMap((c) => c.annotations ?? []).filter((a) => a.type === "url_citation" && a.url && !seen.has(a.url) && seen.add(a.url)).map((a) => ({ url: a.url!, title: a.title })).slice(0, 5);
     const news: News = { text, sources, at: new Date().toISOString() };
-    cache.set(T, news);
+    await cache.set(T, news);
     return news;
   })().finally(() => inflight.delete(T));
   inflight.set(T, p);
