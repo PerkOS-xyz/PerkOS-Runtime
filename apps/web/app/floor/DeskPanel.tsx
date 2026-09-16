@@ -167,6 +167,13 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
             </div>
           ) : null}
           <ul className="rows">
+            <li className="head" aria-hidden="true">
+              <div className="cell name"><small>Stock · issuer</small></div>
+              <div className="cell chart"><small>24h</small></div>
+              <div className="cell num"><small>Price · 24h move</small></div>
+              <div className="cell num"><small>Liquidity · venue · fee</small></div>
+              <div className="cell acts"><small>Actions</small></div>
+            </li>
             {list.map((r) => {
               const on = isFocus(r) || r.address === picked;
               return (
@@ -247,6 +254,13 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
           {!positions ? <p className="hint-line">Reading your wallet…</p> : positions.length === 0 ? <p className="hint-line">No tokenized stocks yet. Try "buy $5 of NVIDIA".</p> : null}
           {positions && positions.length ? <div className="total"><span>Total</span><b>{usd(total)}</b></div> : null}
           <ul className="rows">
+            <li className="head" aria-hidden="true">
+              <div className="cell name"><small>Position · issuer</small></div>
+              <div className="cell chart"><small>24h</small></div>
+              <div className="cell num"><small>Shares</small></div>
+              <div className="cell num"><small>Value · price</small></div>
+              <div className="cell acts"><small>Actions</small></div>
+            </li>
             {(positions ?? []).map((p) => (
               <li key={p.symbol + p.issuer}>
                 <div className="cell name">

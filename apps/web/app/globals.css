@@ -1486,3 +1486,9 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .desk-panel .note-md table { border-collapse: collapse; font-size: 11px; }
 .desk-panel .note-md td, .desk-panel .note-md th { border: 1px solid rgba(120, 160, 255, 0.18); padding: 3px 8px; }
 .desk-panel .note-md blockquote { margin: 0 0 8px; padding-left: 10px; border-left: 2px solid rgba(236, 27, 105, 0.5); color: #9aabc8; }
+
+/* Encabezados de columna en Market y Portfolio. */
+.desk-panel .rows li.head { position: sticky; top: 0; z-index: 1; cursor: default; padding: 4px 10px 6px; border-bottom: 1px solid rgba(120, 160, 255, 0.14); border-radius: 0; background: rgba(6, 10, 22, 0.95); }
+.desk-panel .rows li.head:hover { background: rgba(6, 10, 22, 0.95); }
+.desk-panel .rows li.head .cell small { font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: #6f7d99; }
+.desk-panel .rows li.head .cell.acts small { text-align: right; width: 100%; }
