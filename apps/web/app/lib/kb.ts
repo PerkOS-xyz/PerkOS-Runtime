@@ -22,7 +22,7 @@ import { homePath } from "./home";
 
 export const KB_DIR = process.env.PERKOS_KB_DIR?.trim() || homePath("knowledge");
 
-export type NoteKind = "journal" | "analysis" | "order" | "memory" | "decision" | "app" | "profile";
+export type NoteKind = "journal" | "analysis" | "order" | "memory" | "decision" | "app" | "profile" | "launch" | "automation";
 export type Note = {
   id: string;        // ruta relativa al vault
   desk: string;      // "floor-desk" | "app"
@@ -169,7 +169,7 @@ async function readNote(rel: string): Promise<Doc | null> {
     const { meta, body } = parseFront(raw);
     const parts = rel.split("/");
     const desk = meta.desk || parts[0] || "app";
-    const kind = (meta.kind as NoteKind) || (parts[0] === "app" ? (parts[1] === "profiles" ? "profile" : "app") : parts[1] === "journal" ? "journal" : parts[1] === "analysis" ? "analysis" : parts[1] === "orders" ? "order" : rel.endsWith("memory.md") ? "memory" : "journal");
+    const kind = (meta.kind as NoteKind) || (parts[0] === "app" ? (parts[1] === "profiles" ? "profile" : "app") : parts[1] === "journal" ? "journal" : parts[1] === "analysis" ? "analysis" : parts[1] === "orders" ? "order" : parts[1] === "launches" ? "launch" : parts[1] === "automations" ? "automation" : rel.endsWith("memory.md") ? "memory" : "journal");
     const title = meta.title || body.match(/^#\s+(.+)$/m)?.[1] || parts[parts.length - 1].replace(/\.md$/, "");
     return { id: rel, desk, kind, title, ticker: meta.ticker || undefined, body, text: body.slice(0, 20_000), updatedAt: meta.updated || st.mtime.toISOString() };
   } catch {
@@ -264,6 +264,8 @@ export async function writeNote(n: { desk: string; kind: NoteKind; title: string
   else if (n.kind === "analysis") rel = `${desk}/analysis/${tick(n.ticker)}/${stamp()}.md`;
   else if (n.kind === "order") rel = `${desk}/orders/${safe(n.title)}.md`;
   else if (n.kind === "decision") rel = `${desk}/decisions/${safe(n.title)}.md`;
+  else if (n.kind === "launch") rel = `${desk}/launches/${safe(n.title)}.md`;
+  else if (n.kind === "automation") rel = `${desk}/automations/${safe(n.title)}.md`;
   else if (n.kind === "memory") rel = `${desk}/memory.md`;
   else if (n.kind === "profile") rel = `app/profiles/${tick(n.ticker)}.md`;
   else if (n.desk === "shared") rel = `shared/${safe(n.title)}.md`;

@@ -25,6 +25,7 @@ const clip = (s: string, n = 700) => s.replace(/\s+/g, " ").trim().slice(0, n);
 // `facts` es todo lo que el agente tuvo delante (quote, hechos, noticias,
 // memoria): un porcentaje que sale de ahi no es invento.
 function lintReplies(mode: string, facts: string, replies: FleetReply[]): string[] {
+  const gatedMode = mode === "order" || mode === "launch";
   const flags: string[] = [];
   const factPcts = new Set((facts.match(/-?\d+(?:\.\d+)?\s?%/g) ?? []).map((x) => Math.abs(parseFloat(x)).toFixed(1)));
   const known = new Set(["1.5", "0.1", "0.3", "1.0", "0.5", "2.0", "5.0", "10.0"]);
@@ -40,14 +41,14 @@ function lintReplies(mode: string, facts: string, replies: FleetReply[]): string
     if (unknown.length) flags.push(`${r.role}:pct-not-in-facts(${unknown.slice(0, 3).join(",")})`);
     // Tamano recomendado por encima del limite del desk (100 USDC): solo cuando
     // la cifra viene como recomendacion, no cuando describe la capacidad del pool.
-    if (mode !== "order" && /\b(buy|size|clip|position|allocate|add|enter|start with|deploy)\b[^.\n]{0,40}?(\$\s?\d{2,3}\s?k\b|\b\d{2,3}\s?k\s?(usdc|usd)\b|\$\s?\d{4,}\b|\b[2-9]\d{2,}\s?usdc\b)/i.test(t)) flags.push(`${r.role}:size-over-limit`);
+    if (!gatedMode && /\b(buy|size|clip|position|allocate|add|enter|start with|deploy)\b[^.\n]{0,40}?(\$\s?\d{2,3}\s?k\b|\b\d{2,3}\s?k\s?(usdc|usd)\b|\$\s?\d{4,}\b|\b[2-9]\d{2,}\s?usdc\b)/i.test(t)) flags.push(`${r.role}:size-over-limit`);
     const words = t.trim().split(/\s+/).length;
     if (words > (limits[r.role] ?? 100)) flags.push(`${r.role}:over-length(${words})`);
-    if (mode !== "order" && (r.role === "scout" || r.role === "auditor") && !/\[(F\d+|N)\]/.test(t)) flags.push(`${r.role}:no-citation`);
+    if (!gatedMode && (r.role === "scout" || r.role === "auditor") && !/\[(F\d+|N)\]/.test(t)) flags.push(`${r.role}:no-citation`);
     // Venue inventado: nombra Uniswap (o Aerodrome) cuando ningun hecho lo menciona.
     for (const v of ["Uniswap", "Aerodrome"]) if (new RegExp(`\\b${v}\\b`, "i").test(t) && !new RegExp(`\\b${v}\\b`, "i").test(facts)) flags.push(`${r.role}:venue-not-in-facts(${v})`);
-    if (mode === "order" && r.role === "risk" && !/VERDICT:\s*(GO|BLOCK)/i.test(t)) flags.push("risk:no-verdict");
-    if (mode !== "order" && r.role === "risk" && !/RISK:\s*(low|medium|high)/i.test(t)) flags.push("risk:no-risk-level");
+    if (gatedMode && r.role === "risk" && !/VERDICT:\s*(GO|BLOCK)/i.test(t)) flags.push("risk:no-verdict");
+    if (!gatedMode && r.role === "risk" && !/RISK:\s*(low|medium|high)/i.test(t)) flags.push("risk:no-risk-level");
   }
   return flags;
 }
@@ -70,7 +71,9 @@ export async function POST(req: Request) {
   // Modo de la mesa: "order" (hay una orden: pros/contras + gate + draft),
   // "analyze" (un activo: lectura, riesgo, plan si quisiera exposicion, registro),
   // "advise" (pregunta abierta: ranking sobre el scan del mercado con horizonte).
-  const mode: "order" | "analyze" | "advise" = body.mode === "advise" ? "advise" : body.mode === "analyze" ? "analyze" : body.quote ? "order" : "analyze";
+  // "launch" (un token nuevo emparejado con una accion tokenizada via Bankr: gate + Hold to launch).
+  const mode: "order" | "analyze" | "advise" | "launch" = body.mode === "launch" ? "launch" : body.mode === "advise" ? "advise" : body.mode === "analyze" ? "analyze" : body.quote ? "order" : "analyze";
+  const gated = mode === "order" || mode === "launch";
   const text = body.text?.trim() ?? "";
   if (!text) return Response.json({ error: "text" }, { status: 400 });
   const ready = new Set((body.roles ?? []).filter((r): r is FleetRole => ["scout", "risk", "trader", "auditor"].includes(r)));
@@ -117,7 +120,7 @@ export async function POST(req: Request) {
         const r = await askOne(wallet, role, prompt, 55_000, req.signal);
         replies.push(r);
         // Solo hay veredicto cuando hay una orden; en analyze/advise "block" es lenguaje, no decision.
-        const verdict = mode === "order" && role === "risk" && r.ok ? verdictOf(r.reply) : undefined;
+        const verdict = gated && role === "risk" && r.ok ? verdictOf(r.reply) : undefined;
         send({ step: "reply", ...r, ...(verdict ? { verdict } : {}) });
         return r;
       };
@@ -127,6 +130,8 @@ export async function POST(req: Request) {
         // la mesa ya trae precio, Chainlink, pool, noticias y memoria.
         const deskRules = mode === "order"
           ? " A draft of that order is already on the table, unsigned; the human signs it or not."
+          : mode === "launch"
+          ? " A launch draft is on the table: a new token whose Uniswap V4 pool is paired with a tokenized stock on Base, deployed by Bankr from the human's Bankr wallet, with trading fees paid to the human's wallet. Nothing deploys until the human holds to launch. The launch facts list Bankr's rules and whether each one passes."
           : " Desk limits: the human trades small clips (an order is at most 100 USDC); size advice must be in USDC for this human, never in the pool's scale. The horizon is the one in the request; a catalyst after the horizon does not count as the reason.";
         const always = " These tokens trade 24/7 onchain; only the Chainlink reference pauses outside US equity hours, so never say the market is closed: say the reference is frozen and compare with the last close.";
         const head = `Human request to the desk: "${text}". ${quoteLine}${deskRules}${always}${factsLine}${newsLine}${memoryLine}${sharedLine}\nAnswer directly from the facts above in one message. Do not open skills, files or tools for this reply; the desk already fetched the market data. If something is missing, say so in one line and continue.`;
@@ -134,6 +139,10 @@ export async function POST(req: Request) {
         // paralelo (Risk ya tiene la cotizacion; Scout le suma evidencia si
         // llega), y despues Trader y Auditor con ambos handoffs.
         const P = {
+          launch: {
+            scout: `As Scout: the launch is already decided (name, symbol, paired stock). From the facts, give one line on why this pair can draw attention (the stock's driver and 24 h move, the news) and one line on the trap (a thin or frozen reference, an illiquid pair, a name that overpromises). Open with "@Trader @Auditor". Under 50 words, plain text.`,
+            risk: `As Risk: gate the launch on Bankr's rules in the facts: wallet present, at least 0.002 ETH on Base, fewer than 3 launches in 24 h, a liquid paired stock, a valid name and symbol, and the fee recipient being the human's own wallet. If any check fails or the request is unclear, block. Reply with a first line exactly "VERDICT: GO" or "VERDICT: BLOCK", then a second line starting "@Trader @Auditor" with the reason in under 40 words.`
+          },
           order: {
             scout: `As Scout: the order is already decided, so no market read. Give one line of pros and one line of cons for doing it right now, from the facts (price vs reference, venue depth, off-hours drift, any catalyst). Open with "@Trader @Auditor". Under 45 words, plain text.`,
             risk: `As Risk: size and limits for this desk. Compare the desk's best venue quote with the other venue, with Bankr's second quote and with the Chainlink reference price in the facts; if any pair diverges beyond 1.5%, the pool is thin for the size, or the request is unclear, block. Reply with a first line exactly "VERDICT: GO" or "VERDICT: BLOCK", then a second line starting "@Trader @Auditor" with the reason in under 40 words.`
@@ -153,14 +162,18 @@ export async function POST(req: Request) {
         ]);
         const scoutSaid = scout?.ok ? clip(scout.reply) : "(Scout did not answer)";
         const riskSaid = risk?.ok ? clip(risk.reply) : "(Risk did not answer)";
-        const verdict = mode === "order" ? (risk?.ok ? verdictOf(risk.reply) ?? "BLOCK" : "BLOCK") : undefined;
+        const verdict = gated ? (risk?.ok ? verdictOf(risk.reply) ?? "BLOCK" : "BLOCK") : undefined;
         const tail = `${head}\nScout said: ${scoutSaid}\nRisk said: ${riskSaid}${verdict ? ` (verdict ${verdict})` : ""}.`;
-        const T = mode === "order"
+        const T = mode === "launch"
+          ? `As Trader (open with "@Sparky"): ${verdict === "GO" ? "restate the launch the desk drafted (token name and symbol, the paired stock, the chain, who receives the fees, the 15 percent creator vesting) and what the human must hold to launch. You never execute." : "Risk blocked it: stand down and say which check must change. You never execute."} Under 60 words.`
+          : mode === "order"
           ? `As Trader (open with "@Sparky"): ${q ? (verdict === "GO" ? "restate the order the desk drafted (asset, size, venue, min out) and exactly what the human must sign. You never execute." : "Risk blocked it: stand down and say what would need to change. You never execute.") : "no order is on the table: say what you would draft if asked, in one line. You never execute."} Under 60 words.`
           : mode === "analyze"
             ? `As Trader (open with "@Sparky"): if the human wanted exposure to this stock, give the entry plan: venue, size in USDC as a share of the pool, take profit level, and a stop or a time exit; or say why you would wait and for what. You never execute. Under 60 words.`
             : `As Trader (open with "@Sparky"): entry plan for the top pick the desk is converging on: the venue named in that stock's fact line (Aerodrome or Uniswap, never assume), size in USDC, take profit level, stop or time exit, and when you would add the second pick. You never execute. Under 70 words.`;
-        const A = mode === "order"
+        const A = mode === "launch"
+          ? `As Auditor (open with "@Sparky"): write the launch record for this turn: what was asked, the pair and why, Risk's verdict with the checks that passed or failed, the draft on the table, and what to watch after deployment (fees, pool depth, the stock's next event). Under 80 words.`
+          : mode === "order"
           ? `As Auditor (open with "@Sparky"): write the decision record for this turn: what was asked, what Scout found, Risk's verdict, the draft on the table (or none) and what evidence is missing. Under 80 words.`
           : mode === "analyze"
             ? `As Auditor (open with "@Sparky"): write the analysis record: the thesis in one line, the evidence that supports it with its tags like [F2], the main risk, and what to check next (date or event). Under 80 words.`

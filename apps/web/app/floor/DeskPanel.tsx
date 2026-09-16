@@ -46,7 +46,10 @@ function Spark({ points, w = 96, h = 28, big = false }: { points?: number[]; w?:
   );
 }
 
-export type DeskScreen = "market" | "portfolio" | "notes" | "map" | "history";
+export type DeskScreen = "market" | "portfolio" | "automations" | "notes" | "map" | "history";
+// Automations (Bankr): DCA, stop loss y limit que corren en Bankr desde la
+// wallet Bankr de la persona. Floor guarda lo que pidio y lo que Bankr contesto.
+type AutoRec = { id: string; kind: string; asset?: string; amountUsd?: number; interval?: string; price?: number; text: string; prompt: string; createdAt: string; status: "active" | "paused" | "cancelled"; reply?: string };
 type Note = { id: string; desk: string; kind: string; title: string; ticker?: string; body: string; updatedAt: string };
 type Hit = { id: string; kind: string; title: string; ticker?: string; updatedAt: string; snippet: string };
 
@@ -82,6 +85,22 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
   const [editing, setEditing] = useState(false);
   const [draftBody, setDraftBody] = useState("");
   const [saving, setSaving] = useState(false);
+  const [autos, setAutos] = useState<AutoRec[] | null>(null);
+  const [autoRemote, setAutoRemote] = useState<string>("");
+  const [autoBusy, setAutoBusy] = useState<string>("");
+  const [autoConfigured, setAutoConfigured] = useState(true);
+  const loadAutos = (remote = false) => {
+    if (remote) setAutoBusy("remote");
+    return fetch(`/api/automation${remote ? "?remote=1" : ""}`).then((r) => r.json()).then((j) => { setAutos(j.local ?? []); setAutoConfigured(j.configured !== false); if (j.remote) setAutoRemote(j.remote.text ?? `${j.remote.error ?? ""} ${j.remote.detail ?? ""}`); }).catch((e) => setErr(String(e))).finally(() => setAutoBusy(""));
+  };
+  const autoAct = async (id: string, action: "pause" | "resume" | "cancel") => {
+    setAutoBusy(id);
+    try {
+      const r = await fetch("/api/automation", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, id }) });
+      const j = await r.json();
+      if (!r.ok) setErr(j.detail ?? j.error ?? `HTTP ${r.status}`); else { setAutoRemote(j.reply ?? ""); await loadAutos(); }
+    } finally { setAutoBusy(""); }
+  };
   const saveNote = async () => {
     if (!open) return;
     setSaving(true);
@@ -97,6 +116,9 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
     setErr("");
     if (screen === "market") {
       fetch("/api/market/stocks?depth=1&limit=24").then((r) => r.json()).then((j) => { if (live) setRows(j.stocks ?? []); }).catch((e) => live && setErr(String(e)));
+    } else if (screen === "automations") {
+      setAutoRemote("");
+      void loadAutos();
     } else if (screen === "notes") {
       setOpen(null);
       fetch("/api/kb/notes?limit=40").then((r) => r.json()).then((j) => { if (live) setNotes(j.notes ?? []); }).catch((e) => live && setErr(String(e)));
@@ -157,6 +179,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
         <div className="tabs" role="tablist">
           <button type="button" role="tab" aria-selected={screen === "market"} className={screen === "market" ? "on" : ""} onClick={() => onScreen("market")}>Market</button>
           <button type="button" role="tab" aria-selected={screen === "portfolio"} className={screen === "portfolio" ? "on" : ""} onClick={() => onScreen("portfolio")}>Portfolio</button>
+          <button type="button" role="tab" aria-selected={screen === "automations"} className={screen === "automations" ? "on" : ""} onClick={() => onScreen("automations")}>Automations</button>
           <button type="button" role="tab" aria-selected={screen === "notes"} className={screen === "notes" ? "on" : ""} onClick={() => onScreen("notes")}>Notes</button>
           <button type="button" role="tab" aria-selected={screen === "map"} className={screen === "map" ? "on" : ""} onClick={() => onScreen("map")}>Map</button>
           <button type="button" role="tab" aria-selected={screen === "history"} className={screen === "history" ? "on" : ""} onClick={() => onScreen("history")}>History</button>
@@ -176,6 +199,37 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
 
       {screen === "history" ? (
         <History />
+      ) : screen === "automations" ? (
+        <div className="automations">
+          <div className="auto-head">
+            <small>{autoConfigured ? "Rules that run in Bankr from your Bankr wallet. Say: dca $5 into NVDA every week, or stop loss on TSLA at 380." : "Add a Bankr API key in Settings to create automations."}</small>
+            <div className="acts">
+              <button type="button" disabled={autoBusy === "remote" || !autoConfigured} onClick={() => void loadAutos(true)}>{autoBusy === "remote" ? "Asking Bankr…" : "Ask Bankr"}</button>
+              <button type="button" onClick={() => onSay("dca $5 into NVDA every week")}>New DCA</button>
+            </div>
+          </div>
+          {autoRemote ? <pre className="auto-remote">{autoRemote}</pre> : null}
+          <ul className="rows autos">
+            {(autos ?? []).map((a) => (
+              <li key={a.id} className={a.status}>
+                <div className="cell name">
+                  <b>{a.kind === "dca" ? "DCA" : a.kind === "stop" ? "Stop loss" : a.kind === "limit" ? "Limit buy" : "Schedule"} {a.asset ?? ""}</b>
+                  <small>{a.prompt}</small>
+                  {a.reply ? <small className="snip">{a.reply.slice(0, 160)}</small> : null}
+                </div>
+                <em className={`st ${a.status}`}>{a.status}</em>
+                <small>{a.createdAt.slice(0, 16).replace("T", " ")}</small>
+                <div className="acts">
+                  {a.status === "active" ? <button type="button" disabled={autoBusy === a.id} onClick={() => void autoAct(a.id, "pause")}>Pause</button> : null}
+                  {a.status === "paused" ? <button type="button" disabled={autoBusy === a.id} onClick={() => void autoAct(a.id, "resume")}>Resume</button> : null}
+                  {a.status !== "cancelled" ? <button type="button" disabled={autoBusy === a.id} onClick={() => void autoAct(a.id, "cancel")}>Cancel</button> : null}
+                </div>
+              </li>
+            ))}
+            {autos && autos.length === 0 ? <li><div className="cell name"><small>No automations yet. The first one you create here will be listed, with what Bankr answered.</small></div></li> : null}
+            {!autos ? <li><div className="cell name"><small>Reading…</small></div></li> : null}
+          </ul>
+        </div>
       ) : screen === "map" ? (
         <>
           <p className="hint-line">The desk as a graph: you sign, Sparky speaks, the team hands off, the world is what they look at. Click a node.</p>

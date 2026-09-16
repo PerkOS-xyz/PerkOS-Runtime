@@ -1850,3 +1850,30 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
   .stage.split .mic-dock { display: none; }
   .stage.split .desk-dock { display: none; }
 }
+
+/* Launch card (Bankr token paired with a tokenized stock): checks siempre a la vista. */
+.launch-checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 12px; }
+.launch-checks li { display: grid; grid-template-columns: 14px auto 1fr; gap: 8px; align-items: baseline; }
+.launch-checks li i { font-style: normal; font-size: 11px; text-align: center; }
+.launch-checks li.ok i { color: #7fe0a8; }
+.launch-checks li.bad i { color: #ff8a92; }
+.launch-checks li.skip i { color: var(--mute); }
+.launch-checks li span { color: #e6ecff; }
+.launch-checks li small { color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.launch-checks li.bad small { color: #ff8a92; }
+.draft-card.launch .draft-rows a, .draft-card.automation .draft-rows a { color: #9fc2ff; text-decoration: none; }
+.draft-card.launch .draft-rows a:hover { text-decoration: underline; }
+
+/* Automations screen (desk dock). */
+.desk-panel .automations { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0; }
+.desk-panel .auto-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.desk-panel .auto-head small { color: var(--mute); font-size: 11px; line-height: 1.4; }
+.desk-panel .auto-head .acts, .desk-panel .rows.autos .acts { display: flex; gap: 6px; flex-shrink: 0; }
+.desk-panel .auto-head button, .desk-panel .rows.autos button { font: inherit; font-size: 11px; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); background: transparent; color: #e6ecff; cursor: pointer; }
+.desk-panel .auto-head button:disabled, .desk-panel .rows.autos button:disabled { opacity: 0.5; cursor: default; }
+.desk-panel .auto-remote { margin: 0; padding: 10px 12px; border-radius: 10px; background: rgba(120, 160, 255, 0.07); font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: #cdd7ee; white-space: pre-wrap; max-height: 160px; overflow: auto; }
+.desk-panel .rows.autos li { grid-template-columns: 1fr auto auto auto; cursor: default; }
+.desk-panel .rows.autos li.cancelled { opacity: 0.5; }
+.desk-panel .rows.autos .st { font-style: normal; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); color: var(--mute); }
+.desk-panel .rows.autos .st.active { color: #7fe0a8; border-color: rgba(61, 200, 120, 0.6); }
+.desk-panel .rows.autos .st.paused { color: #ffd08a; border-color: rgba(255, 179, 71, 0.6); }
