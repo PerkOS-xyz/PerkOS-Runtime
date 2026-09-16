@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // onnxruntime-node abre su dylib con dlopen: el trazado solo ve el .node.
   // Sin esto las incrustaciones (Map, busqueda) fallan en el .app.
-  outputFileTracingIncludes: { "/**": ["./node_modules/onnxruntime-node/bin/napi-v6/darwin/**"] },
+  outputFileTracingIncludes: { "/**": ["./node_modules/onnxruntime-node/bin/napi-v6/darwin/arm64/**"] },
   turbopack: { root: __dirname },
   devIndicators: false,
   allowedDevOrigins: ["127.0.0.1", "localhost"]
