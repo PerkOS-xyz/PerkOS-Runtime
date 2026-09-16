@@ -1048,8 +1048,27 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
   backdrop-filter: blur(16px);
   animation: turnIn 220ms var(--split-ease) both;
 }
-.stage.desk-open .core-wrap { opacity: 0.35; }
-.stage.desk-open .orbit { opacity: 0.35; }
+/* Con una pantalla del desk abierta la esfera no se esconde detras del
+   panel: se minimiza arriba, centrada en el espacio que queda a la izquierda
+   del panel (misma escala que el modo compacto), y sigue latiendo con
+   listen/think/speak para que se vea que el agente habla. */
+.stage.desk-open .core-wrap {
+  left: calc((100% - min(480px, 100% - 48px) - 24px) / 2);
+  top: 81px;
+  transform: translate(-50%, -50%) scale(0.27);
+  opacity: 1;
+  transition: left var(--split-ms) var(--split-ease), top var(--split-ms) var(--split-ease), transform var(--split-ms) var(--split-ease);
+}
+.stage.desk-open .mic-dock { display: none; }
+.stage.desk-open .orbit { opacity: 0.25; }
+/* En split la conversacion ocupa la izquierda: la esfera va arriba del centro
+   de esa columna, entre el header y el transcript. */
+.stage.split.desk-open .core-wrap { left: calc(40px + clamp(280px, 46%, 620px) / 2); top: 81px; transform: translate(-50%, -50%) scale(0.27); }
+@container stage (max-width: 700px) {
+  /* Panel a todo el ancho: la esfera al espejo del wordmark, como en compacto. */
+  .stage.desk-open .core-wrap, .stage.split.desk-open .core-wrap { left: calc(100% - 20px - 23px); top: 81px; transform: translate(-50%, -50%) scale(0.27); }
+  .stage.desk-open .who > span { display: none; }
+}
 .desk-panel header { display: flex; align-items: center; justify-content: space-between; }
 .desk-panel .tabs { display: flex; gap: 6px; }
 .desk-panel .tabs button { padding: 5px 12px; border-radius: 999px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; }
