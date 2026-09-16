@@ -6,8 +6,25 @@ import { useEffect, useState } from "react";
 // EQLTY pero sin vault intermedio (las llaves son de la persona). El template
 // declarara `screens[]`; hoy el registro es este componente y el desk es uno.
 
-type Row = { symbol: string; ticker: string; name: string; issuer: string; address: string; priceUsd?: number; priceChange24hPct?: number; volume24hUsd?: number; pool: { address: string; fee: number; usdcDepth: number } | null; tradeable: boolean };
-type Position = { symbol: string; ticker: string; name: string; issuer: string; balance: string; valueUsd: number; priceUsd?: number };
+type Row = { symbol: string; ticker: string; name: string; issuer: string; address: string; priceUsd?: number; priceChange24hPct?: number; volume24hUsd?: number; logoUrl?: string; sparkline?: number[]; pool: { address: string; fee: number; usdcDepth: number } | null; tradeable: boolean };
+type Position = { symbol: string; ticker: string; name: string; issuer: string; balance: string; valueUsd: number; priceUsd?: number; priceChange24hPct?: number; sparkline?: number[] };
+
+/** Linea de precio de las ultimas 24 h (un punto por hora). Sin ejes: es
+ *  una senal, no un grafico de analisis. */
+function Spark({ points, w = 96, h = 28, big = false }: { points?: number[]; w?: number; h?: number; big?: boolean }) {
+  if (!points || points.length < 2) return <svg className="spark" width={w} height={h} aria-hidden />;
+  const min = Math.min(...points), max = Math.max(...points);
+  const span = max - min || 1;
+  const step = w / (points.length - 1);
+  const d = points.map((v, i) => `${i === 0 ? "M" : "L"}${(i * step).toFixed(1)},${(h - 2 - ((v - min) / span) * (h - 4)).toFixed(1)}`).join(" ");
+  const up = points[points.length - 1] >= points[0];
+  return (
+    <svg className={`spark${up ? " up" : " down"}${big ? " big" : ""}`} width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden>
+      {big ? <path className="fill" d={`${d} L${w},${h} L0,${h} Z`} /> : null}
+      <path d={d} />
+    </svg>
+  );
+}
 
 export type DeskScreen = "market" | "portfolio";
 
@@ -42,6 +59,9 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay }: {
 
   const f = focus.toLowerCase();
   const list = (rows ?? []).filter((r) => !q || [r.symbol, r.ticker, r.name].some((v) => v.toLowerCase().includes(q.toLowerCase())));
+  const [picked, setPicked] = useState<string>("");
+  const isFocus = (r: Row) => Boolean(f && (r.ticker.toLowerCase() === f || r.symbol.toLowerCase() === f || r.name.toLowerCase().includes(f)));
+  const detail = (rows ?? []).find((r) => r.address === picked) ?? (rows ?? []).find(isFocus) ?? null;
 
   return (
     <aside className="desk-panel" aria-label="Desk screens">
@@ -59,15 +79,36 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay }: {
           <input className="search" value={q} placeholder="Search a stock…" onChange={(e) => setQ(e.target.value)} />
           {err ? <p className="hint-line err">{err}</p> : null}
           {!rows ? <p className="hint-line">Loading the market…</p> : null}
+          {detail ? (
+            <div className="detail">
+              <div className="detail-head">
+                <div>
+                  <b>{detail.name} <span>{detail.symbol} · {issuerLabel(detail.issuer)}</span></b>
+                  <small>{detail.pool ? `Uniswap V3 · ${detail.pool.fee / 10_000}% · ${usd(detail.pool.usdcDepth, 0)} USDC deep` : "No USDC pool on Uniswap V3 Base"}</small>
+                </div>
+                <div className="num">
+                  <b>{usd(detail.priceUsd)}</b>
+                  <small className={(detail.priceChange24hPct ?? 0) < 0 ? "down" : "up"}>{detail.priceChange24hPct === undefined ? "24 h" : `${detail.priceChange24hPct > 0 ? "+" : ""}${detail.priceChange24hPct.toFixed(2)}% · 24 h`}</small>
+                </div>
+              </div>
+              <Spark points={detail.sparkline} w={440} h={96} big />
+              <div className="detail-acts">
+                <button type="button" onClick={() => onSay(`analyze ${detail.ticker}`)}>Analyze</button>
+                <button type="button" disabled={!detail.tradeable} onClick={() => onSay(`buy $5 of ${detail.symbol}`)}>Buy $5</button>
+                <button type="button" disabled={!detail.tradeable} onClick={() => onSay(`sell half of my ${detail.symbol}`)}>Sell half</button>
+              </div>
+            </div>
+          ) : null}
           <ul className="rows">
             {list.map((r) => {
-              const on = f && (r.ticker.toLowerCase() === f || r.symbol.toLowerCase() === f || r.name.toLowerCase().includes(f));
+              const on = isFocus(r) || r.address === picked;
               return (
-                <li key={r.address} className={`${on ? "focus" : ""}${r.tradeable ? "" : " thin"}`}>
+                <li key={r.address} className={`${on ? "focus" : ""}${r.tradeable ? "" : " thin"}`} onClick={() => setPicked(r.address)}>
                   <div className="cell name">
                     <b>{r.symbol}</b>
                     <small>{r.name} · {issuerLabel(r.issuer)}</small>
                   </div>
+                  <div className="cell chart"><Spark points={r.sparkline} /></div>
                   <div className="cell num">
                     <b>{usd(r.priceUsd)}</b>
                     <small className={(r.priceChange24hPct ?? 0) < 0 ? "down" : "up"}>{r.priceChange24hPct === undefined ? "" : `${r.priceChange24hPct > 0 ? "+" : ""}${r.priceChange24hPct.toFixed(2)}%`}</small>
@@ -77,8 +118,8 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay }: {
                     <small>{r.pool ? `USDC · ${r.pool.fee / 10_000}%` : "USDC"}</small>
                   </div>
                   <div className="cell acts">
-                    <button type="button" onClick={() => onSay(`analyze ${r.ticker}`)}>Analyze</button>
-                    <button type="button" disabled={!r.tradeable} onClick={() => onSay(`buy $5 of ${r.symbol}`)}>Buy $5</button>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); onSay(`analyze ${r.ticker}`); }}>Analyze</button>
+                    <button type="button" disabled={!r.tradeable} onClick={(e) => { e.stopPropagation(); onSay(`buy $5 of ${r.symbol}`); }}>Buy $5</button>
                   </div>
                 </li>
               );
@@ -98,6 +139,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay }: {
                   <b>{p.symbol}</b>
                   <small>{p.name} · {issuerLabel(p.issuer)}</small>
                 </div>
+                <div className="cell chart"><Spark points={p.sparkline} /></div>
                 <div className="cell num">
                   <b>{p.balance}</b>
                   <small>shares</small>

@@ -1106,3 +1106,44 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .desk-menu li button.on { border-color: rgba(236, 27, 105, 0.5); }
 .desk-menu li button small { font-size: 10px; color: var(--mute); }
 .desk-menu li.add button { color: #ff5a6a; font-size: 11px; letter-spacing: 0.08em; }
+
+/* Dock del desk (abajo a la izquierda): pantallas propias del desk activo. */
+.desk-dock {
+  position: absolute; left: 28px; bottom: 28px; z-index: 6;
+  display: flex; gap: 8px;
+}
+.desk-dock button {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 7px 12px; border-radius: 999px;
+  border: 1px solid rgba(120, 160, 255, 0.22); background: rgba(6, 10, 22, 0.45);
+  color: var(--mute); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer;
+  backdrop-filter: blur(12px);
+}
+.desk-dock button svg { width: 15px; height: 15px; }
+.desk-dock button:hover { color: var(--ink); }
+.desk-dock button.on { border-color: rgba(236, 27, 105, 0.6); color: #ff5a6a; box-shadow: 0 0 10px rgba(236, 27, 105, 0.3); }
+.stage.split .desk-dock { left: auto; right: 28px; }
+@container stage (max-width: 560px) { .desk-dock { bottom: 96px; } }
+
+/* Sparklines y detalle del activo en Market. */
+.spark path { fill: none; stroke: #7fb0ff; stroke-width: 1.5; }
+.spark.up path { stroke: #7fe0a8; }
+.spark.down path { stroke: #ff8a92; }
+.spark.big path { stroke-width: 2; }
+.spark.big path.fill { stroke: none; fill: rgba(127, 224, 168, 0.12); }
+.spark.big.down path.fill { fill: rgba(255, 138, 146, 0.12); }
+.desk-panel .rows li { grid-template-columns: 1.3fr 96px 0.8fr 0.8fr auto; cursor: pointer; }
+.desk-panel .cell.chart { display: flex; align-items: center; }
+.desk-panel .detail { padding: 10px 12px 8px; border-radius: 14px; border: 1px solid rgba(236, 27, 105, 0.35); background: rgba(236, 27, 105, 0.05); }
+.desk-panel .detail-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 6px; }
+.desk-panel .detail-head b { display: block; font-size: 15px; font-weight: 500; }
+.desk-panel .detail-head b span { font-size: 11px; color: var(--mute); font-weight: 400; margin-left: 6px; }
+.desk-panel .detail-head small { display: block; font-size: 10px; color: var(--mute); }
+.desk-panel .detail-head .num { text-align: right; }
+.desk-panel .detail .spark { width: 100%; height: 96px; display: block; }
+.desk-panel .detail-acts { display: flex; gap: 8px; margin-top: 6px; }
+.desk-panel .detail-acts button { padding: 5px 11px; font-size: 10px; letter-spacing: 0.08em; }
+@container stage (max-width: 700px) {
+  .desk-panel .rows li { grid-template-columns: 1.3fr 0.9fr auto; }
+  .desk-panel .cell.chart { display: none; }
+}

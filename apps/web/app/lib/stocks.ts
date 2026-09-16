@@ -23,6 +23,10 @@ export type Stock = {
   decimals: number;
   priceUsd?: number;
   volume24hUsd?: number;
+  priceChange24hPct?: number;
+  logoUrl?: string;
+  /** Ultimas 24 h, un punto por hora (Uniswap Data API). */
+  sparkline?: number[];
 };
 export type StockPool = { address: `0x${string}`; fee: number; usdcDepth: number };
 
@@ -46,10 +50,12 @@ function client() {
   return createPublicClient({ chain: base, transport: http(url, { retryCount: 2 }) });
 }
 
+type Spark = { points?: Array<{ timestampS?: string; value?: number }> };
 type RwaItem = {
-  symbol: string; name: string; priceUsd?: number; volume24hUsd?: number;
-  issuerTokens?: Array<{ symbol: string; name: string; issuer?: string; priceUsd?: number; volume24hUsd?: number; chainTokens?: Array<{ chainId: number; address: string }> }>;
+  symbol: string; name: string; logoUrl?: string; priceUsd?: number; volume24hUsd?: number; priceChange24hPct?: number; sparkline1d?: Spark;
+  issuerTokens?: Array<{ symbol: string; name: string; logoUrl?: string; issuer?: string; priceUsd?: number; volume24hUsd?: number; priceChange24hPct?: number; sparkline1d?: Spark; chainTokens?: Array<{ chainId: number; address: string }> }>;
 };
+const sparkOf = (sp?: Spark) => (sp?.points ?? []).map((p) => Number(p.value)).filter((v) => Number.isFinite(v));
 
 let cache: { at: number; stocks: Stock[] } | null = null;
 const decimalsCache = new Map<string, number>();
@@ -63,7 +69,7 @@ export async function listStocks(): Promise<Stock[]> {
     const res = await fetch(RWA_URL, {
       method: "POST",
       headers: { accept: "application/json", "connect-protocol-version": "1", "content-type": "application/json", "x-request-source": "perkos-floor" },
-      body: JSON.stringify({ category: "RWA_CATEGORY_STOCKS", chainIds: [BASE_CHAIN_ID], includeSparkline1d: false, useSubstreamData: true }),
+      body: JSON.stringify({ category: "RWA_CATEGORY_STOCKS", chainIds: [BASE_CHAIN_ID], includeSparkline1d: true, useSubstreamData: true }),
       signal: AbortSignal.timeout(12_000)
     });
     if (!res.ok) throw new Error(`rwa ${res.status}`);
@@ -83,7 +89,10 @@ export async function listStocks(): Promise<Stock[]> {
           address: ct.address as `0x${string}`,
           decimals: b20 ? 8 : -1,
           priceUsd: t.priceUsd ?? r.priceUsd,
-          volume24hUsd: t.volume24hUsd ?? r.volume24hUsd
+          volume24hUsd: t.volume24hUsd ?? r.volume24hUsd,
+          priceChange24hPct: t.priceChange24hPct ?? r.priceChange24hPct,
+          logoUrl: t.logoUrl ?? r.logoUrl,
+          sparkline: (() => { const a = sparkOf(t.sparkline1d); return a.length >= 2 ? a : sparkOf(r.sparkline1d); })()
         });
       }
     }
