@@ -7,7 +7,7 @@ import {
   XAI_ORIGINATOR,
   XAI_USER_AGENT
 } from "../../lib/xaiOAuth";
-import { contextFor } from "../../lib/kb";
+import { contextFor, kbBusy } from "../../lib/kb";
 import { loadSettings } from "../../lib/settingsStore";
 import { buildInstructions, loadBrief, queryLive, shouldQueryLive } from "../../lib/knowledge";
 
@@ -67,6 +67,7 @@ export async function DELETE() {
 }
 
 export async function POST(req: Request) {
+  kbBusy(true, 3 * 60_000);
   const body = (await req.json().catch(() => ({}))) as { text?: string; fleet?: Array<{ role: string; ok: boolean; reply: string; detail?: string }>; desk?: { name?: string; roles?: string[] }; brief?: string[] | null; news?: string | null; focus?: string | null; side?: boolean };
   const text = body.text?.trim() ?? "";
   // Respuestas de la flota (Hermes en PerkOS infra) para este turno: Grok es
@@ -166,6 +167,7 @@ export async function POST(req: Request) {
         history.pop();
         sse(controller, { error: e instanceof Error ? e.message : String(e) });
       } finally {
+        kbBusy(false);
         controller.close();
       }
     }

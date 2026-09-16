@@ -31,6 +31,16 @@ npm start --prefix apps/desktop
 
 Ask the floor: `Hey PerkOS`, `Wake the team`, `Invite the guest`, `Show the documentation`, `Review the market`, `Stop`.
 
+## Desk knowledge
+
+The desk reasons over three layers of knowledge, so every install answers from the same base:
+
+- **Bundled notes** in `apps/web/knowledge/desk/*.md` (what B20 tokenized stocks are, venues and sizing, the desk method). They are seeded into the local vault (`~/.perkos-floor/knowledge/app/`) on first run and refreshed when the bundled copy is newer.
+- **PerkOS Knowledge** (`knowledge.perkos.xyz`, public tier, no key): the same notes plus the daily valuation profile per asset (`floor/profiles/<TICKER>.md`). Every desk turn queries it; the install that holds `KNOWLEDGE_INGEST_TOKEN` publishes new profiles and notes for everyone else (`node scripts/publish-desk-knowledge.mjs`).
+- **Local vault**: analyses, decisions, dated market outlooks and their one-month review, the desk memory.
+
+Quality: every turn is logged to `~/.perkos-floor/logs/desk-quality.jsonl` with prompts, replies and automatic flags; History → Quality shows it, together with the outlooks and their reviews.
+
 ## Status
 
 Scaffold for Runtime Agent Week (demo 19 Sep 2026). Spec lives in the PerkOS Obsidian vault under `Hackathons/Runtime-Agent-Week/`.

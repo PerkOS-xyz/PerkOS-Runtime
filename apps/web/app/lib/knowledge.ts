@@ -96,3 +96,105 @@ export function buildInstructions(base: string, brief: string, live: string): st
   }
   return parts.join("\n\n");
 }
+
+// ---- Conocimiento compartido de la mesa -----------------------------------
+// Las notas del desk (que son los B20, venues y sizing, metodo, perfiles de
+// valuacion por activo) viven en PerkOS Knowledge bajo `floor/...` para que
+// cualquier instalacion de Floor las reciba sin depender del vault local ni
+// de una llave de Grok. Tier publico: sin identidad, $0.
+
+export type DeskRow = { title: string; summary: string; path: string; updatedAt?: string; confidencePercent?: number | null; validated: boolean };
+export type DeskKnowledge = { rows: DeskRow[]; context: string; ms: number; note?: string };
+
+const DESK_TIMEOUT_MS = Number(process.env.KNOWLEDGE_DESK_TIMEOUT_MS || 3000);
+const deskCache = new Map<string, { at: number; r: DeskKnowledge }>();
+const DESK_CACHE_MS = 30 * 60_000;
+
+export async function queryDeskKnowledge(text: string, opts: { pathPrefix?: string; limit?: number; maxChars?: number; perRow?: number; signal?: AbortSignal } = {}): Promise<DeskKnowledge> {
+  const prefix = opts.pathPrefix ?? "floor/";
+  const key = `${prefix}|${text.toLowerCase().replace(/\s+/g, " ").trim()}`;
+  const hit = deskCache.get(key);
+  if (hit && Date.now() - hit.at < DESK_CACHE_MS) return { ...hit.r, note: "cache" };
+  const t0 = Date.now();
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), DESK_TIMEOUT_MS);
+  const onOuter = () => ac.abort();
+  opts.signal?.addEventListener("abort", onOuter);
+  try {
+    const res = await fetch(`${KNOWLEDGE_BASE_URL}/skill/query`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ query: text, limit: opts.limit ?? 8, createRequestOnMiss: false }),
+      signal: ac.signal
+    });
+    const ms = Date.now() - t0;
+    if (!res.ok) return { rows: [], context: "", ms, note: `HTTP ${res.status}` };
+    const j = (await res.json()) as { context?: Row[] };
+    const rows: DeskRow[] = (Array.isArray(j.context) ? j.context : [])
+      .filter((r) => typeof r.path === "string" && r.path.startsWith(prefix) && (r.title || r.summary))
+      .map((r) => ({ title: r.title ?? r.path ?? "item", summary: (r.summary ?? "").trim(), path: r.path!, updatedAt: r.updatedAt ?? undefined, confidencePercent: r.confidencePercent ?? null, validated: r.validationStatus === "validated" }));
+    const perRow = opts.perRow ?? 900;
+    const max = opts.maxChars ?? 2600;
+    let context = "";
+    for (const r of rows) {
+      const line = `- ${r.title}${r.updatedAt ? ` [${String(r.updatedAt).slice(0, 10)}]` : ""}: ${r.summary.replace(/```json[\s\S]*?```/g, "").replace(/\s+/g, " ").slice(0, perRow)}\n`;
+      if (context.length + line.length > max) break;
+      context += line;
+    }
+    const r: DeskKnowledge = { rows, context: context.trim(), ms };
+    deskCache.set(key, { at: Date.now(), r });
+    return r;
+  } catch (e) {
+    const ms = Date.now() - t0;
+    return { rows: [], context: "", ms, note: (e as Error).name === "AbortError" ? "timeout" : (e as Error).message };
+  } finally {
+    clearTimeout(timer);
+    opts.signal?.removeEventListener("abort", onOuter);
+  }
+}
+
+export type DeskItem = {
+  path: string; title: string; summary: string; content?: string; date?: string; track?: string; chains?: string[];
+  evidence?: Array<{ type: string; url?: string; hash?: string; note?: string; verified?: boolean }>;
+  confidence?: "high" | "medium" | "low"; metadata?: Record<string, unknown>;
+};
+
+/** Publica notas de la mesa en PerkOS Knowledge (publico). Solo con KNOWLEDGE_INGEST_TOKEN. */
+export async function publishDeskItems(items: DeskItem[]): Promise<{ ok: boolean; accepted?: number; error?: string; status?: number }> {
+  const token = process.env.KNOWLEDGE_INGEST_TOKEN?.trim();
+  if (!token) return { ok: false, error: "no_ingest_token" };
+  const agentId = process.env.KNOWLEDGE_AGENT_ID?.trim() || "perkos-floor-desk";
+  try {
+    const res = await fetch(`${KNOWLEDGE_BASE_URL}/api/ingest/research`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}`, "x-agent-id": agentId },
+      body: JSON.stringify({
+        source: "perkos-floor",
+        visibility: "public",
+        contribution_type: "desk-knowledge",
+        items: items.map((it) => ({
+          date: it.date ?? new Date().toISOString().slice(0, 10),
+          track: it.track ?? "floor-desk",
+          title: it.title,
+          path: it.path,
+          summary: it.summary,
+          content: it.content ?? it.summary,
+          chains: it.chains ?? ["base"],
+          status: "published",
+          confidence: it.confidence ?? "high",
+          validation_status: "validated",
+          sanitization_status: "sanitized",
+          visibility: "public",
+          evidence: it.evidence ?? [],
+          metadata: { app: "perkos-floor", ...(it.metadata ?? {}) }
+        }))
+      }),
+      signal: AbortSignal.timeout(20_000)
+    });
+    const j = (await res.json().catch(() => ({}))) as { ok?: boolean; upserted?: number; accepted?: unknown[]; error?: string };
+    if (!res.ok) return { ok: false, error: j.error ?? `HTTP ${res.status}`, status: res.status };
+    return { ok: true, accepted: typeof j.upserted === "number" ? j.upserted : Array.isArray(j.accepted) ? j.accepted.length : items.length };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}

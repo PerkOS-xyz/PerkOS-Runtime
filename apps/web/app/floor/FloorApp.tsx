@@ -75,7 +75,7 @@ function Shell() {
   type Brief = { at: string; stock: { symbol: string; ticker: string; name: string; issuer: string }; priceUsd?: number; change24hPct?: number; range24h?: { low: number; high: number; open: number; last: number }; volume24hUsd?: number; sparkline?: number[]; pool: { fee: number; usdcDepth: number; priceUsd?: number } | null; chainlink?: { priceUsd: number; ageMin: number; stale: boolean }; premiumPct?: number; swaps24h?: { count: number; usdcVolume: number; buys: number; sells: number }; holding?: { balance: string; valueUsd: number }; lines: string[] };
   type News = { text: string; sources: Array<{ url: string; title?: string }>; at: string };
   type Analysis = { brief: Brief; news?: News; scout?: string; risk?: string; verdict?: "GO" | "BLOCK"; prev?: { priceUsd?: number; at: string }; loadingNews?: boolean };
-  type Msg = { id: number; role: "you" | "floor" | "team" | "draft" | "analysis"; who?: string; text: string; streaming?: boolean; draft?: Draft; tx?: DraftTx; verdict?: "GO" | "BLOCK"; analysis?: Analysis; turnId?: number; kind?: "open" | "side" };
+  type Msg = { id: number; role: "you" | "floor" | "team" | "draft" | "analysis"; who?: string; text: string; streaming?: boolean; draft?: Draft; tx?: DraftTx; verdict?: "GO" | "BLOCK"; analysis?: Analysis; turnId?: number; kind?: "open" | "side" | "status" };
   // Agent graph del turno en curso (cards bajo las esferas) y turnos plegados.
   const [turn, setTurn] = useState<DeskTurn | null>(null);
   const turnRef = useRef<DeskTurn | null>(null);
@@ -223,7 +223,7 @@ function Shell() {
 
   // Conversacion: POST /api/chat (Responses API via suscripcion de Grok),
   // SSE de deltas -> caption en vivo + se habla oracion por oracion.
-  const chat = useCallback(async (text: string) => {
+  const chat = useCallback(async (text: string, opts: { youId?: number } = {}) => {
     abortChat();
     beginTurn();
     const ac = new AbortController();
@@ -233,9 +233,10 @@ function Shell() {
     setCaption("");
     busyRef.current = true;
     touch();
-    const youId = Date.now();
-    const floorId = youId + 1;
-    setMessages((m) => [...m.slice(-60), { id: youId, role: "you", text, turnId: youId }, { id: floorId, role: "floor", text: "", streaming: true, turnId: youId }]);
+    // Si el pedido ya esta en el hilo (advise lo muestra antes del scan), se reutiliza.
+    const youId = opts.youId ?? Date.now();
+    const floorId = Date.now() + 1;
+    setMessages((m) => [...m.filter((x) => !(x.id === youId + 1 && x.role === "floor" && x.kind === "status")).slice(-60), ...(opts.youId ? [] : [{ id: youId, role: "you" as const, text, turnId: youId }]), { id: floorId, role: "floor" as const, text: "", streaming: true, turnId: youId }]);
     const setFloor = (t: string, streaming: boolean) =>
       setMessages((m) => m.map((x) => (x.id === floorId ? { ...x, text: t, streaming } : x)));
     flog("info", `chat -> ${text.slice(0, 80)}`);
@@ -856,6 +857,15 @@ function Shell() {
     setMessages((m) => [...m.slice(-40), { id, role: "analysis", who: b.stock.symbol, text: "", analysis }]);
     briefRef.current = { lines: b.lines, msgId: id };
     setCaption(`${b.stock.name} $${b.priceUsd?.toFixed(2)} · asking the desk…`);
+    // Perfil de valuacion (cache 24 h / Knowledge / Grok): entra a los hechos y a la nota.
+    let profileLine = "";
+    const profileP = fetch("/api/market/profile", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker: b.stock.ticker, name: b.stock.name }) })
+      .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => {
+        if (ok && typeof j.line === "string") { profileLine = j.line; flog("info", `profile ${b.stock.ticker}: ${j.from}${j.cached ? " · cached" : ""}`); if (briefRef.current?.msgId === id) briefRef.current = { ...briefRef.current, lines: [...b.lines, profileLine] }; }
+        else flog("warn", `profile: ${j.error ?? ""} ${j.detail ?? ""}`);
+      })
+      .catch((e) => flog("warn", `profile: ${(e as Error).message}`));
     // Noticias con fuentes (Grok web_search), en paralelo con el turno de mesa.
     const newsP = fetch("/api/market/news", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker: b.stock.ticker, name: b.stock.name }) })
       .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
@@ -865,7 +875,7 @@ function Shell() {
         const memo2 = memoRef.current.get(key);
         if (memo2) memo2.analysis = { ...memo2.analysis, news, loadingNews: false };
         // Nota de analisis: hechos + noticias con fuentes (Scout/Risk van al diario).
-        kbWriteRef.current({ kind: "analysis", ticker: b.stock.ticker, title: `${b.stock.name} (${b.stock.symbol}) · ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC`, body: `${b.lines.map((l) => `- ${l}`).join("\n")}${news ? `\n\n## News\n${news.text}\n${news.sources.map((s, i) => `[${i + 1}] ${s.url}`).join("\n")}` : ""}` });
+        kbWriteRef.current({ kind: "analysis", ticker: b.stock.ticker, title: `${b.stock.name} (${b.stock.symbol}) · ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC`, body: `${[...b.lines, ...(profileLine ? [profileLine] : [])].map((l) => `- ${l}`).join("\n")}${news ? `\n\n## News\n${news.text}\n${news.sources.map((s, i) => `[${i + 1}] ${s.url}`).join("\n")}` : ""}` });
         setMessages((m) => m.map((x) => (x.id === id && x.analysis ? { ...x, analysis: { ...x.analysis, news, loadingNews: false } } : x)));
         if (briefRef.current?.msgId === id && news) briefRef.current = { ...briefRef.current, news: news.text };
         return news;
@@ -873,8 +883,8 @@ function Shell() {
       .catch((e) => { flog("error", `news: ${(e as Error).message}`); return undefined; });
     // Las noticias entran al prompt de la mesa: esperar hasta 25 s (Grok search
     // tarda 10-16 s; la mesa sin noticia opina a ciegas sobre el catalizador).
-    const got = await Promise.race([newsP.then(() => true), new Promise<boolean>((r) => setTimeout(() => r(false), 25_000))]);
-    if (!got) flog("warn", "news: not ready before the desk turn");
+    const got = await Promise.race([Promise.all([newsP, profileP]).then(() => true), new Promise<boolean>((r) => setTimeout(() => r(false), 25_000))]);
+    if (!got) flog("warn", "news or profile: not ready before the desk turn");
     modeRef.current = "analyze";
     await chat(spoken);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -934,32 +944,71 @@ function Shell() {
     setCaption("Scanning the market…");
     busyRef.current = true;
     touch();
+    // El pedido y el estado se ven desde el primer segundo (en split la caption se oculta).
+    const youId = Date.now();
+    const statusId = youId + 1;
+    const status = (t: string) => setMessages((m) => m.map((x) => (x.id === statusId ? { ...x, text: t } : x)));
+    setMessages((m) => [...m.slice(-60), { id: youId, role: "you", text, turnId: youId }, { id: statusId, role: "floor", kind: "status", text: "Scanning the market…", turnId: youId }]);
     try {
       const r = await fetch("/api/market/scan");
       const scan = (await r.json()) as { at: string; lines: string[]; rows: Array<{ symbol: string; ticker: string; name: string; change24hPct?: number }>; error?: string };
       if (!r.ok || !Array.isArray(scan.lines)) { setCaption(`Could not scan the market: ${scan.error ?? r.status}`); return; }
       flog("info", `scan: ${scan.rows.length} stocks`);
-      const top = scan.rows.slice(0, 3);
-      setCaption(`Reading the news on ${top.map((t) => t.ticker).join(", ")}…`);
-      const newsAll = await Promise.race([
-        Promise.all(top.map((t) => fetch("/api/market/news", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker: t.ticker, name: t.name }) }).then((x) => x.json()).then((j) => (j.text ? `${t.symbol}: ${String(j.text).slice(0, 420)}` : "")).catch(() => ""))),
-        new Promise<string[]>((res) => setTimeout(() => res([]), 28_000))
+      // Todos los activos del scan: noticias (cache 15 min) y perfil de
+      // valuacion (cache 24 h) en paralelo; lo que no llega en 35 s queda fuera.
+      const all = scan.rows;
+      setCaption(`Reading the news and valuation on ${all.length} stocks…`);
+      status(`Scanned ${all.length} stocks with their 30-day range. Reading the news and the valuation on each…`);
+      const newsBy = new Map<string, string>();
+      const profBy = new Map<string, string>();
+      const jobs = all.flatMap((t) => [
+        fetch("/api/market/news", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker: t.ticker, name: t.name }) }).then((x) => x.json()).then((j) => { if (j.text) newsBy.set(t.symbol, `${t.symbol}: ${String(j.text).slice(0, 320)}`); }).catch(() => undefined),
+        fetch("/api/market/profile", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker: t.ticker, name: t.name }) }).then((x) => x.json()).then((j) => { if (typeof j.line === "string") profBy.set(t.symbol, j.line); }).catch(() => undefined)
       ]);
-      const news = newsAll.filter(Boolean).join(" ");
-      briefRef.current = { lines: scan.lines, news: news || undefined };
+      await Promise.race([Promise.all(jobs), new Promise<void>((res) => setTimeout(res, 35_000))]);
+      flog("info", `advise: news ${newsBy.size}/${all.length} · profiles ${profBy.size}/${all.length}`);
+      status(`News on ${newsBy.size} of ${all.length}, valuation on ${profBy.size}. Handing to the desk.`);
+      const news = all.map((t) => newsBy.get(t.symbol) ?? "").filter(Boolean).join(" ");
+      const lines = scan.lines.map((l) => { const sym = l.match(/^([A-Z]{2,6}c)\b/)?.[1]; const p = sym ? profBy.get(sym) : undefined; return p ? `${l} ${p}` : l; });
+      briefRef.current = { lines, news: news || undefined };
       quoteRef.current = null;
       setFocusAsset("");
       modeRef.current = "advise";
-      await chat(text);
+      await chat(text, { youId });
       const replies = lastRepliesRef.current;
       const who = replies.filter((x) => x.ok && x.reply).map((x) => `- **${cap(x.role)}**: ${x.reply.replace(/\s+/g, " ")}`).join("\n");
       const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
-      kbWriteRef.current({ kind: "analysis", ticker: "MARKET", title: `Market outlook · ${stamp} UTC`, body: `**Asked**: ${text}\n\n## Market scan\n${scan.lines.map((l) => `- ${l}`).join("\n")}${news ? `\n\n## News\n${news}` : ""}\n\n## Desk\n${who || "(the desk did not answer)"}\n\n_Review in one month._` });
+      kbWriteRef.current({ kind: "analysis", ticker: "MARKET", title: `Market outlook · ${stamp} UTC`, body: `**Asked**: ${text}\n\n## Market scan\n${lines.map((l) => `- ${l}`).join("\n")}${news ? `\n\n## News\n${news}` : ""}\n\n## Desk\n${who || "(the desk did not answer)"}\n\n_Review in one month._` });
     } catch (e) {
       flog("error", `advise: ${(e as Error).message}`);
       setCaption("Could not scan the market.");
     }
   }, [chat, touch]);
+
+  // Precalentar el mercado (scan, noticias, valuacion de los 10 activos) al
+  // arrancar y cada 15 min: una pregunta abierta no debe esperar a Grok.
+  useEffect(() => {
+    const warm = () => fetch("/api/market/warm", { method: "POST" }).then((r) => r.json()).then((j) => flog("info", `warm: ${j.started ? "started" : "running"}${j.last ? ` · last ${j.last.news} news, ${j.last.profiles} profiles in ${(j.last.ms / 1000).toFixed(0)} s` : ""}`)).catch(() => undefined);
+    const t = window.setTimeout(warm, 20_000);
+    const id = window.setInterval(warm, 15 * 60_000);
+    return () => { window.clearTimeout(t); window.clearInterval(id); };
+  }, []);
+
+  // Outlooks vencidos: al mes la mesa revisa sus llamadas sola. Una vez por
+  // sesion, 30 s despues de arrancar para no competir con el warm-up.
+  useEffect(() => {
+    const t = window.setTimeout(async () => {
+      try {
+        const r = await fetch("/api/desk/review");
+        const j = (await r.json()) as { due?: number };
+        if (!r.ok || !j.due) return;
+        const done = await fetch("/api/desk/review", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).then((x) => x.json()) as { reviewed?: number };
+        flog("info", `outlook review: ${done.reviewed ?? 0}/${j.due}`);
+        if (done.reviewed) setCaption(`Reviewed ${done.reviewed} market outlook${done.reviewed > 1 ? "s" : ""} from a month ago. See History.`);
+      } catch (e) { flog("warn", `outlook review: ${(e as Error).message}`); }
+    }, 30_000);
+    return () => window.clearTimeout(t);
+  }, []);
 
   const run = useCallback((raw: string) => {
     const spoken = raw.trim();
