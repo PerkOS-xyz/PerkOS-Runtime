@@ -36,7 +36,7 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
   const [llm, setLlm] = useState<Llm | null>(null);
   const [model, setModel] = useState("");
   const [saved, setSaved] = useState(false);
-  const [voice, setVoice] = useState<Voice>("rex");
+  const [voice, setVoice] = useState<Voice>("leo");
   const [previewing, setPreviewing] = useState(false);
 
   const refresh = () =>

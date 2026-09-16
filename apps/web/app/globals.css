@@ -1718,7 +1718,8 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
    linea de promesa no toque el compositor; en split, debajo de la fila 2 de
    la cabecera para no pegarse al lockup. */
 .stage:not(.split):not(.desk-open):not(.turn-live) .core-wrap { top: 54%; }
-.stage.split .core-wrap, .stage.split.turn-live .core-wrap { top: 11%; }
+/* En split, Sparky mini nunca pisa el lockup: como minimo 320 px desde la izquierda. */
+.stage.split .core-wrap, .stage.split.turn-live .core-wrap { top: 11%; left: max(23%, 320px); }
 /* Split con panel abierto: Sparky mini un poco mas arriba para no pisar la card de analisis. */
 .stage.split.desk-open .core-wrap { top: 68px; }
 /* Card de analisis en el chat: acciones como los pills del app (Market), "Buy" en coral. */
@@ -1819,3 +1820,28 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 }
 /* Temporal: sonda de tamano de ventana (ronda responsive). */
 .size-probe { position: absolute; right: 10px; bottom: 6px; z-index: 99; font-size: 10px; letter-spacing: 0.08em; color: #ffd18a; background: rgba(6, 10, 22, 0.7); border: 1px solid rgba(255, 179, 71, 0.45); border-radius: 6px; padding: 1px 6px; pointer-events: none; }
+/* Panel a media pantalla en ventanas medias: sin columna de grafico, acciones compactas. */
+@container stage (max-width: 1000px) {
+  .desk-panel.dock:not(.max) .rows li { grid-template-columns: 1.2fr 0.8fr 0.8fr auto; }
+  .desk-panel.dock:not(.max) .cell.chart { display: none; }
+  .desk-panel.dock:not(.max) .cell.acts button { padding: 5px 8px; font-size: 9px; }
+  .desk-panel.dock:not(.max) .detail-acts button { padding: 5px 9px; }
+}
+@container stage (max-width: 900px) {
+  /* Split con panel: Sparky mini mas a la derecha del lockup compacto. */
+  .stage.split.desk-open .core-wrap { left: calc(46% - 40px); top: 66px; }
+}
+/* Chips bajo la fila: Sparky un poco mas abajo tambien en compacto y en ventanas bajas. */
+@container stage (max-width: 900px) { .stage.turn-chips:not(.split):not(.desk-open) .core-wrap { top: 56%; } }
+@media (max-height: 760px) { .stage.turn-chips:not(.split):not(.desk-open) .core-wrap { top: 55%; } }
+/* Angosto (hasta 700): el split pasa a una sola columna. El chat ocupa todo
+   el ancho, la fila de agentes y sus cards se ocultan (los chips quedan en el
+   hilo y en History), y Sparky mini se pone a la izquierda del engranaje. */
+@container stage (max-width: 700px) {
+  .stage.split .convo { left: 16px; top: 108px; width: calc(100% - 32px); padding-right: 0; }
+  .stage.split .convo::after { display: none; }
+  .stage.split .orbit, .stage.split .ag-layer { opacity: 0; pointer-events: none; }
+  .stage.split .core-wrap, .stage.split.turn-live .core-wrap, .stage.split.desk-open .core-wrap { left: calc(100% - 92px); top: 58px; transform: translate(-50%, -50%) scale(0.3); }
+  .stage.split .mic-dock { display: none; }
+  .stage.split .desk-dock { display: none; }
+}
