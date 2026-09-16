@@ -30,6 +30,7 @@ function recency(n: GraphNode, now: number): number {
   return h < 24 ? 1 : h < 24 * 7 ? 0.75 : 0.45;
 }
 const idOf = (v: string | GraphNode) => (typeof v === "string" ? v : v.id);
+const radiusOf = (n: GraphNode) => Math.min(9, 2.6 + Math.sqrt(n.degree) * 1.3) * (n.focus ? 1.3 : 1);
 
 export default function KnowledgeMap({ focus, onPick }: { focus?: string; onPick: (n: GraphNode) => void }) {
   const [graph, setGraph] = useState<Graph | null>(null);
@@ -86,16 +87,23 @@ export default function KnowledgeMap({ focus, onPick }: { focus?: string; onPick
   const lit = (id: string) => !hover || hover.id === id || neighbors.get(hover.id)?.has(id);
 
   const drawNode = useCallback((node: GraphNode, ctx: CanvasRenderingContext2D, scale: number) => {
-    const r = Math.min(11, 3.2 + Math.sqrt(node.degree) * 1.6) * (node.focus ? 1.35 : 1);
+    // Radio al 80 % y sombreado de esfera (brillo arriba a la izquierda, borde
+    // oscuro), como las esferas de los agentes.
+    const r = radiusOf(node);
     const c = colorOf(node);
     const on = lit(node.id);
     const alpha = (on ? 1 : 0.18) * recency(node, now);
+    const x = node.x ?? 0, y = node.y ?? 0;
     ctx.save();
     ctx.globalAlpha = alpha;
-    if (on && (node.focus || hover?.id === node.id || recency(node, now) === 1)) { ctx.shadowColor = c; ctx.shadowBlur = node.focus || hover?.id === node.id ? 22 : 10; }
+    if (on && (node.focus || hover?.id === node.id || recency(node, now) === 1)) { ctx.shadowColor = c; ctx.shadowBlur = node.focus || hover?.id === node.id ? 18 : 8; }
+    const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r);
+    g.addColorStop(0, "#ffffff");
+    g.addColorStop(0.42, c);
+    g.addColorStop(1, "#070a1a");
     ctx.beginPath();
-    ctx.arc(node.x ?? 0, node.y ?? 0, r, 0, Math.PI * 2);
-    ctx.fillStyle = c;
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = g;
     ctx.fill();
     ctx.shadowBlur = 0;
     const showLabel = node.type !== "note" || hover?.id === node.id || scale > 2.2;
@@ -122,12 +130,14 @@ export default function KnowledgeMap({ focus, onPick }: { focus?: string; onPick
           graphData={graph}
           backgroundColor="rgba(0,0,0,0)"
           nodeCanvasObject={(n, ctx, scale) => drawNode(n as GraphNode, ctx, scale)}
-          nodePointerAreaPaint={(n, color, ctx) => { const node = n as GraphNode; const r = Math.min(11, 3.2 + Math.sqrt(node.degree) * 1.6) + 3; ctx.beginPath(); ctx.arc(node.x ?? 0, node.y ?? 0, r, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill(); }}
+          nodePointerAreaPaint={(n, color, ctx) => { const node = n as GraphNode; const r = radiusOf(node) + 3; ctx.beginPath(); ctx.arc(node.x ?? 0, node.y ?? 0, r, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill(); }}
           linkColor={(l) => { const a = idOf((l as GraphLink).source), b = idOf((l as GraphLink).target); const on = !hover || hover.id === a || hover.id === b; return on ? "rgba(150,170,210,0.35)" : "rgba(150,170,210,0.08)"; }}
           linkWidth={(l) => { const a = idOf((l as GraphLink).source), b = idOf((l as GraphLink).target); return hover && (hover.id === a || hover.id === b) ? 1.6 : 0.8; }}
           onNodeHover={(n) => setHover((n as GraphNode | null) ?? null)}
           onNodeClick={(n) => onPick(n as GraphNode)}
           cooldownTicks={reduced ? 0 : 160}
+          minZoom={0.6}
+          maxZoom={2.4}
           onEngineStop={() => fgRef.current?.zoomToFit(400, 36)}
           enableNodeDrag={false}
           d3VelocityDecay={0.35}
