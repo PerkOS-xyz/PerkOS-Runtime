@@ -1131,7 +1131,8 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 
 /* Dock del desk (abajo a la izquierda): pantallas propias del desk activo. */
 .desk-dock {
-  position: absolute; left: 28px; bottom: 28px; z-index: 6;
+  /* Alineado a la derecha: al abrir un panel, el dock (mitad derecha) lo cubre. */
+  position: absolute; right: 28px; bottom: 28px; z-index: 6;
   display: flex; gap: 8px;
 }
 .desk-dock button {
@@ -1144,7 +1145,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .desk-dock button svg { width: 15px; height: 15px; }
 .desk-dock button:hover { color: var(--ink); }
 .desk-dock button.on { border-color: rgba(236, 27, 105, 0.6); color: #ff5a6a; box-shadow: 0 0 10px rgba(236, 27, 105, 0.3); }
-.stage.split .desk-dock { left: auto; right: 28px; }
+
 @container stage (max-width: 560px) { .desk-dock { bottom: 96px; } }
 
 /* Sparklines y detalle del activo en Market. */
