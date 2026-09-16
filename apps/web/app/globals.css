@@ -1223,3 +1223,27 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .desk-panel .notes-bar .search { flex: 1; }
 .desk-panel .notes-bar button { padding: 6px 10px; font-size: 10px; letter-spacing: 0.06em; white-space: nowrap; }
 .desk-panel .note-edit { flex: 1; min-height: 0; width: 100%; resize: none; padding: 10px 12px; border-radius: 10px; background: rgba(6, 10, 22, 0.6); border: 1px solid rgba(120, 160, 255, 0.25); color: #e6ecff; font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* ---- Pase UX (2026-09-16): la orbita sigue a la esfera segun el modo ----
+   Reposo: anillo alrededor del centro; el Auditor sube (antes quedaba bajo el
+   composer). Split: la esfera esta a la derecha, la orbita se reagrupa ahi y
+   no queda detras del transcript. Con un panel del desk abierto la orbita se
+   apaga: la esfera mini ya cuenta el estado. Dormido != invisible. */
+.auditor { left: 50%; top: 70%; }
+.guest { left: 70%; top: 68%; }
+.orb.st-hibernated .ball { filter: saturate(0.35) brightness(0.7); opacity: 0.85; }
+.orb.dim.on { opacity: 0.45; }
+.stage.split .scout { left: 78%; top: 21%; }
+.stage.split .risk { left: 61%; top: 50%; }
+.stage.split .trader { left: 95%; top: 50%; }
+.stage.split .auditor { left: 78%; top: 77%; }
+.stage.split .guest { left: 92%; top: 77%; }
+.stage.split .orb { transform: translate(-50%, -50%) scale(0.85); }
+.stage.split .orb.on { transform: translate(-50%, -50%) scale(0.85); }
+.orb { transition: opacity 0.7s ease, transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), left var(--split-ms) var(--split-ease), top var(--split-ms) var(--split-ease); }
+.stage.desk-open .orbit { opacity: 0; pointer-events: none; }
+.beams line.done { opacity: 0; transition: opacity 1.2s ease; }
+/* Caption bajo la esfera: legible. */
+.whisper { color: #c5d2ee; text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6); }
+/* Compacto: sin orbita cuando la esfera se va al header. */
+@container stage (max-width: 560px) { .stage.split .orbit { opacity: 0; pointer-events: none; } }
