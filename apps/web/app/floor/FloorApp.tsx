@@ -119,12 +119,16 @@ function Shell() {
   const idleTimer = useRef<number>(0);
   const voiceRef = useRef<{ continuous: boolean; listening: boolean } | null>(null);
   const touchRef = useRef<() => void>(() => undefined);
+  // Mientras Floor trabaja (scan, noticias, warm-up, turno, respuesta) el chat
+  // no se cierra: antes el temporizador de 2 min lo cerraba a mitad de un
+  // turno largo y las cards quedaban sin transcript.
+  const busyRef = useRef(false);
   const touch = useCallback(() => {
     setSplit(true);
     window.clearTimeout(idleTimer.current);
     idleTimer.current = window.setTimeout(() => {
       // En conversacion continua o hablando, la charla sigue viva: no volver a idle.
-      if (voiceRef.current?.continuous || voiceRef.current?.listening) { touchRef.current(); return; }
+      if (voiceRef.current?.continuous || voiceRef.current?.listening || busyRef.current) { touchRef.current(); return; }
       setSplit(false);
     }, 120_000);
   }, []);
@@ -227,6 +231,7 @@ function Shell() {
     setThinking(true);
     setStreaming(true);
     setCaption("");
+    busyRef.current = true;
     touch();
     const youId = Date.now();
     const floorId = youId + 1;
@@ -306,7 +311,7 @@ function Shell() {
               const line = buf.slice(0, i).replace(/^data:\s*/, "");
               buf = buf.slice(i + 2);
               if (!line) continue;
-              let ev: { step?: string; role?: string; ok?: boolean; reply?: string; detail?: string; ms?: number; verdict?: "GO" | "BLOCK"; replies?: typeof fleetReplies };
+              let ev: { step?: string; role?: string; ok?: boolean; reply?: string; detail?: string; ms?: number; verdict?: "GO" | "BLOCK"; replies?: typeof fleetReplies; flags?: string[] };
               try { ev = JSON.parse(line); } catch { continue; }
               const phId = (role: string) => youId + 100 + ["scout", "risk", "trader", "auditor"].indexOf(role);
               if (ev.step === "start" || ev.step === "reply" || ev.step === "done") {
@@ -360,6 +365,7 @@ function Shell() {
               } else if (ev.step === "done") {
                 fleetReplies = ev.replies ?? [];
                 lastRepliesRef.current = fleetReplies;
+                if (ev.flags && ev.flags.length) flog("warn", `desk quality: ${ev.flags.join(" · ")}`); else flog("info", "desk quality: clean");
                 turnLiveRef.current = false;
                 // Las cards se leen 2 s y se contraen a chips; la decision queda guardada.
                 window.setTimeout(() => setTurn((t) => (t && t.id === youId ? { ...t, collapsed: true } : t)), 2000);
@@ -460,6 +466,7 @@ function Shell() {
     } finally {
       setThinking(false);
       setStreaming(false);
+      busyRef.current = false;
       if (chatAbort.current === ac) chatAbort.current = null;
       endTurn();
     }
@@ -925,6 +932,7 @@ function Shell() {
   // documento fechado con el ranking para revisarlo al mes.
   const adviseMarket = useCallback(async (text: string) => {
     setCaption("Scanning the market…");
+    busyRef.current = true;
     touch();
     try {
       const r = await fetch("/api/market/scan");

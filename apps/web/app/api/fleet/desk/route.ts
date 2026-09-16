@@ -17,6 +17,45 @@ function verdictOf(reply: string): "GO" | "BLOCK" | undefined {
 }
 const clip = (s: string, n = 700) => s.replace(/\s+/g, " ").trim().slice(0, n);
 
+// Lint de calidad por turno: senales automaticas de donde mejorar (no bloquean).
+// Se registran en ~/.perkos-floor/logs/desk-quality.jsonl con prompts y respuestas.
+function lintReplies(mode: string, facts: string, replies: FleetReply[]): string[] {
+  const flags: string[] = [];
+  const factPcts = new Set((facts.match(/-?\d+(?:\.\d+)?\s?%/g) ?? []).map((x) => Math.abs(parseFloat(x)).toFixed(1)));
+  const known = new Set(["1.5", "0.1", "0.3", "1.0", "0.5", "2.0", "5.0", "10.0"]);
+  const limits: Record<string, number> = { scout: 100, risk: 85, trader: 85, auditor: 105 };
+  for (const r of replies) {
+    if (!r.ok || !r.reply) { flags.push(`${r.role}:no-answer`); continue; }
+    const t = r.reply;
+    if (/market (is |was |remains )?(closed|shut)/i.test(t) && !/24\/7/.test(t)) flags.push(`${r.role}:says-market-closed`);
+    if ((r.role === "scout" || r.role === "risk") && !/@(Trader|Auditor)/.test(t)) flags.push(`${r.role}:no-mention`);
+    if ((r.role === "trader" || r.role === "auditor") && !/@Floor/.test(t)) flags.push(`${r.role}:no-mention`);
+    const pcts = (t.match(/-?\d+(?:\.\d+)?\s?%/g) ?? []).map((x) => Math.abs(parseFloat(x)).toFixed(1));
+    const unknown = [...new Set(pcts.filter((p) => !factPcts.has(p) && !known.has(p)))];
+    if (unknown.length) flags.push(`${r.role}:pct-not-in-facts(${unknown.slice(0, 3).join(",")})`);
+    // Tamano recomendado por encima del limite del desk (100 USDC): solo cuando
+    // la cifra viene como recomendacion, no cuando describe la capacidad del pool.
+    if (mode !== "order" && /\b(buy|size|clip|position|allocate|add|enter|start with|deploy)\b[^.\n]{0,40}?(\$\s?\d{2,3}\s?k\b|\b\d{2,3}\s?k\s?(usdc|usd)\b|\$\s?\d{4,}\b|\b[2-9]\d{2,}\s?usdc\b)/i.test(t)) flags.push(`${r.role}:size-over-limit`);
+    const words = t.trim().split(/\s+/).length;
+    if (words > (limits[r.role] ?? 100)) flags.push(`${r.role}:over-length(${words})`);
+    if (mode === "order" && r.role === "risk" && !/VERDICT:\s*(GO|BLOCK)/i.test(t)) flags.push("risk:no-verdict");
+    if (mode !== "order" && r.role === "risk" && !/RISK:\s*(low|medium|high)/i.test(t)) flags.push("risk:no-risk-level");
+  }
+  return flags;
+}
+async function logDeskTurn(entry: Record<string, unknown>) {
+  try {
+    const { appendFile, mkdir } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+    const { homedir } = await import("node:os");
+    const dir = join(homedir(), ".perkos-floor", "logs");
+    await mkdir(dir, { recursive: true, mode: 0o700 });
+    await appendFile(join(dir, "desk-quality.jsonl"), JSON.stringify(entry) + "\n", { mode: 0o600 });
+  } catch (e) {
+    console.warn("[desk] quality log failed:", (e as Error).message);
+  }
+}
+
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as { text?: string; roles?: string[]; quote?: Quote | null; brief?: string[] | null; news?: string | null; mode?: string };
   // Modo de la mesa: "order" (hay una orden: pros/contras + gate + draft),
@@ -50,12 +89,16 @@ export async function POST(req: Request) {
     async start(controller) {
       const send = (ev: unknown) => controller.enqueue(enc.encode(`data: ${JSON.stringify(ev)}\n\n`));
       const replies: FleetReply[] = [];
+      const turnStart = Date.now();
+      const prompts: Record<string, string> = {};
       const run = async (role: FleetRole, prompt: string) => {
+        prompts[role] = prompt;
         if (!ready.has(role)) { send({ step: "reply", role, ok: false, reply: "", detail: "agent not ready", ms: 0 }); return null; }
         send({ step: "start", role });
         const r = await askOne(wallet, role, prompt, 55_000, req.signal);
         replies.push(r);
-        const verdict = role === "risk" && r.ok ? verdictOf(r.reply) : undefined;
+        // Solo hay veredicto cuando hay una orden; en analyze/advise "block" es lenguaje, no decision.
+        const verdict = mode === "order" && role === "risk" && r.ok ? verdictOf(r.reply) : undefined;
         send({ step: "reply", ...r, ...(verdict ? { verdict } : {}) });
         return r;
       };
@@ -66,7 +109,8 @@ export async function POST(req: Request) {
         const deskRules = mode === "order"
           ? " A draft of that order is already on the table, unsigned; the human signs it or not."
           : " Desk limits: the human trades small clips (an order is at most 100 USDC); size advice must be in USDC for this human, never in the pool's scale. The horizon is the one in the request; a catalyst after the horizon does not count as the reason.";
-        const head = `Human request to the desk: "${text}". ${quoteLine}${deskRules}${factsLine}${newsLine}${memoryLine}\nAnswer directly from the facts above in one message. Do not open skills, files or tools for this reply; the desk already fetched the market data. If something is missing, say so in one line and continue.`;
+        const always = " These tokens trade 24/7 onchain; only the Chainlink reference pauses outside US equity hours, so never say the market is closed: say the reference is frozen and compare with the last close.";
+        const head = `Human request to the desk: "${text}". ${quoteLine}${deskRules}${always}${factsLine}${newsLine}${memoryLine}\nAnswer directly from the facts above in one message. Do not open skills, files or tools for this reply; the desk already fetched the market data. If something is missing, say so in one line and continue.`;
         // Hermes tarda 20-60 s por turno en frio: Scout y Risk corren en
         // paralelo (Risk ya tiene la cotizacion; Scout le suma evidencia si
         // llega), y despues Trader y Auditor con ambos handoffs.
@@ -106,7 +150,9 @@ export async function POST(req: Request) {
           run("trader", `${tail}\n${T}`),
           run("auditor", `${tail}\n${A}`)
         ]);
-        send({ step: "done", verdict, replies });
+        const flags = lintReplies(mode, `${quoteLine}${factsLine}`, replies);
+        void logDeskTurn({ at: new Date().toISOString(), mode, text, ms: Date.now() - turnStart, verdict: verdict ?? null, flags, quote: q ? { side: q.side, symbol: q.symbol, priceUsd: q.priceUsd, venue: q.venue ?? null, bankr: q.bankr?.priceUsd ?? null } : null, facts: briefLines, news: newsLine.slice(0, 1200), memory: memoryLine.slice(0, 1200), prompts, replies: replies.map((r) => ({ role: r.role, ok: r.ok, ms: r.ms, reply: r.reply, detail: r.detail })) });
+        send({ step: "done", verdict, replies, flags });
       } catch (e) {
         send({ step: "error", detail: (e as Error).message });
       } finally {
