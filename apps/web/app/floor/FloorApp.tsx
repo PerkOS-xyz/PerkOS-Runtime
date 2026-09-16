@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { parseIntent } from "./parseCommand";
 import DeskPanel, { type DeskScreen } from "./DeskPanel";
 import KnowledgeMap, { type GraphNode } from "./KnowledgeMap";
-import { CHAINS, chainOf, ChainMark } from "./ChainMark";
+import { chainOf, ChainMark, deskManifest } from "./ChainMark";
 import AgentCards, { applyTurnEvent, newTurn, type DeskTurn, type Role as AgentRole } from "./AgentCards";
 import SettingsPanel from "./SettingsPanel";
 import Wizard from "./Wizard";
@@ -1452,8 +1452,12 @@ function Shell() {
   return (
     <div className={`stage${split ? " split" : ""}${debug ? " with-debug" : ""}${deskScreen ? " desk-open" : ""}${deskScreen && deskMax ? " desk-max" : ""}${turn && !turn.collapsed ? " turn-live" : ""}`}>
       <div className="dragbar" />
+      {/* Lockup de partnership invertido (brand.base.org/partnerships: el
+          partner lidera cuando es su lanzamiento): PerkOS + la cadena del desk.
+          El wordmark es del shell; la marca de la cadena cambia con el desk. */}
       <div className="mark">
         <img src="/logo-name.png" alt="PerkOS" />
+        {desk ? <><span className="plus" aria-hidden="true">+</span><ChainMark chain={chainOf(desk)} big /></> : null}
       </div>
       <button className="gear" type="button" onClick={() => setSettings(true)} aria-label="Settings" title="Settings">
         <GearIcon />
@@ -1487,7 +1491,7 @@ function Shell() {
               ) : null}
             </div>
           ) : null}
-          <small>{CHAINS[chainOf(desk)].tagline}</small>
+          <small>{deskManifest(desk).tagline}</small>
         </div>
       ) : null}
       {who ? (
@@ -1539,15 +1543,17 @@ function Shell() {
         <small>They draft. You approve. Base only.</small>
       </div>
       {/* Dock del desk: las pantallas propias del desk activo, a un clic
-          (tambien por voz: "show the market", "show my portfolio"). */}
+          (tambien por voz: "show the market", "show my portfolio"). Primero
+          las del desk (Market, Portfolio), luego las del shell (Notes, Map, History). */}
       {desk && !wizard ? (
-        <nav className="desk-dock" aria-label="Desk screens">
+        <nav className="desk-dock" aria-label="Desk and app screens">
           <button type="button" className={deskScreen === "market" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "market" ? "" : "market")} title="Market · tokenized stocks on Base">
             <ChartIcon /><span>Market</span>
           </button>
           <button type="button" className={deskScreen === "portfolio" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "portfolio" ? "" : "portfolio")} title="Portfolio · your positions on Base">
             <WalletIcon /><span>Portfolio</span>
           </button>
+          <i className="dock-sep" aria-hidden="true" />
           <button type="button" className={deskScreen === "notes" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "notes" ? "" : "notes")} title="Notes · what this desk remembers (local, Obsidian-compatible)">
             <NotesIcon /><span>Notes</span>
           </button>
