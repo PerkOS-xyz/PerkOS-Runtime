@@ -321,8 +321,7 @@ function Shell() {
               } else if (ev.step === "reply" && ev.role) {
                 setTalking(ev.role, false);
                 { const pid = phId(ev.role); setMessages((m) => m.filter((x) => x.id !== pid)); }
-                // La tarjeta de compra entra cuando Trader entrega, justo antes de su burbuja.
-                if (ev.role === "trader") releaseDraft(youId, floorId);
+
                 if (ev.ok && ev.reply) {
                   n += 1;
                   const id = youId + 2 + n;
@@ -356,7 +355,6 @@ function Shell() {
               } else if (ev.step === "done") {
                 fleetReplies = ev.replies ?? [];
                 turnLiveRef.current = false;
-                releaseDraft(youId, floorId);
                 // Las cards se leen 2 s y se contraen a chips; la decision queda guardada.
                 window.setTimeout(() => setTurn((t) => (t && t.id === youId ? { ...t, collapsed: true } : t)), 2000);
                 {
@@ -384,8 +382,6 @@ function Shell() {
         setTalkingSet([]);
         setCaption("");
       }
-      // Sin mesa (o si Trader no entrego) la tarjeta entra antes de que hable Floor.
-      releaseDraft(youId, floorId);
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -446,12 +442,15 @@ function Shell() {
       if (pending.trim()) speak(pending);
       setFloor(full, false);
       flog("info", `chat <- ${full.length} chars`);
+      // La tarjeta de decision cierra el turno: entra cuando Floor termino su evaluacion.
+      releaseDraft(youId);
       // Diario del desk: la pregunta, lo que dijo el equipo y la respuesta.
       const teamLines = fleetReplies.filter((r) => r.ok && r.reply).map((r) => `- **${cap(r.role)}**: ${r.reply.replace(/\s+/g, " ").slice(0, 600)}`).join("\n");
       kbWriteRef.current({ journal: true, body: `**You**: ${text}\n${teamLines ? `${teamLines}\n` : ""}- **Floor**: ${full.replace(/\s+/g, " ").slice(0, 900)}` });
     } catch (e) {
       if ((e as Error).name !== "AbortError") flog("error", `chat: ${(e as Error).message}`);
       setMessages((m) => m.map((x) => (x.id === floorId ? { ...x, streaming: false } : x)));
+      releaseDraft(youId);
     } finally {
       setThinking(false);
       setStreaming(false);
@@ -1512,7 +1511,7 @@ function Shell() {
             out.push(
           <div key={m.id} className={`turn ${m.role}${m.kind ? ` ${m.kind}` : ""}`} data-who={m.who ?? (m.role === "floor" ? "floor" : undefined)}>
             <span className="turn-k">
-              {m.role === "you" ? "You" : m.role === "team" ? `${cap(m.who ?? "team")} · PerkOS` : m.role === "draft" ? "Trader · draft" : m.role === "analysis" ? `Desk · ${m.who ?? "analysis"}` : m.kind === "open" ? "Floor · principal" : m.kind === "side" ? "Floor · to you" : "Floor"}
+              {m.role === "you" ? "You" : m.role === "team" ? `${cap(m.who ?? "team")} · PerkOS` : m.role === "draft" ? "Desk · decision" : m.role === "analysis" ? `Desk · ${m.who ?? "analysis"}` : m.kind === "open" ? "Floor · principal" : m.kind === "side" ? "Floor · to you" : "Floor"}
               {m.verdict ? <em className={`vchip ${m.verdict.toLowerCase()}`}>{m.verdict}</em> : null}
             </span>
             {m.role === "draft" && m.draft ? (
@@ -1848,13 +1847,18 @@ function DraftCard({ draft, tx, onApprove }: {
   const cancel = () => { window.clearTimeout(holdRef.current); setHolding(false); };
   const minOutHuman = (Number(draft.minOut) / 10 ** draft.tokenOut.decimals).toFixed(buy ? 6 : 2);
   const issuer = draft.stock.issuer === "coinbase" ? "Coinbase B20" : draft.stock.issuer;
+  // Minimalista: la decision en una linea (comprar, esperar, hecho); el proceso
+  // ya esta explicado en el chat. Los detalles de la ruta se pliegan.
+  const [open, setOpen] = useState(false);
+  const decision = tx.stage === "blocked" ? "Wait" : tx.stage === "done" ? (buy ? "Bought" : "Sold") : tx.stage === "failed" ? "Not signed" : tx.stage === "signing" || tx.stage === "pending" ? "Signing" : buy ? "Buy" : "Sell";
+  const what = buy ? `$${draft.amountInUsd.toFixed(2)} of ${draft.stock.symbol}` : `${draft.amountInHuman} ${draft.stock.symbol}`;
   return (
-    <div className={`draft-card st-${tx.stage}`}>
+    <div className={`draft-card st-${tx.stage}${open ? " open" : ""}`}>
       <div className="draft-head">
-        <b>{buy ? `Buy $${draft.amountInUsd} of ${draft.stock.symbol}` : `Sell ${draft.amountInHuman} ${draft.stock.symbol}`}</b>
-        <span className="tag">Uniswap V3 · Base</span>
+        <b><span className={`decision ${tx.stage === "blocked" ? "wait" : tx.stage === "done" ? "done" : "go"}`}>{decision}</span> {what} <small>at ${draft.impliedPriceUsd.toFixed(2)}{draft.bankr ? ` · Bankr $${draft.bankr.impliedPriceUsd.toFixed(2)}` : ""}</small></b>
+        <button type="button" className="draft-more" onClick={() => setOpen((o) => !o)} aria-expanded={open}>{open ? "Less" : "Details"}</button>
       </div>
-      <dl className="draft-rows">
+      {open ? <dl className="draft-rows">
         <dt>Asset</dt><dd>{draft.stock.name} <small>({draft.stock.ticker} · {issuer})</small></dd>
         <dt>You pay</dt><dd>{buy ? `$${draft.amountInUsd.toFixed(2)} USDC` : `${draft.amountInHuman} ${draft.stock.symbol}`}</dd>
         <dt>You get</dt><dd>≈ {draft.quoteOutHuman} {draft.tokenOut.symbol} <small>(min {minOutHuman}, {draft.slippageBps / 100}% slippage)</small></dd>
@@ -1862,7 +1866,7 @@ function DraftCard({ draft, tx, onApprove }: {
         {draft.bankr ? <><dt>Second quote</dt><dd>Bankr ${draft.bankr.impliedPriceUsd.toFixed(2)} / share · {draft.bankr.outHuman} {draft.bankr.outSymbol || draft.tokenOut.symbol} · {(((draft.impliedPriceUsd / draft.bankr.impliedPriceUsd) - 1) * 100).toFixed(2)}% vs Uniswap · read-only, never executes</dd></> : null}
         <dt>Route</dt><dd>{draft.tokenIn.symbol} → {draft.tokenOut.symbol} · pool {draft.pool.slice(0, 6)}…{draft.pool.slice(-4)} · {draft.fee / 10_000}% · ${draft.poolUsdcDepth.toFixed(0)} USDC deep</dd>
         <dt>Signatures</dt><dd>{draft.txs.map((t) => t.label).join(" + ")}{draft.needsApproval ? "" : ` (${draft.tokenIn.symbol} already approved)`}</dd>
-      </dl>
+      </dl> : null}
       {short ? <p className="hint-line err">{buy ? `Wallet holds $${Number(draft.balanceUsdc).toFixed(2)} USDC on Base; the draft needs $${draft.amountInUsd.toFixed(2)}.` : `Wallet holds ${draft.balanceToken} ${draft.stock.symbol}; the draft needs ${draft.amountInHuman}.`}</p> : null}
       {tx.note ? <p className="hint-line err">{tx.note}</p> : null}
       {tx.hashes.length ? (
