@@ -1033,3 +1033,45 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .turn.team .turn-k .vchip.go { color: #7fe0a8; border-color: rgba(61, 200, 120, 0.6); }
 .turn.team .turn-k .vchip.block { color: #ff8a92; border-color: rgba(255, 90, 106, 0.6); }
 .draft-card.st-blocked { border-color: rgba(255, 90, 106, 0.5); opacity: 0.85; }
+
+/* Pantallas del desk (Market / Portfolio): panel a la derecha; la esfera
+   se atenua detras. En split, la conversacion sigue a la izquierda. */
+.desk-panel {
+  position: absolute; right: 24px; top: 96px; bottom: 132px; z-index: 7;
+  width: min(480px, calc(100% - 48px));
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(18, 32, 64, 0.82), rgba(6, 10, 22, 0.78));
+  border: 1px solid rgba(120, 160, 255, 0.22);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(16px);
+  animation: turnIn 220ms var(--split-ease) both;
+}
+.stage.desk-open .core-wrap { opacity: 0.35; }
+.stage.desk-open .orbit { opacity: 0.35; }
+.desk-panel header { display: flex; align-items: center; justify-content: space-between; }
+.desk-panel .tabs { display: flex; gap: 6px; }
+.desk-panel .tabs button { padding: 5px 12px; border-radius: 999px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; }
+.desk-panel .tabs button.on { border-color: rgba(236, 27, 105, 0.6); color: #ff5a6a; }
+.desk-panel .close { width: 28px; height: 28px; border-radius: 50%; padding: 0; font-size: 16px; line-height: 1; }
+.desk-panel .search { width: 100%; }
+.desk-panel .rows { list-style: none; margin: 0; padding: 0; overflow: auto; display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.desk-panel .rows li { display: grid; grid-template-columns: 1.4fr 0.9fr 0.9fr auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px; border: 1px solid transparent; }
+.desk-panel .rows li:hover { background: rgba(120, 160, 255, 0.06); }
+.desk-panel .rows li.focus { border-color: rgba(236, 27, 105, 0.5); background: rgba(236, 27, 105, 0.08); }
+.desk-panel .rows li.thin { opacity: 0.55; }
+.desk-panel .cell b { display: block; font-size: 13px; font-weight: 500; }
+.desk-panel .cell small { display: block; font-size: 10px; color: var(--mute); letter-spacing: 0.04em; }
+.desk-panel .cell.num { text-align: right; }
+.desk-panel .cell small.up { color: #7fe0a8; }
+.desk-panel .cell small.down { color: #ff8a92; }
+.desk-panel .cell.acts { display: flex; gap: 6px; }
+.desk-panel .cell.acts button { padding: 4px 9px; font-size: 10px; letter-spacing: 0.06em; }
+.desk-panel .total { display: flex; justify-content: space-between; padding: 6px 10px; font-size: 13px; }
+.desk-panel .total span { color: var(--mute); }
+@container stage (max-width: 700px) {
+  .desk-panel { left: 24px; right: 24px; width: auto; top: 120px; }
+  .desk-panel .rows li { grid-template-columns: 1.4fr 0.9fr auto; }
+  .desk-panel .rows li .cell.num:nth-child(3) { display: none; }
+}
