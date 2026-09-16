@@ -64,8 +64,16 @@ function Shell() {
   // progreso de la firma; `draft` es lo que devolvio /api/trade/draft.
   type Draft = { id: string; chainId: number; side: "buy" | "sell"; stock: { symbol: string; ticker: string; name: string; issuer: string; address: string; decimals: number }; pool: string; fee: number; poolUsdcDepth: number; tokenIn: { symbol: string; decimals: number }; tokenOut: { symbol: string; decimals: number }; amountInHuman: string; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; deadline: number; quotedAt: string; needsApproval: boolean; balanceUsdc: string; balanceToken: string; txs: Array<{ label: "approve" | "swap"; to: `0x${string}`; data: `0x${string}`; value: "0x0" }> };
   type TradeIntent = { side: "buy" | "sell"; stock?: string; amountUsd?: number; amountToken?: number; fraction?: number };
-  type DraftTx = { stage: "idle" | "signing" | "pending" | "done" | "failed"; step?: "approve" | "swap"; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
-  type Msg = { id: number; role: "you" | "floor" | "team" | "draft"; who?: string; text: string; streaming?: boolean; draft?: Draft; tx?: DraftTx };
+  type DraftTx = { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; step?: "approve" | "swap"; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
+  type Msg = { id: number; role: "you" | "floor" | "team" | "draft"; who?: string; text: string; streaming?: boolean; draft?: Draft; tx?: DraftTx; verdict?: "GO" | "BLOCK" };
+  // Turno de mesa: quien habla ahora, el haz entre orbs y el veredicto de Risk.
+  const [talkingSet, setTalkingSet] = useState<string[]>([]);
+  const setTalking = (role: string, on = true) => setTalkingSet((s) => (on ? (s.includes(role) ? s : [...s, role]) : s.filter((x) => x !== role)));
+  const talking = { has: (r: string) => talkingSet.includes(r) };
+  const [beams, setBeams] = useState<Array<{ from: string; to: string; done: boolean }>>([]);
+  const [verdict, setVerdict] = useState<"GO" | "BLOCK" | "">("");
+  const orbRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const orbitRef = useRef<HTMLDivElement | null>(null);
   // Sesion PerkOS (firma del nonce con la wallet Privy) + flota Hermes en PerkOS infra.
   // rail/railLinked: el rail de gasto 1Claw del template (Trader) y si ya esta vinculado.
   type FleetAgent = { role: "scout" | "risk" | "trader" | "auditor"; name: string; agentId?: string; state: "planned" | "provisioning" | "waking" | "ready" | "hibernated" | "failed"; detail?: string; rail?: { provider: "1claw"; lockUsd: number }; railLinked?: boolean };
@@ -153,29 +161,77 @@ function Shell() {
       const f = fleetRef.current;
       const readyRoles = f ? f.agents.filter((a) => a.state === "ready").map((a) => a.role) : [];
       if (readyRoles.length && teamRef.current !== "hibernated") {
-        setCaption("Asking the desk…");
+        // Turno de mesa secuencial (Scout -> Risk -> Trader/Auditor) por SSE:
+        // cada agente habla en su orb y deja su burbuja; Risk decide.
+        setCaption("The desk is working…");
+        setBeams([]);
+        setVerdict("");
         const t1 = Date.now();
-        const fr = await fetch("/api/fleet/ask", {
+        const quote = quoteRef.current;
+        const fr = await fetch("/api/fleet/desk", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, roles: readyRoles }),
+          body: JSON.stringify({ text, roles: readyRoles, quote }),
           signal: ac.signal
         });
-        const fj = (await fr.json().catch(() => ({}))) as { replies?: typeof fleetReplies; error?: string; detail?: string };
-        if (fr.ok && fj.replies) {
-          fleetReplies = fj.replies;
-          flog("info", `fleet: ${fleetReplies.filter((r) => r.ok).length}/${fleetReplies.length} answered · ${Date.now() - t1} ms`);
-          for (const r of fleetReplies) {
-            if (!r.ok) flog("warn", `fleet ${r.role}: ${r.detail || "no answer"}`);
-          }
-          const teamId = youId + 2;
-          const lines = fleetReplies.filter((r) => r.ok && r.reply);
-          if (lines.length) {
-            setMessages((m) => [...m.filter((x) => x.id !== floorId), { id: teamId, role: "team", who: lines.map((r) => r.role).join(" · "), text: lines.map((r) => `${cap(r.role)}: ${r.reply}`).join("\n\n") }, { id: floorId, role: "floor", text: "", streaming: true }]);
+        if (fr.ok && fr.body) {
+          const rd = fr.body.getReader();
+          const dc = new TextDecoder();
+          let buf = "";
+          const handed: string[] = [];
+          let n = 0;
+          for (;;) {
+            const { value, done } = await rd.read();
+            if (done) break;
+            buf += dc.decode(value, { stream: true });
+            let i: number;
+            while ((i = buf.indexOf("\n\n")) >= 0) {
+              const line = buf.slice(0, i).replace(/^data:\s*/, "");
+              buf = buf.slice(i + 2);
+              if (!line) continue;
+              let ev: { step?: string; role?: string; ok?: boolean; reply?: string; detail?: string; ms?: number; verdict?: "GO" | "BLOCK"; replies?: typeof fleetReplies };
+              try { ev = JSON.parse(line); } catch { continue; }
+              if (ev.step === "start" && ev.role) {
+                setTalking(ev.role, true);
+                setCaption(`${cap(ev.role)} is thinking…`);
+                // Scout y Risk entregan a Trader y Auditor: los haces salen de quien ya hablo.
+                if (ev.role === "trader" || ev.role === "auditor") setBeams((b) => [...b, ...handed.map((from) => ({ from, to: ev.role!, done: false }))]);
+              } else if (ev.step === "reply" && ev.role) {
+                setTalking(ev.role, false);
+                if (ev.ok && ev.reply) {
+                  n += 1;
+                  const id = youId + 2 + n;
+                  const r = ev.role;
+                  setMessages((m) => [...m.filter((x) => x.id !== floorId), { id, role: "team", who: r, text: ev.reply!, verdict: ev.verdict }, { id: floorId, role: "floor", text: "", streaming: true }]);
+                  flog("info", `desk ${r}: ${ev.ms} ms${ev.verdict ? ` · ${ev.verdict}` : ""}`);
+                  touch();
+                  if (r === "risk" || r === "scout") handed.push(r);
+                  if (r === "trader" || r === "auditor") setBeams((b) => b.map((x) => (x.to === r ? { ...x, done: true } : x)));
+                  if (ev.verdict) {
+                    setVerdict(ev.verdict);
+                    if (ev.verdict === "BLOCK") {
+                      const why = ev.reply!.replace(/^\s*VERDICT\s*[:\-]\s*BLOCK\s*/i, "").trim();
+                      setMessages((m) => m.map((x) => (x.role === "draft" && x.tx && (x.tx.stage === "idle") ? { ...x, tx: { ...x.tx, stage: "blocked", note: `Risk blocked: ${why.slice(0, 200)}` } } : x)));
+                      setCaption("Risk blocked the order.");
+                    }
+                  }
+                } else {
+                  flog("warn", `desk ${ev.role}: ${ev.detail || "no answer"}`);
+                }
+              } else if (ev.step === "done") {
+                fleetReplies = ev.replies ?? [];
+                setBeams((b) => b.map((x) => ({ ...x, done: true })));
+                flog("info", `desk: ${fleetReplies.filter((r) => r.ok).length}/${fleetReplies.length} answered · ${Date.now() - t1} ms · verdict ${ev.verdict ?? "-"}`);
+              } else if (ev.step === "error") {
+                flog("error", `desk: ${ev.detail}`);
+              }
+            }
           }
         } else {
-          flog("warn", `fleet ask ${fr.status}: ${fj.error ?? ""} ${fj.detail ?? ""}`);
+          const fj = await fr.json().catch(() => ({}));
+          flog("warn", `desk ${fr.status}: ${fj.error ?? ""} ${fj.detail ?? ""}`);
         }
+        setTalkingSet([]);
         setCaption("");
       }
       const res = await fetch("/api/chat", {
@@ -416,6 +472,8 @@ function Shell() {
   // Draft del Trader: "buy $5 of NVIDIA" → /api/trade/draft cotiza en Uniswap
   // V3 (Base) y arma approve + swap; la carta aparece en el transcript con la
   // orb Approve. La conversacion sigue en paralelo (equipo + Grok comentan).
+  // La orden en la mesa este turno (para el prompt de Risk/Trader/Auditor).
+  const quoteRef = useRef<{ side: string; symbol: string; name: string; amountIn: string; tokenIn: string; quoteOut: string; tokenOut: string; priceUsd: number; pool: string; fee: number; poolUsdcDepth: number; minOut: string } | null>(null);
   const tradeDraft = useCallback(async (intent: TradeIntent) => {
     const id = Date.now() + 3;
     const what = intent.stock ?? "NVDAc";
@@ -432,6 +490,7 @@ function Shell() {
       }
       flog("info", `trade draft: ${j.side} ${j.amountInHuman} ${j.tokenIn.symbol} → ${j.quoteOutHuman} ${j.tokenOut.symbol} @ $${j.impliedPriceUsd.toFixed(2)} · pool $${j.poolUsdcDepth.toFixed(0)} · ${j.txs.length} tx · balances $${j.balanceUsdc} / ${j.balanceToken} ${j.stock.symbol}`);
       setMessages((m) => m.map((x) => (x.id === id ? { ...x, text: "", streaming: false, draft: j, tx: { stage: "idle", hashes: [] } } : x)));
+      quoteRef.current = { side: j.side, symbol: j.stock.symbol, name: j.stock.name, amountIn: j.amountInHuman, tokenIn: j.tokenIn.symbol, quoteOut: j.quoteOutHuman, tokenOut: j.tokenOut.symbol, priceUsd: j.impliedPriceUsd, pool: j.pool, fee: j.fee, poolUsdcDepth: j.poolUsdcDepth, minOut: (Number(j.minOut) / 10 ** j.tokenOut.decimals).toFixed(6) };
       setCaption(`Trader drafted: ${j.amountInHuman} ${j.tokenIn.symbol} → ${j.quoteOutHuman} ${j.tokenOut.symbol}. Hold Approve to sign.`);
     } catch (e) {
       flog("error", `trade draft: ${(e as Error).message}`);
@@ -488,8 +547,13 @@ function Shell() {
     if (cmd === "unknown" && spoken) {
       // Intencion de compra: "buy $5 of NVIDIA" / "compra 5 dolares de nvda".
       const intent = parseTradeIntent(spoken);
-      if (intent) void tradeDraft(intent);
-      void chat(spoken);
+      quoteRef.current = null;
+      if (intent) {
+        // Primero la cotizacion (la orden en la mesa), despues el turno de mesa.
+        void tradeDraft(intent).then(() => chat(spoken));
+      } else {
+        void chat(spoken);
+      }
       return;
     }
     if (spoken) setCaption(spoken);
@@ -893,11 +957,12 @@ function Shell() {
         />
       ) : null}
 
-      <div className="orbit">
-        <Orb className="scout" label="Scout" on={awake} state={orbState("scout")} />
-        <Orb className="risk" label="Risk" on={awake} state={orbState("risk")} />
-        <Orb className="trader" label="Trader" on={awake} state={orbState("trader")} rail={orbRail("trader")} onRail={openRailStep} />
-        <Orb className="auditor" label="Auditor" on={awake} state={orbState("auditor")} />
+      <div className="orbit" ref={orbitRef}>
+        <Beams beams={beams} orbitRef={orbitRef} orbRefs={orbRefs} />
+        <Orb className="scout" label="Scout" on={awake} state={orbState("scout")} talking={talking.has("scout")} refCb={(el) => { orbRefs.current.scout = el; }} />
+        <Orb className="risk" label="Risk" on={awake} state={orbState("risk")} talking={talking.has("risk")} verdict={verdict} refCb={(el) => { orbRefs.current.risk = el; }} />
+        <Orb className="trader" label="Trader" on={awake} state={orbState("trader")} rail={orbRail("trader")} onRail={openRailStep} talking={talking.has("trader")} refCb={(el) => { orbRefs.current.trader = el; }} />
+        <Orb className="auditor" label="Auditor" on={awake} state={orbState("auditor")} talking={talking.has("auditor")} refCb={(el) => { orbRefs.current.auditor = el; }} />
         <Orb className={`guest${guest ? "" : " dim"}`} label={guest ? "Grok Bot" : "Guest"} on={guest} />
       </div>
 
@@ -929,7 +994,10 @@ function Shell() {
       <div className={`transcript${split ? " on" : ""}`} aria-live="polite">
         {messages.map((m) => (
           <div key={m.id} className={`turn ${m.role}`}>
-            <span className="turn-k">{m.role === "you" ? "You" : m.role === "team" ? `Team · ${m.who ?? ""}` : m.role === "draft" ? "Trader · draft" : "Floor"}</span>
+            <span className="turn-k">
+              {m.role === "you" ? "You" : m.role === "team" ? `${cap(m.who ?? "team")} · PerkOS` : m.role === "draft" ? "Trader · draft" : "Floor"}
+              {m.verdict ? <em className={`vchip ${m.verdict.toLowerCase()}`}>{m.verdict}</em> : null}
+            </span>
             {m.role === "draft" && m.draft ? (
               <DraftCard draft={m.draft} tx={m.tx ?? { stage: "idle", hashes: [] }} onApprove={() => void approveDraft(m.id)} />
             ) : (
@@ -1108,13 +1176,14 @@ function StopIcon() {
   );
 }
 
-function Orb({ className, label, on, state = "", rail, onRail }: { className: string; label: string; on: boolean; state?: string; rail?: { linked: boolean; lockUsd: number }; onRail?: () => void }) {
-  const sub = state === "ready" ? "PerkOS" : state === "provisioning" ? "provisioning…" : state === "waking" ? "waking…" : state === "hibernated" ? "asleep" : state === "failed" ? "failed" : state === "planned" ? "not created" : "";
+function Orb({ className, label, on, state = "", rail, onRail, talking, verdict, refCb }: { className: string; label: string; on: boolean; state?: string; rail?: { linked: boolean; lockUsd: number }; onRail?: () => void; talking?: boolean; verdict?: "GO" | "BLOCK" | ""; refCb?: (el: HTMLDivElement | null) => void }) {
+  const sub = talking ? "thinking…" : state === "ready" ? "PerkOS" : state === "provisioning" ? "provisioning…" : state === "waking" ? "waking…" : state === "hibernated" ? "asleep" : state === "failed" ? "failed" : state === "planned" ? "not created" : "";
   return (
-    <div className={`orb ${className}${on ? " on" : ""}${state ? ` st-${state}` : ""}`} title={sub}>
+    <div ref={refCb} className={`orb ${className}${on ? " on" : ""}${state ? ` st-${state}` : ""}${talking ? " talking" : ""}`} title={sub}>
       <div className="ball" />
       <span>{label}</span>
       {sub ? <small>{sub}</small> : null}
+      {verdict ? <em className={`verdict ${verdict.toLowerCase()}`}>{verdict}</em> : null}
       {rail ? (
         // Rail de gasto 1Claw (patron EQLTY): a color cuando esta vinculado; atenuado
         // cuando el template lo exige y aun no se conecto. Solo Trader lo tiene.
@@ -1131,11 +1200,41 @@ function Orb({ className, label, on, state = "", rail, onRail }: { className: st
   );
 }
 
+/** Haces entre orbs durante el turno de mesa (quien entrega -> quien recibe).
+ *  Posiciones leidas del DOM para que sirvan en split y en compacto. */
+function Beams({ beams, orbitRef, orbRefs }: { beams: Array<{ from: string; to: string; done: boolean }>; orbitRef: React.RefObject<HTMLDivElement | null>; orbRefs: React.MutableRefObject<Record<string, HTMLDivElement | null>> }) {
+  const [, force] = useState(0);
+  useEffect(() => {
+    const onResize = () => force((n) => n + 1);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  if (!beams.length) return null;
+  const box = orbitRef.current?.getBoundingClientRect();
+  if (!box) return null;
+  const center = (role: string) => {
+    const el = orbRefs.current[role]?.querySelector(".ball") as HTMLElement | null;
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { x: r.left - box.left + r.width / 2, y: r.top - box.top + r.height / 2 };
+  };
+  return (
+    <svg className="beams" aria-hidden>
+      {beams.map((b, i) => {
+        const a = center(b.from);
+        const c = center(b.to);
+        if (!a || !c) return null;
+        return <line key={`${b.from}-${b.to}-${i}`} className={b.done ? "done" : ""} x1={a.x} y1={a.y} x2={c.x} y2={c.y} />;
+      })}
+    </svg>
+  );
+}
+
 /** Carta del draft del Trader + orb Approve (se mantiene 2 s para firmar).
  *  Sin llaves aqui: Approve manda las tx a la wallet de la persona. */
 function DraftCard({ draft, tx, onApprove }: {
   draft: { side: "buy" | "sell"; stock: { symbol: string; ticker: string; name: string; issuer: string }; tokenIn: { symbol: string; decimals: number }; tokenOut: { symbol: string; decimals: number }; amountInHuman: string; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; pool: string; fee: number; poolUsdcDepth: number; deadline: number; needsApproval: boolean; balanceUsdc: string; balanceToken: string; txs: Array<{ label: string }> };
-  tx: { stage: "idle" | "signing" | "pending" | "done" | "failed"; step?: string; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
+  tx: { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; step?: string; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
   onApprove: () => void;
 }) {
   const [holding, setHolding] = useState(false);
@@ -1191,10 +1290,10 @@ function DraftCard({ draft, tx, onApprove }: {
         >
           <span className="ring" />
           <span className="lbl">
-            {tx.stage === "done" ? "Done" : tx.stage === "signing" ? `Sign ${tx.step}…` : tx.stage === "pending" ? `${cap(tx.step ?? "")} on Base…` : tx.stage === "failed" ? "Retry" : "Hold to approve"}
+            {tx.stage === "done" ? "Done" : tx.stage === "blocked" ? "Blocked" : tx.stage === "signing" ? `Sign ${tx.step}…` : tx.stage === "pending" ? `${cap(tx.step ?? "")} on Base…` : tx.stage === "failed" ? "Retry" : "Hold to approve"}
           </span>
         </button>
-        <small>{tx.stage === "done" ? "Receipt on Base. Your keys, your trade." : "They draft. You sign in your wallet."}</small>
+        <small>{tx.stage === "done" ? "Receipt on Base. Your keys, your trade." : tx.stage === "blocked" ? "Risk said no. Nothing to sign." : "They draft. You sign in your wallet."}</small>
       </div>
     </div>
   );

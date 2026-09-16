@@ -1016,3 +1016,20 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 @keyframes approveFill { from { --fill: 0%; } to { --fill: 100%; } }
 @property --fill { syntax: "<percentage>"; inherits: false; initial-value: 0%; }
 @keyframes approvePulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+
+/* Turno de mesa: la orb que habla late mas fuerte; el haz une quien entrega
+   con quien recibe (Scout -> Risk -> Trader/Auditor). */
+.orb.talking .ball { animation: orbTalk 0.9s ease-in-out infinite; box-shadow: 0 0 34px #ec1b69aa, 0 0 12px #ffffff66; }
+.orb.talking span { color: #ffd0da; }
+@keyframes orbTalk { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.14); } }
+.orb .verdict { font-size: 9px; letter-spacing: 0.14em; padding: 2px 8px; border-radius: 999px; border: 1px solid; margin-top: -4px; }
+.orb .verdict.go { color: #7fe0a8; border-color: rgba(61, 200, 120, 0.6); }
+.orb .verdict.block { color: #ff8a92; border-color: rgba(255, 90, 106, 0.6); }
+.beams { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+.beams line { stroke: rgba(236, 27, 105, 0.55); stroke-width: 1.5; stroke-dasharray: 6 10; animation: beamFlow 0.8s linear infinite; filter: drop-shadow(0 0 6px rgba(236, 27, 105, 0.6)); }
+.beams line.done { stroke: rgba(127, 176, 255, 0.35); animation: none; stroke-dasharray: none; }
+@keyframes beamFlow { to { stroke-dashoffset: -16; } }
+.turn.team .turn-k .vchip { margin-left: 8px; padding: 1px 6px; border-radius: 999px; border: 1px solid; font-size: 9px; }
+.turn.team .turn-k .vchip.go { color: #7fe0a8; border-color: rgba(61, 200, 120, 0.6); }
+.turn.team .turn-k .vchip.block { color: #ff8a92; border-color: rgba(255, 90, 106, 0.6); }
+.draft-card.st-blocked { border-color: rgba(255, 90, 106, 0.5); opacity: 0.85; }
