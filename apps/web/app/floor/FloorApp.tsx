@@ -253,6 +253,8 @@ function Shell() {
               } else if (ev.step === "done") {
                 fleetReplies = ev.replies ?? [];
                 setBeams((b) => b.map((x) => ({ ...x, done: true })));
+                // Los haces se apagan solos al cerrar el turno (antes quedaban dibujados).
+                window.setTimeout(() => setBeams([]), 1500);
                 flog("info", `desk: ${fleetReplies.filter((r) => r.ok).length}/${fleetReplies.length} answered · ${Date.now() - t1} ms · verdict ${ev.verdict ?? "-"}`);
               } else if (ev.step === "error") {
                 flog("error", `desk: ${ev.detail}`);
@@ -798,10 +800,19 @@ function Shell() {
       setSettings(true);
       setCaption("Settings");
     }
-    if (cmd === "stop") {
+    if (cmd === "sleep") {
+      // Dormir al equipo en PerkOS (el curator lo haria a los 15 min igual).
       setListening(false);
       setTeam("hibernated");
       setGuest(false);
+      setCaption("Putting the team to sleep on PerkOS…");
+      voice.stopAll();
+      if (perkosRef.current.connected && fleetRef.current?.agents.some((a) => a.state === "ready" || a.state === "waking")) void fleetAction("hibernate");
+      return;
+    }
+    if (cmd === "stop") {
+      // Solo corta voz, escucha y paneles: el equipo sigue despierto.
+      setListening(false);
       setDocs(false);
       setMarket(false);
       setDeskScreen("");
@@ -810,7 +821,6 @@ function Shell() {
       voice.stopAll();
       window.clearTimeout(idleTimer.current);
       setSplit(false);
-      if (perkosRef.current.connected && fleetRef.current?.agents.some((a) => a.state === "ready" || a.state === "waking")) void fleetAction("hibernate");
     }
   }, [summarizeDay, analyzeAsset, approveDraft, quoteAsset, chat, voice, fleetAction]);
   runRef.current = run;

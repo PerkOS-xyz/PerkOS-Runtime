@@ -13,7 +13,7 @@ export type Command =
   | "unknown";
 
 export type Intent =
-  | { kind: "listen" | "wake" | "invite" | "stop" | "settings" | "docs" | "market" | "portfolio" | "approve" | "cancel" | "summarize" | "chat" }
+  | { kind: "listen" | "wake" | "sleep" | "invite" | "stop" | "settings" | "docs" | "market" | "portfolio" | "approve" | "cancel" | "summarize" | "chat" }
   | { kind: "analyze" | "quote"; asset?: string }
   | { kind: "buy"; asset?: string; amountUsd: number }
   | { kind: "sell"; asset?: string; amountUsd?: number; amountToken?: number; fraction?: number };
@@ -71,6 +71,8 @@ export function parseIntent(raw: string): Intent {
   if (t === "stop" || t === "para" || t === "basta") return { kind: "stop" };
   if (/\bsettings\b/.test(t) || /\bconfig/.test(t) || /\bajustes\b/.test(t)) return { kind: "settings" };
   if (/\bwake\b/.test(t) || /\bdespiert/.test(t)) return { kind: "wake" };
+  // Dormir al equipo es explicito; "stop" solo corta voz y escucha.
+  if (/\b(sleep|hibernate|rest)\b.*\b(team|desk|agents|everyone)\b|\b(team|desk|agents)\b.*\b(sleep|hibernate)\b|\bduerm[ea]n?\b|\bhibern/.test(t)) return { kind: "sleep" };
   if (/\binvite\b/.test(t) || /\binvita\b/.test(t)) return { kind: "invite" };
   if (/^(approve|approved|go ahead|do it|sign it|confirm|aprueba|aprobado|dale|confirma)\b/.test(t)) return { kind: "approve" };
   if (/^(cancel|cancela|discard|descarta|never mind|forget it)\b/.test(t)) return { kind: "cancel" };
