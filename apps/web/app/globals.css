@@ -1807,10 +1807,15 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
   .core { max-width: 24vh; max-height: 24vh; }
   .stage:not(.split):not(.desk-open):not(.turn-live) .core-wrap { top: 50%; }
   .scout, .risk, .trader, .auditor, .guest { top: 18%; }
-  .stage:not(.split):not(.desk-open):not(.turn-live) .caption { top: calc(18% + 112px); }
+  /* Sin altura para la linea de estado bajo la fila: va abajo a la izquierda,
+     en el lugar de la linea de venues. */
+  .stage:not(.split):not(.desk-open):not(.turn-live) .caption { top: auto; bottom: 22px; left: 28px; transform: none; text-align: left; max-width: 46%; }
+  .venue-line { display: none; }
   .ag-layer, .ag-layer.chips { top: calc(18% + 130px); }
   .mic-dock { top: calc(100% + 24px); }
   .convo { bottom: 72px; }
   .desk-dock { bottom: 16px; }
   .venue-line { bottom: 22px; }
 }
+/* Temporal: sonda de tamano de ventana (ronda responsive). */
+.size-probe { position: absolute; right: 10px; bottom: 6px; z-index: 99; font-size: 10px; letter-spacing: 0.08em; color: #ffd18a; background: rgba(6, 10, 22, 0.7); border: 1px solid rgba(255, 179, 71, 0.45); border-radius: 6px; padding: 1px 6px; pointer-events: none; }

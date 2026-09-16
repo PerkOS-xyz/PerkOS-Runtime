@@ -1544,6 +1544,7 @@ function Shell() {
         <small>They draft. You approve. Base only.</small>
       </div>
       {desk && !wizard ? <div className="venue-line">{deskManifest(desk).venues}</div> : null}
+      <SizeProbe />
       {/* Dock del desk: las pantallas propias del desk activo, a un clic
           (tambien por voz: "show the market", "show my portfolio"). Primero
           las del desk (Market, Portfolio), luego las del shell (Notes, Map, History). */}
@@ -2073,4 +2074,17 @@ function HistoryIcon() {
 }
 function cap(s: string): string {
   return s ? s[0].toUpperCase() + s.slice(1) : s;
+}
+
+// Temporal (ronda responsive 2026-09-16): ancho x alto de la ventana abajo a
+// la derecha, para calibrar los breakpoints en vivo. Se quita al cerrar la ronda.
+function SizeProbe() {
+  const [size, setSize] = useState("");
+  useEffect(() => {
+    const read = () => setSize(`${window.innerWidth} × ${window.innerHeight}`);
+    read();
+    window.addEventListener("resize", read);
+    return () => window.removeEventListener("resize", read);
+  }, []);
+  return <div className="size-probe" aria-hidden="true">{size}</div>;
 }
