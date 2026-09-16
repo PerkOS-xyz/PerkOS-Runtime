@@ -10,7 +10,7 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as { ticker?: unknown; name?: unknown; force?: unknown };
   const ticker = typeof body.ticker === "string" ? body.ticker.trim().toUpperCase().slice(0, 12) : "";
   const name = typeof body.name === "string" ? body.name.trim().slice(0, 60) : ticker;
-  if (!ticker) return Response.json({ error: "ticker" }, { status: 400 });
+  if (!/^[A-Z0-9.]{1,12}$/.test(ticker)) return Response.json({ error: "ticker" }, { status: 400 });
   const hit = body.force ? undefined : await cachedNews(ticker);
   if (hit) return Response.json({ ...hit, cached: true });
   const r = await newsFor(ticker, name, body.force === true);

@@ -9,6 +9,7 @@
 // 3. Notarizes and staples the app when Apple credentials are present, so the
 //    app inside the DMG validates offline too.
 const { execFileSync } = require("child_process");
+const crypto = require("crypto");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -50,7 +51,18 @@ exports.default = async function afterPack(context) {
   sh("rsync", ["-a", path.join(WEB, "public") + "/", path.join(res, "public") + "/"]);
   // onnxruntime opens its dylib with dlopen; Next's tracer only sees the .node.
   fs.mkdirSync(path.join(res, ORT), { recursive: true });
-  for (const f of fs.readdirSync(path.join(WEB, ORT))) fs.copyFileSync(path.join(WEB, ORT, f), path.join(res, ORT, f));
+  // onnxruntime ships the same dylib twice (libonnxruntime.1.dylib and the
+  // versioned one, byte-identical, 44 MB each): the copy keeps one file and
+  // turns the other into a symlink. Symlinks in the source are kept as such.
+  const seen = new Map();
+  for (const f of fs.readdirSync(path.join(WEB, ORT)).sort()) {
+    const src = path.join(WEB, ORT, f), dst = path.join(res, ORT, f);
+    fs.rmSync(dst, { force: true });
+    if (fs.lstatSync(src).isSymbolicLink()) { fs.symlinkSync(fs.readlinkSync(src), dst); continue; }
+    const digest = crypto.createHash("sha256").update(fs.readFileSync(src)).digest("hex");
+    if (seen.has(digest)) fs.symlinkSync(seen.get(digest), dst);
+    else { fs.copyFileSync(src, dst); seen.set(digest, f); }
+  }
 
   const hash = process.env.PERKOS_SIGN_HASH?.trim();
   const bins = walk(res);

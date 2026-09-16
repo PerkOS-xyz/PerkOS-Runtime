@@ -16,5 +16,5 @@ export async function GET(req: Request) {
   const out = (flagsOnly ? entries.filter((e) => Array.isArray(e.flags) && (e.flags as string[]).length) : entries).slice(-limit).reverse();
   const totals: Record<string, number> = {};
   for (const e of entries) for (const f of (e.flags as string[] | undefined) ?? []) { const k = f.replace(/\(.*\)$/, ""); totals[k] = (totals[k] ?? 0) + 1; }
-  return Response.json({ file, count: entries.length, totals, entries: out });
+  return Response.json({ count: entries.length, totals, entries: out });
 }
