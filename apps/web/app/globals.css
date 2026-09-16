@@ -961,7 +961,10 @@ button.cta:disabled { animation: none; opacity: 0.45; cursor: default; box-shado
   opacity: 0.55; filter: grayscale(1);
   transition: opacity 0.3s ease, filter 0.3s ease, border-color 0.3s ease;
 }
-.orb em.rail img { width: 14px; height: 14px; border-radius: 50%; display: block; }
+/* Logo de 1Claw al doble (28 px): el rail del Trader es una credencial que se
+   ve desde lejos en la demo, no una etiqueta mas. */
+.orb em.rail img { width: 28px; height: 28px; border-radius: 50%; display: block; }
+.orb em.rail { gap: 7px; padding: 3px 11px 3px 4px; font-size: 10px; }
 .orb em.rail.on { opacity: 1; filter: none; color: #ff5a6a; border-color: rgba(236, 27, 105, 0.6); box-shadow: 0 0 10px rgba(236, 27, 105, 0.35); }
 
 /* Paso 4: rail de gasto (1Claw). */
