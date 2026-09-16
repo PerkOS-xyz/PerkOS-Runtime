@@ -13,7 +13,7 @@ export type Command =
   | "unknown";
 
 export type Intent =
-  | { kind: "listen" | "wake" | "sleep" | "invite" | "stop" | "settings" | "docs" | "market" | "portfolio" | "map" | "history" | "approve" | "cancel" | "summarize" | "chat" }
+  | { kind: "listen" | "wake" | "sleep" | "invite" | "stop" | "settings" | "docs" | "market" | "portfolio" | "map" | "history" | "approve" | "cancel" | "summarize" | "advise" | "chat" }
   | { kind: "analyze" | "quote"; asset?: string }
   | { kind: "buy"; asset?: string; amountUsd: number }
   | { kind: "sell"; asset?: string; amountUsd?: number; amountToken?: number; fraction?: number };
@@ -43,7 +43,8 @@ export function parseTradeIntent(text: string): Extract<Intent, { kind: "buy" | 
   const usd = t.match(/\$\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*(?:usd|usdc|dollars?|bucks|d[oó]lares)/i);
   const amountUsd = num(usd?.[1] ?? usd?.[2]);
   const frac = /\b(all|everything|todo|toda|todas)\b/i.test(t) ? 1 : /\b(half|mitad)\b/i.test(t) ? 0.5 : /\b(quarter|cuarto)\b/i.test(t) ? 0.25 : undefined;
-  const after = t.match(/\b(?:of|de|my|mi|mis)\s+(?:my\s+|mis?\s+)?([A-Za-z][A-Za-z0-9.]{0,24})/i)?.[1];
+  // "$5of Amazon" (dictado sin espacio) tambien: el conector puede pegarse al numero.
+  const after = t.match(/(?:\b|(?<=\d))(?:of|de|my|mi|mis)\s+(?:my\s+|mis?\s+)?([A-Za-z][A-Za-z0-9.]{0,24})/i)?.[1];
   let asset = after && !STOP.test(after) ? after : undefined;
   if (!asset) {
     const afterVerb = t.slice((sideM.index ?? 0) + sideM[0].length).match(/^\s+([A-Za-z][A-Za-z0-9.]{0,24})/)?.[1];
@@ -70,6 +71,8 @@ export function parseIntent(raw: string): Intent {
   if (/\bhey perkos\b/.test(t) || t === "perkos" || t === "hey perk os") return { kind: "listen" };
   if (t === "stop" || t === "para" || t === "basta") return { kind: "stop" };
   if (/\bsettings\b/.test(t) || /\bconfig/.test(t) || /\bajustes\b/.test(t)) return { kind: "settings" };
+  // Pregunta abierta de inversion: la mesa escanea el mercado y recomienda.
+  if (/\b(what|which|que|qué|cual|cuál)\b.*\b(buy|invest|pick|comprar|invertir|conviene)\b|\b(worth buying|opportunit|oportunidad|best (stock|pick|buy)|take profit|ganancia|in a month|this month|para (un|1|el) mes|next month|one month|30 days)\b|\b(recommend|recomienda|recomiendas|advise|aconseja)\b/.test(t) && !/\$\s*\d|\d+\s*(usd|usdc|dollars?)/.test(t)) return { kind: "advise" };
   if (/\bwake\b/.test(t) || /\bdespiert/.test(t)) return { kind: "wake" };
   // Dormir al equipo es explicito; "stop" solo corta voz y escucha.
   if (/\b(sleep|hibernate|rest)\b.*\b(team|desk|agents|everyone)\b|\b(team|desk|agents)\b.*\b(sleep|hibernate)\b|\bduerm[ea]n?\b|\bhibern/.test(t)) return { kind: "sleep" };

@@ -81,6 +81,9 @@ function Shell() {
   const turnRef = useRef<DeskTurn | null>(null);
   turnRef.current = turn;
   const turnLiveRef = useRef(false);
+  // Modo del turno: orden / analisis de un activo / asesoria abierta / charla (sin mesa).
+  const modeRef = useRef<"order" | "analyze" | "advise" | "chat">("chat");
+  const lastRepliesRef = useRef<Array<{ role: string; ok: boolean; reply: string }>>([]);
   const [openTurns, setOpenTurns] = useState<number[]>([]);
   const decisionRef = useRef<{ turnId: number; noteId?: string; draftId?: number } | null>(null);
   // Memo de analisis por activo: dentro de 15 min, "analyze" solo refresca
@@ -261,7 +264,8 @@ function Shell() {
         }
       }
       const f = f0;
-      const readyRoles = f ? f.agents.filter((a) => a.state === "ready").map((a) => a.role) : [];
+      // Charla sin hechos (small talk, preguntas sobre el desk): responde solo Floor.
+      const readyRoles = modeRef.current === "chat" ? [] : f ? f.agents.filter((a) => a.state === "ready").map((a) => a.role) : [];
       if (readyRoles.length) {
         // Turno de mesa secuencial (Scout -> Risk -> Trader/Auditor) por SSE:
         // cada agente habla en su orb y deja su burbuja; Risk decide.
@@ -284,7 +288,7 @@ function Shell() {
         const fr = await fetch("/api/fleet/desk", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, roles: readyRoles, quote, brief: briefRef.current?.lines ?? null, news: briefRef.current?.news ?? null }),
+          body: JSON.stringify({ text, roles: readyRoles, quote, brief: briefRef.current?.lines ?? null, news: briefRef.current?.news ?? null, mode: modeRef.current }),
           signal: ac.signal
         });
         if (fr.ok && fr.body) {
@@ -355,6 +359,7 @@ function Shell() {
                 }
               } else if (ev.step === "done") {
                 fleetReplies = ev.replies ?? [];
+                lastRepliesRef.current = fleetReplies;
                 turnLiveRef.current = false;
                 // Las cards se leen 2 s y se contraen a chips; la decision queda guardada.
                 window.setTimeout(() => setTurn((t) => (t && t.id === youId ? { ...t, collapsed: true } : t)), 2000);
@@ -859,8 +864,11 @@ function Shell() {
         return news;
       })
       .catch((e) => { flog("error", `news: ${(e as Error).message}`); return undefined; });
-    // Dar hasta 12 s a las noticias para que entren en el prompt de la mesa.
-    await Promise.race([newsP, new Promise((r) => setTimeout(r, 12_000))]);
+    // Las noticias entran al prompt de la mesa: esperar hasta 25 s (Grok search
+    // tarda 10-16 s; la mesa sin noticia opina a ciegas sobre el catalizador).
+    const got = await Promise.race([newsP.then(() => true), new Promise<boolean>((r) => setTimeout(() => r(false), 25_000))]);
+    if (!got) flog("warn", "news: not ready before the desk turn");
+    modeRef.current = "analyze";
     await chat(spoken);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chat, speak, touch]);
@@ -912,6 +920,39 @@ function Shell() {
     }
   }, []);
 
+  // Pregunta abierta de inversion: scan del mercado (todos los activos operables)
+  // + noticias de los que mas se movieron, turno de mesa en modo "advise" y un
+  // documento fechado con el ranking para revisarlo al mes.
+  const adviseMarket = useCallback(async (text: string) => {
+    setCaption("Scanning the market…");
+    touch();
+    try {
+      const r = await fetch("/api/market/scan");
+      const scan = (await r.json()) as { at: string; lines: string[]; rows: Array<{ symbol: string; ticker: string; name: string; change24hPct?: number }>; error?: string };
+      if (!r.ok || !Array.isArray(scan.lines)) { setCaption(`Could not scan the market: ${scan.error ?? r.status}`); return; }
+      flog("info", `scan: ${scan.rows.length} stocks`);
+      const top = scan.rows.slice(0, 3);
+      setCaption(`Reading the news on ${top.map((t) => t.ticker).join(", ")}…`);
+      const newsAll = await Promise.race([
+        Promise.all(top.map((t) => fetch("/api/market/news", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker: t.ticker, name: t.name }) }).then((x) => x.json()).then((j) => (j.text ? `${t.symbol}: ${String(j.text).slice(0, 420)}` : "")).catch(() => ""))),
+        new Promise<string[]>((res) => setTimeout(() => res([]), 28_000))
+      ]);
+      const news = newsAll.filter(Boolean).join(" ");
+      briefRef.current = { lines: scan.lines, news: news || undefined };
+      quoteRef.current = null;
+      setFocusAsset("");
+      modeRef.current = "advise";
+      await chat(text);
+      const replies = lastRepliesRef.current;
+      const who = replies.filter((x) => x.ok && x.reply).map((x) => `- **${cap(x.role)}**: ${x.reply.replace(/\s+/g, " ")}`).join("\n");
+      const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+      kbWriteRef.current({ kind: "analysis", ticker: "MARKET", title: `Market outlook · ${stamp} UTC`, body: `**Asked**: ${text}\n\n## Market scan\n${scan.lines.map((l) => `- ${l}`).join("\n")}${news ? `\n\n## News\n${news}` : ""}\n\n## Desk\n${who || "(the desk did not answer)"}\n\n_Review in one month._` });
+    } catch (e) {
+      flog("error", `advise: ${(e as Error).message}`);
+      setCaption("Could not scan the market.");
+    }
+  }, [chat, touch]);
+
   const run = useCallback((raw: string) => {
     const spoken = raw.trim();
     const it = parseIntent(raw);
@@ -921,12 +962,18 @@ function Shell() {
       if (turnLiveRef.current) { void sideChat(spoken); return; }
       quoteRef.current = null;
       briefRef.current = null;
+      modeRef.current = "chat";
       void chat(spoken);
       return;
     }
+    if (cmd === "advise") { void adviseMarket(spoken); return; }
     if (cmd === "history") { setDeskScreen("history"); setCaption("Every decision the desk made"); return; }
     if (cmd === "buy" || cmd === "sell") {
       quoteRef.current = null;
+      // Sin activo reconocido no se asume NVDAc: se usa el activo en foco o se pregunta.
+      if (!it.asset && !focusRef.current) { setCaption("Which stock? Say: buy $5 of Apple."); return; }
+      if (!it.asset) it.asset = focusRef.current;
+      modeRef.current = "order";
       if (it.asset) setFocusAsset(it.asset);
       // Primero la cotizacion (la orden en la mesa), despues el turno de mesa.
       void tradeDraft({ side: cmd, stock: it.asset, amountUsd: it.amountUsd, amountToken: "amountToken" in it ? it.amountToken : undefined, fraction: "fraction" in it ? it.fraction : undefined }).then(() => chat(spoken));
@@ -1005,7 +1052,7 @@ function Shell() {
       window.clearTimeout(idleTimer.current);
       setSplit(false);
     }
-  }, [summarizeDay, analyzeAsset, approveDraft, quoteAsset, chat, voice, fleetAction]);
+  }, [summarizeDay, analyzeAsset, approveDraft, quoteAsset, chat, voice, fleetAction, adviseMarket]);
   runRef.current = run;
 
   const listen = useCallback(() => {

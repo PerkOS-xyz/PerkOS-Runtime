@@ -60,6 +60,15 @@ const pct = (n: number) => `${n > 0 ? "+" : ""}${n.toFixed(2)}%`;
 
 function metricFor(role: Role, t: DeskTurn, reply: string, verdict?: "GO" | "BLOCK"): { metric: string; metricLabel: string } {
   const q = t.quote;
+  if (!q) {
+    // Sin orden (analyze / advise): la card muestra lo que dijo cada rol.
+    const pick = reply.match(/\b([A-Z]{2,6}c)\b/)?.[1];
+    if (role === "scout") return pick ? { metric: pick, metricLabel: "top pick" } : { metric: "read", metricLabel: "market read" };
+    if (role === "risk") { const lvl = reply.match(/RISK:\s*(low|medium|high)/i)?.[1]; return lvl ? { metric: lvl.toUpperCase(), metricLabel: "risk level" } : { metric: "read", metricLabel: "risk read" }; }
+    if (role === "trader") return pick ? { metric: pick, metricLabel: "entry plan" } : { metric: "plan", metricLabel: "entry plan" };
+    const m = reply.match(/(?:record|receipt)[^0-9a-f]{0,12}([0-9a-f]{8})/i);
+    return { metric: m ? m[1] : "outlook", metricLabel: "record" };
+  }
   if (role === "scout") {
     if (t.facts?.premiumPct !== undefined) return { metric: pct(t.facts.premiumPct), metricLabel: "pool vs Chainlink" };
     if (t.facts?.change24hPct !== undefined) return { metric: pct(t.facts.change24hPct), metricLabel: "24h move" };

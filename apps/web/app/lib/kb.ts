@@ -80,7 +80,16 @@ function extractor() {
   })();
   return extractorP;
 }
-const embedText = (d: Doc) => `${d.title}\n${d.text.slice(0, 1500)}`;
+const embedText = (d: Doc) => `${d.title}\n${d.text.slice(0, 900)}`;
+// Las embeddings corren en WASM sobre el hilo principal del servidor: de a 4
+// textos y cediendo el event loop entre lotes, para que un turno de mesa o un
+// status de flota nunca esperen minutos detras de una indexacion.
+const yieldLoop = () => new Promise<void>((r) => setImmediate(r));
+let embedTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleEmbed(delayMs = 4000) {
+  if (embedTimer) clearTimeout(embedTimer);
+  embedTimer = setTimeout(() => { embedTimer = null; void embedMissing().catch(() => undefined); }, delayMs);
+}
 const hashOf = (t: string) => createHash("sha1").update(t).digest("hex").slice(0, 16);
 /** Embebe lo que falte o cambio; en segundo plano, de a 16. */
 export async function embedMissing(): Promise<number> {
@@ -93,12 +102,15 @@ export async function embedMissing(): Promise<number> {
     if (!todo.length) return 0;
     const embed = await extractor();
     if (!embed) return 0;
-    for (let i = 0; i < todo.length; i += 16) {
-      const batch = todo.slice(i, i + 16);
+    const t0 = Date.now();
+    for (let i = 0; i < todo.length; i += 4) {
+      const batch = todo.slice(i, i + 4);
       const out = await embed(batch.map(embedText));
       batch.forEach((d, j) => vecs.set(d.id, { hash: hashOf(embedText(d)), vec: out[j] }));
+      await yieldLoop();
     }
     await saveVectors();
+    console.log(`[kb] embedded ${todo.length} notes in ${Date.now() - t0} ms`);
     return todo.length;
   } finally {
     embedding = false;
@@ -171,7 +183,7 @@ export async function reindex(force = false): Promise<number> {
   index = next;
   docs = nextDocs;
   scannedAt = Date.now();
-  void embedMissing().catch(() => undefined);
+  scheduleEmbed(1500);
   return docs.size;
 }
 
@@ -182,7 +194,7 @@ async function upsertIndex(rel: string) {
   if (docs.has(rel)) index.discard(rel);
   docs.set(rel, d);
   index.add(d);
-  void embedMissing().catch(() => undefined);
+  scheduleEmbed();
 }
 
 function front(meta: Record<string, string | undefined>): string {

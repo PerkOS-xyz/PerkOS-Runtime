@@ -18,7 +18,11 @@ function verdictOf(reply: string): "GO" | "BLOCK" | undefined {
 const clip = (s: string, n = 700) => s.replace(/\s+/g, " ").trim().slice(0, n);
 
 export async function POST(req: Request) {
-  const body = (await req.json().catch(() => ({}))) as { text?: string; roles?: string[]; quote?: Quote | null; brief?: string[] | null; news?: string | null };
+  const body = (await req.json().catch(() => ({}))) as { text?: string; roles?: string[]; quote?: Quote | null; brief?: string[] | null; news?: string | null; mode?: string };
+  // Modo de la mesa: "order" (hay una orden: pros/contras + gate + draft),
+  // "analyze" (un activo: lectura, riesgo, plan si quisiera exposicion, registro),
+  // "advise" (pregunta abierta: ranking sobre el scan del mercado con horizonte).
+  const mode: "order" | "analyze" | "advise" = body.mode === "advise" ? "advise" : body.mode === "analyze" ? "analyze" : body.quote ? "order" : "analyze";
   const text = body.text?.trim() ?? "";
   if (!text) return Response.json({ error: "text" }, { status: 400 });
   const ready = new Set((body.roles ?? []).filter((r): r is FleetRole => ["scout", "risk", "trader", "auditor"].includes(r)));
@@ -34,10 +38,11 @@ export async function POST(req: Request) {
   // Presupuesto de prompt: el gateway (qwen2.5:7b, CPU) evalua ~50 tok/s;
   // 2 200 tokens = 43 s, 60 tokens = 1.5 s. Cada turno debe caber en
   // ~500 tokens sobre el system prompt de Hermes o el agente no llega.
-  const briefLines = Array.isArray(body.brief) ? body.brief.filter((l) => typeof l === "string").slice(0, 5).map((l) => l.slice(0, 160)) : [];
+  const briefLines = Array.isArray(body.brief) ? body.brief.filter((l) => typeof l === "string").slice(0, mode === "advise" ? 12 : 5).map((l) => l.slice(0, mode === "advise" ? 260 : 160)) : [];
   const factsLine = briefLines.length ? `\nMarket facts the desk already verified (use them, do not contradict them): ${briefLines.join(" ")}` : "";
-  const newsLine = typeof body.news === "string" && body.news.trim() ? `\nNews the desk found: ${body.news.trim().slice(0, 320)}` : "";
-  const local = await contextFor(text, s.fleetTemplateId, q?.symbol?.replace(/c$/i, "") ?? undefined, 320).catch(() => ({ text: "", hits: [] }));
+  const newsLine = typeof body.news === "string" && body.news.trim() ? `\nNews the desk found: ${body.news.trim().slice(0, mode === "order" ? 320 : 900)}` : "";
+  // DeepSeek evalua rapido: cabe mas conocimiento local (metodo del desk, venues, B20).
+  const local = await contextFor(text, s.fleetTemplateId, q?.symbol?.replace(/c$/i, "") ?? undefined, mode === "order" ? 320 : 900).catch(() => ({ text: "", hits: [] }));
   const memoryLine = local.text ? `\nDesk memory: ${local.text.replace(/\n/g, " ")}` : "";
 
   const enc = new TextEncoder();
@@ -58,21 +63,48 @@ export async function POST(req: Request) {
         // "Answer from the facts": sin esta linea Hermes abre skills
         // (skill_view b20-console/bankr) y tarda 2-3 min por reintento;
         // la mesa ya trae precio, Chainlink, pool, noticias y memoria.
-        const head = `Human request to the desk: "${text}". ${quoteLine}${factsLine}${newsLine}${memoryLine}\nAnswer directly from the facts above in one message. Do not open skills, files or tools for this reply; the desk already fetched the market data. If something is missing, say so in one line and continue.`;
+        const deskRules = mode === "order"
+          ? " A draft of that order is already on the table, unsigned; the human signs it or not."
+          : " Desk limits: the human trades small clips (an order is at most 100 USDC); size advice must be in USDC for this human, never in the pool's scale. The horizon is the one in the request; a catalyst after the horizon does not count as the reason.";
+        const head = `Human request to the desk: "${text}". ${quoteLine}${deskRules}${factsLine}${newsLine}${memoryLine}\nAnswer directly from the facts above in one message. Do not open skills, files or tools for this reply; the desk already fetched the market data. If something is missing, say so in one line and continue.`;
         // Hermes tarda 20-60 s por turno en frio: Scout y Risk corren en
         // paralelo (Risk ya tiene la cotizacion; Scout le suma evidencia si
         // llega), y despues Trader y Auditor con ambos handoffs.
+        const P = {
+          order: {
+            scout: `As Scout: the order is already decided, so no market read. Give one line of pros and one line of cons for doing it right now, from the facts (price vs reference, venue depth, off-hours drift, any catalyst). Open with "@Trader @Auditor". Under 45 words, plain text.`,
+            risk: `As Risk: size and limits for this desk. Compare the desk's best venue quote with the other venue, with Bankr's second quote and with the Chainlink reference price in the facts; if any pair diverges beyond 1.5%, the pool is thin for the size, or the request is unclear, block. Reply with a first line exactly "VERDICT: GO" or "VERDICT: BLOCK", then a second line starting "@Trader @Auditor" with the reason in under 40 words.`
+          },
+          analyze: {
+            scout: `As Scout: read the verified facts and the news, then give the desk your read: the underlying driver first (what moved the stock, next catalyst), then the onchain layer (pool price vs Chainlink, depth, off-hours drift). Percentages must be computed correctly from the numbers given. Do not repeat the numbers back; interpret them. Open with "@Trader @Auditor". Under 60 words, plain text.`,
+            risk: `As Risk: there is no order on the table, so no GO or BLOCK. Reply with a first line exactly "RISK: low", "RISK: medium" or "RISK: high", then "@Trader @Auditor" and: what size is safe (as a share of the pool depth), what would make you block an order, and what to check at the next market open if the Chainlink feed is frozen. Under 50 words.`
+          },
+          advise: {
+            scout: `As Scout: the human asks what to buy for the horizon in the request. Using the market lines and the news, rank the candidates: name the top two with the reason for each (a near-term catalyst or a setup versus the recent range and the reference price), and name one to avoid and why. Open with "@Trader @Auditor". Under 90 words, plain text.`,
+            risk: `As Risk: for the two candidates the desk will likely pick, give the size each pool can absorb without impact (a share of the pool depth), an exit rule (take profit level or time), and what would flip each to avoid. Reply with a first line exactly "RISK: low", "RISK: medium" or "RISK: high", then "@Trader @Auditor" and the rules. Under 70 words.`
+          }
+        }[mode];
         const [scout, risk] = await Promise.all([
-          run("scout", `${head}\nAs Scout: read the verified facts and the news, then give the desk your read: what stands out (price vs Chainlink, 24h move and range, pool depth, catalysts) and one thing to watch. Do not repeat the numbers back; interpret them. Open with who receives your handoff, exactly "@Trader @Auditor", then the read. Under 50 words, plain text.`),
-          run("risk", `${head}\nAs Risk: size and limits for this desk. Compare the desk's best venue quote with the other venue, with Bankr's second quote and with the Chainlink reference price in the facts; if any pair diverges beyond 1.5%, the pool is thin for the size, or the request is unclear, block. Reply with a first line exactly "VERDICT: GO" or "VERDICT: BLOCK", then a second line starting "@Trader @Auditor" with the reason in under 40 words.`)
+          run("scout", `${head}\n${P.scout}`),
+          run("risk", `${head}\n${P.risk}`)
         ]);
         const scoutSaid = scout?.ok ? clip(scout.reply) : "(Scout did not answer)";
         const riskSaid = risk?.ok ? clip(risk.reply) : "(Risk did not answer)";
-        const verdict = risk?.ok ? verdictOf(risk.reply) ?? "GO" : "BLOCK";
-        const tail = `${head}\nScout said: ${scoutSaid}\nRisk said: ${riskSaid} (verdict ${verdict}).`;
+        const verdict = mode === "order" ? (risk?.ok ? verdictOf(risk.reply) ?? "GO" : "BLOCK") : undefined;
+        const tail = `${head}\nScout said: ${scoutSaid}\nRisk said: ${riskSaid}${verdict ? ` (verdict ${verdict})` : ""}.`;
+        const T = mode === "order"
+          ? `As Trader (open with "@Floor"): ${q ? (verdict === "GO" ? "restate the order the desk drafted (asset, size, venue, min out) and exactly what the human must sign. You never execute." : "Risk blocked it: stand down and say what would need to change. You never execute.") : "no order is on the table: say what you would draft if asked, in one line. You never execute."} Under 60 words.`
+          : mode === "analyze"
+            ? `As Trader (open with "@Floor"): if the human wanted exposure to this stock, give the entry plan: venue, size in USDC as a share of the pool, take profit level, and a stop or a time exit; or say why you would wait and for what. You never execute. Under 60 words.`
+            : `As Trader (open with "@Floor"): entry plan for the top pick the desk is converging on: venue, size in USDC, take profit level, stop or time exit, and when you would add the second pick. You never execute. Under 70 words.`;
+        const A = mode === "order"
+          ? `As Auditor (open with "@Floor"): write the decision record for this turn: what was asked, what Scout found, Risk's verdict, the draft on the table (or none) and what evidence is missing. Under 80 words.`
+          : mode === "analyze"
+            ? `As Auditor (open with "@Floor"): write the analysis record: the thesis in one line, the evidence that supports it, the main risk, and what to check next (date or event). Under 80 words.`
+            : `As Auditor (open with "@Floor"): write the dated outlook record: the picks with their reasons, the one to avoid, the risk rules, and the review date one month out. Under 90 words.`;
         await Promise.all([
-          run("trader", `${tail}\nAs Trader (open with "@Floor"): ${q ? (verdict === "GO" ? "restate the order the desk drafted (asset, size, route, min out) and exactly what the human must sign. You never execute." : "Risk blocked it: stand down and say what would need to change.") : "no order is on the table: say what you would draft if asked, in one line."} Under 60 words.`),
-          run("auditor", `${tail}\nAs Auditor (open with "@Floor"): write the decision record for this turn: what was asked, what Scout found, Risk's verdict, the draft on the table (or none) and what evidence is missing. Under 80 words.`)
+          run("trader", `${tail}\n${T}`),
+          run("auditor", `${tail}\n${A}`)
         ]);
         send({ step: "done", verdict, replies });
       } catch (e) {

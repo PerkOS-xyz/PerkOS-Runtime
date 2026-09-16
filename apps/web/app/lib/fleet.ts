@@ -214,6 +214,9 @@ export async function askOne(wallet: string, role: FleetRole, prompt: string, ti
       signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs + 5_000)]) : AbortSignal.timeout(timeoutMs + 5_000)
     });
     const reply = String(r.reply ?? "").trim();
+    // Una tarea es actividad: si no, el curator hiberna la flota 15 min despues
+    // del ultimo wake aunque la mesa este trabajando.
+    void perkosRequest(`/agents/${encodeURIComponent(cur.id)}/activity`, { idToken, method: "POST", body: "{}", timeoutMs: 8_000 }).catch(() => undefined);
     return { role, ok: Boolean(r.ok ?? reply), reply, detail: r.detail, ms: Date.now() - t0 };
   } catch (e) {
     return { role, ok: false, reply: "", detail: (e as Error).message, ms: Date.now() - t0 };
