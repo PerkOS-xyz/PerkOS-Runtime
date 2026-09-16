@@ -1,6 +1,13 @@
 # Changelog
 
-All notable changes to PerkOS Floor. Versions follow [Semantic Versioning](https://semver.org); the version lives in `apps/desktop/package.json` and shows in Settings › About with the git short SHA of the build.
+All notable changes to the PerkOS desktop app. Versions follow [Semantic Versioning](https://semver.org); the version lives in `apps/desktop/package.json` and shows in Settings › About with the git short SHA of the build.
+
+## [0.3.0] - 2026-09-16
+
+### Changed
+- The app is PerkOS; Floor is its first desk. Package names, bundle id (`xyz.perkos.app`), window title, sign-in message and environment variables (`PERKOS_*`) follow. The desk keeps its identity: template `floor-desk`, "PerkOS Floor Desk", knowledge under `floor/`.
+- Home folder is `~/.perkos-xyz`. An existing `~/.perkos-floor` is renamed on first start, and the Chromium profile "PerkOS Floor" becomes "PerkOS", so settings, session and vault carry over.
+- Logs are `~/.perkos-xyz/logs/perkos-app.log` and `perkos-debug.log`; in development `apps/web/.perkos-debug.log`.
 
 ## [0.2.0] - 2026-09-16
 

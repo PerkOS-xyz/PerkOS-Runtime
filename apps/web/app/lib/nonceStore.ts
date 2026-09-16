@@ -8,7 +8,7 @@ export function issueNonce(address: string) {
   const nonce = randomBytes(16).toString("hex");
   const issued = new Date().toISOString();
   const message = [
-    "PerkOS Floor wants to sign you in.",
+    "PerkOS wants to sign you in.",
     "",
     `Wallet: ${address}`,
     `Nonce: ${nonce}`,

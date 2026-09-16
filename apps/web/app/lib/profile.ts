@@ -1,10 +1,10 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { getXaiAccessToken, XAI_OAUTH_BASE_URL } from "./xaiOAuth";
 import { loadSettings } from "./settingsStore";
 import { publishDeskItems, queryDeskKnowledge } from "./knowledge";
 import { writeNote } from "./kb";
+import { homePath } from "./home";
 
 // Perfil de valuacion por activo (P/E, beta, capitalizacion, proxima fecha de
 // earnings, dividendo, consenso): lo que un desk mira antes de opinar a un mes.
@@ -23,7 +23,7 @@ export type AssetProfile = {
 };
 
 const TTL = 24 * 60 * 60_000;
-const FILE = join(homedir(), ".perkos-floor", "cache", "profiles.json");
+const FILE = homePath("cache", "profiles.json");
 let mem: Record<string, AssetProfile> | null = null;
 const inflight = new Map<string, Promise<AssetProfile | undefined>>();
 

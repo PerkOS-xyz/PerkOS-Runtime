@@ -2,7 +2,7 @@
 
 // Log de debug de la app. Cualquier componente hace flog("info", "...") y el
 // ErrorDock (barra inferior) lo muestra. Los "error" abren el dock solos.
-// Tambien se espeja a apps/web/.floor-debug.log, PERO en lotes: un POST por
+// Tambien se espeja a apps/web/.perkos-debug.log, PERO en lotes: un POST por
 // linea saturaba las 6 conexiones por host de Chromium y dejaba al chat y al
 // TTS esperando detras del long-poll (medido: 53 s por una sintesis).
 export type LogLevel = "info" | "warn" | "error";

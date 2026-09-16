@@ -1,6 +1,6 @@
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
+import { HOME_DIR } from "./home";
 
 // Sesion PerkOS del usuario via PerkOS-OAuth (oauth.perkos.xyz), la fachada
 // OAuth 2.0 sobre el login por firma de wallet que PerkOS ya corre:
@@ -11,14 +11,14 @@ import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
 //   Bearer access_token en PerkOS API (/agents, /agents/:id/task, ...).
 // Floor no lleva ninguna key: solo URLs publicas. La firma la hace el usuario;
 // la decision de acceso (allowlist, saldo de infra) la toma PerkOS API en cada
-// request. La sesion vive en ~/.perkos-floor/perkos-session.json (0600).
+// request. La sesion vive en ~/.perkos-xyz/perkos-session.json (0600).
 
 export const PERKOS_API_URL = (process.env.PERKOS_API_URL || "https://api.perkos.xyz").replace(/\/$/, "");
 export const PERKOS_OAUTH_URL = (process.env.PERKOS_OAUTH_URL || "https://oauth.perkos.xyz").replace(/\/$/, "");
 const OAUTH_SCOPE = "board:read board:write agent:read";
 const WALLET_GRANT = "urn:perkos:oauth:grant-type:wallet-signature";
 
-const dir = join(homedir(), ".perkos-floor");
+const dir = HOME_DIR;
 const file = join(dir, "perkos-session.json");
 
 export type PerkosSession = {

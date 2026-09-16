@@ -1,13 +1,13 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
+import { homePath } from "./home";
 
-// Cache JSON en disco (~/.perkos-floor/cache/<name>.json) compartida entre
+// Cache JSON en disco (~/.perkos-xyz/cache/<name>.json) compartida entre
 // rutas: en Next cada ruta es su propio bundle con su propia copia de los
 // modulos, asi que un Map en memoria no se comparte entre /api/market/warm y
 // /api/market/news. El disco si, y ademas sobrevive reinicios. Solo datos
 // publicos de mercado; nunca secretos.
-const DIR = join(homedir(), ".perkos-floor", "cache");
+const DIR = homePath("cache");
 
 export class DiskCache<T> {
   private file: string;

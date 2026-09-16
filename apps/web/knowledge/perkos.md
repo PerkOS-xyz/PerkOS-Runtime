@@ -60,14 +60,14 @@ with @mentions, and sums up what the desk found. Teammates address Sparky as
 Desk on Base; EQLTY Desk, Nayori Desk and others later) and stays the same
 voice across desks. Sparky never spends or moves funds; the human approves.
 
-## PerkOS Floor (this app)
+## PerkOS (this app)
 
-Floor is the desktop "door into PerkOS": an Electron + Next.js app where a
+PerkOS is the desktop "door into PerkOS infrastructure": an Electron + Next.js app where a
 person talks (text or voice) to a small team of specialized agents that live on
 PerkOS infrastructure. The first team is a trading desk on Base: Scout (finds
 opportunities), Risk (sizes and limits), Trader (drafts orders) and Auditor
-(checks and records). The agents draft; the human approves; Floor never spends
-or moves funds on its own.
+(checks and records). The agents draft; the human approves; the app never spends
+or moves funds on its own. Floor is the name of that first desk.
 
 Every person signs in with their own account (email, Google or their wallet)
 and connects their own LLM (today: xAI/Grok by subscription; OpenAI, Anthropic

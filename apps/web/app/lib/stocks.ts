@@ -77,7 +77,7 @@ export async function listStocks(): Promise<Stock[]> {
   try {
     const res = await fetch(RWA_URL, {
       method: "POST",
-      headers: { accept: "application/json", "connect-protocol-version": "1", "content-type": "application/json", "x-request-source": "perkos-floor" },
+      headers: { accept: "application/json", "connect-protocol-version": "1", "content-type": "application/json", "x-request-source": "perkos-xyz" },
       body: JSON.stringify({ category: "RWA_CATEGORY_STOCKS", chainIds: [BASE_CHAIN_ID], includeSparkline1d: true, useSubstreamData: true }),
       signal: AbortSignal.timeout(12_000)
     });

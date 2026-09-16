@@ -1,4 +1,3 @@
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 
@@ -29,11 +28,12 @@ export type Settings = {
 };
 
 import { DEFAULT_VOICE, isVoice, type Voice } from "./voices";
+import { HOME_DIR } from "./home";
 export { VOICES, DEFAULT_VOICE, isVoice, type Voice } from "./voices";
 
 export const DEFAULT_FLEET_TEMPLATE = "floor-desk";
 
-const dir = join(homedir(), ".perkos-floor");
+const dir = HOME_DIR;
 const file = join(dir, "settings.json");
 
 export const DEFAULT_MODELS: Record<Provider, string> = {

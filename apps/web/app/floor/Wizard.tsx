@@ -168,7 +168,7 @@ function Auth({ step, setStep, onDone, team, rail }: { step: number; setStep: (n
  *  Opcional: se puede entrar sin rail y volver desde la orb del Trader. */
 function RailCard({ rail }: { rail: RailStep }) {
   const [email, setEmail] = useState<string>(() => {
-    try { return localStorage.getItem("floor.rail.email") ?? ""; } catch { return ""; }
+    try { return localStorage.getItem("perkos.rail.email") ?? localStorage.getItem("floor.rail.email") ?? ""; } catch { return ""; }
   });
   const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   // Provisioned is enough: the API links the credential and reprovisions the
@@ -176,7 +176,7 @@ function RailCard({ rail }: { rail: RailStep }) {
   const traderReady = rail.traderState === "ready" || rail.traderState === "hibernated" || rail.traderState === "waking";
   const traderLine = rail.traderState === "ready" ? "ready on PerkOS" : rail.traderState === "hibernated" ? "asleep on PerkOS · wakes when linked" : rail.traderState === "waking" ? "waking…" : rail.traderState === "provisioning" ? "provisioning… link is enabled when it is ready" : rail.traderState || "not created";
   const link = () => {
-    try { localStorage.setItem("floor.rail.email", email.trim()); } catch {}
+    try { localStorage.setItem("perkos.rail.email", email.trim()); } catch {}
     rail.onLink(email.trim());
   };
   return (

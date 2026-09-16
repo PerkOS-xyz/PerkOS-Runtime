@@ -53,7 +53,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           theme: "dark",
           accentColor: "#ec1b69",
           logo: "/logo.png",
-          landingHeader: "PerkOS Floor",
+          landingHeader: "PerkOS",
           showWalletLoginFirst: false
         }
       }}

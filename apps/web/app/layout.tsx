@@ -8,7 +8,7 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PerkOS Floor",
+  title: "PerkOS",
   description: "They draft. You approve.",
   icons: { icon: "/logo.png" }
 };

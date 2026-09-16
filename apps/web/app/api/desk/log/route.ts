@@ -1,15 +1,15 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { homedir } from "node:os";
+import { homePath } from "../../../lib/home";
 
 // GET /api/desk/log?limit=20[&flagsOnly=1] -> ultimos turnos de la mesa con
 // prompts, respuestas, tiempos y las senales del lint de calidad. Fuente:
-// ~/.perkos-floor/logs/desk-quality.jsonl (lo escribe /api/fleet/desk).
+// ~/.perkos-xyz/logs/desk-quality.jsonl (lo escribe /api/fleet/desk).
 export async function GET(req: Request) {
   const u = new URL(req.url);
   const limit = Math.min(200, Math.max(1, Number(u.searchParams.get("limit") ?? 20) || 20));
   const flagsOnly = u.searchParams.get("flagsOnly") === "1";
-  const file = join(homedir(), ".perkos-floor", "logs", "desk-quality.jsonl");
+  const file = homePath("logs", "desk-quality.jsonl");
   let lines: string[] = [];
   try { lines = (await readFile(file, "utf8")).split("\n").filter(Boolean); } catch { lines = []; }
   const entries = lines.slice(-limit * 3).map((l) => { try { return JSON.parse(l) as Record<string, unknown>; } catch { return null; } }).filter((e): e is Record<string, unknown> => Boolean(e));

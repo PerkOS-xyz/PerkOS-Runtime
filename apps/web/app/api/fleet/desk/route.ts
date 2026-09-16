@@ -2,6 +2,7 @@ import { loadSettings } from "../../../lib/settingsStore";
 import { askOne, type FleetReply, type FleetRole } from "../../../lib/fleet";
 import { contextFor, kbBusy } from "../../../lib/kb";
 import { queryDeskKnowledge } from "../../../lib/knowledge";
+import { homePath } from "../../../lib/home";
 
 // POST /api/fleet/desk { text, roles, quote? } -> SSE
 // Turno de mesa: (Scout || Risk) -> (Trader || Auditor), cada uno con los
@@ -19,7 +20,7 @@ function verdictOf(reply: string): "GO" | "BLOCK" | undefined {
 const clip = (s: string, n = 700) => s.replace(/\s+/g, " ").trim().slice(0, n);
 
 // Lint de calidad por turno: senales automaticas de donde mejorar (no bloquean).
-// Se registran en ~/.perkos-floor/logs/desk-quality.jsonl con prompts y respuestas.
+// Se registran en ~/.perkos-xyz/logs/desk-quality.jsonl con prompts y respuestas.
 // `facts` es todo lo que el agente tuvo delante (quote, hechos, noticias,
 // memoria): un porcentaje que sale de ahi no es invento.
 function lintReplies(mode: string, facts: string, replies: FleetReply[]): string[] {
@@ -53,8 +54,7 @@ async function logDeskTurn(entry: Record<string, unknown>) {
   try {
     const { appendFile, mkdir } = await import("node:fs/promises");
     const { join } = await import("node:path");
-    const { homedir } = await import("node:os");
-    const dir = join(homedir(), ".perkos-floor", "logs");
+    const dir = homePath("logs");
     await mkdir(dir, { recursive: true, mode: 0o700 });
     await appendFile(join(dir, "desk-quality.jsonl"), JSON.stringify(entry) + "\n", { mode: 0o600 });
   } catch (e) {

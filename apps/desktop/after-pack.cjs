@@ -2,7 +2,7 @@
 // 1. Puts the desk web server into the bundle (electron-builder's matcher
 //    drops node_modules from extraResources, and the standalone server needs
 //    them whole).
-// 2. Signs the whole app by certificate SHA-1 (FLOOR_SIGN_HASH): the keychain
+// 2. Signs the whole app by certificate SHA-1 (PERKOS_SIGN_HASH): the keychain
 //    can hold several Developer ID certificates with the same name, which makes
 //    signing by name ambiguous. electron-builder's own signing is off
 //    (mac.identity=null). Without a hash the app is sealed ad-hoc.
@@ -52,7 +52,7 @@ exports.default = async function afterPack(context) {
   fs.mkdirSync(path.join(res, ORT), { recursive: true });
   for (const f of fs.readdirSync(path.join(WEB, ORT))) fs.copyFileSync(path.join(WEB, ORT, f), path.join(res, ORT, f));
 
-  const hash = process.env.FLOOR_SIGN_HASH?.trim();
+  const hash = process.env.PERKOS_SIGN_HASH?.trim();
   const bins = walk(res);
   if (hash) {
     // Inner native binaries first (outside the standard bundle layout, so

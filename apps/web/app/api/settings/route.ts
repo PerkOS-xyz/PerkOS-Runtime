@@ -9,8 +9,8 @@ export async function GET() {
     ...publicSettings(s),
     name: await displayName(s.wallet),
     // Set by the Electron shell (apps/desktop/main.cjs); "dev" when the web app runs alone.
-    version: process.env.FLOOR_APP_VERSION?.trim() || "dev",
-    build: process.env.FLOOR_APP_BUILD?.trim() || ""
+    version: process.env.PERKOS_APP_VERSION?.trim() || "dev",
+    build: process.env.PERKOS_APP_BUILD?.trim() || ""
   });
 }
 

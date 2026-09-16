@@ -15,7 +15,7 @@ function renderMd(body: string): string {
 function printNote(title: string, html: string) {
   const w = window.open("", "_blank", "width=820,height=900");
   if (!w) return;
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title.replace(/</g, "&lt;")}</title><style>body{font:14px/1.55 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#111;max-width:760px;margin:40px auto;padding:0 24px}h1,h2,h3{line-height:1.25}code,pre{font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}pre{background:#f4f4f6;padding:12px;border-radius:8px;overflow:auto;white-space:pre-wrap}table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:4px 8px}small.src{display:block;margin-top:32px;color:#777}</style></head><body>${html}<small class="src">PerkOS Floor · ${new Date().toLocaleString()}</small></body></html>`);
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title.replace(/</g, "&lt;")}</title><style>body{font:14px/1.55 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#111;max-width:760px;margin:40px auto;padding:0 24px}h1,h2,h3{line-height:1.25}code,pre{font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}pre{background:#f4f4f6;padding:12px;border-radius:8px;overflow:auto;white-space:pre-wrap}table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:4px 8px}small.src{display:block;margin-top:32px;color:#777}</style></head><body>${html}<small class="src">PerkOS · ${new Date().toLocaleString()}</small></body></html>`);
   w.document.close();
   w.focus();
   window.setTimeout(() => { w.print(); }, 300);
@@ -243,7 +243,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
         </>
       ) : screen === "notes" ? (
         <>
-          <p className="hint-line">What this desk remembers: journal, analyses, orders and memory. Local Markdown in ~/.perkos-floor/knowledge, Obsidian-compatible.</p>
+          <p className="hint-line">What this desk remembers: journal, analyses, orders and memory. Local Markdown in ~/.perkos-xyz/knowledge, Obsidian-compatible.</p>
           <div className="notes-bar">
             <input className="search" value={nq} placeholder="Search the desk's notes (meaning, not just words)…" onChange={(e) => { const v = e.target.value; setNq(v); if (v.trim().length < 2) { setHits(null); return; } fetch(`/api/kb/search?q=${encodeURIComponent(v)}`).then((r) => r.json()).then((j) => setHits(j.hits ?? [])).catch(() => setHits([])); }} />
             {onSummarize ? <button type="button" onClick={onSummarize} title="Summarize today's journal into memory.md">Summarize today</button> : null}
@@ -370,7 +370,7 @@ function History() {
   );
 }
 
-/** Quality: el log de turnos de la mesa (~/.perkos-floor/logs) con las
+/** Quality: el log de turnos de la mesa (~/.perkos-xyz/logs) con las
  * senales del lint, para ver donde falla cada rol sin abrir el JSONL. */
 type LogReply = { role: string; ok: boolean; ms?: number; reply?: string; detail?: string };
 type LogEntry = { at: string; mode: string; text: string; ms: number; verdict: string | null; flags: string[]; replies: LogReply[] };

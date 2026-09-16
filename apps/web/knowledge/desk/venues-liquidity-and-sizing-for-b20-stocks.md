@@ -2,7 +2,7 @@
 title: "Venues, liquidity and sizing for B20 stocks"
 kind: app
 updated: "2026-09-16T12:00:00.000Z"
-source: PerkOS Floor
+source: PerkOS
 sources: https://github.com/aerodrome-finance/slipstream, https://basescan.org/address/0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef, https://docs.uniswap.org/contracts/v3/reference/deployments/base-deployments
 ---
 

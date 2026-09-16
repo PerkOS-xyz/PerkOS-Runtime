@@ -39,7 +39,7 @@ export function DocsNode({ data }: NodeProps) {
       <div className="title">Docs</div>
       <p className="line">
         {open
-          ? "PerkOS Floor. They draft. You approve. Base only."
+          ? "PerkOS. They draft. You approve. Base only."
           : "Hibernated"}
       </p>
     </div>
