@@ -1,3 +1,4 @@
+import { guard } from "../../../lib/guard";
 import { loadSettings } from "../../../lib/settingsStore";
 import { draftTrade, TradeError } from "../../../lib/uniswap";
 import { bankrQuote } from "../../../lib/bankr";
@@ -6,6 +7,8 @@ import { bankrQuote } from "../../../lib/bankr";
 // side default "buy", stock default NVDAc. Nada se firma aqui: la wallet de la
 // persona firma en Floor (Approve orb).
 export async function POST(req: Request) {
+  const denied = guard(req);
+  if (denied) return denied;
   const body = (await req.json().catch(() => ({}))) as { side?: unknown; stock?: unknown; amountUsd?: unknown; amountToken?: unknown; fraction?: unknown };
   const side = body.side === "sell" ? "sell" : "buy";
   const stock = typeof body.stock === "string" && body.stock.trim() ? body.stock.trim().slice(0, 40) : undefined;

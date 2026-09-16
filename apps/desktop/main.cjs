@@ -2,6 +2,7 @@ const { app, BrowserWindow, shell, session, powerSaveBlocker } = require("electr
 app.setName("PerkOS");
 
 const { spawn } = require("child_process");
+const crypto = require("crypto");
 const fs = require("fs");
 const http = require("http");
 const net = require("net");
@@ -23,6 +24,10 @@ const APP_BUILD = (() => {
   try { return require("child_process").execSync("git rev-parse --short HEAD", { cwd: __dirname, stdio: ["ignore", "pipe", "ignore"] }).toString().trim(); } catch { return ""; }
 })();
 let child = null;
+// Token por arranque para la API local: el servidor lo exige (PERKOS_API_TOKEN),
+// la ventana lo recibe en la URL de carga y lo manda en x-perkos-token, y el
+// bridge de voz lo lee de ~/.perkos-xyz/api-token (0600). Ver apps/web/app/lib/guard.ts.
+const API_TOKEN = crypto.randomBytes(24).toString("hex");
 
 // Pruebas: PERKOS_USER_DATA aisla el perfil de Chromium (sesion Privy, storage)
 // para abrir el .app junto a la version de desarrollo sin pisar su perfil.
@@ -105,7 +110,7 @@ function startWeb(port) {
     const web = path.join(process.resourcesPath, "web");
     const logs = path.join(HOME_DIR, "logs");
     fs.mkdirSync(logs, { recursive: true });
-    const log = fs.createWriteStream(path.join(logs, "perkos-app.log"), { flags: "a" });
+    const log = fs.createWriteStream(path.join(logs, "perkos-app.log"), { flags: "a", mode: 0o600 });
     log.write(`\n[${new Date().toISOString()}] PerkOS.app ${app.getVersion()} · port ${port}\n`);
     child = spawn(process.execPath, [path.join(web, "server.js")], {
       cwd: web,
@@ -116,6 +121,7 @@ function startWeb(port) {
         NODE_ENV: "production",
         PERKOS_APP_VERSION: APP_VERSION,
         PERKOS_APP_BUILD: APP_BUILD,
+        PERKOS_API_TOKEN: API_TOKEN,
         HOSTNAME: "127.0.0.1",
         PORT: String(port),
         PERKOS_DEBUG_LOG: path.join(logs, "perkos-debug.log")
@@ -129,7 +135,7 @@ function startWeb(port) {
   const web = path.join(__dirname, "../web");
   child = spawn("npx", ["next", "dev", "--hostname", "127.0.0.1", "--port", String(port)], {
     cwd: web,
-    env: { ...process.env, PERKOS_APP_VERSION: APP_VERSION, PERKOS_APP_BUILD: APP_BUILD },
+    env: { ...process.env, PERKOS_APP_VERSION: APP_VERSION, PERKOS_APP_BUILD: APP_BUILD, PERKOS_API_TOKEN: API_TOKEN },
     stdio: ["ignore", "pipe", "pipe"]
   });
   child.stdout?.on("data", (b) => process.stdout.write(b));
@@ -140,6 +146,10 @@ async function url() {
   if (process.env.PERKOS_URL) return process.env.PERKOS_URL;
   const port = await takePort();
   startWeb(port);
+  try {
+    fs.mkdirSync(HOME_DIR, { recursive: true, mode: 0o700 });
+    fs.writeFileSync(path.join(HOME_DIR, "api-token"), API_TOKEN, { mode: 0o600 });
+  } catch {}
   // Debe quedarse en 127.0.0.1 (o localhost). Privy lee window.location.hostname
   // y rechaza cualquier otro nombre sobre http con "Embedded wallet is only
   // available over HTTPS", asi que un alias DNS via host-rules no sirve.
@@ -195,7 +205,7 @@ async function create() {
   try {
     const target = await url();
     await waitFor(target);
-    await win.loadURL(target);
+    await win.loadURL(`${target}/?t=${API_TOKEN}`);
   } catch {
     await win.loadFile(path.join(__dirname, "waiting.html"));
   }

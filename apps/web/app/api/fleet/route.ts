@@ -1,3 +1,4 @@
+import { guard } from "../../lib/guard";
 import { loadSettings, saveSettings } from "../../lib/settingsStore";
 import { fleetStatus, hibernateFleet, wakeFleet } from "../../lib/fleet";
 import { PerkosApiError } from "../../lib/perkosApi";
@@ -34,6 +35,8 @@ export async function GET(req: Request) {
 // wake/select con templateId lo guarda como el desk del usuario (quick switch
 // en el header); select solo cambia y devuelve el estado, sin despertar.
 export async function POST(req: Request) {
+  const denied = guard(req);
+  if (denied) return denied;
   const body = (await req.json().catch(() => ({}))) as { action?: string; templateId?: string };
   try {
     const w = await who();

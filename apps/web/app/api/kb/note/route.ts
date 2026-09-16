@@ -1,3 +1,4 @@
+import { guard } from "../../../lib/guard";
 import { notePath, readNoteBody, replaceNote } from "../../../lib/kb";
 
 // GET /api/kb/note?id=<rel>  -> nota completa + ruta absoluta (abrir en Obsidian/Finder)
@@ -10,6 +11,8 @@ export async function GET(req: Request) {
 }
 
 export async function PUT(req: Request) {
+  const denied = guard(req);
+  if (denied) return denied;
   const b = (await req.json().catch(() => ({}))) as { id?: unknown; body?: unknown };
   const id = typeof b.id === "string" ? b.id.trim() : "";
   const body = typeof b.body === "string" ? b.body.slice(0, 60_000) : "";

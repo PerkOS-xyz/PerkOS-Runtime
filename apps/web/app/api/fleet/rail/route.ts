@@ -1,3 +1,4 @@
+import { guard } from "../../../lib/guard";
 import { loadSettings } from "../../../lib/settingsStore";
 import { enrolRail, railStatus } from "../../../lib/fleet";
 import { PerkosApiError } from "../../../lib/perkosApi";
@@ -25,6 +26,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const denied = guard(req);
+  if (denied) return denied;
   const body = (await req.json().catch(() => ({}))) as { email?: unknown };
   const email = typeof body.email === "string" ? body.email.trim() : "";
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) return Response.json({ error: "email" }, { status: 400 });

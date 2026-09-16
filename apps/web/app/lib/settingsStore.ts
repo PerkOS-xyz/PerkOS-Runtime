@@ -28,7 +28,7 @@ export type Settings = {
 };
 
 import { DEFAULT_VOICE, isVoice, type Voice } from "./voices";
-import { HOME_DIR } from "./home";
+import { ensureHome, HOME_DIR } from "./home";
 export { VOICES, DEFAULT_VOICE, isVoice, type Voice } from "./voices";
 
 export const DEFAULT_FLEET_TEMPLATE = "floor-desk";
@@ -51,6 +51,7 @@ function providerOf(v: unknown): Provider {
 }
 
 export async function loadSettings(): Promise<Settings> {
+  ensureHome();
   try {
     const raw = JSON.parse(await readFile(file, "utf8")) as Partial<Settings>;
     const provider = providerOf(raw.provider);
@@ -78,6 +79,7 @@ export async function loadSettings(): Promise<Settings> {
 }
 
 export async function saveSettings(next: Settings): Promise<void> {
+  ensureHome();
   await mkdir(dir, { recursive: true, mode: 0o700 });
   await writeFile(file, `${JSON.stringify(next)}\n`, { mode: 0o600 });
 }

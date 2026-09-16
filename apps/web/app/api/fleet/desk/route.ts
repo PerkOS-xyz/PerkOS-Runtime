@@ -1,3 +1,4 @@
+import { guard } from "../../../lib/guard";
 import { loadSettings } from "../../../lib/settingsStore";
 import { askOne, type FleetReply, type FleetRole } from "../../../lib/fleet";
 import { contextFor, kbBusy } from "../../../lib/kb";
@@ -63,6 +64,8 @@ async function logDeskTurn(entry: Record<string, unknown>) {
 }
 
 export async function POST(req: Request) {
+  const denied = guard(req);
+  if (denied) return denied;
   const body = (await req.json().catch(() => ({}))) as { text?: string; roles?: string[]; quote?: Quote | null; brief?: string[] | null; news?: string | null; mode?: string };
   // Modo de la mesa: "order" (hay una orden: pros/contras + gate + draft),
   // "analyze" (un activo: lectura, riesgo, plan si quisiera exposicion, registro),
