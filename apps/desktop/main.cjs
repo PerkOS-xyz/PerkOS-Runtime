@@ -10,6 +10,13 @@ const path = require("path");
 
 const mac = process.platform === "darwin";
 const HOME_DIR = path.join(os.homedir(), ".perkos-floor");
+// Version for Settings › About: package.json version + git short SHA. The
+// packaged app gets the SHA injected by electron-builder (extraMetadata.buildSha).
+const APP_VERSION = app.getVersion();
+const APP_BUILD = (() => {
+  try { const sha = require("./package.json").buildSha; if (sha) return String(sha); } catch {}
+  try { return require("child_process").execSync("git rev-parse --short HEAD", { cwd: __dirname, stdio: ["ignore", "pipe", "ignore"] }).toString().trim(); } catch { return ""; }
+})();
 let child = null;
 
 // Pruebas: FLOOR_USER_DATA aisla el perfil de Chromium (sesion Privy, storage)
@@ -94,6 +101,8 @@ function startWeb(port) {
         ...homeEnv(),
         ELECTRON_RUN_AS_NODE: "1",
         NODE_ENV: "production",
+        FLOOR_APP_VERSION: APP_VERSION,
+        FLOOR_APP_BUILD: APP_BUILD,
         HOSTNAME: "127.0.0.1",
         PORT: String(port),
         FLOOR_DEBUG_LOG: path.join(logs, "floor-debug.log")
@@ -107,7 +116,7 @@ function startWeb(port) {
   const web = path.join(__dirname, "../web");
   child = spawn("npx", ["next", "dev", "--hostname", "127.0.0.1", "--port", String(port)], {
     cwd: web,
-    env: process.env,
+    env: { ...process.env, FLOOR_APP_VERSION: APP_VERSION, FLOOR_APP_BUILD: APP_BUILD },
     stdio: ["ignore", "pipe", "pipe"]
   });
   child.stdout?.on("data", (b) => process.stdout.write(b));

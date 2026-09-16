@@ -1,6 +1,6 @@
 {
   "name": "perkos-floor-desktop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "main": "main.cjs",
   "scripts": {
@@ -33,7 +33,7 @@
     "mac": {
       "target": [
         {
-          "target": "dir",
+          "target": "dmg",
           "arch": [
             "arm64"
           ]
@@ -41,11 +41,38 @@
       ],
       "icon": "build/icon.icns",
       "category": "public.app-category.finance",
-      "identity": null,
+      "hardenedRuntime": true,
+      "entitlements": "entitlements.mac.plist",
+      "entitlementsInherit": "entitlements.mac.plist",
       "extendInfo": {
         "NSMicrophoneUsageDescription": "Floor listens while you hold the mic to talk to Sparky.",
         "NSSpeechRecognitionUsageDescription": "Floor turns what you say into a request for the desk."
       }
+    },
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
+    "afterPack": "after-pack.cjs",
+    "dmg": {
+      "title": "PerkOS ${version}",
+      "icon": "build/icon.icns",
+      "background": "build/dmg-background.png",
+      "window": {
+        "width": 600,
+        "height": 420
+      },
+      "iconSize": 112,
+      "contents": [
+        {
+          "x": 170,
+          "y": 210
+        },
+        {
+          "x": 430,
+          "y": 210,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "sign": false
     }
   }
 }

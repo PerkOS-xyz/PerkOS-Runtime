@@ -5,7 +5,13 @@ const PROVIDERS: Provider[] = ["xai-oauth", "xai", "openai", "anthropic", "local
 
 export async function GET() {
   const s = await loadSettings();
-  return Response.json({ ...publicSettings(s), name: await displayName(s.wallet) });
+  return Response.json({
+    ...publicSettings(s),
+    name: await displayName(s.wallet),
+    // Set by the Electron shell (apps/desktop/main.cjs); "dev" when the web app runs alone.
+    version: process.env.FLOOR_APP_VERSION?.trim() || "dev",
+    build: process.env.FLOOR_APP_BUILD?.trim() || ""
+  });
 }
 
 export async function POST(req: Request) {
