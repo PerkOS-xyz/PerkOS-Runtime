@@ -114,6 +114,15 @@ function Shell() {
     }, 120_000);
   }, []);
   const askRef = useRef<HTMLInputElement | null>(null);
+  // Autoscroll del transcript al ultimo turno, salvo que la persona haya
+  // subido a leer (mas de 80 px por encima del final).
+  const transcriptRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = transcriptRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80 + 200;
+    if (nearBottom) el.scrollTop = el.scrollHeight;
+  }, [messages]);
   const chatAbort = useRef<AbortController | null>(null);
   const runRef = useRef<(t: string) => void>(() => undefined);
 
@@ -1175,7 +1184,7 @@ function Shell() {
           que es la unica duena de posicion y ancho. En idle es solo el composer
           centrado abajo; en split ocupa la izquierda con un separador. */}
       <div className={`convo${split ? " split" : ""}`}>
-      <div className={`transcript${split ? " on" : ""}`} aria-live="polite">
+      <div className={`transcript${split ? " on" : ""}`} aria-live="polite" ref={transcriptRef}>
         {messages.map((m) => (
           <div key={m.id} className={`turn ${m.role}`}>
             <span className="turn-k">

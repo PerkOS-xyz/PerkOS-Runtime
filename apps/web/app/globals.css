@@ -1180,3 +1180,10 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .an-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .an-foot small { color: var(--mute); font-size: 10px; }
 .an-foot button { padding: 4px 10px; font-size: 10px; letter-spacing: 0.06em; }
+
+/* El transcript hace scroll: flex-end + overflow no deja subir, asi que
+   alinea al inicio y empuja el primer turno con margin-top auto. */
+.transcript { overflow-y: auto; overscroll-behavior: contain; justify-content: flex-start; padding-right: 6px; scrollbar-width: thin; scrollbar-color: rgba(120, 160, 255, 0.25) transparent; }
+.transcript > :first-child { margin-top: auto; }
+.transcript::-webkit-scrollbar { width: 6px; }
+.transcript::-webkit-scrollbar-thumb { background: rgba(120, 160, 255, 0.25); border-radius: 999px; }
