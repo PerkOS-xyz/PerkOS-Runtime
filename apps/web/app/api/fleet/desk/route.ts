@@ -7,7 +7,7 @@ import { contextFor } from "../../../lib/kb";
 // handoffs anteriores en el prompt. Risk emite un VERDICT (GO/BLOCK) que
 // decide si el draft del Trader sigue vivo. Eventos:
 //   {step:"start", role} · {step:"reply", role, ok, reply, detail, ms, verdict?} · {step:"done"}
-type Quote = { side: string; symbol: string; name: string; amountIn: string; tokenIn: string; quoteOut: string; tokenOut: string; priceUsd: number; pool: string; fee: number; poolUsdcDepth: number; minOut: string; bankr?: { priceUsd: number; outHuman: string; outSymbol: string; feeBps: number; priceImpactBps?: number } | null };
+type Quote = { side: string; symbol: string; name: string; amountIn: string; tokenIn: string; quoteOut: string; tokenOut: string; priceUsd: number; pool: string; fee: number; poolUsdcDepth: number; minOut: string; bankr?: { priceUsd: number; outHuman: string; outSymbol: string; feeBps: number; priceImpactBps?: number } | null; venue?: string; venues?: Array<{ label: string; priceUsd: number; usdcDepth: number }> };
 
 function verdictOf(reply: string): "GO" | "BLOCK" | undefined {
   const m = reply.match(/VERDICT\s*[:\-]\s*(GO|BLOCK)/i);
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
   if (!s.wallet) return Response.json({ error: "perkos_session_required" }, { status: 401 });
   const wallet = s.wallet;
   const quoteLine = q
-    ? `Uniswap V3 quote on Base: ${q.side} ${q.amountIn} ${q.tokenIn} -> ${q.quoteOut} ${q.tokenOut} (${q.name}) at $${q.priceUsd.toFixed(2)} per share, pool fee ${q.fee / 10_000}%, $${q.poolUsdcDepth.toFixed(0)} USDC depth.${q.bankr ? ` Second quote from Bankr (read-only, it never executes): ${q.amountIn} ${q.tokenIn} -> ${q.bankr.outHuman} ${q.bankr.outSymbol || q.tokenOut} at $${q.bankr.priceUsd.toFixed(2)} per share, fee ${q.bankr.feeBps} bps${q.bankr.priceImpactBps !== undefined ? `, price impact ${q.bankr.priceImpactBps} bps` : ""}; Uniswap vs Bankr ${(((q.priceUsd / q.bankr.priceUsd) - 1) * 100).toFixed(2)}%.` : ""}`
+    ? `${q.venue ?? "Uniswap V3"} quote on Base (best venue the desk found): ${q.side} ${q.amountIn} ${q.tokenIn} -> ${q.quoteOut} ${q.tokenOut} (${q.name}) at $${q.priceUsd.toFixed(2)} per share, pool fee ${q.fee / 10_000}%, $${q.poolUsdcDepth.toFixed(0)} USDC depth.${q.venues && q.venues.length > 1 ? ` Other venue: ${q.venues.filter((v) => v.label !== q.venue).map((v) => `${v.label} $${v.priceUsd.toFixed(2)} per share ($${v.usdcDepth.toFixed(0)} USDC depth)`).join(", ")}.` : ""}${q.bankr ? ` Second quote from Bankr (read-only, it never executes): ${q.amountIn} ${q.tokenIn} -> ${q.bankr.outHuman} ${q.bankr.outSymbol || q.tokenOut} at $${q.bankr.priceUsd.toFixed(2)} per share, fee ${q.bankr.feeBps} bps${q.bankr.priceImpactBps !== undefined ? `, price impact ${q.bankr.priceImpactBps} bps` : ""}; Uniswap vs Bankr ${(((q.priceUsd / q.bankr.priceUsd) - 1) * 100).toFixed(2)}%.` : ""}`
     : "No order is on the table this turn.";
   // Lo que Floor ya sabe del activo (market brief on-chain + noticias con
   // fuentes): el equipo razona sobre numeros, no sobre la nada.
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
         // llega), y despues Trader y Auditor con ambos handoffs.
         const [scout, risk] = await Promise.all([
           run("scout", `${head}\nAs Scout: read the verified facts and the news, then give the desk your read: what stands out (price vs Chainlink, 24h move and range, pool depth, catalysts) and one thing to watch. Do not repeat the numbers back; interpret them. Open with who receives your handoff, exactly "@Trader @Auditor", then the read. Under 50 words, plain text.`),
-          run("risk", `${head}\nAs Risk: size and limits for this desk. Compare the desk's Uniswap quote with Bankr's second quote and with the Chainlink reference price in the facts; if any pair diverges beyond 1.5%, the pool is thin for the size, or the request is unclear, block. Reply with a first line exactly "VERDICT: GO" or "VERDICT: BLOCK", then a second line starting "@Trader @Auditor" with the reason in under 40 words.`)
+          run("risk", `${head}\nAs Risk: size and limits for this desk. Compare the desk's best venue quote with the other venue, with Bankr's second quote and with the Chainlink reference price in the facts; if any pair diverges beyond 1.5%, the pool is thin for the size, or the request is unclear, block. Reply with a first line exactly "VERDICT: GO" or "VERDICT: BLOCK", then a second line starting "@Trader @Auditor" with the reason in under 40 words.`)
         ]);
         const scoutSaid = scout?.ok ? clip(scout.reply) : "(Scout did not answer)";
         const riskSaid = risk?.ok ? clip(risk.reply) : "(Risk did not answer)";

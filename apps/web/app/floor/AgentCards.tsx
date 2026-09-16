@@ -24,7 +24,7 @@ export type AgentRun = {
   text?: string;
   verdict?: "GO" | "BLOCK";
 };
-export type TurnQuote = { side: string; symbol: string; name: string; amountIn: string; tokenIn: string; quoteOut: string; tokenOut: string; priceUsd: number; bankr?: { priceUsd: number } | null } | null;
+export type TurnQuote = { side: string; symbol: string; name: string; amountIn: string; tokenIn: string; quoteOut: string; tokenOut: string; priceUsd: number; bankr?: { priceUsd: number } | null; venue?: string } | null;
 export type TurnFacts = { premiumPct?: number; change24hPct?: number; swaps24h?: number; chainlinkUsd?: number } | null;
 export type DeskTurn = {
   id: number;
@@ -74,7 +74,7 @@ function metricFor(role: Role, t: DeskTurn, reply: string, verdict?: "GO" | "BLO
   }
   if (role === "trader") {
     if (verdict === "BLOCK" || t.verdict === "BLOCK") return { metric: "stand down", metricLabel: "Risk blocked" };
-    if (q) return { metric: `${q.quoteOut} ${q.tokenOut}`, metricLabel: `for ${q.amountIn} ${q.tokenIn}` };
+    if (q) return { metric: `${q.quoteOut} ${q.tokenOut}`, metricLabel: `for ${q.amountIn} ${q.tokenIn}${q.venue ? ` · ${q.venue}` : ""}` };
     return { metric: "no order", metricLabel: "nothing drafted" };
   }
   const m = reply.match(/(?:record|receipt)[^0-9a-f]{0,12}([0-9a-f]{8})/i);

@@ -1,12 +1,13 @@
 import type { BankrQuote } from "./bankr";
 import { createPublicClient, encodeFunctionData, formatUnits, http, parseAbi, type Hex } from "viem";
 import { base } from "viem/chains";
-import { BASE_CHAIN_ID, USDC, USDC_DECIMALS, findUsdcPool, resolveStock, type Stock, type StockPool } from "./stocks";
+import { AERO_QUOTER, AERO_ROUTER, BASE_CHAIN_ID, USDC, USDC_DECIMALS, VENUE_LABEL, poolsFor, resolveStock, type Stock, type StockPool, type Venue } from "./stocks";
 
-// Compra/venta de acciones tokenizadas con USDC en Uniswap V3 Base mainnet.
-// Floor solo COTIZA y ARMA las transacciones; las firma la wallet de la persona
-// (MetaMask por WalletConnect). Nada aqui tiene llaves. La ruta es siempre un
-// unico pool USDC/token (el mas profundo), elegido en stocks.ts.
+// Compra/venta de acciones tokenizadas con USDC en Base mainnet, en dos venues:
+// Uniswap V3 y Aerodrome Slipstream (CL). Floor COTIZA en los dos, elige el
+// mejor precio y ARMA las transacciones; las firma la wallet de la persona
+// (MetaMask por WalletConnect). Nada aqui tiene llaves. Ruta = un unico pool
+// USDC/token por venue (el mas profundo), descubierto en stocks.ts.
 
 export { BASE_CHAIN_ID, USDC, USDC_DECIMALS };
 export const NVDAC = "0xb20000000000000000000078ee7ce2fE4908108C" as const;
@@ -19,6 +20,14 @@ const quoterAbi = parseAbi([
 const routerAbi = parseAbi([
   "function exactInputSingle((address tokenIn,address tokenOut,uint24 fee,address recipient,uint256 amountIn,uint256 amountOutMinimum,uint160 sqrtPriceLimitX96)) payable returns (uint256 amountOut)"
 ]);
+// Slipstream: mismo diseno que Uniswap V3 pero el pool se identifica por tickSpacing.
+const aeroQuoterAbi = parseAbi([
+  "function quoteExactInputSingle((address tokenIn,address tokenOut,uint256 amountIn,int24 tickSpacing,uint160 sqrtPriceLimitX96)) returns (uint256 amountOut,uint160 sqrtPriceX96After,uint32 initializedTicksCrossed,uint256 gasEstimate)"
+]);
+const aeroRouterAbi = parseAbi([
+  "function exactInputSingle((address tokenIn,address tokenOut,int24 tickSpacing,address recipient,uint256 deadline,uint256 amountIn,uint256 amountOutMinimum,uint160 sqrtPriceLimitX96)) payable returns (uint256 amountOut)"
+]);
+export type VenueQuote = { venue: Venue; label: string; pool: string; fee: number; tickSpacing?: number; usdcDepth: number; out: string; outHuman: string; priceUsd: number };
 const erc20Abi = parseAbi([
   "function approve(address spender,uint256 amount) returns (bool)",
   "function allowance(address owner,address spender) view returns (uint256)",
@@ -57,6 +66,11 @@ export type TradeDraft = {
   balanceUsdc: string;
   balanceToken: string;
   txs: TradeTx[];
+  /** Venue elegido (mejor precio entre los pools con profundidad) y todas las cotizaciones. */
+  venue: Venue;
+  venueLabel: string;
+  tickSpacing?: number;
+  venues: VenueQuote[];
   /** Segunda cotizacion (Bankr, read-only). null si no hay key o fallo. */
   bankr?: BankrQuote | null;
 };
@@ -83,9 +97,12 @@ export async function draftTrade(a: DraftArgs): Promise<TradeDraft> {
   const slippageBps = a.slippageBps ?? 100;
   const stock = await resolveStock(a.stock?.trim() || "NVDAc");
   if (!stock) throw new TradeError("UNKNOWN_STOCK", `No tokenized stock matches "${a.stock}" on Base`);
-  const pool = await findUsdcPool(stock.address);
-  if (!pool) throw new TradeError("NO_POOL", `${stock.symbol} has no USDC pool on Uniswap V3 Base`);
-  if (pool.usdcDepth < 100) throw new TradeError("THIN_POOL", `${stock.symbol}'s USDC pool holds only $${pool.usdcDepth.toFixed(0)}; too thin to trade`);
+  const pools = await poolsFor(stock.address);
+  const candidates = [pools.uniswap, pools.aerodrome].filter((p): p is StockPool => Boolean(p));
+  if (!candidates.length) throw new TradeError("NO_POOL", `${stock.symbol} has no USDC pool on Uniswap V3 or Aerodrome on Base`);
+  const deep = candidates.filter((p) => p.usdcDepth >= 100);
+  if (!deep.length) throw new TradeError("THIN_POOL", `${stock.symbol}'s deepest USDC pool holds only $${Math.max(...candidates.map((p) => p.usdcDepth)).toFixed(0)}; too thin to trade`);
+  const pool0 = pools.best!;
   const c = client();
   const [balUsdc, balToken] = await Promise.all([
     c.readContract({ address: USDC, abi: erc20Abi, functionName: "balanceOf", args: [a.recipient] }),
@@ -108,36 +125,57 @@ export async function draftTrade(a: DraftArgs): Promise<TradeDraft> {
       amountIn = BigInt(Math.round(Number(a.amountToken) * 10 ** stock.decimals));
     } else if (a.amountUsd !== undefined) {
       // USD → tokens al precio del pool (cotizacion inversa de 1 USDC).
-      const one = await quote(c, USDC, stock.address, BigInt(10 ** USDC_DECIMALS), pool.fee);
+      const one = await quote(c, USDC, stock.address, BigInt(10 ** USDC_DECIMALS), pool0);
       amountIn = (one.out * BigInt(Math.round(Number(a.amountUsd) * 1000))) / 1000n;
     } else throw new TradeError("AMOUNT", "sell needs amountToken, amountUsd or fraction");
     if (amountIn <= 0n) throw new TradeError("NO_BALANCE", `You hold no ${stock.symbol} on Base`);
     if (amountIn > balToken) throw new TradeError("NO_BALANCE", `You hold ${formatUnits(balToken, stock.decimals)} ${stock.symbol}; the draft needs ${formatUnits(amountIn, stock.decimals)}`);
   }
 
-  const [q, allowance] = await Promise.all([
-    quote(c, tokenIn.address as `0x${string}`, tokenOut.address as `0x${string}`, amountIn, pool.fee),
-    c.readContract({ address: tokenIn.address as `0x${string}`, abi: erc20Abi, functionName: "allowance", args: [a.recipient, SWAP_ROUTER_02] })
-  ]);
+  // Cotizar en cada venue con profundidad; el Trader elige el mejor precio.
+  const quoted = (await Promise.all(deep.map(async (p) => {
+    try {
+      const r = await quote(c, tokenIn.address as `0x${string}`, tokenOut.address as `0x${string}`, amountIn, p);
+      return { pool: p, q: r };
+    } catch { return null; }
+  }))).filter((x): x is { pool: StockPool; q: { out: bigint; gas: bigint } } => Boolean(x));
+  if (!quoted.length) throw new TradeError("NO_POOL", `No venue returned a quote for ${stock.symbol}`);
+  quoted.sort((x, y) => (y.q.out > x.q.out ? 1 : y.q.out < x.q.out ? -1 : 0));
+  const pool = quoted[0].pool;
+  const q = quoted[0].q;
+  const router = pool.venue === "aerodrome" ? AERO_ROUTER : SWAP_ROUTER_02;
+  const allowance = await c.readContract({ address: tokenIn.address as `0x${string}`, abi: erc20Abi, functionName: "allowance", args: [a.recipient, router] });
   const minOut = (q.out * BigInt(10_000 - slippageBps)) / 10_000n;
   const deadline = Math.floor(Date.now() / 1000) + 20 * 60;
   const needsApproval = allowance < amountIn;
   const txs: TradeTx[] = [];
   if (needsApproval) {
-    txs.push({ label: "approve", to: tokenIn.address as `0x${string}`, value: "0x0", data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [SWAP_ROUTER_02, amountIn] }) });
+    txs.push({ label: "approve", to: tokenIn.address as `0x${string}`, value: "0x0", data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [router, amountIn] }) });
   }
   txs.push({
     label: "swap",
-    to: SWAP_ROUTER_02,
+    to: router,
     value: "0x0",
-    data: encodeFunctionData({
-      abi: routerAbi,
-      functionName: "exactInputSingle",
-      args: [{ tokenIn: tokenIn.address as `0x${string}`, tokenOut: tokenOut.address as `0x${string}`, fee: pool.fee, recipient: a.recipient, amountIn, amountOutMinimum: minOut, sqrtPriceLimitX96: 0n }]
-    })
+    data: pool.venue === "aerodrome"
+      ? encodeFunctionData({
+          abi: aeroRouterAbi,
+          functionName: "exactInputSingle",
+          args: [{ tokenIn: tokenIn.address as `0x${string}`, tokenOut: tokenOut.address as `0x${string}`, tickSpacing: pool.tickSpacing ?? 10, recipient: a.recipient, deadline: BigInt(deadline), amountIn, amountOutMinimum: minOut, sqrtPriceLimitX96: 0n }]
+        })
+      : encodeFunctionData({
+          abi: routerAbi,
+          functionName: "exactInputSingle",
+          args: [{ tokenIn: tokenIn.address as `0x${string}`, tokenOut: tokenOut.address as `0x${string}`, fee: pool.fee, recipient: a.recipient, amountIn, amountOutMinimum: minOut, sqrtPriceLimitX96: 0n }]
+        })
   });
   const inHuman = Number(formatUnits(amountIn, tokenIn.decimals));
   const outHuman = Number(formatUnits(q.out, tokenOut.decimals));
+  const venues: VenueQuote[] = quoted.map(({ pool: p, q: r }) => {
+    const oh = Number(formatUnits(r.out, tokenOut.decimals));
+    const usdV = a.side === "buy" ? inHuman : oh;
+    const sharesV = a.side === "buy" ? oh : inHuman;
+    return { venue: p.venue, label: VENUE_LABEL[p.venue], pool: p.address, fee: p.fee, tickSpacing: p.tickSpacing, usdcDepth: p.usdcDepth, out: r.out.toString(), outHuman: oh.toFixed(a.side === "buy" ? 6 : 2), priceUsd: sharesV > 0 ? usdV / sharesV : 0 };
+  });
   const usd = a.side === "buy" ? inHuman : outHuman;
   const shares = a.side === "buy" ? outHuman : inHuman;
   return {
@@ -164,12 +202,20 @@ export async function draftTrade(a: DraftArgs): Promise<TradeDraft> {
     needsApproval,
     balanceUsdc: formatUnits(balUsdc, USDC_DECIMALS),
     balanceToken: formatUnits(balToken, stock.decimals),
-    txs
+    txs,
+    venue: pool.venue,
+    venueLabel: VENUE_LABEL[pool.venue],
+    tickSpacing: pool.tickSpacing,
+    venues
   };
 }
 
-async function quote(c: ReturnType<typeof client>, tokenIn: `0x${string}`, tokenOut: `0x${string}`, amountIn: bigint, fee: number): Promise<{ out: bigint; gas: bigint }> {
-  const r = await c.simulateContract({ address: QUOTER_V2, abi: quoterAbi, functionName: "quoteExactInputSingle", args: [{ tokenIn, tokenOut, amountIn, fee, sqrtPriceLimitX96: 0n }] });
+async function quote(c: ReturnType<typeof client>, tokenIn: `0x${string}`, tokenOut: `0x${string}`, amountIn: bigint, pool: StockPool): Promise<{ out: bigint; gas: bigint }> {
+  if (pool.venue === "aerodrome") {
+    const r = await c.simulateContract({ address: AERO_QUOTER, abi: aeroQuoterAbi, functionName: "quoteExactInputSingle", args: [{ tokenIn, tokenOut, amountIn, tickSpacing: pool.tickSpacing ?? 10, sqrtPriceLimitX96: 0n }] });
+    return { out: r.result[0], gas: r.result[3] };
+  }
+  const r = await c.simulateContract({ address: QUOTER_V2, abi: quoterAbi, functionName: "quoteExactInputSingle", args: [{ tokenIn, tokenOut, amountIn, fee: pool.fee, sqrtPriceLimitX96: 0n }] });
   return { out: r.result[0], gas: r.result[3] };
 }
 

@@ -69,7 +69,7 @@ function Shell() {
   // "draft": carta del Trader (cotizacion Uniswap V3 Base + calldata) con la
   // orb Approve; la wallet de la persona firma approve + swap. `tx` es el
   // progreso de la firma; `draft` es lo que devolvio /api/trade/draft.
-  type Draft = { id: string; chainId: number; side: "buy" | "sell"; stock: { symbol: string; ticker: string; name: string; issuer: string; address: string; decimals: number }; pool: string; fee: number; poolUsdcDepth: number; tokenIn: { symbol: string; decimals: number }; tokenOut: { symbol: string; decimals: number }; amountInHuman: string; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; deadline: number; quotedAt: string; needsApproval: boolean; balanceUsdc: string; balanceToken: string; txs: Array<{ label: "approve" | "swap"; to: `0x${string}`; data: `0x${string}`; value: "0x0" }>; bankr?: { impliedPriceUsd: number; outHuman: string; outSymbol: string; feeBps: number; priceImpactBps?: number } | null };
+  type Draft = { id: string; chainId: number; side: "buy" | "sell"; stock: { symbol: string; ticker: string; name: string; issuer: string; address: string; decimals: number }; pool: string; fee: number; poolUsdcDepth: number; tokenIn: { symbol: string; decimals: number }; tokenOut: { symbol: string; decimals: number }; amountInHuman: string; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; deadline: number; quotedAt: string; needsApproval: boolean; balanceUsdc: string; balanceToken: string; txs: Array<{ label: "approve" | "swap"; to: `0x${string}`; data: `0x${string}`; value: "0x0" }>; bankr?: { impliedPriceUsd: number; outHuman: string; outSymbol: string; feeBps: number; priceImpactBps?: number } | null; venue?: "uniswap" | "aerodrome"; venueLabel?: string; venues?: Array<{ venue: string; label: string; priceUsd: number; outHuman: string; usdcDepth: number; fee: number }> };
   type TradeIntent = { side: "buy" | "sell"; stock?: string; amountUsd?: number; amountToken?: number; fraction?: number };
   type DraftTx = { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; step?: "approve" | "swap"; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
   type Brief = { at: string; stock: { symbol: string; ticker: string; name: string; issuer: string }; priceUsd?: number; change24hPct?: number; range24h?: { low: number; high: number; open: number; last: number }; volume24hUsd?: number; sparkline?: number[]; pool: { fee: number; usdcDepth: number; priceUsd?: number } | null; chainlink?: { priceUsd: number; ageMin: number; stale: boolean }; premiumPct?: number; swaps24h?: { count: number; usdcVolume: number; buys: number; sells: number }; holding?: { balance: string; valueUsd: number }; lines: string[] };
@@ -273,7 +273,7 @@ function Shell() {
         // Agent graph: una card por rol bajo su esfera, movida por los eventos reales.
         const latestBrief = [...messagesRef.current].reverse().find((m) => m.role === "analysis")?.analysis?.brief;
         const facts = latestBrief ? { premiumPct: latestBrief.premiumPct, change24hPct: latestBrief.change24hPct, swaps24h: latestBrief.swaps24h?.count, chainlinkUsd: latestBrief.chainlink?.priceUsd } : null;
-        let turnLocal = newTurn(youId, text, readyRoles, quote ? { side: quote.side, symbol: quote.symbol, name: quote.name, amountIn: quote.amountIn, tokenIn: quote.tokenIn, quoteOut: quote.quoteOut, tokenOut: quote.tokenOut, priceUsd: quote.priceUsd, bankr: quote.bankr ? { priceUsd: quote.bankr.priceUsd } : null } : null, facts);
+        let turnLocal = newTurn(youId, text, readyRoles, quote ? { side: quote.side, symbol: quote.symbol, name: quote.name, amountIn: quote.amountIn, tokenIn: quote.tokenIn, quoteOut: quote.quoteOut, tokenOut: quote.tokenOut, priceUsd: quote.priceUsd, bankr: quote.bankr ? { priceUsd: quote.bankr.priceUsd } : null, venue: quote.venue } : null, facts);
         setTurn(turnLocal);
         turnLiveRef.current = true;
         decisionRef.current = { turnId: youId, draftId: heldDraftRef.current?.id ?? [...messagesRef.current].reverse().find((m) => m.role === "draft" && m.tx?.stage === "idle")?.id };
@@ -660,7 +660,7 @@ function Shell() {
   // V3 (Base) y arma approve + swap; la carta aparece en el transcript con la
   // orb Approve. La conversacion sigue en paralelo (equipo + Grok comentan).
   // La orden en la mesa este turno (para el prompt de Risk/Trader/Auditor).
-  const quoteRef = useRef<{ side: string; symbol: string; name: string; amountIn: string; tokenIn: string; quoteOut: string; tokenOut: string; priceUsd: number; pool: string; fee: number; poolUsdcDepth: number; minOut: string; bankr?: { priceUsd: number; outHuman: string; outSymbol: string; feeBps: number; priceImpactBps?: number } | null } | null>(null);
+  const quoteRef = useRef<{ side: string; symbol: string; name: string; amountIn: string; tokenIn: string; quoteOut: string; tokenOut: string; priceUsd: number; pool: string; fee: number; poolUsdcDepth: number; minOut: string; bankr?: { priceUsd: number; outHuman: string; outSymbol: string; feeBps: number; priceImpactBps?: number } | null; venue?: string; venues?: Array<{ label: string; priceUsd: number; usdcDepth: number }> } | null>(null);
   // El draft se retiene hasta que Trader entrega (o el turno cierra): la
   // tarjeta de compra se lee al final del analisis, no antes.
   const heldDraftRef = useRef<Msg | null>(null);
@@ -693,7 +693,8 @@ function Shell() {
       }
       flog("info", `trade draft: ${j.side} ${j.amountInHuman} ${j.tokenIn.symbol} → ${j.quoteOutHuman} ${j.tokenOut.symbol} @ $${j.impliedPriceUsd.toFixed(2)} · pool $${j.poolUsdcDepth.toFixed(0)} · ${j.txs.length} tx · balances $${j.balanceUsdc} / ${j.balanceToken} ${j.stock.symbol}`);
       heldDraftRef.current = { id, role: "draft", who: "trader", text: "", draft: j, tx: { stage: "idle", hashes: [] } };
-      quoteRef.current = { side: j.side, symbol: j.stock.symbol, name: j.stock.name, amountIn: j.amountInHuman, tokenIn: j.tokenIn.symbol, quoteOut: j.quoteOutHuman, tokenOut: j.tokenOut.symbol, priceUsd: j.impliedPriceUsd, pool: j.pool, fee: j.fee, poolUsdcDepth: j.poolUsdcDepth, minOut: (Number(j.minOut) / 10 ** j.tokenOut.decimals).toFixed(6), bankr: j.bankr ? { priceUsd: j.bankr.impliedPriceUsd, outHuman: j.bankr.outHuman, outSymbol: j.bankr.outSymbol, feeBps: j.bankr.feeBps, priceImpactBps: j.bankr.priceImpactBps } : null };
+      quoteRef.current = { side: j.side, symbol: j.stock.symbol, name: j.stock.name, amountIn: j.amountInHuman, tokenIn: j.tokenIn.symbol, quoteOut: j.quoteOutHuman, tokenOut: j.tokenOut.symbol, priceUsd: j.impliedPriceUsd, pool: j.pool, fee: j.fee, poolUsdcDepth: j.poolUsdcDepth, minOut: (Number(j.minOut) / 10 ** j.tokenOut.decimals).toFixed(6), bankr: j.bankr ? { priceUsd: j.bankr.impliedPriceUsd, outHuman: j.bankr.outHuman, outSymbol: j.bankr.outSymbol, feeBps: j.bankr.feeBps, priceImpactBps: j.bankr.priceImpactBps } : null, venue: j.venueLabel, venues: (j.venues ?? []).map((v) => ({ label: v.label, priceUsd: v.priceUsd, usdcDepth: v.usdcDepth })) };
+      flog("info", `venue: ${j.venueLabel ?? "?"} · ${(j.venues ?? []).map((v) => `${v.label} $${v.priceUsd.toFixed(2)} ($${Math.round(v.usdcDepth)} deep)`).join(" · ")}`);
       if (j.bankr) flog("info", `bankr quote: ${j.bankr.outHuman} ${j.bankr.outSymbol} @ $${j.bankr.impliedPriceUsd.toFixed(2)} vs uniswap $${j.impliedPriceUsd.toFixed(2)}`);
       setCaption("Order on the table. The desk is reviewing it…");
     } catch (e) {
@@ -1823,7 +1824,7 @@ function AnalysisCard({ a, onSay }: {
 /** Carta del draft del Trader + orb Approve (se mantiene 2 s para firmar).
  *  Sin llaves aqui: Approve manda las tx a la wallet de la persona. */
 function DraftCard({ draft, tx, onApprove }: {
-  draft: { side: "buy" | "sell"; stock: { symbol: string; ticker: string; name: string; issuer: string }; tokenIn: { symbol: string; decimals: number }; tokenOut: { symbol: string; decimals: number }; amountInHuman: string; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; pool: string; fee: number; poolUsdcDepth: number; deadline: number; needsApproval: boolean; balanceUsdc: string; balanceToken: string; txs: Array<{ label: string }>; bankr?: { impliedPriceUsd: number; outHuman: string; outSymbol: string; feeBps: number; priceImpactBps?: number } | null };
+  draft: { side: "buy" | "sell"; stock: { symbol: string; ticker: string; name: string; issuer: string }; tokenIn: { symbol: string; decimals: number }; tokenOut: { symbol: string; decimals: number }; amountInHuman: string; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; pool: string; fee: number; poolUsdcDepth: number; deadline: number; needsApproval: boolean; balanceUsdc: string; balanceToken: string; txs: Array<{ label: string }>; bankr?: { impliedPriceUsd: number; outHuman: string; outSymbol: string; feeBps: number; priceImpactBps?: number } | null; venueLabel?: string; venues?: Array<{ label: string; priceUsd: number; outHuman: string; usdcDepth: number; fee: number }> };
   tx: { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; step?: string; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
   onApprove: () => void;
 }) {
@@ -1848,7 +1849,7 @@ function DraftCard({ draft, tx, onApprove }: {
   return (
     <div className={`draft-card st-${tx.stage}${open ? " open" : ""}`}>
       <div className="draft-head">
-        <b><span className={`decision ${tx.stage === "blocked" ? "wait" : tx.stage === "done" ? "done" : "go"}`}>{decision}</span> {what} <small>at ${draft.impliedPriceUsd.toFixed(2)}{draft.bankr ? ` · Bankr $${draft.bankr.impliedPriceUsd.toFixed(2)}` : ""}</small></b>
+        <b><span className={`decision ${tx.stage === "blocked" ? "wait" : tx.stage === "done" ? "done" : "go"}`}>{decision}</span> {what} <small>at ${draft.impliedPriceUsd.toFixed(2)}{draft.venueLabel ? ` via ${draft.venueLabel}` : ""}{draft.bankr ? ` · Bankr $${draft.bankr.impliedPriceUsd.toFixed(2)}` : ""}</small></b>
         <button type="button" className="draft-more" onClick={() => setOpen((o) => !o)} aria-expanded={open}>{open ? "Less" : "Details"}</button>
       </div>
       {open ? <dl className="draft-rows">
@@ -1857,7 +1858,8 @@ function DraftCard({ draft, tx, onApprove }: {
         <dt>You get</dt><dd>≈ {draft.quoteOutHuman} {draft.tokenOut.symbol} <small>(min {minOutHuman}, {draft.slippageBps / 100}% slippage)</small></dd>
         <dt>Price</dt><dd>${draft.impliedPriceUsd.toFixed(2)} / share</dd>
         {draft.bankr ? <><dt>Second quote</dt><dd>Bankr ${draft.bankr.impliedPriceUsd.toFixed(2)} / share · {draft.bankr.outHuman} {draft.bankr.outSymbol || draft.tokenOut.symbol} · {(((draft.impliedPriceUsd / draft.bankr.impliedPriceUsd) - 1) * 100).toFixed(2)}% vs Uniswap · read-only, never executes</dd></> : null}
-        <dt>Route</dt><dd>{draft.tokenIn.symbol} → {draft.tokenOut.symbol} · pool {draft.pool.slice(0, 6)}…{draft.pool.slice(-4)} · {draft.fee / 10_000}% · ${draft.poolUsdcDepth.toFixed(0)} USDC deep</dd>
+        <dt>Route</dt><dd>{draft.venueLabel ?? "Uniswap V3"} · {draft.tokenIn.symbol} → {draft.tokenOut.symbol} · pool {draft.pool.slice(0, 6)}…{draft.pool.slice(-4)} · {draft.fee / 10_000}% · ${draft.poolUsdcDepth.toFixed(0)} USDC deep</dd>
+        {draft.venues && draft.venues.length > 1 ? <><dt>Venues</dt><dd>{draft.venues.map((v) => `${v.label} $${v.priceUsd.toFixed(2)} ($${Math.round(v.usdcDepth).toLocaleString("en-US")} deep)`).join(" · ")} · the desk took the best price</dd></> : null}
         <dt>Signatures</dt><dd>{draft.txs.map((t) => t.label).join(" + ")}{draft.needsApproval ? "" : ` (${draft.tokenIn.symbol} already approved)`}</dd>
       </dl> : null}
       {short ? <p className="hint-line err">{buy ? `Wallet holds $${Number(draft.balanceUsdc).toFixed(2)} USDC on Base; the draft needs $${draft.amountInUsd.toFixed(2)}.` : `Wallet holds ${draft.balanceToken} ${draft.stock.symbol}; the draft needs ${draft.amountInHuman}.`}</p> : null}
