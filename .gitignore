@@ -44,3 +44,4 @@ apps/desktop/release/
 .floor-debug.log
 # Sparky master is assets/Sparky.png; the .svg is the same PNG embedded (2 MB)
 assets/Sparky.svg
+__pycache__/

@@ -1,3 +1,4 @@
+import { guard } from "../../../lib/guard";
 import { getXaiAccessToken, XAI_OAUTH_BASE_URL } from "../../../lib/xaiOAuth";
 import { loadSettings } from "../../../lib/settingsStore";
 import { appendMemory, markSummarized, readJournal, today } from "../../../lib/kb";
@@ -8,6 +9,8 @@ import { appendMemory, markSummarized, readJournal, today } from "../../../lib/k
 // Es el "playbook" de cierre del dia; Floor lo dispara al arrancar para el
 // dia anterior y por voz ("summarize today").
 export async function POST(req: Request) {
+  const denied = guard(req);
+  if (denied) return denied;
   const b = (await req.json().catch(() => ({}))) as { date?: unknown; force?: unknown };
   const date = typeof b.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(b.date) ? b.date : today();
   const s = await loadSettings();

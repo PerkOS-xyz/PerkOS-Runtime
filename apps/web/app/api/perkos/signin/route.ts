@@ -1,10 +1,16 @@
+import { guard } from "../../../lib/guard";
 import { perkosSignIn, PerkosApiError, publicPerkosSession } from "../../../lib/perkosApi";
+import { loadSettings } from "../../../lib/settingsStore";
 
 // POST /api/perkos/signin { address, nonce, signature, chainId? }
 // 402 -> la wallet no tiene infra PerkOS activa: { error: "infra_payment_required", funding }
 export async function POST(req: Request) {
+  const denied = guard(req);
+  if (denied) return denied;
   const body = (await req.json().catch(() => ({}))) as { address?: string; nonce?: string; signature?: string; chainId?: number };
   if (!body.address || !body.nonce || !body.signature) return Response.json({ error: "address, nonce, signature" }, { status: 400 });
+  const cur = await loadSettings();
+  if (!cur.wallet || cur.wallet.toLowerCase() !== body.address.trim().toLowerCase()) return Response.json({ error: "wallet_mismatch", detail: "Sign in with the wallet connected in this window." }, { status: 403 });
   try {
     const s = await perkosSignIn({ address: body.address, nonce: body.nonce, signature: body.signature, chainId: body.chainId });
     return Response.json(publicPerkosSession(s));

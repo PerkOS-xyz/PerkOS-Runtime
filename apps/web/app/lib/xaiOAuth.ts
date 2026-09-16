@@ -7,7 +7,7 @@
 
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { HOME_DIR } from "./home";
+import { ensureHome, HOME_DIR } from "./home";
 
 export const XAI_OAUTH_CLIENT_ID = "b1a00492-073a-47ea-816f-4c329264a828";
 export const XAI_OAUTH_SCOPE = "openid profile email offline_access grok-cli:access api:access";
@@ -191,7 +191,24 @@ export async function refreshXaiTokens(tokens: XaiTokens): Promise<XaiTokens> {
 const dir = HOME_DIR;
 const file = join(dir, "xai-oauth.json");
 
+// El device code que /start pidio, para que /poll no acepte uno ajeno
+// (una pagina podria autorizar SU cuenta y colarla aqui). 30 min de vida.
+const pendingFile = join(dir, "xai-oauth-pending.json");
+export async function rememberPendingDevice(deviceCode: string): Promise<void> {
+  ensureHome();
+  await mkdir(dir, { recursive: true, mode: 0o700 });
+  await writeFile(pendingFile, JSON.stringify({ deviceCode, at: Date.now() }), { mode: 0o600 });
+}
+export async function isPendingDevice(deviceCode: string): Promise<boolean> {
+  ensureHome();
+  try {
+    const j = JSON.parse(await readFile(pendingFile, "utf8")) as { deviceCode?: string; at?: number };
+    return j.deviceCode === deviceCode && Date.now() - (j.at ?? 0) < 30 * 60_000;
+  } catch { return false; }
+}
+
 export async function loadXaiTokens(): Promise<XaiTokens | null> {
+  ensureHome();
   try {
     const raw = JSON.parse(await readFile(file, "utf8")) as Partial<XaiTokens>;
     if (typeof raw.accessToken !== "string" || typeof raw.refreshToken !== "string") return null;
@@ -207,6 +224,7 @@ export async function loadXaiTokens(): Promise<XaiTokens | null> {
 }
 
 export async function saveXaiTokens(tokens: XaiTokens | null): Promise<void> {
+  ensureHome();
   await mkdir(dir, { recursive: true, mode: 0o700 });
   await writeFile(file, `${JSON.stringify(tokens ?? {})}\n`, { mode: 0o600 });
 }

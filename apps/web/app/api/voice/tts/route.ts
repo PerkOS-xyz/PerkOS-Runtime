@@ -1,3 +1,4 @@
+import { guard } from "../../../lib/guard";
 import { getXaiAccessToken, XAI_OAUTH_BASE_URL, XAI_USER_AGENT } from "../../../lib/xaiOAuth";
 import { isVoice, loadSettings } from "../../../lib/settingsStore";
 
@@ -5,6 +6,8 @@ import { isVoice, loadSettings } from "../../../lib/settingsStore";
 // POST /v1/tts {text, voice_id, language} -> mp3. Hermes documenta que con el bearer de
 // suscripcion puede dar 403: el cliente cae a speechSynthesis y lo registra en el log.
 export async function POST(req: Request) {
+  const denied = guard(req);
+  if (denied) return denied;
   const body = (await req.json().catch(() => ({}))) as { text?: string; voice?: string; language?: string };
   const text = body.text?.trim() ?? "";
   if (!text) return Response.json({ error: "text" }, { status: 400 });

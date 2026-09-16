@@ -44,6 +44,7 @@ export type TradeTx = { to: `0x${string}`; data: Hex; value: "0x0"; label: "appr
 export type TradeDraft = {
   id: string;
   chainId: number;
+  recipient: `0x${string}`;
   side: TradeSide;
   stock: Pick<Stock, "symbol" | "ticker" | "name" | "issuer" | "address" | "decimals">;
   pool: string;
@@ -181,6 +182,7 @@ export async function draftTrade(a: DraftArgs): Promise<TradeDraft> {
   return {
     id: `draft-${Date.now().toString(36)}`,
     chainId: BASE_CHAIN_ID,
+    recipient: a.recipient,
     side: a.side,
     stock: { symbol: stock.symbol, ticker: stock.ticker, name: stock.name, issuer: stock.issuer, address: stock.address, decimals: stock.decimals },
     pool: pool.address,

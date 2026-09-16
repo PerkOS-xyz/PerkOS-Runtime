@@ -1,3 +1,4 @@
+import { guard } from "../../lib/guard";
 import { appendFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -9,11 +10,13 @@ const file = process.env.PERKOS_DEBUG_LOG?.trim() || join(process.cwd(), ".perko
 type Row = { level?: string; msg?: string; at?: number };
 
 export async function POST(req: Request) {
+  const denied = guard(req);
+  if (denied) return denied;
   const body = (await req.json().catch(() => [])) as Row | Row[];
-  const rows = Array.isArray(body) ? body : [body];
+  const rows = (Array.isArray(body) ? body : [body]).slice(0, 100);
   const text = rows
     .map((r) => `${new Date(r.at ?? Date.now()).toISOString()} ${String(r.level ?? "info").padEnd(5)} ${String(r.msg ?? "").replace(/\s+/g, " ").slice(0, 1000)}\n`)
     .join("");
-  try { if (text) await appendFile(file, text); } catch {}
+  try { if (text) await appendFile(file, text, { mode: 0o600 }); } catch {}
   return new Response(null, { status: 204 });
 }
