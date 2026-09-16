@@ -10,7 +10,7 @@ export const CHAINS: Record<ChainId, { name: string; color: string; builtOn: str
   robinhood: { name: "Robinhood Chain", color: "#00c805", builtOn: "On Robinhood Chain" }
 };
 
-export type DeskScreenId = "market" | "portfolio";
+export type DeskScreenId = "market" | "portfolio" | "automations";
 export type AppScreenId = "notes" | "map" | "history";
 /** Pantallas del shell, iguales en todo desk. */
 export const APP_SCREENS: AppScreenId[] = ["notes", "map", "history"];
@@ -25,5 +25,5 @@ export function chainOf(desk: DeskLike): ChainId {
 export function deskManifest(desk: DeskLike): { chain: ChainId; tagline: string; venues: string; screens: DeskScreenId[] } {
   const chain = chainOf(desk);
   if (chain === "robinhood") return { chain, tagline: desk?.tagline ?? "Tokenized stocks on Robinhood Chain", venues: "Robinhood Chain", screens: ["market", "portfolio"] };
-  return { chain, tagline: desk?.tagline ?? "Tokenized stocks on Base", venues: "Uniswap V3 and Aerodrome on Base · Bankr second quote", screens: ["market", "portfolio"] };
+  return { chain, tagline: desk?.tagline ?? "Tokenized stocks on Base", venues: "Uniswap V3 and Aerodrome on Base · Bankr second quote, launches and automations", screens: ["market", "portfolio", "automations"] };
 }

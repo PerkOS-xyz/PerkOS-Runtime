@@ -40,11 +40,15 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
   const [voice, setVoice] = useState<Voice>("leo");
   const [previewing, setPreviewing] = useState(false);
   const [ver, setVer] = useState<{ version: string; build: string }>({ version: "", build: "" });
+  // Bankr: segunda cotizacion, token launches y automatizaciones. La key vive
+  // en el env del install; aqui se ve la wallet Bankr, su ETH en Base y el cupo.
+  const [bankr, setBankr] = useState<{ configured: boolean; wallet?: { evm: string; ethBase: number; club: boolean; x?: string } | null; last24h?: number } | null>(null);
 
   const refresh = () =>
     Promise.all([
       fetch("/api/llm/status").then((r) => r.json()).then((s: Llm) => { setLlm(s); setModel(s.model); }),
-      fetch("/api/settings").then((r) => r.json()).then((s: { voice?: Voice; version?: string; build?: string }) => { if (s.voice && (VOICES as readonly string[]).includes(s.voice)) setVoice(s.voice); setVer({ version: s.version ?? "", build: s.build ?? "" }); }).catch(() => undefined)
+      fetch("/api/settings").then((r) => r.json()).then((s: { voice?: Voice; version?: string; build?: string }) => { if (s.voice && (VOICES as readonly string[]).includes(s.voice)) setVoice(s.voice); setVer({ version: s.version ?? "", build: s.build ?? "" }); }).catch(() => undefined),
+      fetch("/api/launch/quotes").then((r) => r.json()).then((j: { configured?: boolean; wallet?: { evm: string; ethBase: number; club: boolean; x?: string } | null; last24h?: number }) => setBankr({ configured: j.configured === true, wallet: j.wallet ?? null, last24h: j.last24h ?? 0 })).catch(() => setBankr({ configured: false }))
     ]);
 
   // La voz se guarda al elegirla y se puede escuchar antes de cerrar.
@@ -158,7 +162,14 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
               </div>
             ) : null}
             {rail?.status === "linked" && rail.lockUsd ? <p className="hint-line">The Trader spends only through 1Claw. Above ${rail.lockUsd} every spend waits for you.</p> : null}
-            <div className="srow"><span>Second quote</span><span className="v">Bankr · read only</span></div>
+            <div className="srow rail-row">
+              <span>Bankr</span>
+              <span className="v">
+                {bankr === null ? "…" : !bankr.configured ? "No key on this install · add BANKR_API_KEY with Token Launch enabled" : bankr.wallet ? `${bankr.wallet.evm.slice(0, 6)}…${bankr.wallet.evm.slice(-4)} · ${bankr.wallet.ethBase.toFixed(4)} ETH on Base${bankr.wallet.club ? " · Bankr Club" : ""} · ${bankr.last24h ?? 0}/3 launches today` : "Key set · wallet not reachable"}
+                {bankr?.configured ? <a className="pill" href="https://bankr.bot/api-keys" target="_blank" rel="noreferrer" title="Token Launch API and read-write must be enabled on the key. Opens your Bankr keys in the browser.">Keys ↗</a> : null}
+              </span>
+            </div>
+            <p className="hint-line">Second quote, token launches paired with tokenized stocks, and automations (DCA, stop, limit). Launch fees pay to the wallet connected here.</p>
             <div className="srow"><span>Knowledge</span><span className="v">Bundled notes · PerkOS Knowledge · local vault</span></div>
           </>
         ) : null}

@@ -74,17 +74,22 @@ function Shell() {
   type Draft = { id: string; chainId: number; recipient?: string; side: "buy" | "sell"; stock: { symbol: string; ticker: string; name: string; issuer: string; address: string; decimals: number }; pool: string; fee: number; poolUsdcDepth: number; tokenIn: { symbol: string; decimals: number }; tokenOut: { symbol: string; decimals: number }; amountInHuman: string; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; deadline: number; quotedAt: string; needsApproval: boolean; balanceUsdc: string; balanceToken: string; txs: Array<{ label: "approve" | "swap"; to: `0x${string}`; data: `0x${string}`; value: "0x0" }>; bankr?: { impliedPriceUsd: number; outHuman: string; outSymbol: string; feeBps: number; priceImpactBps?: number } | null; venue?: "uniswap" | "aerodrome"; venueLabel?: string; venues?: Array<{ venue: string; label: string; priceUsd: number; outHuman: string; usdcDepth: number; fee: number }> };
   type TradeIntent = { side: "buy" | "sell"; stock?: string; amountUsd?: number; amountToken?: number; fraction?: number };
   type DraftTx = { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; step?: "approve" | "swap"; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
+  // Launch (Bankr): un token nuevo emparejado con una accion tokenizada; la
+  // persona lo despliega con Hold to launch. Las fees (95%) van a su wallet.
+  type LaunchDraft = { id: string; name: string; symbol: string; description?: string; pair: { address: string; symbol: string; name: string; illiquid?: boolean }; feeRecipient: string; chain: string; provider: string; deployer: string | null; ownKey: boolean; disableVesting: boolean; checks: Array<{ label: string; ok: boolean; note: string }>; ready: boolean; sim: { tokenAddress: string; poolId: string } | null; simError?: string; wallet: { evm: string; ethBase: number; club: boolean } | null; last24h: number; facts: string[]; draftedAt: string; receipt?: { tokenAddress: string; poolId: string; txHash: string; explorer: string; bankrUrl: string } };
+  // Automation (Bankr): DCA, stop loss o limit que corre en Bankr desde la wallet Bankr de la persona.
+  type AutoRec = { id: string; kind: "dca" | "stop" | "limit" | "schedule"; asset?: string; amountUsd?: number; interval?: string; price?: number; text: string; prompt: string; createdAt: string; status: "active" | "paused" | "cancelled"; reply?: string };
   type Brief = { at: string; stock: { symbol: string; ticker: string; name: string; issuer: string }; priceUsd?: number; change24hPct?: number; range24h?: { low: number; high: number; open: number; last: number }; volume24hUsd?: number; sparkline?: number[]; pool: { fee: number; usdcDepth: number; priceUsd?: number } | null; chainlink?: { priceUsd: number; ageMin: number; stale: boolean }; premiumPct?: number; swaps24h?: { count: number; usdcVolume: number; buys: number; sells: number }; holding?: { balance: string; valueUsd: number }; lines: string[] };
   type News = { text: string; sources: Array<{ url: string; title?: string }>; at: string };
   type Analysis = { brief: Brief; news?: News; scout?: string; risk?: string; verdict?: "GO" | "BLOCK"; prev?: { priceUsd?: number; at: string }; loadingNews?: boolean };
-  type Msg = { id: number; role: "you" | "floor" | "team" | "draft" | "analysis"; who?: string; text: string; streaming?: boolean; draft?: Draft; tx?: DraftTx; verdict?: "GO" | "BLOCK"; analysis?: Analysis; turnId?: number; kind?: "open" | "side" | "status" };
+  type Msg = { id: number; role: "you" | "floor" | "team" | "draft" | "analysis"; who?: string; text: string; streaming?: boolean; draft?: Draft; launch?: LaunchDraft; auto?: AutoRec; tx?: DraftTx; verdict?: "GO" | "BLOCK"; analysis?: Analysis; turnId?: number; kind?: "open" | "side" | "status" };
   // Agent graph del turno en curso (cards bajo las esferas) y turnos plegados.
   const [turn, setTurn] = useState<DeskTurn | null>(null);
   const turnRef = useRef<DeskTurn | null>(null);
   turnRef.current = turn;
   const turnLiveRef = useRef(false);
   // Modo del turno: orden / analisis de un activo / asesoria abierta / charla (sin mesa).
-  const modeRef = useRef<"order" | "analyze" | "advise" | "chat">("chat");
+  const modeRef = useRef<"order" | "analyze" | "advise" | "launch" | "chat">("chat");
   const lastRepliesRef = useRef<Array<{ role: string; ok: boolean; reply: string }>>([]);
   const [openTurns, setOpenTurns] = useState<number[]>([]);
   const decisionRef = useRef<{ turnId: number; noteId?: string; draftId?: number } | null>(null);
@@ -290,7 +295,8 @@ function Shell() {
         turnLiveRef.current = true;
         decisionRef.current = { turnId: youId, draftId: heldDraftRef.current?.id ?? [...messagesRef.current].reverse().find((m) => m.role === "draft" && m.tx?.stage === "idle")?.id };
         // Floor abre el hilo como principal: a quien le habla y con que hechos.
-        const factBits = [quote ? `Uniswap $${quote.priceUsd.toFixed(2)}` : "", quote?.bankr ? `Bankr $${quote.bankr.priceUsd.toFixed(2)}` : "", facts?.chainlinkUsd ? `Chainlink $${facts.chainlinkUsd.toFixed(2)}` : "", facts?.swaps24h !== undefined ? `${facts.swaps24h} swaps in 24h` : ""].filter(Boolean);
+        const held = heldDraftRef.current?.launch;
+        const factBits = [held ? `launch ${held.symbol} paired with ${held.pair.symbol}, ${held.checks.filter((c) => c.ok).length}/${held.checks.length} checks pass` : "", quote ? `Uniswap $${quote.priceUsd.toFixed(2)}` : "", quote?.bankr ? `Bankr $${quote.bankr.priceUsd.toFixed(2)}` : "", facts?.chainlinkUsd ? `Chainlink $${facts.chainlinkUsd.toFixed(2)}` : "", facts?.swaps24h !== undefined ? `${facts.swaps24h} swaps in 24h` : ""].filter(Boolean);
         const openLine = `@Scout @Risk ${text}${factBits.length ? `. Facts attached: ${factBits.join(", ")}.` : "."}`;
         setMessages((m) => [...m.filter((x) => x.id !== floorId), { id: youId + 90, role: "floor", kind: "open", text: openLine, turnId: youId }, { id: floorId, role: "floor", text: "", streaming: true, turnId: youId }]);
         const fr = await fetch("/api/fleet/desk", {
@@ -357,7 +363,7 @@ function Shell() {
                       const why = ev.reply!.replace(/^\s*VERDICT\s*[:\-]\s*BLOCK\s*/i, "").trim();
                       if (heldDraftRef.current?.tx?.stage === "idle") heldDraftRef.current = { ...heldDraftRef.current, tx: { ...heldDraftRef.current.tx, stage: "blocked", note: `Risk blocked: ${why.slice(0, 200)}` } };
                       setMessages((m) => m.map((x) => (x.role === "draft" && x.tx && (x.tx.stage === "idle") ? { ...x, tx: { ...x.tx, stage: "blocked", note: `Risk blocked: ${why.slice(0, 200)}` } } : x)));
-                      setCaption("Risk blocked the order.");
+                      setCaption(modeRef.current === "launch" ? "Risk blocked the launch." : "Risk blocked the order.");
                       const qd = quoteRef.current;
                       if (qd) kbWriteRef.current({ kind: "order", ticker: qd.symbol.replace(/c$/i, ""), title: `blocked ${qd.side} ${qd.amountIn} ${qd.tokenIn} ${qd.symbol} ${new Date().toISOString().slice(0, 16).replace("T", " ")}`, body: `- ${qd.side} ${qd.amountIn} ${qd.tokenIn} -> ${qd.quoteOut} ${qd.tokenOut} at $${qd.priceUsd.toFixed(2)}\n- Risk: BLOCK. ${why.slice(0, 600)}` });
                     }
@@ -727,6 +733,108 @@ function Shell() {
     }
   }, [touch]);
 
+  // Launch: Bankr simula el token emparejado (nombre, simbolo, accion) y la
+  // mesa lo revisa; la card se libera cuando Trader entrega, como una orden.
+  const launchDraft = useCallback(async (it: { name?: string; symbol?: string; pair?: string }): Promise<boolean> => {
+    const id = Date.now() + 4;
+    const symbol = (it.symbol ?? (it.name ?? "").replace(/[^A-Za-z0-9]/g, "").slice(0, 8)).toUpperCase();
+    const name = it.name ?? symbol;
+    heldDraftRef.current = null;
+    setCaption(`Trader is drafting the launch: ${name} (${symbol}) paired with ${it.pair}…`);
+    touch();
+    try {
+      const res = await fetch("/api/launch/draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, symbol, pair: it.pair }) });
+      const j = (await res.json().catch(() => ({}))) as LaunchDraft & { error?: string; detail?: string };
+      if (!res.ok || !j.checks) {
+        flog("error", `launch draft ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`);
+        setMessages((m) => [...m.slice(-60), { id, role: "draft", who: "trader", text: `Could not draft the launch: ${j.detail ?? j.error ?? res.status}` }]);
+        setCaption("");
+        return false;
+      }
+      flog("info", `launch draft: ${j.symbol} paired with ${j.pair.symbol} · checks ${j.checks.filter((c) => c.ok).length}/${j.checks.length} · sim ${j.sim ? j.sim.tokenAddress : j.simError ?? "skipped"} · ${j.ownKey ? "own key" : "operator key, vesting off"}`);
+      heldDraftRef.current = { id, role: "draft", who: "trader", text: "", launch: j, tx: { stage: "idle", hashes: [] } };
+      quoteRef.current = null;
+      briefRef.current = { lines: j.facts };
+      setCaption(j.ready ? "Launch on the table. The desk is reviewing it…" : "Launch drafted, a check failed. The desk is reviewing it…");
+      return true;
+    } catch (e) {
+      flog("error", `launch draft: ${(e as Error).message}`);
+      setMessages((m) => [...m.slice(-60), { id, role: "draft", who: "trader", text: "Could not draft the launch." }]);
+      return false;
+    }
+  }, [touch]);
+  const deployLaunch = useCallback(async (msgId: number) => {
+    const msg = messagesRef.current.find((x) => x.id === msgId);
+    const d = msg?.launch;
+    if (!d || (msg?.tx && msg.tx.stage !== "idle" && msg.tx.stage !== "failed")) return;
+    const patch = (tx: Partial<DraftTx>, more?: Partial<Msg>) => setMessages((m) => m.map((x) => (x.id === msgId ? { ...x, ...more, tx: { ...(x.tx ?? { stage: "idle", hashes: [] }), ...tx } as DraftTx } : x)));
+    patch({ stage: "pending", note: undefined });
+    setCaption(`Bankr is deploying ${d.symbol} on Base…`);
+    try {
+      const res = await fetch("/api/launch/deploy", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: d.name, symbol: d.symbol, pairAddress: d.pair.address, feeRecipient: d.feeRecipient, description: d.description }) });
+      const j = (await res.json().catch(() => ({}))) as { tokenAddress?: string; poolId?: string; txHash?: string; explorer?: string; bankrUrl?: string; error?: string; detail?: string };
+      if (!res.ok || !j.tokenAddress) {
+        flog("error", `launch deploy ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`);
+        patch({ stage: "failed", note: `Bankr could not deploy: ${j.detail ?? j.error ?? res.status}` });
+        setCaption("Launch failed. Nothing deployed.");
+        return;
+      }
+      flog("info", `launched ${d.symbol}: ${j.tokenAddress} · tx ${j.txHash}`);
+      patch({ stage: "done", hashes: j.txHash ? [{ label: "deploy", hash: j.txHash, status: "success", explorer: j.explorer ?? `https://basescan.org/tx/${j.txHash}` }] : [] }, { launch: { ...d, receipt: { tokenAddress: j.tokenAddress, poolId: j.poolId ?? "", txHash: j.txHash ?? "", explorer: j.explorer ?? "", bankrUrl: j.bankrUrl ?? "" } } });
+      setCaption(`${d.symbol} is live on Base, paired with ${d.pair.symbol}. Fees pay to your wallet.`);
+    } catch (e) {
+      flog("error", `launch deploy: ${(e as Error).message}`);
+      patch({ stage: "failed", note: "Bankr did not answer." });
+    }
+  }, []);
+  // Automation: Floor redacta el prompt para Bankr (DCA, stop, limit); la
+  // persona lo crea con Hold to create. Sin turno de mesa: es una regla, no una decision.
+  const automationDraft = useCallback(async (text: string) => {
+    const id = Date.now() + 5;
+    setCaption("Trader is drafting the automation…");
+    touch();
+    try {
+      const res = await fetch("/api/automation", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "draft", text }) });
+      const j = (await res.json().catch(() => ({}))) as AutoRec & { error?: string; detail?: string };
+      if (!res.ok || !j.prompt) {
+        flog("warn", `automation draft ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`);
+        setMessages((m) => [...m.slice(-60), { id, role: "draft", who: "trader", text: `Could not draft the automation: ${j.detail ?? j.error ?? res.status}` }]);
+        setCaption("");
+        return;
+      }
+      flog("info", `automation draft: ${j.prompt}`);
+      setMessages((m) => [...m.slice(-60), { id, role: "draft", who: "trader", text: "", auto: j, tx: { stage: "idle", hashes: [] } }]);
+      setCaption("Automation on the table. Hold to create it in Bankr.");
+    } catch (e) {
+      flog("error", `automation draft: ${(e as Error).message}`);
+      setCaption("");
+    }
+  }, [touch]);
+  const createAutomation = useCallback(async (msgId: number) => {
+    const msg = messagesRef.current.find((x) => x.id === msgId);
+    const a = msg?.auto;
+    if (!a || (msg?.tx && msg.tx.stage !== "idle" && msg.tx.stage !== "failed")) return;
+    const patch = (tx: Partial<DraftTx>, more?: Partial<Msg>) => setMessages((m) => m.map((x) => (x.id === msgId ? { ...x, ...more, tx: { ...(x.tx ?? { stage: "idle", hashes: [] }), ...tx } as DraftTx } : x)));
+    patch({ stage: "pending", note: undefined });
+    setCaption("Bankr is setting up the automation…");
+    try {
+      const res = await fetch("/api/automation", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "create", draft: a }) });
+      const j = (await res.json().catch(() => ({}))) as AutoRec & { error?: string; detail?: string };
+      if (!res.ok || !j.id) {
+        flog("error", `automation create ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`);
+        patch({ stage: "failed", note: `Bankr could not set it up: ${j.detail ?? j.error ?? res.status}` });
+        setCaption("Automation not created.");
+        return;
+      }
+      flog("info", `automation ${j.status}: ${j.prompt} · Bankr: ${(j.reply ?? "").slice(0, 160)}`);
+      patch({ stage: j.status === "active" ? "done" : "failed", note: j.status === "active" ? undefined : `Bankr said: ${(j.reply ?? "").slice(0, 300)}` }, { auto: j });
+      setCaption(j.status === "active" ? "Automation is live in Bankr." : "Bankr could not set it up. Read its reply.");
+    } catch (e) {
+      flog("error", `automation create: ${(e as Error).message}`);
+      patch({ stage: "failed", note: "Bankr did not answer." });
+    }
+  }, []);
+
   // Approve: la persona firma en su wallet (MetaMask por WalletConnect) cada
   // tx del draft en orden; Floor espera el receipt en Base y muestra el hash.
   const approveDraft = useCallback(async (msgId: number) => {
@@ -1042,6 +1150,18 @@ function Shell() {
     }
     if (cmd === "advise") { void adviseMarket(spoken); return; }
     if (cmd === "history") { setDeskScreen("history"); setCaption("Every decision the desk made"); return; }
+    if (cmd === "launch") {
+      quoteRef.current = null;
+      if (!it.pair) { setCaption("Pair it with which stock? Say: launch Night Owl (OWL) paired with NVDA."); return; }
+      if (!it.symbol && !it.name) { setCaption("Name the token. Say: launch Night Owl (OWL) paired with NVDA."); return; }
+      modeRef.current = "launch";
+      setFocusAsset(it.pair);
+      // Primero el draft simulado en Bankr (el launch en la mesa), despues el turno de mesa.
+      void launchDraft(it).then((ok) => (ok ? chat(spoken) : undefined));
+      return;
+    }
+    if (cmd === "automate") { quoteRef.current = null; void automationDraft(it.text); return; }
+    if (cmd === "automations") { setDeskScreen("automations"); setCaption("Your Bankr automations"); return; }
     if (cmd === "buy" || cmd === "sell") {
       quoteRef.current = null;
       // Sin activo reconocido no se asume NVDAc: se usa el activo en foco o se pregunta.
@@ -1070,7 +1190,9 @@ function Shell() {
     if (cmd === "summarize") { void summarizeDay(); return; }
     if (cmd === "approve") {
       const d = [...messagesRef.current].reverse().find((m) => m.role === "draft" && m.tx?.stage === "idle");
-      if (d) { setCaption("Approving in your wallet…"); void approveDraft(d.id); } else setCaption("Nothing to approve.");
+      if (d?.launch) { setCaption("Deploying with Bankr…"); void deployLaunch(d.id); }
+      else if (d?.auto) { setCaption("Creating in Bankr…"); void createAutomation(d.id); }
+      else if (d) { setCaption("Approving in your wallet…"); void approveDraft(d.id); } else setCaption("Nothing to approve.");
       return;
     }
     if (cmd === "cancel") {
@@ -1543,7 +1665,7 @@ function Shell() {
             onExpand={() => setTurn((t) => (t ? { ...t, collapsed: false } : t))}
             onFocus={(r: AgentRole) => { const els = document.querySelectorAll(`.turn.team[data-who="${r}"]`); const el = els[els.length - 1]; if (el) { stickRef.current = false; setShowJump(true); el.scrollIntoView({ behavior: "smooth", block: "center" }); } }}
             canApprove={turn.verdict === "GO" && messages.some((m) => m.role === "draft" && m.tx?.stage === "idle")}
-            onApprove={() => { const d = [...messagesRef.current].reverse().find((m) => m.role === "draft" && m.tx?.stage === "idle"); if (d) void approveDraft(d.id); }}
+            onApprove={() => { const d = [...messagesRef.current].reverse().find((m) => m.role === "draft" && m.tx?.stage === "idle"); if (d?.launch) void deployLaunch(d.id); else if (d?.auto) void createAutomation(d.id); else if (d) void approveDraft(d.id); }}
           />
           {!turn.collapsed && !turn.live ? <button type="button" className="ag-collapse" onClick={() => setTurn((t) => (t ? { ...t, collapsed: true } : t))} aria-label="Collapse">×</button> : null}
         </div>
@@ -1567,6 +1689,9 @@ function Shell() {
           </button>
           <button type="button" className={deskScreen === "portfolio" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "portfolio" ? "" : "portfolio")} title="Portfolio · your positions on Base">
             <WalletIcon /><span>Portfolio</span>
+          </button>
+          <button type="button" className={deskScreen === "automations" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "automations" ? "" : "automations")} title="Automations · DCA, stop loss and limit rules running in Bankr">
+            <LoopIcon /><span>Automations</span>
           </button>
           <i className="dock-sep" aria-hidden="true" />
           <button type="button" className={deskScreen === "notes" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "notes" ? "" : "notes")} title="Notes · what this desk remembers (local, Obsidian-compatible)">
@@ -1652,6 +1777,10 @@ function Shell() {
             </span>
             {m.role === "draft" && m.draft ? (
               <DraftCard draft={m.draft} tx={m.tx ?? { stage: "idle", hashes: [] }} onApprove={() => void approveDraft(m.id)} />
+            ) : m.role === "draft" && m.launch ? (
+              <LaunchCard launch={m.launch} tx={m.tx ?? { stage: "idle", hashes: [] }} onLaunch={() => void deployLaunch(m.id)} />
+            ) : m.role === "draft" && m.auto ? (
+              <AutomationCard auto={m.auto} tx={m.tx ?? { stage: "idle", hashes: [] }} onCreate={() => void createAutomation(m.id)} onOpen={() => setDeskScreen("automations")} />
             ) : m.role === "analysis" && m.analysis ? (
               <AnalysisCard a={m.analysis} onSay={(t) => runRef.current(t)} />
             ) : (
@@ -2040,6 +2169,113 @@ function DraftCard({ draft, tx, onApprove }: {
   );
 }
 
+// Launch card: el token emparejado en la mesa. Los checks de Bankr se ven
+// siempre; Hold to launch solo cuando todos pasan y la simulacion paso.
+function LaunchCard({ launch, tx, onLaunch }: {
+  launch: { name: string; symbol: string; pair: { symbol: string; name: string }; feeRecipient: string; deployer: string | null; ownKey: boolean; checks: Array<{ label: string; ok: boolean; note: string }>; ready: boolean; sim: { tokenAddress: string; poolId: string } | null; simError?: string; receipt?: { tokenAddress: string; txHash: string; explorer: string; bankrUrl: string } };
+  tx: { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
+  onLaunch: () => void;
+}) {
+  const [holding, setHolding] = useState(false);
+  const holdRef = useRef(0);
+  const armed = (tx.stage === "idle" || tx.stage === "failed") && launch.ready;
+  const start = () => {
+    if (!armed) return;
+    setHolding(true);
+    holdRef.current = window.setTimeout(() => { setHolding(false); onLaunch(); }, 2000);
+  };
+  const cancel = () => { window.clearTimeout(holdRef.current); setHolding(false); };
+  const [open, setOpen] = useState(false);
+  const decision = tx.stage === "blocked" ? "Wait" : tx.stage === "done" ? "Live" : tx.stage === "pending" ? "Deploying" : tx.stage === "failed" ? "Not deployed" : launch.ready ? "Launch" : "Fix";
+  const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
+  return (
+    <div className={`draft-card launch st-${tx.stage}${open ? " open" : ""}`}>
+      <div className="draft-head">
+        <b><span className={`decision ${tx.stage === "blocked" || !launch.ready ? "wait" : tx.stage === "done" ? "done" : "go"}`}>{decision}</span> {launch.name} ({launch.symbol}) <small>paired with {launch.pair.symbol} on Base · fees to your wallet</small></b>
+        <button type="button" className="draft-more" onClick={() => setOpen((o) => !o)} aria-expanded={open}>{open ? "Less" : "Details"}</button>
+      </div>
+      <ul className="launch-checks">
+        {launch.checks.map((c) => <li key={c.label} className={c.ok ? "ok" : "bad"}><i aria-hidden>{c.ok ? "✓" : "✕"}</i><span>{c.label}</span><small>{c.note}</small></li>)}
+        <li className={launch.sim ? "ok" : launch.simError ? "bad" : "skip"}><i aria-hidden>{launch.sim ? "✓" : launch.simError ? "✕" : "·"}</i><span>Bankr simulation</span><small>{launch.sim ? `token ${short(launch.sim.tokenAddress)}` : launch.simError ?? "skipped until every check passes"}</small></li>
+      </ul>
+      {open ? <dl className="draft-rows">
+        <dt>Pair</dt><dd>{launch.pair.name} <small>({launch.pair.symbol} · Coinbase B20 on Base)</small></dd>
+        <dt>Pool</dt><dd>Uniswap V4 via Doppler, deployed by Bankr <small>(gas sponsored on Base)</small></dd>
+        <dt>Fees</dt><dd>95% to {short(launch.feeRecipient)} <small>(the wallet connected here)</small> · 5% to Bankr</dd>
+        <dt>Deployer</dt><dd>{launch.deployer ? short(launch.deployer) : "no Bankr wallet"} <small>{launch.ownKey ? "(your Bankr wallet · creator vesting 15%)" : "(Bankr wallet on this install, vesting off: it keeps nothing)"}</small></dd>
+        {launch.receipt ? <><dt>Token</dt><dd><a href={`https://basescan.org/token/${launch.receipt.tokenAddress}`} target="_blank" rel="noreferrer">{short(launch.receipt.tokenAddress)}</a> · <a href={launch.receipt.bankrUrl} target="_blank" rel="noreferrer">Bankr ↗</a></dd></> : null}
+      </dl> : null}
+      {tx.note ? <p className="hint-line err">{tx.note}</p> : null}
+      {tx.hashes.length ? (
+        <ul className="draft-tx">
+          {tx.hashes.map((h) => (
+            <li key={h.hash} className={h.status}>
+              <span>{h.label}</span>
+              <a href={h.explorer} target="_blank" rel="noreferrer">{h.hash.slice(0, 10)}…{h.hash.slice(-6)}</a>
+              <em>{h.status === "success" ? "confirmed" : "pending"}</em>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <div className="draft-actions">
+        <button type="button" className={`approve${holding ? " holding" : ""}${tx.stage === "done" ? " done" : ""}${tx.stage === "pending" ? " busy" : ""}`} disabled={!armed} onPointerDown={start} onPointerUp={cancel} onPointerLeave={cancel} onPointerCancel={cancel} aria-label="Hold to launch">
+          <span className="ring" />
+          <span className="lbl">{tx.stage === "done" ? "Live" : tx.stage === "blocked" ? "Blocked" : tx.stage === "pending" ? "Deploying on Base…" : tx.stage === "failed" ? "Retry" : launch.ready ? "Hold to launch" : "Checks first"}</span>
+        </button>
+        <small>{tx.stage === "done" ? "Token live on Base. Fees pay to your wallet." : tx.stage === "blocked" ? "Risk said no. Nothing deployed." : "They draft. You launch. Bankr deploys."}</small>
+      </div>
+    </div>
+  );
+}
+
+// Automation card: la regla que correra en Bankr (DCA, stop, limit).
+function AutomationCard({ auto, tx, onCreate, onOpen }: {
+  auto: { kind: string; asset?: string; amountUsd?: number; interval?: string; price?: number; prompt: string; status: string; reply?: string };
+  tx: { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; note?: string };
+  onCreate: () => void;
+  onOpen: () => void;
+}) {
+  const [holding, setHolding] = useState(false);
+  const holdRef = useRef(0);
+  const armed = tx.stage === "idle" || tx.stage === "failed";
+  const start = () => {
+    if (!armed) return;
+    setHolding(true);
+    holdRef.current = window.setTimeout(() => { setHolding(false); onCreate(); }, 2000);
+  };
+  const cancel = () => { window.clearTimeout(holdRef.current); setHolding(false); };
+  const kind = auto.kind === "dca" ? "DCA" : auto.kind === "stop" ? "Stop loss" : auto.kind === "limit" ? "Limit buy" : "Schedule";
+  const what = auto.kind === "dca" ? `$${auto.amountUsd ?? 5} of ${auto.asset} ${auto.interval ?? "every week"}` : auto.kind === "stop" ? `${auto.asset} at $${auto.price ?? 0}` : auto.kind === "limit" ? `$${auto.amountUsd ?? 5} of ${auto.asset} at $${auto.price ?? 0}` : auto.prompt;
+  const decision = tx.stage === "done" ? "Running" : tx.stage === "pending" ? "Creating" : tx.stage === "failed" ? "Not created" : kind;
+  return (
+    <div className={`draft-card automation st-${tx.stage}`}>
+      <div className="draft-head">
+        <b><span className={`decision ${tx.stage === "done" ? "done" : tx.stage === "failed" ? "wait" : "go"}`}>{decision}</span> {what} <small>runs in Bankr from your Bankr wallet</small></b>
+        {tx.stage === "done" ? <button type="button" className="draft-more" onClick={onOpen}>Automations</button> : null}
+      </div>
+      <dl className="draft-rows">
+        <dt>Asks Bankr</dt><dd>{auto.prompt}</dd>
+        {auto.reply ? <><dt>Bankr said</dt><dd>{auto.reply.slice(0, 400)}</dd></> : null}
+      </dl>
+      {tx.note ? <p className="hint-line err">{tx.note}</p> : null}
+      <div className="draft-actions">
+        <button type="button" className={`approve${holding ? " holding" : ""}${tx.stage === "done" ? " done" : ""}${tx.stage === "pending" ? " busy" : ""}`} disabled={!armed} onPointerDown={start} onPointerUp={cancel} onPointerLeave={cancel} onPointerCancel={cancel} aria-label="Hold to create">
+          <span className="ring" />
+          <span className="lbl">{tx.stage === "done" ? "Live" : tx.stage === "pending" ? "Asking Bankr…" : tx.stage === "failed" ? "Retry" : "Hold to create"}</span>
+        </button>
+        <small>{tx.stage === "done" ? "Bankr runs it. Pause or cancel from Automations." : "They draft. You create. Bankr runs it."}</small>
+      </div>
+    </div>
+  );
+}
+
+function LoopIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M17 2l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><path d="M7 22l-4-4 4-4" /><path d="M21 13v2a4 4 0 0 1-4 4H3" />
+    </svg>
+  );
+}
 function ChartIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

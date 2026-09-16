@@ -13,7 +13,9 @@ export type Command =
   | "unknown";
 
 export type Intent =
-  | { kind: "listen" | "wake" | "sleep" | "invite" | "stop" | "settings" | "docs" | "market" | "portfolio" | "map" | "history" | "approve" | "cancel" | "summarize" | "advise" | "chat" }
+  | { kind: "listen" | "wake" | "sleep" | "invite" | "stop" | "settings" | "docs" | "market" | "portfolio" | "map" | "history" | "approve" | "cancel" | "summarize" | "advise" | "chat" | "automations" }
+  | { kind: "launch"; name?: string; symbol?: string; pair?: string }
+  | { kind: "automate"; text: string }
   | { kind: "analyze" | "quote"; asset?: string }
   | { kind: "buy"; asset?: string; amountUsd: number }
   | { kind: "sell"; asset?: string; amountUsd?: number; amountToken?: number; fraction?: number };
@@ -65,6 +67,25 @@ export function parseTradeIntent(text: string): Extract<Intent, { kind: "buy" | 
   return { kind: "sell", asset, fraction: 1 };
 }
 
+/** "launch Floor Desk (FLOOR) paired with NVDA", "launch a token paired with tesla",
+ *  "lanza un token FLOOR emparejado con nvidia". null si no es un launch. */
+export function parseLaunchIntent(text: string): Extract<Intent, { kind: "launch" }> | null {
+  const t = text.trim();
+  if (!/\b(launch|deploy|create|lanza(?:r)?|crea(?:r)?|despliega)\b/i.test(t)) return null;
+  if (!(/\b(token|coin|memecoin)\b/i.test(t) || /\$[A-Za-z]{2,}/.test(t) || /\(\s*\$?[A-Za-z0-9]{2,}\s*\)/.test(t))) return null;
+  const pair = t.match(/\b(?:paired?\s+(?:with|to)|pair(?:ed)?\s+against|against|backed by|on top of|emparejad[oa]\s+con|contra|con la acci[oó]n(?: de)?)\s+(?:the\s+|el\s+|la\s+)?\$?([A-Za-z][A-Za-z0-9.]{0,24})/i)?.[1];
+  const quoted = t.match(/["“']([^"”']{2,60})["”']/)?.[1];
+  const paren = t.match(/\(\s*\$?([A-Za-z][A-Za-z0-9]{0,19})\s*\)/)?.[1];
+  const dollar = t.match(/\$([A-Za-z][A-Za-z0-9]{1,19})\b/)?.[1];
+  const caps = t.match(/\b([A-Z][A-Z0-9]{1,9})\b/g)?.filter((w) => !/^(DCA|USD|USDC|ETH|NVDA|TSLA|META|AAPL|AMZN|GOOGL|MSFT|COIN|HOOD|MSTR|PLTR|SPY|QQQ|GME)$/.test(w) && w.toLowerCase() !== (pair ?? "").toLowerCase())?.[0];
+  const symbol = (paren ?? dollar ?? caps)?.toUpperCase();
+  // El nombre: lo entrecomillado, o las palabras entre el verbo y "(SYM)" / "paired".
+  const between = t.match(/\b(?:launch|deploy|create|lanza(?:r)?|crea(?:r)?|despliega)\b\s+(?:a\s+|an\s+|the\s+|un\s+|una\s+)?(?:new\s+|nuevo\s+)?(?:token\s+|coin\s+|memecoin\s+)?(?:called\s+|named\s+|llamad[oa]\s+)?([^()"“”]+?)\s*(?:\(|\$[A-Za-z]|paired?\b|pair\b|against\b|backed\b|on top\b|emparejad|contra\b|con la acci|$)/i)?.[1]?.trim();
+  const cleaned = between?.replace(/\$[A-Za-z0-9]+/g, "").replace(/\s+(token|coin)$/i, "").trim();
+  const name = quoted ?? (cleaned && !/^(token|coin|a token|new token)$/i.test(cleaned) && !/^(paired?|pair|against|backed|on top|emparejad|contra|con la)\b/i.test(cleaned) && cleaned.length >= 2 ? cleaned : undefined);
+  return { kind: "launch", name: name?.slice(0, 60), symbol: symbol?.slice(0, 20), pair };
+}
+
 export function parseIntent(raw: string): Intent {
   const t = norm(raw);
   if (!t) return { kind: "chat" };
@@ -80,6 +101,12 @@ export function parseIntent(raw: string): Intent {
   if (/^(approve|approved|go ahead|do it|sign it|confirm|aprueba|aprobado|dale|confirma)\b/.test(t)) return { kind: "approve" };
   if (/^(cancel|cancela|discard|descarta|never mind|forget it)\b/.test(t)) return { kind: "cancel" };
   if (/\b(summari[sz]e|recap|wrap up|resume|resumen|resumir)\b/.test(t) && /\b(today|the day|day|session|hoy|el d[ií]a|la sesi[oó]n|what we learned|lo que aprendimos)\b/.test(t)) return { kind: "summarize" };
+  // Automatizaciones (Bankr): recurrentes, stop loss, limit. Antes que la orden simple:
+  // "buy $5 of nvda every week" es un DCA, no una compra.
+  if (/\b(dca|dollar cost|recurring|every (day|week|month|monday|tuesday|wednesday|thursday|friday|hour|\d+)|daily|weekly|monthly|hourly|stop\s*loss|limit order|automate|automatiza|cada (d[ií]a|semana|mes))\b/.test(t) && !/\b(automations|my automations|mis automatizaciones)\b/.test(t)) return { kind: "automate", text: raw.trim() };
+  if (/\b(automations|automatizaciones|scheduled orders|my dcas?|my rules)\b/.test(t)) return { kind: "automations" };
+  const launch = parseLaunchIntent(raw);
+  if (launch) return launch;
   const trade = parseTradeIntent(raw);
   if (trade) return trade;
   if (/\b(portfolio|portafolio|holdings|positions|posiciones|what do i (hold|own)|que tengo|qué tengo|mis acciones)\b/.test(t)) return { kind: "portfolio" };
