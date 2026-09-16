@@ -13,7 +13,8 @@ const nextConfig: NextConfig = {
       "./node_modules/onnxruntime-node/package.json",
       "./node_modules/onnxruntime-node/dist/**",
       "./node_modules/onnxruntime-node/lib/**",
-      "./node_modules/onnxruntime-node/bin/napi-v6/darwin/arm64/**"
+      "./node_modules/onnxruntime-node/bin/napi-v6/darwin/arm64/**",
+      "./node_modules/onnxruntime-common/**"
     ]
   },
   turbopack: { root: __dirname },
