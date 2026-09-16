@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { parseIntent } from "./parseCommand";
 import DeskPanel, { type DeskScreen } from "./DeskPanel";
 import KnowledgeMap, { type GraphNode } from "./KnowledgeMap";
+import { CHAINS, chainOf, ChainMark } from "./ChainMark";
 import AgentCards, { applyTurnEvent, newTurn, type DeskTurn, type Role as AgentRole } from "./AgentCards";
 import SettingsPanel from "./SettingsPanel";
 import Wizard from "./Wizard";
@@ -103,7 +104,7 @@ function Shell() {
   type FleetAgent = { role: "scout" | "risk" | "trader" | "auditor"; name: string; agentId?: string; state: "planned" | "provisioning" | "waking" | "ready" | "hibernated" | "failed"; detail?: string; rail?: { provider: "1claw"; lockUsd: number }; railLinked?: boolean };
   type Fleet = { status: "none" | "provisioning" | "waking" | "ready" | "partial" | "hibernated"; agents: FleetAgent[] };
   // Espejo de DeskTemplate (app/lib/fleet.ts) sin importar codigo server-only.
-  type DeskTemplate = { id: string; revision: number; name: string; description: string; idleMinutes: number; agents: Array<{ role: string; name: string; duty: string }> };
+  type DeskTemplate = { id: string; revision: number; name: string; description: string; idleMinutes: number; chain?: string; agents: Array<{ role: string; name: string; duty: string }> };
   const [perkos, setPerkos] = useState<{ connected: boolean; busy: boolean; fundingUrl: string; note: string }>({ connected: false, busy: false, fundingUrl: "", note: "" });
   const [fleet, setFleet] = useState<Fleet | null>(null);
   const fleetRef = useRef<Fleet | null>(null);
@@ -512,6 +513,15 @@ function Shell() {
   // Quick switch de desk (header): guarda la eleccion, recarga la flota y
   // cierra las pantallas del desk anterior. La esfera habla desde el nuevo.
   const [deskMenu, setDeskMenu] = useState(false);
+  // El menu del desk se cierra con click fuera o Escape, como cualquier dropdown.
+  useEffect(() => {
+    if (!deskMenu) return;
+    const onDown = (e: MouseEvent) => { if (!(e.target as Element | null)?.closest?.(".deskpick")) setDeskMenu(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setDeskMenu(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
+  }, [deskMenu]);
   const selectDesk = useCallback(async (id: string) => {
     setDeskMenu(false);
     if (id === deskId) return;
@@ -1448,12 +1458,14 @@ function Shell() {
       <button className="gear" type="button" onClick={() => setSettings(true)} aria-label="Settings" title="Settings">
         <GearIcon />
       </button>
-      {who ? (
-        <div className="who">
+      {/* Identidad del desk, centrada: el desk es el producto y la cadena es parte de su identidad. */}
+      {who && desks.length ? (
+        <div className="desk-id">
           {/* Desk actual + quick switch (como org/proyecto en PerkOS App). */}
           {desks.length ? (
             <div className={`deskpick${deskMenu ? " open" : ""}`}>
               <button type="button" className="desk-cur" onClick={() => setDeskMenu((v) => !v)} aria-haspopup="listbox" aria-expanded={deskMenu} title="Switch desk">
+                <ChainMark chain={chainOf(desk)} />
                 <i className={`dot ${fleet?.status ?? "none"}`} />
                 {desk?.name ?? "No desk"}
                 <b>▾</b>
@@ -1463,7 +1475,7 @@ function Shell() {
                   {desks.map((d) => (
                     <li key={d.id} role="option" aria-selected={d.id === deskId}>
                       <button type="button" className={d.id === deskId ? "on" : ""} onClick={() => void selectDesk(d.id)}>
-                        <span>{d.name}</span>
+                        <span><ChainMark chain={chainOf(d)} small />{d.name}</span>
                         <small>{d.agents.length} agents{d.id === deskId && fleet ? ` · ${fleet.status}` : ""}</small>
                       </button>
                     </li>
@@ -1475,6 +1487,11 @@ function Shell() {
               ) : null}
             </div>
           ) : null}
+          <small>{CHAINS[chainOf(desk)].tagline}</small>
+        </div>
+      ) : null}
+      {who ? (
+        <div className="who">
           <span>{who}</span>
           <em className={`pk${perkos.connected ? " on" : ""}`} title={perkos.connected ? "PerkOS session active" : perkos.note || "PerkOS not connected"}>PerkOS</em>
           <button type="button" onClick={logout}>
