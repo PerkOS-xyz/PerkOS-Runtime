@@ -37,12 +37,35 @@ Ask the floor: `Hey PerkOS`, `Wake the team`, `Invite the guest`, `Show the docu
 npm run package:mac --prefix apps/desktop
 ```
 
-Builds the web app in production mode (`next build`, standalone output), makes the icon from the vertical logo and packs everything with electron-builder into `apps/desktop/release/mac-arm64/PerkOS.app`. The app starts the bundled server with Electron's own Node, so the Mac that runs it needs no Node install.
+Builds the web app in production mode (`next build`, standalone output), makes the icon and the DMG background from the vertical logo, packs the shell with electron-builder and puts the desk server inside the bundle (`after-pack.cjs`). Output: `apps/desktop/release/PerkOS-<version>-arm64.dmg` and `apps/desktop/release/mac-arm64/PerkOS.app`. The app starts the bundled server with Electron's own Node, so the Mac that runs it needs no Node install.
 
 - Build-time: `apps/web/.env.local` with the `NEXT_PUBLIC_*` values (they are inlined).
-- Run-time: `~/.perkos-floor/env` with the server keys (`BASE_RPC_URL`, `BANKR_API_KEY`, `KNOWLEDGE_*`), same `KEY=VALUE` format. The keys never travel inside the bundle.
+- Run-time: optional `~/.perkos-floor/env` with server keys (`BASE_RPC_URL`, `BANKR_API_KEY`, `KNOWLEDGE_*`), same `KEY=VALUE` format. Without it the app uses the public Base RPC and PerkOS Knowledge and skips the Bankr second quote. Keys never travel inside the bundle.
 - Settings, session, vault and logs stay in `~/.perkos-floor/` (`logs/floor-app.log` is the server output of the packaged app).
-- The signature is ad-hoc: fine on the Mac that built it. Distributing to other Macs needs a Developer ID and notarization.
+
+### Signing and notarization
+
+The script signs with the first "Developer ID Application" identity in the keychain (hardened runtime, `entitlements.mac.plist`). Without one it signs ad-hoc, which only runs on the Mac that built it. Notarization, needed for other Macs to open the DMG without warnings, runs when Apple credentials are in the environment:
+
+```
+xcrun notarytool store-credentials perkos-floor --apple-id <apple id> --team-id <team id>
+APPLE_KEYCHAIN_PROFILE=perkos-floor npm run package:mac --prefix apps/desktop
+```
+
+`store-credentials` asks for an app-specific password from appleid.apple.com. `APPLE_ID` + `APPLE_APP_SPECIFIC_PASSWORD` + `APPLE_TEAM_ID` work too.
+
+### Releases
+
+Versions follow semver and live in `apps/desktop/package.json` (mirrored in `apps/web/package.json`). Settings › About shows the version and the git short SHA of the build. To release:
+
+1. Bump the version in both `package.json` files and add the entry to `CHANGELOG.md`, in a PR.
+2. After the merge, tag and publish the DMG from `main`:
+
+```
+git tag v0.2.0 && git push origin v0.2.0
+npm run package:mac --prefix apps/desktop
+gh release create v0.2.0 apps/desktop/release/PerkOS-0.2.0-arm64.dmg --title "PerkOS 0.2.0" --notes-file <(sed -n '/## \[0.2.0\]/,/## \[0.1.0\]/p' CHANGELOG.md)
+```
 
 ## Desk knowledge
 

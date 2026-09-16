@@ -39,11 +39,12 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
   const [saved, setSaved] = useState(false);
   const [voice, setVoice] = useState<Voice>("leo");
   const [previewing, setPreviewing] = useState(false);
+  const [ver, setVer] = useState<{ version: string; build: string }>({ version: "", build: "" });
 
   const refresh = () =>
     Promise.all([
       fetch("/api/llm/status").then((r) => r.json()).then((s: Llm) => { setLlm(s); setModel(s.model); }),
-      fetch("/api/settings").then((r) => r.json()).then((s: { voice?: Voice }) => { if (s.voice && (VOICES as readonly string[]).includes(s.voice)) setVoice(s.voice); }).catch(() => undefined)
+      fetch("/api/settings").then((r) => r.json()).then((s: { voice?: Voice; version?: string; build?: string }) => { if (s.voice && (VOICES as readonly string[]).includes(s.voice)) setVoice(s.voice); setVer({ version: s.version ?? "", build: s.build ?? "" }); }).catch(() => undefined)
     ]);
 
   // La voz se guarda al elegirla y se puede escuchar antes de cerrar.
@@ -163,7 +164,7 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
         ) : null}
 
         <div className="sec">About</div>
-        <div className="srow"><span>PerkOS Floor</span><span className="v">0.1.0 · {desk?.builtOn ?? "Built on Base"} · They draft. You approve.</span></div>
+        <div className="srow"><span>PerkOS Floor</span><span className="v">{ver.version || "…"}{ver.build ? ` (${ver.build})` : ""} · {desk?.builtOn ?? "Built on Base"} · They draft. You approve.</span></div>
       </form>
     </div>
   );
