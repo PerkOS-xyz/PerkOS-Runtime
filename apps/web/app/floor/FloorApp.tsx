@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import "./apiToken";
 import { parseIntent } from "./parseCommand";
 import DeskPanel, { type DeskScreen } from "./DeskPanel";
 import KnowledgeMap, { type GraphNode } from "./KnowledgeMap";
@@ -70,7 +71,7 @@ function Shell() {
   // "draft": carta del Trader (cotizacion Uniswap V3 Base + calldata) con la
   // orb Approve; la wallet de la persona firma approve + swap. `tx` es el
   // progreso de la firma; `draft` es lo que devolvio /api/trade/draft.
-  type Draft = { id: string; chainId: number; side: "buy" | "sell"; stock: { symbol: string; ticker: string; name: string; issuer: string; address: string; decimals: number }; pool: string; fee: number; poolUsdcDepth: number; tokenIn: { symbol: string; decimals: number }; tokenOut: { symbol: string; decimals: number }; amountInHuman: string; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; deadline: number; quotedAt: string; needsApproval: boolean; balanceUsdc: string; balanceToken: string; txs: Array<{ label: "approve" | "swap"; to: `0x${string}`; data: `0x${string}`; value: "0x0" }>; bankr?: { impliedPriceUsd: number; outHuman: string; outSymbol: string; feeBps: number; priceImpactBps?: number } | null; venue?: "uniswap" | "aerodrome"; venueLabel?: string; venues?: Array<{ venue: string; label: string; priceUsd: number; outHuman: string; usdcDepth: number; fee: number }> };
+  type Draft = { id: string; chainId: number; recipient?: string; side: "buy" | "sell"; stock: { symbol: string; ticker: string; name: string; issuer: string; address: string; decimals: number }; pool: string; fee: number; poolUsdcDepth: number; tokenIn: { symbol: string; decimals: number }; tokenOut: { symbol: string; decimals: number }; amountInHuman: string; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; deadline: number; quotedAt: string; needsApproval: boolean; balanceUsdc: string; balanceToken: string; txs: Array<{ label: "approve" | "swap"; to: `0x${string}`; data: `0x${string}`; value: "0x0" }>; bankr?: { impliedPriceUsd: number; outHuman: string; outSymbol: string; feeBps: number; priceImpactBps?: number } | null; venue?: "uniswap" | "aerodrome"; venueLabel?: string; venues?: Array<{ venue: string; label: string; priceUsd: number; outHuman: string; usdcDepth: number; fee: number }> };
   type TradeIntent = { side: "buy" | "sell"; stock?: string; amountUsd?: number; amountToken?: number; fraction?: number };
   type DraftTx = { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; step?: "approve" | "swap"; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
   type Brief = { at: string; stock: { symbol: string; ticker: string; name: string; issuer: string }; priceUsd?: number; change24hPct?: number; range24h?: { low: number; high: number; open: number; last: number }; volume24hUsd?: number; sparkline?: number[]; pool: { fee: number; usdcDepth: number; priceUsd?: number } | null; chainlink?: { priceUsd: number; ageMin: number; stale: boolean }; premiumPct?: number; swaps24h?: { count: number; usdcVolume: number; buys: number; sells: number }; holding?: { balance: string; valueUsd: number }; lines: string[] };
@@ -734,6 +735,12 @@ function Shell() {
     if (!d || (msg?.tx && msg.tx.stage !== "idle" && msg.tx.stage !== "failed")) return;
     const patch = (tx: Partial<DraftTx>) => setMessages((m) => m.map((x) => (x.id === msgId ? { ...x, tx: { ...(x.tx ?? { stage: "idle", hashes: [] }), ...tx } as DraftTx } : x)));
     if (Date.now() / 1000 > d.deadline - 60) { patch({ stage: "failed", note: "Quote expired. Ask for a new draft." }); return; }
+    // El swap paga a `recipient`: tiene que ser la wallet conectada en esta ventana.
+    if (!d.recipient || !wallet.address || d.recipient.toLowerCase() !== wallet.address.toLowerCase()) {
+      flog("error", `trade: recipient ${d.recipient ?? "missing"} is not the connected wallet`);
+      patch({ stage: "blocked", note: "This draft pays out to a wallet other than the one connected here. Ask for a new draft." });
+      return;
+    }
     const hashes: DraftTx["hashes"] = [];
     try {
       for (const t of d.txs) {
@@ -1277,6 +1284,10 @@ function Shell() {
           if (stop) return;
           if (data.id && data.id !== id) {
             id = data.id;
+            // El canal externo (bridge de voz) nunca compra, vende ni aprueba:
+            // eso solo desde la ventana, con la wallet a la vista.
+            const k = parseIntent(data.text).kind;
+            if (k === "buy" || k === "sell" || k === "approve") { flog("warn", `command channel: "${k}" ignored`); continue; }
             run(data.text);
           }
         } catch {
@@ -1955,7 +1966,7 @@ function AnalysisCard({ a, onSay }: {
 /** Carta del draft del Trader + orb Approve (se mantiene 2 s para firmar).
  *  Sin llaves aqui: Approve manda las tx a la wallet de la persona. */
 function DraftCard({ draft, tx, onApprove }: {
-  draft: { side: "buy" | "sell"; stock: { symbol: string; ticker: string; name: string; issuer: string }; tokenIn: { symbol: string; decimals: number }; tokenOut: { symbol: string; decimals: number }; amountInHuman: string; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; pool: string; fee: number; poolUsdcDepth: number; deadline: number; needsApproval: boolean; balanceUsdc: string; balanceToken: string; txs: Array<{ label: string }>; bankr?: { impliedPriceUsd: number; outHuman: string; outSymbol: string; feeBps: number; priceImpactBps?: number } | null; venueLabel?: string; venues?: Array<{ label: string; priceUsd: number; outHuman: string; usdcDepth: number; fee: number }> };
+  draft: { side: "buy" | "sell"; recipient?: string; stock: { symbol: string; ticker: string; name: string; issuer: string }; tokenIn: { symbol: string; decimals: number }; tokenOut: { symbol: string; decimals: number }; amountInHuman: string; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; pool: string; fee: number; poolUsdcDepth: number; deadline: number; needsApproval: boolean; balanceUsdc: string; balanceToken: string; txs: Array<{ label: string }>; bankr?: { impliedPriceUsd: number; outHuman: string; outSymbol: string; feeBps: number; priceImpactBps?: number } | null; venueLabel?: string; venues?: Array<{ label: string; priceUsd: number; outHuman: string; usdcDepth: number; fee: number }> };
   tx: { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; step?: string; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
   onApprove: () => void;
 }) {
@@ -1988,6 +1999,7 @@ function DraftCard({ draft, tx, onApprove }: {
         <dt>You pay</dt><dd>{buy ? `$${draft.amountInUsd.toFixed(2)} USDC` : `${draft.amountInHuman} ${draft.stock.symbol}`}</dd>
         <dt>You get</dt><dd>≈ {draft.quoteOutHuman} {draft.tokenOut.symbol} <small>(min {minOutHuman}, {draft.slippageBps / 100}% slippage)</small></dd>
         <dt>Price</dt><dd>${draft.impliedPriceUsd.toFixed(2)} / share</dd>
+        <dt>Pays to</dt><dd>{draft.recipient ? `${draft.recipient.slice(0, 6)}…${draft.recipient.slice(-4)}` : "your wallet"} <small>(the wallet connected here)</small></dd>
         {draft.bankr ? <><dt>Second quote</dt><dd>Bankr ${draft.bankr.impliedPriceUsd.toFixed(2)} / share · {draft.bankr.outHuman} {draft.bankr.outSymbol || draft.tokenOut.symbol} · {(((draft.impliedPriceUsd / draft.bankr.impliedPriceUsd) - 1) * 100).toFixed(2)}% vs Uniswap · read-only, never executes</dd></> : null}
         <dt>Route</dt><dd>{draft.venueLabel ?? "Uniswap V3"} · {draft.tokenIn.symbol} → {draft.tokenOut.symbol} · pool {draft.pool.slice(0, 6)}…{draft.pool.slice(-4)} · {draft.fee / 10_000}% · ${draft.poolUsdcDepth.toFixed(0)} USDC deep</dd>
         {draft.venues && draft.venues.length > 1 ? <><dt>Venues</dt><dd>{draft.venues.map((v) => `${v.label} $${v.priceUsd.toFixed(2)} ($${Math.round(v.usdcDepth).toLocaleString("en-US")} deep)`).join(" · ")} · the desk took the best price</dd></> : null}

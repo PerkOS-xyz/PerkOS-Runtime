@@ -1,9 +1,12 @@
+import { guard } from "../../../lib/guard";
 import { loadSettings } from "../../../lib/settingsStore";
 import { askFleet, FLEET_ROLES, type FleetRole } from "../../../lib/fleet";
 import { PerkosApiError } from "../../../lib/perkosApi";
 
 // POST /api/fleet/ask { text, roles? } -> { replies: [{role, ok, reply, detail, ms}] }
 export async function POST(req: Request) {
+  const denied = guard(req);
+  if (denied) return denied;
   const body = (await req.json().catch(() => ({}))) as { text?: string; roles?: string[] };
   const text = body.text?.trim() ?? "";
   if (!text) return Response.json({ error: "text" }, { status: 400 });

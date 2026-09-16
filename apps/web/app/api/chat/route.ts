@@ -1,3 +1,4 @@
+import { guard } from "../../lib/guard";
 import {
   getXaiAccessToken,
   loadXaiTokens,
@@ -68,6 +69,8 @@ export async function DELETE() {
 }
 
 export async function POST(req: Request) {
+  const denied = guard(req);
+  if (denied) return denied;
   kbBusy(true, 3 * 60_000);
   const body = (await req.json().catch(() => ({}))) as { text?: string; fleet?: Array<{ role: string; ok: boolean; reply: string; detail?: string }>; desk?: { name?: string; roles?: string[] }; brief?: string[] | null; news?: string | null; focus?: string | null; side?: boolean };
   const text = body.text?.trim() ?? "";

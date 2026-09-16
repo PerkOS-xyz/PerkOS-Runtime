@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
-import { HOME_DIR } from "./home";
+import { ensureHome, HOME_DIR } from "./home";
 
 // Sesion PerkOS del usuario via PerkOS-OAuth (oauth.perkos.xyz), la fachada
 // OAuth 2.0 sobre el login por firma de wallet que PerkOS ya corre:
@@ -43,6 +43,7 @@ export function perkosConfigured(): boolean {
 }
 
 export async function loadPerkosSession(): Promise<PerkosSession | null> {
+  ensureHome();
   try {
     const raw = JSON.parse(await readFile(file, "utf8")) as Partial<PerkosSession>;
     if (typeof raw.wallet !== "string" || typeof raw.accessToken !== "string" || typeof raw.refreshToken !== "string") return null;
@@ -62,11 +63,13 @@ export async function loadPerkosSession(): Promise<PerkosSession | null> {
 }
 
 export async function savePerkosSession(s: PerkosSession): Promise<void> {
+  ensureHome();
   await mkdir(dir, { recursive: true, mode: 0o700 });
   await writeFile(file, `${JSON.stringify(s)}\n`, { mode: 0o600 });
 }
 
 export async function clearPerkosSession(): Promise<void> {
+  ensureHome();
   try { await unlink(file); } catch {}
 }
 

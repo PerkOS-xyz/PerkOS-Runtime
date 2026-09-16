@@ -1,13 +1,17 @@
-import { pollXaiDeviceLogin, saveXaiTokens, XAI_DEFAULT_MODEL } from "../../../../lib/xaiOAuth";
+import { guard } from "../../../../lib/guard";
+import { isPendingDevice, pollXaiDeviceLogin, saveXaiTokens, XAI_DEFAULT_MODEL } from "../../../../lib/xaiOAuth";
 import { loadSettings, saveSettings } from "../../../../lib/settingsStore";
 
 type Body = { deviceCode?: string; intervalMs?: number };
 
 // Paso 2: un intento de canje por llamada. El cliente repite cada intervalMs.
 export async function POST(req: Request) {
+  const denied = guard(req);
+  if (denied) return denied;
   const body = (await req.json().catch(() => ({}))) as Body;
   const deviceCode = body.deviceCode?.trim() ?? "";
   if (!deviceCode) return Response.json({ error: "deviceCode" }, { status: 400 });
+  if (!(await isPendingDevice(deviceCode))) return Response.json({ error: "unknown_device_code" }, { status: 400 });
   try {
     const r = await pollXaiDeviceLogin(deviceCode, Number(body.intervalMs) || 5000);
     if (r.status === "ok") {

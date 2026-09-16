@@ -16,6 +16,18 @@ import urllib.request
 FLOOR = os.environ.get("PERKOS_URL", "http://127.0.0.1:3000").rstrip("/")
 
 
+def api_token() -> str:
+    # El shell escribe el token del arranque en ~/.perkos-xyz/api-token.
+    t = os.environ.get("PERKOS_API_TOKEN", "").strip()
+    if t:
+        return t
+    try:
+        with open(os.path.expanduser("~/.perkos-xyz/api-token"), encoding="utf-8") as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
 def post(text: str) -> None:
     raw = text.strip()
     if not raw:
@@ -23,7 +35,7 @@ def post(text: str) -> None:
     req = urllib.request.Request(
         f"{FLOOR}/api/command",
         data=json.dumps({"text": raw}).encode(),
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", "x-perkos-token": api_token()},
         method="POST",
     )
     try:

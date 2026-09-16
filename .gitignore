@@ -42,3 +42,6 @@ apps/desktop/release/
 .perkos-debug.log
 *.floor-debug.log
 .floor-debug.log
+# Sparky master is assets/Sparky.png; the .svg is the same PNG embedded (2 MB)
+assets/Sparky.svg
+__pycache__/

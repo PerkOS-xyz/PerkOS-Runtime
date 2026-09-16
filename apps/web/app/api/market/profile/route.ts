@@ -1,9 +1,12 @@
+import { guard } from "../../../lib/guard";
 import { assetProfile, cachedProfile } from "../../../lib/profile";
 
 // POST /api/market/profile { ticker, name, force? } -> perfil de valuacion
 // (P/E, beta, cap, proxima fecha de earnings, dividendo, consenso) con la
 // linea lista para los hechos de la mesa. Cache 24 h; Knowledge antes que Grok.
 export async function POST(req: Request) {
+  const denied = guard(req);
+  if (denied) return denied;
   const body = (await req.json().catch(() => ({}))) as { ticker?: unknown; name?: unknown; force?: unknown };
   const ticker = typeof body.ticker === "string" ? body.ticker.trim().toUpperCase().slice(0, 12) : "";
   const name = typeof body.name === "string" ? body.name.trim().slice(0, 60) : ticker;
