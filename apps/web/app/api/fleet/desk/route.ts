@@ -165,7 +165,7 @@ export async function POST(req: Request) {
         const verdict = gated ? (risk?.ok ? verdictOf(risk.reply) ?? "BLOCK" : "BLOCK") : undefined;
         const tail = `${head}\nScout said: ${scoutSaid}\nRisk said: ${riskSaid}${verdict ? ` (verdict ${verdict})` : ""}.`;
         const T = mode === "launch"
-          ? `As Trader (open with "@Sparky"): ${verdict === "GO" ? "restate the launch the desk drafted (token name and symbol, the paired stock, the chain, who receives the fees, the 15 percent creator vesting) and what the human must hold to launch. You never execute." : "Risk blocked it: stand down and say which check must change. You never execute."} Under 60 words.`
+          ? `As Trader (open with "@Sparky"): ${verdict === "GO" ? "restate the launch the desk drafted (token name and symbol, the paired stock, the chain, who deploys, who receives the fees, and the vesting rule exactly as the facts state it) and what the human must hold to launch. You never execute." : "Risk blocked it: stand down and say which check must change. You never execute."} Under 60 words.`
           : mode === "order"
           ? `As Trader (open with "@Sparky"): ${q ? (verdict === "GO" ? "restate the order the desk drafted (asset, size, venue, min out) and exactly what the human must sign. You never execute." : "Risk blocked it: stand down and say what would need to change. You never execute.") : "no order is on the table: say what you would draft if asked, in one line. You never execute."} Under 60 words.`
           : mode === "analyze"
