@@ -26,7 +26,9 @@ function Spark({ points, w = 96, h = 28, big = false }: { points?: number[]; w?:
   );
 }
 
-export type DeskScreen = "market" | "portfolio";
+export type DeskScreen = "market" | "portfolio" | "notes";
+type Note = { id: string; desk: string; kind: string; title: string; ticker?: string; body: string; updatedAt: string };
+type Hit = { id: string; kind: string; title: string; ticker?: string; updatedAt: string; snippet: string };
 
 const usd = (n?: number, d = 2) => (n === undefined || !Number.isFinite(n) ? "–" : `$${n.toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d })}`);
 const issuerLabel = (i: string) => (i === "coinbase" ? "Coinbase" : i === "dinari" ? "Dinari" : i === "anchored" ? "Anchored" : i === "st0x" ? "ST0x" : i);
@@ -45,12 +47,19 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay }: {
   const [total, setTotal] = useState(0);
   const [q, setQ] = useState("");
   const [err, setErr] = useState("");
+  const [notes, setNotes] = useState<Note[] | null>(null);
+  const [hits, setHits] = useState<Hit[] | null>(null);
+  const [open, setOpen] = useState<(Note & { path: string }) | null>(null);
+  const [nq, setNq] = useState("");
 
   useEffect(() => {
     let live = true;
     setErr("");
     if (screen === "market") {
       fetch("/api/market/stocks?depth=1&limit=24").then((r) => r.json()).then((j) => { if (live) setRows(j.stocks ?? []); }).catch((e) => live && setErr(String(e)));
+    } else if (screen === "notes") {
+      setOpen(null);
+      fetch("/api/kb/notes?limit=40").then((r) => r.json()).then((j) => { if (live) setNotes(j.notes ?? []); }).catch((e) => live && setErr(String(e)));
     } else {
       fetch("/api/market/portfolio").then((r) => r.json()).then((j) => { if (!live) return; if (j.error) { setErr(j.detail ?? j.error); setPositions([]); } else { setPositions(j.positions ?? []); setTotal(j.totalUsd ?? 0); } }).catch((e) => live && setErr(String(e)));
     }
@@ -69,6 +78,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay }: {
         <div className="tabs" role="tablist">
           <button type="button" role="tab" aria-selected={screen === "market"} className={screen === "market" ? "on" : ""} onClick={() => onScreen("market")}>Market</button>
           <button type="button" role="tab" aria-selected={screen === "portfolio"} className={screen === "portfolio" ? "on" : ""} onClick={() => onScreen("portfolio")}>Portfolio</button>
+          <button type="button" role="tab" aria-selected={screen === "notes"} className={screen === "notes" ? "on" : ""} onClick={() => onScreen("notes")}>Notes</button>
         </div>
         <button type="button" className="close" onClick={onClose} aria-label="Close">×</button>
       </header>
@@ -125,6 +135,38 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay }: {
               );
             })}
           </ul>
+        </>
+      ) : screen === "notes" ? (
+        <>
+          <p className="hint-line">What this desk remembers: journal, analyses, orders and memory. Local Markdown in ~/.perkos-floor/knowledge, Obsidian-compatible.</p>
+          <input className="search" value={nq} placeholder="Search the desk's notes…" onChange={(e) => { const v = e.target.value; setNq(v); if (v.trim().length < 2) { setHits(null); return; } fetch(`/api/kb/search?q=${encodeURIComponent(v)}`).then((r) => r.json()).then((j) => setHits(j.hits ?? [])).catch(() => setHits([])); }} />
+          {err ? <p className="hint-line err">{err}</p> : null}
+          {open ? (
+            <div className="note-open">
+              <div className="note-head">
+                <b>{open.title}</b>
+                <div className="acts">
+                  <a href={`obsidian://open?path=${encodeURIComponent(open.path)}`} title="Open in Obsidian">Obsidian ↗</a>
+                  <button type="button" onClick={() => setOpen(null)}>Back</button>
+                </div>
+              </div>
+              <pre>{open.body}</pre>
+            </div>
+          ) : (
+            <ul className="rows notes">
+              {(hits ?? notes ?? []).map((n) => (
+                <li key={n.id} onClick={() => { fetch(`/api/kb/note?id=${encodeURIComponent(n.id)}`).then((r) => r.json()).then((j) => { if (j.body !== undefined) setOpen(j); }).catch(() => undefined); }}>
+                  <div className="cell name">
+                    <b>{n.title}</b>
+                    <small>{n.kind}{n.ticker ? ` · ${n.ticker}` : ""} · {n.updatedAt.slice(0, 16).replace("T", " ")}</small>
+                    {"snippet" in n ? <small className="snip">{(n as Hit).snippet}</small> : null}
+                  </div>
+                </li>
+              ))}
+              {!notes && !hits ? <li><div className="cell name"><small>Reading the vault…</small></div></li> : null}
+              {notes && notes.length === 0 && !hits ? <li><div className="cell name"><small>Nothing yet. Every turn, analysis and order will be written here.</small></div></li> : null}
+            </ul>
+          )}
         </>
       ) : (
         <>
