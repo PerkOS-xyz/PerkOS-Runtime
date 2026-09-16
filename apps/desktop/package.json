@@ -6,9 +6,46 @@
   "scripts": {
     "start": "electron .",
     "brand": "bash brand-electron.sh",
-    "postinstall": "bash brand-electron.sh"
+    "postinstall": "bash brand-electron.sh",
+    "package:mac": "bash package-mac.sh"
   },
   "devDependencies": {
-    "electron": "^37.2.0"
+    "electron": "^37.2.0",
+    "electron-builder": "^26.15.3"
+  },
+  "description": "PerkOS Floor. Tokenized stocks on Base, worked by a desk of agents. They draft. You approve.",
+  "author": "PerkOS",
+  "build": {
+    "appId": "xyz.perkos.floor",
+    "productName": "PerkOS",
+    "copyright": "PerkOS",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.cjs",
+      "waiting.html",
+      "icon.png",
+      "package.json"
+    ],
+    "asar": true,
+    "mac": {
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.finance",
+      "identity": null,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Floor listens while you hold the mic to talk to Sparky.",
+        "NSSpeechRecognitionUsageDescription": "Floor turns what you say into a request for the desk."
+      }
+    }
   }
 }

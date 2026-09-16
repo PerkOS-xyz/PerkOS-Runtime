@@ -2,12 +2,36 @@ const { app, BrowserWindow, shell, session, powerSaveBlocker } = require("electr
 app.setName("PerkOS Floor");
 
 const { spawn } = require("child_process");
+const fs = require("fs");
 const http = require("http");
 const net = require("net");
+const os = require("os");
 const path = require("path");
 
 const mac = process.platform === "darwin";
+const HOME_DIR = path.join(os.homedir(), ".perkos-floor");
 let child = null;
+
+// Pruebas: FLOOR_USER_DATA aisla el perfil de Chromium (sesion Privy, storage)
+// para abrir el .app junto a la version de desarrollo sin pisar su perfil.
+if (process.env.FLOOR_USER_DATA) app.setPath("userData", process.env.FLOOR_USER_DATA);
+
+// Floor.app empaquetado: las claves del servidor (BANKR_API_KEY, BASE_RPC_URL,
+// KNOWLEDGE_*) no viajan dentro del bundle. Se leen de ~/.perkos-floor/env,
+// formato KEY=VALUE como apps/web/.env.local. En desarrollo Next lee .env.local.
+function homeEnv() {
+  const out = {};
+  try {
+    for (const line of fs.readFileSync(path.join(HOME_DIR, "env"), "utf8").split(/\r?\n/)) {
+      const m = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
+      if (!m || line.trim().startsWith("#")) continue;
+      let v = m[2];
+      if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
+      out[m[1]] = v;
+    }
+  } catch {}
+  return out;
+}
 
 function takePort(want = 3847) {
   return new Promise((ok) => {
@@ -54,6 +78,32 @@ async function waitFor(target, tries = 50) {
 }
 
 function startWeb(port) {
+  if (app.isPackaged) {
+    // Servidor autocontenido de `next build` (output: standalone), copiado a
+    // Contents/Resources/web por electron-builder. Corre con el Node del propio
+    // Electron (ELECTRON_RUN_AS_NODE), asi el .app no depende de un Node instalado.
+    const web = path.join(process.resourcesPath, "web");
+    const logs = path.join(HOME_DIR, "logs");
+    fs.mkdirSync(logs, { recursive: true });
+    const log = fs.createWriteStream(path.join(logs, "floor-app.log"), { flags: "a" });
+    log.write(`\n[${new Date().toISOString()}] Floor.app ${app.getVersion()} · port ${port}\n`);
+    child = spawn(process.execPath, [path.join(web, "server.js")], {
+      cwd: web,
+      env: {
+        ...process.env,
+        ...homeEnv(),
+        ELECTRON_RUN_AS_NODE: "1",
+        NODE_ENV: "production",
+        HOSTNAME: "127.0.0.1",
+        PORT: String(port),
+        FLOOR_DEBUG_LOG: path.join(logs, "floor-debug.log")
+      },
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    child.stdout?.pipe(log);
+    child.stderr?.pipe(log);
+    return;
+  }
   const web = path.join(__dirname, "../web");
   child = spawn("npx", ["next", "dev", "--hostname", "127.0.0.1", "--port", String(port)], {
     cwd: web,
@@ -132,7 +182,7 @@ async function create() {
 app.whenReady().then(() => {
   // En desarrollo Electron muestra su propio icono en el Dock; el .app
   // empaquetado usara el .icns del bundle. Hasta entonces, el logo de PerkOS.
-  if (mac && app.dock) {
+  if (mac && app.dock && !app.isPackaged) {
     try { app.dock.setIcon(path.join(__dirname, "icon.png")); } catch {}
   }
   // Microfono para el composer (getUserMedia). Electron niega "media" si no hay handler.
