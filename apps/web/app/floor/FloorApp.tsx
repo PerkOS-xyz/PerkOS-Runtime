@@ -460,7 +460,7 @@ function Shell() {
       releaseDraft(youId);
       // Diario del desk: la pregunta, lo que dijo el equipo y la respuesta.
       const teamLines = fleetReplies.filter((r) => r.ok && r.reply).map((r) => `- **${cap(r.role)}**: ${r.reply.replace(/\s+/g, " ").slice(0, 600)}`).join("\n");
-      kbWriteRef.current({ journal: true, body: `**You**: ${text}\n${teamLines ? `${teamLines}\n` : ""}- **Floor**: ${full.replace(/\s+/g, " ").slice(0, 900)}` });
+      kbWriteRef.current({ journal: true, body: `**You**: ${text}\n${teamLines ? `${teamLines}\n` : ""}- **Sparky**: ${full.replace(/\s+/g, " ").slice(0, 900)}` });
     } catch (e) {
       if ((e as Error).name !== "AbortError") flog("error", `chat: ${(e as Error).message}`);
       setMessages((m) => m.map((x) => (x.id === floorId ? { ...x, streaming: false } : x)));
