@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { parseIntent } from "./parseCommand";
 import DeskPanel, { type DeskScreen } from "./DeskPanel";
-import DeskMap from "./DeskMap";
+import KnowledgeMap, { type GraphNode } from "./KnowledgeMap";
 import AgentCards, { applyTurnEvent, newTurn, type DeskTurn, type Role as AgentRole } from "./AgentCards";
 import SettingsPanel from "./SettingsPanel";
 import Wizard from "./Wizard";
@@ -37,6 +37,7 @@ function Shell() {
   const [market, setMarket] = useState(false);
   // Pantallas propias del desk (Market / Portfolio) y el activo enfocado.
   const [deskScreen, setDeskScreen] = useState<DeskScreen | "">("");
+  const [deskMax, setDeskMax] = useState(false);
   const [focusAsset, setFocusAsset] = useState("");
   // El prompt "Hey PerkOS" vive bajo el microfono (.whisper). Esta linea es solo
   // el transcript de lo hablado o tecleado, asi que arranca vacia.
@@ -1334,7 +1335,7 @@ function Shell() {
   }
 
   return (
-    <div className={`stage${split ? " split" : ""}${debug ? " with-debug" : ""}${deskScreen ? " desk-open" : ""}${turn && !turn.collapsed ? " turn-live" : ""}`}>
+    <div className={`stage${split ? " split" : ""}${debug ? " with-debug" : ""}${deskScreen ? " desk-open" : ""}${deskScreen && deskMax ? " desk-max" : ""}${turn && !turn.collapsed ? " turn-live" : ""}`}>
       <div className="dragbar" />
       <div className="mark">
         <img src="/logo-name.png" alt="PerkOS" />
@@ -1441,27 +1442,19 @@ function Shell() {
           screen={deskScreen}
           focus={focusAsset}
           onScreen={setDeskScreen}
-          onClose={() => setDeskScreen("")}
+          onClose={() => { setDeskScreen(""); setDeskMax(false); }}
           onSay={(t) => runRef.current(t)}
           onSummarize={() => void summarizeDay()}
+          max={deskMax}
+          onMax={setDeskMax}
           map={(
-            <DeskMap
-              deskName={desk?.name ?? "desk"}
-              agents={(fleet?.agents ?? []).map((a) => {
-                const last = [...messages].reverse().find((m) => m.role === "team" && m.who === a.role);
-                return { role: a.role, label: cap(a.role), state: a.state, talking: talking.has(a.role), rail: a.rail ? { linked: Boolean(a.railLinked), lockUsd: a.rail.lockUsd } : undefined, last: last?.text, verdict: a.role === "risk" ? verdict : "" };
-              })}
-              guest={{ on: guest, label: guest ? "Grok Bot" : "Guest" }}
-              beams={beams}
-              focus={(() => { const a = [...messages].reverse().find((m) => m.role === "analysis")?.analysis; return a ? { symbol: a.brief.stock.symbol, name: a.brief.stock.name, priceUsd: a.brief.priceUsd, change24hPct: a.brief.change24hPct } : focusAsset ? { symbol: focusAsset.toUpperCase(), name: focusAsset } : null; })()}
-              orders={messages.filter((m) => m.role === "draft" && m.draft).slice(-3).reverse().map((m) => ({ id: m.id, label: `${m.draft!.side === "buy" ? `Buy $${m.draft!.amountInUsd}` : `Sell ${m.draft!.amountInHuman}`} ${m.draft!.stock.symbol}`, stage: m.tx?.stage ?? "idle", symbol: m.draft!.stock.symbol }))}
-              bankr={(() => { const d = [...messages].reverse().find((m) => m.role === "draft" && m.draft?.bankr)?.draft; return d?.bankr ? { priceUsd: d.bankr.impliedPriceUsd, deltaPct: ((d.impliedPriceUsd / d.bankr.impliedPriceUsd) - 1) * 100 } : null; })()}
-              turnLive={talkingSet.length > 0 || thinking}
-              onPick={(kind, id) => {
-                if (kind === "asset") { setFocusAsset(id); setDeskScreen("market"); }
-                else if (kind === "agent" && id !== "guest") { const a = fleet?.agents.find((x) => x.role === id); setCaption(a ? `${cap(id)} · ${a.state}${a.rail ? (a.railLinked ? " · 1Claw linked" : " · rail not linked") : ""}` : cap(id)); }
-                else if (kind === "order") { setDeskScreen(""); setSplit(true); }
-                else if (kind === "floor") setCaption(`${desk?.name ?? "Desk"} · ${fleet?.agents.filter((x) => x.state === "ready").length ?? 0} awake`);
+            <KnowledgeMap
+              focus={focusAsset}
+              onPick={(n: GraphNode) => {
+                if (n.type === "asset" && n.ticker) { setFocusAsset(n.ticker); runRef.current(`analyze ${n.ticker}`); }
+                else if (n.type === "decision") setDeskScreen("history");
+                else if (n.type === "note") setDeskScreen("notes");
+                else if (n.type === "agent") { const r = n.id.replace("agent:", ""); const els = document.querySelectorAll(`.turn.team[data-who="${r}"]`); const el = els[els.length - 1]; if (el) { setDeskMax(false); el.scrollIntoView({ behavior: "smooth", block: "center" }); } }
               }}
             />
           )}

@@ -34,7 +34,10 @@ type Hit = { id: string; kind: string; title: string; ticker?: string; updatedAt
 const usd = (n?: number, d = 2) => (n === undefined || !Number.isFinite(n) ? "–" : `$${n.toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d })}`);
 const issuerLabel = (i: string) => (i === "coinbase" ? "Coinbase" : i === "dinari" ? "Dinari" : i === "anchored" ? "Anchored" : i === "st0x" ? "ST0x" : i);
 
-export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onSummarize, map }: {
+export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onSummarize, map, max, onMax }: {
+  /** Maximizado: ocupa todo el stage y oculta el chat. */
+  max?: boolean;
+  onMax?: (v: boolean) => void;
   screen: DeskScreen;
   /** Ticker o simbolo que el turno de mesa esta mirando ("AMZN"). */
   focus: string;
@@ -90,7 +93,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
   const detail = (rows ?? []).find((r) => r.address === picked) ?? (rows ?? []).find(isFocus) ?? null;
 
   return (
-    <aside className={`desk-panel ${screen}`} aria-label="Desk screens">
+    <aside className={`desk-panel dock ${screen}${max ? " max" : ""}`} aria-label="Desk screens">
       <header>
         <div className="tabs" role="tablist">
           <button type="button" role="tab" aria-selected={screen === "market"} className={screen === "market" ? "on" : ""} onClick={() => onScreen("market")}>Market</button>
@@ -99,7 +102,16 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
           <button type="button" role="tab" aria-selected={screen === "map"} className={screen === "map" ? "on" : ""} onClick={() => onScreen("map")}>Map</button>
           <button type="button" role="tab" aria-selected={screen === "history"} className={screen === "history" ? "on" : ""} onClick={() => onScreen("history")}>History</button>
         </div>
-        <button type="button" className="close" onClick={onClose} aria-label="Close">×</button>
+        <div className="panel-acts">
+          <button type="button" className="close" onClick={() => onMax?.(!max)} aria-label={max ? "Restore" : "Maximize"} title={max ? "Restore: show the chat" : "Maximize: hide the chat"}>
+            {max ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 3H5a2 2 0 0 0-2 2v4" /><path d="M15 3h4a2 2 0 0 1 2 2v4" /><path d="M9 21H5a2 2 0 0 1-2-2v-4" /><path d="M15 21h4a2 2 0 0 0 2-2v-4" /><rect x="8" y="8" width="8" height="8" rx="1" /></svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 3h6v6" /><path d="M9 21H3v-6" /><path d="M21 3l-7 7" /><path d="M3 21l7-7" /></svg>
+            )}
+          </button>
+          <button type="button" className="close" onClick={onClose} aria-label="Close">×</button>
+        </div>
       </header>
 
       {screen === "history" ? (
