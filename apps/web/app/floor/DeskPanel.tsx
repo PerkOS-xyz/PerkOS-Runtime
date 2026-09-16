@@ -359,10 +359,44 @@ const FLAG_HELP: Record<string, string> = {
   "size-over-limit": "recommended a size above the 100 USDC limit",
   "over-length": "longer than the role's word budget",
   "no-verdict": "Risk gave no GO or BLOCK on an order",
-  "no-risk-level": "Risk gave no risk level"
+  "no-risk-level": "Risk gave no risk level",
+  "no-citation": "no [F<n>] or [N] tag pointing to the fact behind a claim"
 };
 const flagName = (f: string) => f.replace(/^[a-z]+:/, "").replace(/\(.*\)$/, "");
 const flagRole = (f: string) => (f.match(/^([a-z]+):/)?.[1] ?? "");
+type Outlook = { id: string; title: string; askedAt: string; dueAt: string; due: boolean; reviewed: boolean; picks: string[]; avoid?: string; result?: { daysLater: number; marketAvgPct: number; picksAvgPct?: number; beatBy?: number; verdict: string } };
+const pctS = (n: number) => `${n > 0 ? "+" : ""}${n.toFixed(2)}%`;
+/** Outlooks fechados y su revision al mes (o a pedido): el track record de la mesa. */
+function Outlooks() {
+  const [rows, setRows] = useState<Outlook[] | null>(null);
+  const [busy, setBusy] = useState<string>("");
+  const load = () => fetch("/api/desk/review").then((r) => r.json()).then((j) => setRows(j.outlooks ?? [])).catch(() => setRows([]));
+  useEffect(() => { void load(); }, []);
+  const review = async (id: string) => {
+    setBusy(id);
+    try { await fetch("/api/desk/review", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, force: true }) }); await load(); } finally { setBusy(""); }
+  };
+  if (!rows) return null;
+  return (
+    <div className="qlog-outlooks">
+      <div className="qlog-h"><b className="t">Outlooks</b><span>{rows.length ? `${rows.filter((o) => o.reviewed).length} reviewed · ${rows.filter((o) => o.due).length} due` : "none yet"}</span></div>
+      {rows.map((o) => {
+        const days = Math.max(0, Math.ceil((Date.parse(o.dueAt) - Date.now()) / 86_400_000));
+        return (
+          <div key={o.id} className={`qlog-outlook${o.reviewed ? " done" : o.due ? " due" : ""}`}>
+            <span className="d">{o.askedAt.slice(5, 16).replace("T", " ")}</span>
+            <span className="t">{o.picks.length ? `picks ${o.picks.join(", ")}` : "no picks parsed"}{o.avoid ? ` · avoid ${o.avoid}` : ""}</span>
+            {o.reviewed && o.result ? (
+              <em title={o.result.verdict}>{o.result.picksAvgPct !== undefined ? `picks ${pctS(o.result.picksAvgPct)} vs market ${pctS(o.result.marketAvgPct)}` : `market ${pctS(o.result.marketAvgPct)}`} · {o.result.daysLater} d</em>
+            ) : (
+              <button type="button" disabled={busy === o.id} onClick={() => review(o.id)} title={o.due ? "Due: compare the picks with today's prices" : `Review is due in ${days} day${days === 1 ? "" : "s"}; review now against today's prices`}>{busy === o.id ? "Reviewing…" : o.due ? "Review (due)" : `Review now · due in ${days} d`}</button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 function QualityLog() {
   const [data, setData] = useState<{ count: number; totals: Record<string, number>; entries: LogEntry[] } | null>(null);
   const [sel, setSel] = useState<number>(-1);
@@ -379,6 +413,7 @@ function QualityLog() {
   return (
     <div className="qlog">
       <p className="hint">Every turn the desk ran, with the automatic checks on each reply. A flag is a signal to review, not a verdict.</p>
+      <Outlooks />
       {data.count === 0 ? <p className="hint">No turns logged yet. Ask the desk something.</p> : (
         <div className="qlog-totals">
           <span className="n">{data.count} turns · {flagged} with flags</span>

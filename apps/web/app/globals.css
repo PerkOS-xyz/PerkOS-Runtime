@@ -1405,6 +1405,14 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .qlog-h em { font-style: normal; padding: 0 6px; border-radius: 999px; border: 1px solid rgba(255, 179, 71, 0.45); color: #ffd18a; font-size: 9px; }
 .qlog-h em.ok { border-color: rgba(61, 200, 120, 0.5); color: #7fe0a8; }
 .qlog-reply p { margin: 4px 0 0; font-size: 10.5px; line-height: 1.45; color: #c5d2ee; white-space: pre-wrap; }
+.qlog-outlooks { display: flex; flex-direction: column; gap: 5px; padding: 8px 10px; border: 1px solid rgba(120, 160, 255, 0.18); border-radius: 10px; background: rgba(20, 24, 40, 0.6); }
+.qlog-outlooks .qlog-h b.t { text-transform: none; color: #e6ecff; font-size: 11px; }
+.qlog-outlook { display: grid; grid-template-columns: 78px 1fr auto; gap: 8px; align-items: center; font-size: 10.5px; color: #c5d2ee; }
+.qlog-outlook .d { color: #6f7d99; font-size: 10px; }
+.qlog-outlook em { font-style: normal; font-size: 10px; color: #7fe0a8; }
+.qlog-outlook.due .d { color: #ffd18a; }
+.qlog-outlook button { font: inherit; font-size: 9.5px; padding: 2px 8px; border-radius: 999px; color: #9fc2ff; background: transparent; border: 1px solid rgba(120, 160, 255, 0.35); cursor: pointer; }
+.qlog-outlook button:disabled { opacity: 0.6; cursor: default; }
 @media (prefers-reduced-motion: reduce) {
   .ag-bar.indet span, .ag-shimmer, .beams path.beam-path { animation: none; }
   .beams .beam-token { display: none; }

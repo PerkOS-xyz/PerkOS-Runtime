@@ -1,6 +1,7 @@
 import { createPublicClient, formatUnits, http, parseAbi } from "viem";
 import { base } from "viem/chains";
 import { USDC, USDC_DECIMALS, VENUE_LABEL, poolFor, resolveStock, type Stock, type StockPool } from "./stocks";
+import { CHAINLINK_FEEDS, priceHistory, type PriceHistory } from "./history";
 
 // Market brief de un activo: lo que Floor sabe ANTES de preguntarle al equipo.
 // Uniswap Data API (precio, 24 h, sparkline) + pool V3 on-chain (precio
@@ -10,18 +11,7 @@ import { USDC, USDC_DECIMALS, VENUE_LABEL, poolFor, resolveStock, type Stock, ty
 // Feeds Chainlink por B20 en Base (docs.base.org, 2026-09-15). 8 decimales,
 // heartbeat 24 h, desviacion 0.5 %, valores total-return (ajustados por
 // splits/dividendos). Se congelan fuera del horario de mercado.
-const CHAINLINK: Record<string, `0x${string}`> = {
-  AAPL: "0x787f13dEa48Db0897CbCDD985de77809D837F988",
-  AMZN: "0x06A8E4b3aBB3B7543d8396FB2B763d22820cB295",
-  GOOGL: "0x5bF49E0ffA937CE2FfF033c739aD7C634c4D34F2",
-  META: "0x6526aE6797A76123638b863AeE4dD27Ba4E4b27D",
-  MSFT: "0xeB10A6c9aa7E537aEd766C08c35Dae35B321b18c",
-  MSTR: "0xB3cE282CD188b35DA0E38D8Bc7d58e33173D202a",
-  NVDA: "0x04689a41629776563E6822F76f2e57D148d28513",
-  SNDK: "0x388b0dC46C0Fb05A74BeE0994fa5b02c6Fcca2eA",
-  SPCX: "0x6A634B235903C4ad6376892180d6fF8612e3Fa68",
-  TSLA: "0xFaf869185383a24F8cb00e27BdA6b63B9905DCb4"
-};
+const CHAINLINK = CHAINLINK_FEEDS;
 
 const feedAbi = parseAbi(["function latestRoundData() view returns (uint80,int256 answer,uint256,uint256 updatedAt,uint80)"]);
 const poolAbi = parseAbi([
@@ -46,6 +36,7 @@ export type MarketBrief = {
   sparkline?: number[];
   pool: (StockPool & { priceUsd?: number }) | null;
   chainlink?: { priceUsd: number; updatedAt: string; ageMin: number; stale: boolean };
+  range30d?: Pick<PriceHistory, "days" | "low" | "high" | "changePct" | "fromLowPct" | "fromHighPct" | "since" | "line">;
   premiumPct?: number;        // pool vs Chainlink
   swaps24h?: { count: number; usdcVolume: number; buys: number; sells: number };
   holding?: { balance: string; valueUsd: number };
@@ -61,11 +52,12 @@ export async function marketBrief(assetQuery: string, wallet?: `0x${string}`): P
   const sp = stock.sparkline ?? [];
   const range24h = sp.length >= 2 ? { low: Math.min(...sp), high: Math.max(...sp), open: sp[0], last: sp[sp.length - 1] } : undefined;
 
-  const [poolPrice, cl, holding, swaps] = await Promise.all([
+  const [poolPrice, cl, holding, swaps, hist] = await Promise.all([
     pool ? poolPriceUsd(c, pool.address, stock) : Promise.resolve(undefined),
     chainlink(c, stock.ticker),
     wallet ? c.readContract({ address: stock.address, abi: erc20, functionName: "balanceOf", args: [wallet] }).catch(() => 0n) : Promise.resolve(0n),
-    pool ? swaps24h(c, pool.address, stock).catch(() => undefined) : Promise.resolve(undefined)
+    pool ? swaps24h(c, pool.address, stock).catch(() => undefined) : Promise.resolve(undefined),
+    priceHistory(stock.ticker).catch(() => undefined)
   ]);
   const premiumPct = poolPrice !== undefined && cl ? ((poolPrice / cl.priceUsd) - 1) * 100 : undefined;
   const bal = Number(formatUnits(holding, stock.decimals));
@@ -79,6 +71,7 @@ export async function marketBrief(assetQuery: string, wallet?: `0x${string}`): P
     sparkline: sp,
     pool: pool ? { ...pool, priceUsd: poolPrice } : null,
     chainlink: cl,
+    range30d: hist ? { days: hist.days, low: hist.low, high: hist.high, changePct: hist.changePct, fromLowPct: hist.fromLowPct, fromHighPct: hist.fromHighPct, since: hist.since, line: hist.line } : undefined,
     premiumPct,
     swaps24h: swaps,
     holding: bal > 0 ? { balance: bal.toFixed(Math.min(6, stock.decimals)), valueUsd: bal * (stock.priceUsd ?? 0) } : undefined,
@@ -146,6 +139,7 @@ function briefLines(b: MarketBrief): string[] {
   L.push(`${b.stock.name} (${b.stock.symbol}, ${issuer}) on Base: $${b.priceUsd?.toFixed(2) ?? "?"}${b.change24hPct !== undefined ? ` (${b.change24hPct > 0 ? "+" : ""}${b.change24hPct.toFixed(2)}% in 24h)` : ""}.`);
   if (b.range24h) L.push(`24h range $${b.range24h.low.toFixed(2)} to $${b.range24h.high.toFixed(2)}, opened $${b.range24h.open.toFixed(2)}, last $${b.range24h.last.toFixed(2)}.`);
   if (b.volume24hUsd !== undefined) L.push(`24h volume across venues: $${Math.round(b.volume24hUsd).toLocaleString("en-US")}.`);
+  if (b.range30d) L.push(b.range30d.line);
   if (b.chainlink) L.push(`Chainlink reference price for the stock: $${b.chainlink.priceUsd.toFixed(2)}, updated ${b.chainlink.ageMin} min ago${b.chainlink.stale ? " (feed frozen: US equity market closed; the token itself trades 24/7 onchain)" : ""}.`);
   if (b.pool) L.push(`${VENUE_LABEL[b.pool.venue]} pool ${b.pool.fee / 10_000}% holds $${Math.round(b.pool.usdcDepth).toLocaleString("en-US")} USDC${b.pool.priceUsd ? `, pool price $${b.pool.priceUsd.toFixed(2)}` : ""}${b.premiumPct !== undefined ? ` (${b.premiumPct > 0 ? "+" : ""}${b.premiumPct.toFixed(2)}% vs Chainlink)` : ""}.`);
   else L.push("No USDC pool on Uniswap V3 or Aerodrome on Base: not tradeable from this desk.");

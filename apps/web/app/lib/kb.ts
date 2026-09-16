@@ -22,7 +22,7 @@ import { createHash } from "node:crypto";
 
 export const KB_DIR = process.env.PERKOS_KB_DIR?.trim() || join(homedir(), ".perkos-floor", "knowledge");
 
-export type NoteKind = "journal" | "analysis" | "order" | "memory" | "decision" | "app";
+export type NoteKind = "journal" | "analysis" | "order" | "memory" | "decision" | "app" | "profile";
 export type Note = {
   id: string;        // ruta relativa al vault
   desk: string;      // "floor-desk" | "app"
@@ -148,7 +148,7 @@ async function readNote(rel: string): Promise<Doc | null> {
     const { meta, body } = parseFront(raw);
     const parts = rel.split("/");
     const desk = meta.desk || parts[0] || "app";
-    const kind = (meta.kind as NoteKind) || (parts[0] === "app" ? "app" : parts[1] === "journal" ? "journal" : parts[1] === "analysis" ? "analysis" : parts[1] === "orders" ? "order" : rel.endsWith("memory.md") ? "memory" : "journal");
+    const kind = (meta.kind as NoteKind) || (parts[0] === "app" ? (parts[1] === "profiles" ? "profile" : "app") : parts[1] === "journal" ? "journal" : parts[1] === "analysis" ? "analysis" : parts[1] === "orders" ? "order" : rel.endsWith("memory.md") ? "memory" : "journal");
     const title = meta.title || body.match(/^#\s+(.+)$/m)?.[1] || parts[parts.length - 1].replace(/\.md$/, "");
     return { id: rel, desk, kind, title, ticker: meta.ticker || undefined, body, text: body.slice(0, 20_000), updatedAt: meta.updated || st.mtime.toISOString() };
   } catch {
@@ -183,8 +183,37 @@ export async function reindex(force = false): Promise<number> {
   index = next;
   docs = nextDocs;
   scannedAt = Date.now();
+  if (!seeded) { seeded = true; await seedBundled().catch((e) => console.warn("[kb] seed:", (e as Error).message)); }
   scheduleEmbed(1500);
   return docs.size;
+}
+
+// Notas que viajan con el app (apps/web/knowledge/desk/*.md): que son los B20,
+// venues y sizing, metodo del desk. Se siembran en app/ del vault local si
+// faltan o si la copia empaquetada es mas nueva, asi cada instalacion arranca
+// con el mismo conocimiento base. Las mismas notas viven en PerkOS Knowledge.
+let seeded = false;
+export const BUNDLED_DIR = process.env.PERKOS_BUNDLED_KB?.trim() || join(process.cwd(), "knowledge", "desk");
+export async function seedBundled(): Promise<number> {
+  let files: string[] = [];
+  try { files = (await readdir(BUNDLED_DIR)).filter((f) => f.endsWith(".md")); } catch { return 0; }
+  let n = 0;
+  for (const f of files) {
+    const raw = await readFile(join(BUNDLED_DIR, f), "utf8").catch(() => "");
+    if (!raw) continue;
+    const { meta, body } = parseFront(raw);
+    const title = meta.title || body.match(/^#\s+(.+)$/m)?.[1] || f.replace(/\.md$/, "");
+    const rel = `app/${safe(title)}.md`;
+    const cur = docs.get(rel);
+    const bundledAt = Date.parse(meta.updated || "") || 0;
+    const localAt = cur ? Date.parse(cur.updatedAt) || 0 : 0;
+    if (cur && localAt >= bundledAt) continue;
+    const text = body.replace(/^#\s+.+\n?/m, "").trim();
+    await writeNote({ desk: "app", kind: "app", title, body: text, id: rel, ticker: meta.ticker || undefined });
+    n += 1;
+  }
+  if (n) console.info(`[kb] seeded ${n} bundled note(s)`);
+  return n;
 }
 
 async function upsertIndex(rel: string) {
@@ -215,6 +244,7 @@ export async function writeNote(n: { desk: string; kind: NoteKind; title: string
   else if (n.kind === "order") rel = `${desk}/orders/${safe(n.title)}.md`;
   else if (n.kind === "decision") rel = `${desk}/decisions/${safe(n.title)}.md`;
   else if (n.kind === "memory") rel = `${desk}/memory.md`;
+  else if (n.kind === "profile") rel = `app/profiles/${(n.ticker ?? "asset").toUpperCase()}.md`;
   else if (n.desk === "shared") rel = `shared/${safe(n.title)}.md`;
   else rel = `app/${safe(n.title)}.md`;
   const full = join(KB_DIR, rel);

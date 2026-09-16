@@ -1,5 +1,6 @@
 import { marketRows, VENUE_LABEL, type MarketRow } from "./stocks";
 import { chainlinkRef } from "./market";
+import { priceHistory, type PriceHistory } from "./history";
 
 // Scan del mercado: lo que Floor sabe de TODOS los activos operables antes de
 // una pregunta abierta ("que compro para un mes"). Una linea por activo con
@@ -10,7 +11,9 @@ export type ScanRow = {
   symbol: string; ticker: string; name: string; priceUsd?: number; change24hPct?: number;
   low24h?: number; high24h?: number; volume24hUsd?: number;
   chainlinkUsd?: number; chainlinkAgeMin?: number; chainlinkStale?: boolean; premiumPct?: number;
-  venue?: string; usdcDepth?: number; line: string;
+  venue?: string; usdcDepth?: number;
+  range30d?: Pick<PriceHistory, "days" | "low" | "high" | "changePct" | "fromLowPct" | "fromHighPct" | "since">;
+  line: string;
 };
 export type MarketScan = { at: string; rows: ScanRow[]; lines: string[] };
 
@@ -36,7 +39,7 @@ async function scanRow(r: MarketRow): Promise<ScanRow> {
   const sp = r.sparkline ?? [];
   const low = sp.length ? Math.min(...sp) : undefined;
   const high = sp.length ? Math.max(...sp) : undefined;
-  const cl = await chainlinkRef(r.ticker).catch(() => undefined);
+  const [cl, h] = await Promise.all([chainlinkRef(r.ticker).catch(() => undefined), priceHistory(r.ticker).catch(() => undefined)]);
   const premiumPct = cl && r.priceUsd ? ((r.priceUsd / cl.priceUsd) - 1) * 100 : undefined;
   const venue = r.pool ? VENUE_LABEL[r.pool.venue] : undefined;
   const parts = [
@@ -44,12 +47,15 @@ async function scanRow(r: MarketRow): Promise<ScanRow> {
     low !== undefined && high !== undefined ? `range $${low.toFixed(2)} to $${high.toFixed(2)}` : "",
     cl ? `Chainlink $${cl.priceUsd.toFixed(2)}${cl.stale ? ` (feed frozen ${cl.ageMin} min: US equity market closed, the token trades 24/7 onchain)` : ""}${premiumPct !== undefined ? `, pool ${premiumPct > 0 ? "+" : ""}${premiumPct.toFixed(2)}% vs ref` : ""}` : "no Chainlink feed",
     r.pool ? `${venue} pool $${Math.round(r.pool.usdcDepth).toLocaleString("en-US")} USDC` : "no pool",
-    r.volume24hUsd !== undefined ? `volume $${Math.round(r.volume24hUsd).toLocaleString("en-US")} across venues` : ""
+    r.volume24hUsd !== undefined ? `volume $${Math.round(r.volume24hUsd).toLocaleString("en-US")} across venues` : "",
+    h ? h.line.replace(/\.$/, "") : ""
   ].filter(Boolean);
   return {
     symbol: r.symbol, ticker: r.ticker, name: r.name, priceUsd: r.priceUsd, change24hPct: r.priceChange24hPct,
     low24h: low, high24h: high, volume24hUsd: r.volume24hUsd,
     chainlinkUsd: cl?.priceUsd, chainlinkAgeMin: cl?.ageMin, chainlinkStale: cl?.stale, premiumPct,
-    venue, usdcDepth: r.pool?.usdcDepth, line: parts.join(", ") + "."
+    venue, usdcDepth: r.pool?.usdcDepth,
+    range30d: h ? { days: h.days, low: h.low, high: h.high, changePct: h.changePct, fromLowPct: h.fromLowPct, fromHighPct: h.fromHighPct, since: h.since } : undefined,
+    line: parts.join(", ") + "."
   };
 }
