@@ -1,6 +1,6 @@
 import { guard } from "../../../lib/guard";
 import { loadSettings } from "../../../lib/settingsStore";
-import { appendJournal, listNotes, writeNote, type NoteKind } from "../../../lib/kb";
+import { appendJournal, listNotes, writeNote, type NoteKind, TICKER_RE } from "../../../lib/kb";
 
 // GET  /api/kb/notes?kind=&limit=      -> notas recientes del desk activo (+ app)
 // POST /api/kb/notes { kind, title, body, ticker?, journal? } -> escribe una nota
@@ -28,6 +28,7 @@ export async function POST(req: Request) {
     const kind = KINDS.includes(b.kind as NoteKind) ? (b.kind as NoteKind) : "journal";
     const title = typeof b.title === "string" && b.title.trim() ? b.title.trim().slice(0, 120) : `${kind} ${new Date().toISOString().slice(0, 16)}`;
     const ticker = typeof b.ticker === "string" ? b.ticker.trim().toUpperCase().slice(0, 12) : undefined;
+    if (ticker !== undefined && !TICKER_RE.test(ticker)) return Response.json({ error: "ticker" }, { status: 400 });
     return Response.json({ id: await writeNote({ desk, kind, title, body, ticker }) });
   } catch (e) {
     return Response.json({ error: "kb_write_failed", detail: (e as Error).message }, { status: 500 });

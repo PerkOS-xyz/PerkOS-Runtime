@@ -2,6 +2,20 @@
 
 All notable changes to the PerkOS desktop app. Versions follow [Semantic Versioning](https://semver.org); the version lives in `apps/desktop/package.json` and shows in Settings › About with the git short SHA of the build.
 
+## [0.4.0] - 2026-09-16
+
+### Security
+- The local API is gated: loopback host only, no cross-site requests, no plain-text bodies, and a per-launch token shared by the shell, the window and the voice bridge. The command channel cannot buy, sell or approve.
+- Trade drafts carry the recipient; the card shows it and the approval refuses to sign for any wallet other than the one connected. The wallet in settings must be an address.
+- PerkOS sign-in only for the connected wallet; Grok device login only for a code this app requested.
+- Vault paths are contained: tickers are whitelisted and every note path must resolve inside the vault.
+- Risk without an explicit verdict blocks the order instead of letting it through.
+- The main window never navigates away from the local server; only wallet and login popups open inside the app, every other link opens in the system browser.
+- Log files are created 0600 and the UI log endpoint is capped. The notarization entitlements no longer allow dyld environment variables.
+
+### Changed
+- Next 16.3.5 and audit fixes for the native stack; MIT license, notices for marks, contributing and security policies, CI.
+
 ## [0.3.0] - 2026-09-16
 
 ### Changed

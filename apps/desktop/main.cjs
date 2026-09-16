@@ -10,6 +10,19 @@ const os = require("os");
 const path = require("path");
 
 const mac = process.platform === "darwin";
+const LOCAL_URL = /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?(\/|$)/;
+const IN_APP_HOSTS = [
+  /(^|\.)privy\.io$/,
+  /(^|\.)walletconnect\.(com|org)$/,
+  /(^|\.)reown\.com$/,
+  /(^|\.)metamask\.io$/,
+  /^metamask\.app\.link$/,
+  /(^|\.)coinbase\.com$/,
+  /^accounts\.google\.com$/,
+  /(^|\.)apple\.com$/,
+  /(^|\.)x\.com$/,
+  /^twitter\.com$/
+];
 // Carpeta de la persona. Hasta 0.2.0 era ~/.perkos-floor: se migra una vez
 // (renombre completo) si la nueva no existe; el servidor hace la misma
 // comprobacion (apps/web/app/lib/home.ts). PERKOS_HOME la mueve para pruebas.
@@ -185,22 +198,27 @@ async function create() {
   // Solo el login de xAI (auth.x.ai) sale al browser del sistema, donde el
   // usuario tiene su sesion de X/Grok. Todo lo demas (MetaMask, WalletConnect,
   // Privy) sigue abriendo como antes: mandarlo afuera rompia el QR de MetaMask.
+  // La ventana principal nunca sale del servidor local: cualquier enlace sin
+  // target que apunte afuera se abre en el browser del sistema.
+  win.webContents.on("will-navigate", (e, url) => {
+    if (LOCAL_URL.test(url)) return;
+    e.preventDefault();
+    if (/^https?:/.test(url)) shell.openExternal(url);
+  });
+  // Ventanas nuevas (target=_blank, window.open): solo los popups de wallet y
+  // de login (Privy, WalletConnect/Reown, MetaMask, Coinbase, Google/Apple/X)
+  // se abren dentro del app; todo lo demas (noticias de Grok, basescan, xAI,
+  // pay.perkos.xyz, 1Claw) va al browser del sistema con la sesion de la persona.
+  // file: y similares se niegan.
   win.webContents.setWindowOpenHandler(({ url }) => {
     try {
-      const host = new URL(url).hostname;
-      // Login de xAI y el portal de pagos (pay.perkos.xyz): ahi el usuario usa
-      // su sesion de X/Grok o la wallet del browser. MetaMask/WalletConnect/
-      // Privy siguen adentro: mandarlos afuera rompia el QR de MetaMask.
-      // 1claw.xyz: el claim del vault del Trader (paso "Spend rail") se hace
-      // con la cuenta 1Claw de la persona, en su browser.
-      // 1Claw vive en 1claw.co (1claw.xyz redirige alli): claim, authorize y dashboard.
-      const oneclaw = /(^|\.)1claw\.(co|xyz)$/.test(host);
-      if (host === "auth.x.ai" || host.endsWith(".x.ai") || host === "pay.perkos.xyz" || host.endsWith(".pay.perkos.xyz") || oneclaw) {
-        shell.openExternal(url);
-        return { action: "deny" };
-      }
+      const u = new URL(url);
+      if (u.protocol === "file:" || u.protocol === "javascript:") return { action: "deny" };
+      if (/^https?:$/.test(u.protocol) && IN_APP_HOSTS.some((re) => re.test(u.hostname))) return { action: "allow" };
+      process.stderr.write(`window-open: ${u.hostname || u.protocol} -> system browser\n`);
+      shell.openExternal(url);
     } catch {}
-    return { action: "allow" };
+    return { action: "deny" };
   });
   try {
     const target = await url();

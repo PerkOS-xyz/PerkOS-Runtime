@@ -5,6 +5,7 @@ type Row = { address: string; message: string; exp: number };
 const store = new Map<string, Row>();
 
 export function issueNonce(address: string) {
+  for (const [k, v] of store) if (v.exp < Date.now()) store.delete(k);
   const nonce = randomBytes(16).toString("hex");
   const issued = new Date().toISOString();
   const message = [

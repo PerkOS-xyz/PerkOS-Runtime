@@ -153,7 +153,7 @@ export async function POST(req: Request) {
         ]);
         const scoutSaid = scout?.ok ? clip(scout.reply) : "(Scout did not answer)";
         const riskSaid = risk?.ok ? clip(risk.reply) : "(Risk did not answer)";
-        const verdict = mode === "order" ? (risk?.ok ? verdictOf(risk.reply) ?? "GO" : "BLOCK") : undefined;
+        const verdict = mode === "order" ? (risk?.ok ? verdictOf(risk.reply) ?? "BLOCK" : "BLOCK") : undefined;
         const tail = `${head}\nScout said: ${scoutSaid}\nRisk said: ${riskSaid}${verdict ? ` (verdict ${verdict})` : ""}.`;
         const T = mode === "order"
           ? `As Trader (open with "@Sparky"): ${q ? (verdict === "GO" ? "restate the order the desk drafted (asset, size, venue, min out) and exactly what the human must sign. You never execute." : "Risk blocked it: stand down and say what would need to change. You never execute.") : "no order is on the table: say what you would draft if asked, in one line. You never execute."} Under 60 words.`

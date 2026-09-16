@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import MiniSearch from "minisearch";
 import { createHash } from "node:crypto";
@@ -136,6 +136,18 @@ function newIndex() {
 }
 
 const safe = (s: string) => s.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64) || "note";
+// Ticker como segmento de ruta: solo letras, digitos y punto (BRK.B). Nada mas
+// llega al disco. Y toda ruta del vault se resuelve y se comprueba que queda
+// dentro de KB_DIR: un id o un ticker con ../ no puede salir de la carpeta.
+export const TICKER_RE = /^[A-Z0-9.]{1,12}$/;
+const tick = (t?: string) => { const u = (t ?? "").trim().toUpperCase(); return TICKER_RE.test(u) ? u : "ASSET"; };
+const ROOT = resolve(KB_DIR);
+function inside(full: string): string {
+  const abs = resolve(full);
+  if (abs !== ROOT && !abs.startsWith(ROOT + sep)) throw new Error("path escapes the vault");
+  return abs;
+}
+const validId = (id: string) => !/\.\./.test(id) && !id.startsWith("/") && id.endsWith(".md");
 const stamp = (d = new Date()) => d.toISOString().slice(0, 16).replace(/[-:T]/g, "").replace(/(\d{8})(\d{4})/, "$1-$2");
 export const today = (d = new Date()) => d.toISOString().slice(0, 10);
 
@@ -152,7 +164,7 @@ function parseFront(raw: string): { meta: Record<string, string>; body: string }
 
 async function readNote(rel: string): Promise<Doc | null> {
   try {
-    const full = join(KB_DIR, rel);
+    const full = inside(join(KB_DIR, rel));
     const [raw, st] = await Promise.all([readFile(full, "utf8"), stat(full)]);
     const { meta, body } = parseFront(raw);
     const parts = rel.split("/");
@@ -247,18 +259,18 @@ const scrub = (s: string) => s.replace(SECRET, "[redacted]");
 export async function writeNote(n: { desk: string; kind: NoteKind; title: string; body: string; ticker?: string; id?: string }): Promise<string> {
   const desk = safe(n.desk);
   let rel: string;
-  if (n.id) rel = n.id;
+  if (n.id) { if (!validId(n.id)) throw new Error("bad note id"); rel = n.id; }
   else if (n.kind === "journal") rel = `${desk}/journal/${today()}.md`;
-  else if (n.kind === "analysis") rel = `${desk}/analysis/${(n.ticker ?? "asset").toUpperCase()}/${stamp()}.md`;
+  else if (n.kind === "analysis") rel = `${desk}/analysis/${tick(n.ticker)}/${stamp()}.md`;
   else if (n.kind === "order") rel = `${desk}/orders/${safe(n.title)}.md`;
   else if (n.kind === "decision") rel = `${desk}/decisions/${safe(n.title)}.md`;
   else if (n.kind === "memory") rel = `${desk}/memory.md`;
-  else if (n.kind === "profile") rel = `app/profiles/${(n.ticker ?? "asset").toUpperCase()}.md`;
+  else if (n.kind === "profile") rel = `app/profiles/${tick(n.ticker)}.md`;
   else if (n.desk === "shared") rel = `shared/${safe(n.title)}.md`;
   else rel = `app/${safe(n.title)}.md`;
-  const full = join(KB_DIR, rel);
+  const full = inside(join(KB_DIR, rel));
   await mkdir(join(full, ".."), { recursive: true, mode: 0o700 });
-  const meta = { title: n.title, desk, kind: n.kind, ticker: n.ticker, updated: new Date().toISOString(), source: "PerkOS" };
+  const meta = { title: n.title, desk, kind: n.kind, ticker: n.ticker ? tick(n.ticker) : undefined, updated: new Date().toISOString(), source: "PerkOS" };
   await writeFile(full, `${front(meta)}\n# ${n.title}\n\n${scrub(n.body).trim()}\n`, { mode: 0o600 });
   await upsertIndex(rel);
   return rel;
@@ -364,7 +376,7 @@ export async function readNoteBody(id: string): Promise<Note | null> {
 
 /** Ruta absoluta (para "Open in Obsidian" / Finder). */
 export function notePath(id: string): string {
-  return join(KB_DIR, id);
+  return inside(join(KB_DIR, id));
 }
 
 /** Diario de una fecha (o hoy) del desk, crudo. */
@@ -403,8 +415,9 @@ export async function appendMemory(desk: string, heading: string, body: string):
 }
 /** Reemplaza el cuerpo completo de una nota existente (editor de Notes). */
 export async function replaceNote(id: string, body: string): Promise<boolean> {
-  if (/\.\./.test(id) || !id.endsWith(".md")) return false;
-  const full = join(KB_DIR, id);
+  if (!validId(id)) return false;
+  let full: string;
+  try { full = inside(join(KB_DIR, id)); } catch { return false; }
   let raw = "";
   try { raw = await readFile(full, "utf8"); } catch { return false; }
   const m = raw.match(/^---\n[\s\S]*?\n---\n/);
