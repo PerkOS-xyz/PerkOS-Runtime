@@ -1595,7 +1595,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 
 /* ==== Disposicion 2026-09-16: banda del shell estable, escena en porcentajes ==== */
 /* En reposo la linea de estado ("Team is up") va debajo de la fila que describe. */
-.stage:not(.split):not(.desk-open):not(.turn-live) .caption { left: 50%; top: calc(21% + 118px); bottom: auto; transform: translateX(-50%); text-align: center; max-width: 560px; }
+.stage:not(.split):not(.desk-open):not(.turn-live) .caption { left: 50%; top: calc(21% + 150px); bottom: auto; transform: translateX(-50%); text-align: center; max-width: 560px; }
 /* Linea de venues abajo a la izquierda, solo en reposo. */
 .venue-line { position: absolute; left: 28px; bottom: 34px; z-index: 5; font-size: 11px; color: var(--mute); letter-spacing: 0.02em; }
 .stage.split .venue-line, .stage.desk-open .venue-line, .stage.turn-live .venue-line { display: none; }
