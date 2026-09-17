@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Ambient from "./Ambient";
 import XaiConnect from "./XaiConnect";
 import { useWallet } from "./wallet/context";
+import { flog } from "./log";
 
 // Pasos: 0 ident cinematografico -> 1 Privy (wallet) -> 2 LLM -> 3 equipo ->
 // 4 rail de gasto (1Claw, opcional). FloorApp decide donde arranca: 2 si falta
@@ -50,10 +51,15 @@ export default function Wizard({ onDone, start = 0, team, rail }: { onDone: () =
   // para quien llega por "sign in again". Al conectar, sigue al paso del LLM.
   const [wantsIn, setWantsIn] = useState(false);
   useEffect(() => {
-    if (step === 0 && wantsIn && wallet.connected) { setWantsIn(false); setStep(2); }
-  }, [step, wantsIn, wallet.connected]);
+    if (step !== 0 || !wallet.connected || wallet.busy) return;
+    if (wantsIn) { setWantsIn(false); setStep(2); return; }
+    // En la bienvenida el usuario esta desconectado por definicion (FloorApp arranca
+    // en el paso 2 o 3 cuando hay sesion). Si Privy reporta sesion aqui es una sesion
+    // vieja que el logout no llego a cerrar: se cierra ahora, sin que el usuario haga nada.
+    flog("warn", "welcome: a stale wallet session survived the logout, closing it");
+    void wallet.logout();
+  }, [step, wantsIn, wallet.connected, wallet.busy, wallet]);
   const meet = () => {
-    if (wallet.connected) { setStep(2); return; }
     setWantsIn(true);
     wallet.open();
   };
