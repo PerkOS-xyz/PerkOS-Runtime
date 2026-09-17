@@ -511,10 +511,12 @@ function LaunchesView({ launches, err, wallet, claimedTokens, onRefresh, onSay }
                       <div className="lx-ticket">
                         <div className="lx-side">
                           <small>Buy with ETH on Base · one signature</small>
+                          <span className="lx-hold">Pick an amount. The desk quotes it, simulates it and drafts it for your hold.</span>
                           <nav className="seed-links buy" aria-label={`Buy ${l.symbol}`}>{[1, 5, 10].map((usd) => <button type="button" key={usd} onClick={() => onSay(`buy $${usd} of ${l.tokenAddress}`)}>Buy ${usd}</button>)}</nav>
                         </div>
                         <div className="lx-side">
-                          <small>{holds ? `You hold ${Math.round(l.balance!).toLocaleString("en-US")} ${l.symbol}${l.balanceUsd ? ` · about ${money(l.balanceUsd)}` : ""} · sell to ETH` : "No balance to sell"}</small>
+                          <small>Sell to ETH on Base · two signatures</small>
+                          <span className="lx-hold">{holds ? `You hold ${Math.round(l.balance!).toLocaleString("en-US")} ${l.symbol}${l.balanceUsd ? `, about ${money(l.balanceUsd)}` : ""}` : "No balance to sell"}</span>
                           {holds ? <nav className="seed-links sell" aria-label={`Sell ${l.symbol}`}>{[25, 50, 100].map((p) => <button type="button" key={p} onClick={() => onSay(`sell ${p}% of ${l.tokenAddress}`)}>{p === 100 ? "Sell all" : `Sell ${p}%`}</button>)}</nav> : null}
                         </div>
                       </div>

@@ -2430,3 +2430,12 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .desk-panel .lx .lx-acts button:not(.close), .desk-panel .lx .lx-tabs button:not(.close), .desk-panel .lx .lx-pulse-line:not(.close), .desk-panel .lx .lx-pulse-body button:not(.close), .desk-panel .lx .seed-links button:not(.close), .desk-panel .lx .lx-pane > button.claim:not(.close) { text-transform: none; letter-spacing: 0.03em; }
 .desk-panel .lx .lx-pulse-line:not(.close) { border: 0; border-radius: 12px; padding: 7px 11px; }
 .desk-panel .lx .lx-tabs button:not(.close):not(.on) { border-color: transparent; }
+/* Colores de accion por encima del estilo generico de botones del panel. */
+.desk-panel .lx .lx-acts button.buy:not(.close):not(:disabled), .desk-panel .lx .seed-links.buy button:not(.close) { border-color: rgba(62, 224, 143, 0.6); background: rgba(62, 224, 143, 0.12); color: #c9f7dd; }
+.desk-panel .lx .lx-acts button.sell:not(.close):not(:disabled), .desk-panel .lx .seed-links.sell button:not(.close) { border-color: rgba(255, 179, 71, 0.55); background: rgba(255, 179, 71, 0.1); color: #ffe0b0; }
+.desk-panel .lx .lx-acts button.claim:not(.close):not(:disabled), .desk-panel .lx .lx-pane > button.claim:not(.close):not(:disabled) { border-color: rgba(236, 27, 105, 0.6); background: rgba(236, 27, 105, 0.14); color: #ffd3e1; }
+.desk-panel .lx .lx-tabs button.on:not(.close) { color: #ffd3e1; border-color: rgba(236, 27, 105, 0.55); background: rgba(236, 27, 105, 0.1); }
+.desk-panel .lx .lx-tabs button:not(.close):not(.on) { background: transparent; }
+.lx-hold { font-size: 11.5px; line-height: 1.4; color: #cdd7ee; }
+.lx-pane .pc.empty { height: 76px; }
+.lx-pane .pc.empty.seed { height: auto; min-height: 76px; }
