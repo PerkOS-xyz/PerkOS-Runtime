@@ -48,16 +48,31 @@ export default function Wizard({ onDone, start = 0, team, rail }: { onDone: () =
   if (step === 0) {
     return (
       <div className="wizard">
-        <Ambient cine>
-          <div className="wizard-card ident">
-            <img className="cine-mark" src="/logo.png" alt="PerkOS" />
-            <p className="cine-line">Your business just hired its first team.</p>
-            <small className="cine-sub">They draft. You approve.</small>
-            <button className="cine-cta" type="button" onClick={() => setStep(1)}>
-              Continue
-            </button>
-          </div>
-        </Ambient>
+        {/* El fondo ambiental va solo (su hijo .logo-3d mide 0 x 0); el hero es hermano, a pantalla completa.
+            Hero como el del sitio perkos.xyz: titular grande con "first team." en degradado,
+            Sparky de cuerpo entero a la derecha, CTA en pill. Nada hace scroll. */}
+        <Ambient cine>{null}</Ambient>
+        <section className="hero ident" aria-label="Welcome">
+            <div className="hero-copy">
+              <img className="hero-mark" src="/logo.png" alt="PerkOS" />
+              <h1 className="hero-title">Your business just hired its <span>first team.</span></h1>
+              <p className="hero-sub">Pick your type of business, and in two minutes you have a small team that handles the busywork, and checks with you first.</p>
+              <div className="hero-cta">
+                <button className="hero-primary" type="button" onClick={() => setStep(1)}>Meet your team <span aria-hidden>&rarr;</span></button>
+                <a className="hero-link" href="https://github.com/PerkOS-xyz/PerkOS-Runtime#readme" target="_blank" rel="noreferrer">How it works</a>
+              </div>
+              <ul className="hero-checks">
+                {["You approve everything", "Your keys, your trade", "Ready in two minutes", "Tokenized stocks on Base"].map((t) => (
+                  <li key={t}><svg viewBox="0 0 16 16" aria-hidden><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>{t}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="hero-stage" aria-hidden>
+              <div className="hero-glow" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img className="hero-sparky" src="/sparky-full.png" alt="" />
+            </div>
+        </section>
       </div>
     );
   }
