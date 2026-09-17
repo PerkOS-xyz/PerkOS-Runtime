@@ -117,7 +117,7 @@ function Shell() {
   type Brief = { at: string; stock: { symbol: string; ticker: string; name: string; issuer: string }; priceUsd?: number; change24hPct?: number; range24h?: { low: number; high: number; open: number; last: number }; volume24hUsd?: number; sparkline?: number[]; pool: { fee: number; usdcDepth: number; priceUsd?: number } | null; chainlink?: { priceUsd: number; ageMin: number; stale: boolean }; premiumPct?: number; swaps24h?: { count: number; usdcVolume: number; buys: number; sells: number }; holding?: { balance: string; valueUsd: number }; lines: string[] };
   type News = { text: string; sources: Array<{ url: string; title?: string }>; at: string };
   type Analysis = { brief: Brief; news?: News; scout?: string; risk?: string; verdict?: "GO" | "BLOCK"; prev?: { priceUsd?: number; at: string }; loadingNews?: boolean };
-  type Msg = { id: number; role: "you" | "floor" | "team" | "draft" | "analysis"; who?: string; text: string; streaming?: boolean; draft?: Draft; launch?: LaunchDraft; auto?: AutoRec; fees?: FeesInfo; tx?: DraftTx; verdict?: "GO" | "BLOCK"; analysis?: Analysis; turnId?: number; kind?: "open" | "side" | "status" | "picks"; picks?: { kind: "pair" | "identity"; options: Array<{ value: string; label: string; note?: string; rec?: number; avoid?: boolean; name?: string; symbol?: string; about?: string }> } };
+  type Msg = { id: number; role: "you" | "floor" | "team" | "draft" | "analysis"; who?: string; text: string; streaming?: boolean; draft?: Draft; launch?: LaunchDraft; auto?: AutoRec; fees?: FeesInfo; tx?: DraftTx; verdict?: "GO" | "BLOCK"; analysis?: Analysis; turnId?: number; kind?: "open" | "side" | "status" | "picks"; trace?: Array<{ at: number; text: string }>; traceMs?: number; picks?: { kind: "pair" | "identity"; options: Array<{ value: string; label: string; note?: string; rec?: number; avoid?: boolean; name?: string; symbol?: string; about?: string }> } };
   // Agent graph del turno en curso (cards bajo las esferas) y turnos plegados.
   const [turn, setTurn] = useState<DeskTurn | null>(null);
   const turnRef = useRef<DeskTurn | null>(null);
@@ -157,6 +157,19 @@ function Shell() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const messagesRef = useRef<Msg[]>([]);
   messagesRef.current = messages;
+  // Actividad en vivo: que esta haciendo el desk ahora mismo (escanear, leer noticias, despertar al
+  // equipo, quien esta respondiendo, buscar en Knowledge). Se ve mientras dura y queda plegada sobre
+  // la respuesta de Sparky ("Worked 2 min · 8 steps"), como el rastro de cualquier asistente.
+  const [activity, setActivity] = useState<{ start: number; steps: Array<{ at: number; text: string }>; live: boolean } | null>(null);
+  const activityRef = useRef(activity);
+  activityRef.current = activity;
+  const act = useCallback((text: string) => setActivity((a) => {
+    const now = Date.now();
+    if (!a || !a.live) return { start: now, steps: [{ at: now, text }], live: true };
+    if (a.steps[a.steps.length - 1]?.text === text) return a;
+    return { ...a, steps: [...a.steps, { at: now, text }] };
+  }), []);
+  const actEnd = useCallback(() => setActivity((a) => (a && a.live ? { ...a, live: false } : a)), []);
   // Historial de chat como en cualquier app de chat: hilos guardados en disco (cifrados
   // con la llave de la wallet, ver lib/chatKey.ts), autoguardado, chat nuevo y lista para
   // reabrir. Al abrir el app vuelve el ultimo hilo, cerrado detras de "Show chat".
@@ -359,6 +372,7 @@ function Shell() {
     const setFloor = (t: string, streaming: boolean) =>
       setMessages((m) => m.map((x) => (x.id === floorId ? { ...x, text: t, streaming } : x)));
     flog("info", `chat -> ${text.slice(0, 80)}`);
+    act(modeRef.current === "chat" ? "Sparky is reading your message" : "Checking who is awake on the desk");
     stickRef.current = true;
     setShowJump(false);
     let full = "";
@@ -378,8 +392,10 @@ function Shell() {
       // el equipo sigue dormido: despertarlo cuesta infra y tiempo, y no aporta a la respuesta.
       if (asleep(f0) && modeRef.current === "chat") {
         flog("info", "chat: Sparky answers on its own; the team stays asleep (no task assigned)");
+        act("Sparky answers this one alone, the team stays asleep");
       } else if (asleep(f0)) {
         setCaption("Waking the team on PerkOS…");
+        act("Waking Scout, Risk, Trader and Auditor on PerkOS. They were asleep: one to two minutes");
         setTeam("waking");
         f0 = (await fleetActionRef.current("wake")) ?? f0;
         const t0 = Date.now();
@@ -390,6 +406,7 @@ function Shell() {
         if (!asleep(f0) && !ac.signal.aborted) {
           // ECS ya corre; Hermes tarda ~40 s mas en unirse al relay.
           setCaption("Team is booting…");
+          act("The team is up and joining the relay, about 40 seconds");
           await new Promise((r) => setTimeout(r, 40_000));
         }
       }
@@ -446,6 +463,7 @@ function Shell() {
                 setTurn((t) => (t && t.id === youId ? snap : t));
               }
               if (ev.step === "start" && ev.role) {
+                act(`${cap(ev.role)} is reading the facts`);
                 setTalking(ev.role, true);
                 setCaption(`${cap(ev.role)} is thinking…`);
                 // Burbuja "escribiendo" del agente hasta que llegue su respuesta.
@@ -455,6 +473,7 @@ function Shell() {
                 // Scout y Risk entregan a Trader y Auditor: los haces salen de quien ya hablo.
                 if (ev.role === "trader" || ev.role === "auditor") setBeams((b) => [...b, ...handed.map((from) => ({ from, to: ev.role!, done: false }))]);
               } else if (ev.step === "reply" && ev.role) {
+                act(ev.ok ? `${cap(ev.role)} answered${ev.ms ? ` in ${Math.round(ev.ms / 1000)} s` : ""}${ev.verdict ? ` · ${ev.verdict}` : ""}` : `${cap(ev.role)} did not answer`);
                 setTalking(ev.role, false);
                 { const pid = phId(ev.role); setMessages((m) => m.filter((x) => x.id !== pid)); }
 
@@ -547,9 +566,19 @@ function Shell() {
           if (!line) continue;
           let ev: { delta?: string; done?: boolean; error?: string; info?: string };
           try { ev = JSON.parse(line); } catch { continue; }
-          if (ev.info) flog("info", `chat: ${ev.info}`);
+          if (ev.info) {
+            flog("info", `chat: ${ev.info}`);
+            const kn = ev.info.match(/knowledge: (\d+) items/), ln = ev.info.match(/local notes: (\d+)/);
+            act(kn ? `Sparky searched PerkOS Knowledge (${kn[1]} items)${ln ? ` and ${ln[1]} local notes` : ""}` : ln ? `Sparky read ${ln[1]} local notes` : "Sparky is thinking");
+          }
           if (ev.error) { setFloor(ev.error, false); throw new Error(ev.error); }
           if (typeof ev.delta === "string") {
+            if (!full) {
+              // Primera palabra de Sparky: el rastro se pliega sobre su mensaje.
+              const tr = activityRef.current;
+              if (tr?.live && tr.steps.length) setMessages((m) => m.map((x) => (x.id === floorId ? { ...x, trace: tr.steps, traceMs: Date.now() - tr.start } : x)));
+              actEnd();
+            }
             full += ev.delta;
             pending += ev.delta;
             setThinking(false);
@@ -590,13 +619,14 @@ function Shell() {
       setMessages((m) => m.map((x) => (x.id === floorId ? { ...x, streaming: false } : x)));
       releaseDraft(youId);
     } finally {
+      actEnd();
       setThinking(false);
       setStreaming(false);
       busyRef.current = false;
       if (chatAbort.current === ac) chatAbort.current = null;
       endTurn();
     }
-  }, [abortChat, beginTurn, endTurn, speak, touch]);
+  }, [abortChat, beginTurn, endTurn, speak, touch, act, actEnd]);
 
   const teamRef = useRef<Team>("hibernated");
   teamRef.current = team;
@@ -864,6 +894,7 @@ function Shell() {
     if (!name || !symbol || !pair) return false;
     const setL = (fn: (l: LaunchDraft) => LaunchDraft) => setMessages((m) => m.map((x) => (x.id === msgId && x.launch ? { ...x, launch: fn(x.launch) } : x)));
     setL((l) => ({ ...l, busy: true }));
+    act(`Simulating the launch of ${symbol} paired with ${pair} on Bankr (no deploy)`);
     try {
       const res = await fetch("/api/launch/draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, symbol, pair, recipient: cur.recipientRaw?.trim() || undefined, vesting: cur.options.vesting, feesIn: cur.options.feesIn === "quote" ? "quote" : undefined, degen: cur.options.degen === true, description: cur.options.description ?? cur.description, image: cur.options.image, website: cur.options.websiteUrl, tweet: cur.options.tweetUrl }) });
       const j = (await res.json().catch(() => ({}))) as LaunchDraft & { error?: string; detail?: string };
@@ -874,6 +905,7 @@ function Shell() {
         return false;
       }
       flog("info", `launch draft: ${j.symbol} paired with ${j.pair.symbol} · fees to ${j.recipientLabel}${j.resolvedRecipient ? ` (${j.resolvedRecipient.slice(0, 8)})` : ""} · vesting ${j.options.vesting} · fees in ${j.options.feesIn}${j.options.degen ? " · degen" : ""} · checks ${j.checks.filter((c) => c.ok).length}/${j.checks.length}${j.sim ? ` · sim ${j.sim.tokenAddress}` : j.simError ? ` · sim failed: ${j.simError}` : ""} · ${j.ownKey ? "own key" : "operator key"}`);
+      actEnd();
       let first = false;
       setL((l) => {
         first = Boolean(l.fromStarter) && !l.turnDone && j.ready;
@@ -938,6 +970,7 @@ function Shell() {
     touch();
     setMessages((m) => [...m.slice(-60), { id: youId, role: "you", text: "Launch a token", turnId: youId }, { id: statusId, role: "floor", kind: "status", text: "Reading the tokenized stocks Bankr can pair a launch with…", turnId: youId }]);
     setCaption("Scanning the pairs…");
+    act("Reading Bankr's registry: which tokenized stocks a launch can pair with");
     try {
       const [qr, sr] = await Promise.all([fetch("/api/launch/quotes"), fetch("/api/market/scan")]);
       const quotes = (await qr.json().catch(() => ({}))) as { configured?: boolean; stocks?: Array<{ symbol: string; name: string; illiquid?: boolean }>; detail?: string };
@@ -951,6 +984,7 @@ function Shell() {
       // Noticias solo de los 6 que mas se movieron (cache del warm): rapido y suficiente para elegir.
       const movers = [...rows].sort((a, b) => Math.abs(b.change24hPct ?? 0) - Math.abs(a.change24hPct ?? 0)).slice(0, 6);
       status(`${rows.length} tokenized stocks can be the pair. Reading the news on the ${movers.length} that moved most…`);
+      act(`${rows.length} stocks can be the pair. Reading the news on the ${movers.length} that moved most (Grok web and X search)`);
       const newsBy = new Map<string, string>();
       await Promise.race([Promise.all(movers.map((t) => fetch("/api/market/news", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker: t.ticker, name: t.name }) }).then((x) => x.json()).then((j) => { if (j.text) newsBy.set(t.symbol, `${t.symbol}: ${String(j.text).replace(/\s+/g, " ").slice(0, 420)}`); }).catch(() => undefined))), new Promise<void>((res) => setTimeout(res, 25_000))]);
       briefRef.current = { lines: [`Pairs Bankr accepts on Base: ${quotes.stocks.map((q) => q.symbol).join(", ")}, plus WETH (the default quote) and BNKR.`, ...lines], news: [...newsBy.values()].join(" ") || undefined };
@@ -965,6 +999,7 @@ function Shell() {
       const picks = { id: youId + 95, role: "floor" as const, kind: "picks" as const, text: "Pick the pair now from the data, or wait for the desk's read (about a minute if the team is waking up):", turnId: youId, picks: { kind: "pair" as const, options } };
       setMessages((m) => [...m.slice(-60), picks]);
       status("Handing to the desk: which pair draws attention and has depth.");
+      act("Handing the candidates to the desk: which pair draws attention and has depth");
       await chat("Which tokenized stock should a new token launch be paired with?", { youId });
       // Recomendaciones de la mesa, por frases: una frase que dice avoid/skip (y no accept/recommend)
       // marca sus pares como "evitar"; el orden de preferencia sale de las frases de Trader, Sparky y
@@ -1003,6 +1038,7 @@ function Shell() {
       kbWriteRef.current({ kind: "analysis", ticker: "PAIR", title: `Launch pairing · ${stamp} UTC`, body: `**Asked**: which tokenized stock to pair a new token launch with.\n\n## Desk picks\n${ordered.length ? ordered.map((k, i) => `${i + 1}. ${k}c`).join("\n") : "(none parsed)"}${avoided.size ? `\n\nAvoid: ${[...avoided].map((k) => `${k}c`).join(", ")}` : ""}\n\n## Candidates\n${lines.map((l) => `- ${l}`).join("\n")}\n\n## Desk\n${who}\n\n## Sparky\n${sparkyText}` });
       setCaption("Pick the pair. Then the token gets its name.");
     } catch (e) {
+      actEnd();
       flog("error", `launch guide: ${(e as Error).message}`);
       status("Could not read the pairs. Say the pair yourself: launch Night Owl (OWL) paired with NVDAc.");
       setCaption("");
@@ -1040,15 +1076,18 @@ function Shell() {
     const statusId = youId + 1;
     touch();
     setMessages((m) => [...m.slice(-60), { id: youId, role: "you", text: about }, { id: statusId, role: "floor", kind: "status", text: "Thinking of names…" }]);
+    act("Asking Grok for three names, each with a symbol and a short description");
     try {
       const r = await fetch("/api/launch/names", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ about, pair: ask.pair }) });
       const j = (await r.json().catch(() => ({}))) as { options?: Array<{ name: string; symbol: string; about: string }>; detail?: string; error?: string };
       if (!r.ok || !j.options?.length) { setMessages((m) => m.map((x) => (x.id === statusId ? { ...x, kind: undefined, text: j.detail ?? "I could not come up with names. Type them on the card." } : x))); return; }
       const options = j.options.map((o) => ({ value: o.symbol, label: `${o.name} (${o.symbol})`, note: o.about, name: o.name, symbol: o.symbol, about: o.about }));
+      actEnd();
       identityAskRef.current = { ...ask, about };
       setMessages((m) => [...m.filter((x) => x.id !== statusId), { id: youId + 95, role: "floor", kind: "picks", text: "Three ways to call it. Pick one and the desk drafts the launch; you can still edit everything on the card:", picks: { kind: "identity", options } }]);
       setCaption("Pick a name. Or describe it differently and I try again.");
     } catch (e) {
+      actEnd();
       flog("warn", `launch names: ${(e as Error).message}`);
       setMessages((m) => m.map((x) => (x.id === statusId ? { ...x, kind: undefined, text: "I could not come up with names. Type them on the card." } : x)));
     }
@@ -1486,6 +1525,7 @@ function Shell() {
   // documento fechado con el ranking para revisarlo al mes.
   const adviseMarket = useCallback(async (text: string) => {
     setCaption("Scanning the market…");
+    act("Scanning every tokenized stock the desk can trade: price, 30 day range, pool depth");
     busyRef.current = true;
     touch();
     // El pedido y el estado se ven desde el primer segundo (en split la caption se oculta).
@@ -1502,6 +1542,7 @@ function Shell() {
       // valuacion (cache 24 h) en paralelo; lo que no llega en 35 s queda fuera.
       const all = scan.rows;
       setCaption(`Reading the news and valuation on ${all.length} stocks…`);
+      act(`Reading the news (Grok web and X search) and the valuation on ${all.length} stocks`);
       status(`Scanned ${all.length} stocks with their 30-day range. Reading the news and the valuation on each…`);
       const newsBy = new Map<string, string>();
       const profBy = new Map<string, string>();
@@ -1512,6 +1553,7 @@ function Shell() {
       await Promise.race([Promise.all(jobs), new Promise<void>((res) => setTimeout(res, 35_000))]);
       flog("info", `advise: news ${newsBy.size}/${all.length} · profiles ${profBy.size}/${all.length}`);
       status(`News on ${newsBy.size} of ${all.length}, valuation on ${profBy.size}. Handing to the desk.`);
+      act(`Got news on ${newsBy.size} of ${all.length} and valuation on ${profBy.size}. Handing the facts to the desk`);
       const news = all.map((t) => newsBy.get(t.symbol) ?? "").filter(Boolean).join(" ");
       const lines = scan.lines.map((l) => { const sym = l.match(/^([A-Z]{2,6}c)\b/)?.[1]; const p = sym ? profBy.get(sym) : undefined; return p ? `${l} ${p}` : l; });
       briefRef.current = { lines, news: news || undefined };
@@ -1526,8 +1568,9 @@ function Shell() {
     } catch (e) {
       flog("error", `advise: ${(e as Error).message}`);
       setCaption("Could not scan the market.");
+      actEnd();
     }
-  }, [chat, touch]);
+  }, [chat, touch, act, actEnd]);
 
   // Precalentar el mercado (scan, noticias, valuacion de los 10 activos) al
   // arrancar y cada 15 min: una pregunta abierta no debe esperar a Grok.
@@ -1576,6 +1619,7 @@ function Shell() {
     const it = parseIntent(raw);
     const cmd = it.kind;
     flog("info", `intent: ${it.kind}${"asset" in it && it.asset ? ` · ${it.asset}` : ""}`);
+    { const label: Partial<Record<string, string>> = { advise: "Understood: the desk advises on the whole market", analyze: "Understood: the desk analyzes one stock", launch: "Understood: launch a token", automate: "Understood: set up an automation on Bankr", fees: "Understood: check your creator fees", quote: "Understood: a quick quote, no agents" }; const l = label[cmd]; if (l) act(l); }
     if (cmd === "chat" && spoken) {
       // "read the pairs again": lectura fresca de la mesa, saltando la cache de 30 min.
       if (/\b(read|scan|check|rank) the pairs? again\b|\bpairs? again\b/i.test(spoken)) { pairReadRef.current = null; identityAskRef.current = null; void launchGuide(); return; }
@@ -2229,6 +2273,8 @@ function Shell() {
           const out: React.ReactNode[] = [];
           const folded = new Set<number>();
           for (const m of messages) {
+            // Con la actividad en vivo a la vista, los puntos de "escribiendo" y las lineas de estado sobran.
+            if (activity?.live && m.role === "floor" && ((m.streaming && !m.text) || m.kind === "status")) continue;
             const tid = m.turnId;
             if (tid && tid !== latestTurn && !openTurns.includes(tid)) {
               if (folded.has(tid)) continue;
@@ -2265,6 +2311,7 @@ function Shell() {
               </div>
             ) : (
               <div className="bubble">
+                {m.trace?.length ? <TraceSummary steps={m.trace} ms={m.traceMs ?? 0} /> : null}
                 {m.streaming && !m.text ? <span className="typing" aria-label="typing"><i /><i /><i /></span> : mentions(m.text)}
                 {m.streaming && m.text ? <i className="cursor" /> : null}
               </div>
@@ -2272,6 +2319,7 @@ function Shell() {
           </div>
             );
           }
+          if (activity?.live) out.push(<ActivityLive key="activity-live" a={activity} />);
           return out;
         })()}
       </div>
@@ -2461,6 +2509,37 @@ function StopIcon() {
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden>
       <rect x="6" y="6" width="12" height="12" rx="2.5" />
     </svg>
+  );
+}
+
+/** Que esta haciendo el desk ahora: tiempo transcurrido, paso actual y los ultimos pasos hechos. */
+function ActivityLive({ a }: { a: { start: number; steps: Array<{ at: number; text: string }> } }) {
+  const [, tick] = useState(0);
+  useEffect(() => { const id = window.setInterval(() => tick((n) => n + 1), 1000); return () => window.clearInterval(id); }, []);
+  const secs = Math.max(0, Math.round((Date.now() - a.start) / 1000));
+  const cur = a.steps[a.steps.length - 1];
+  const done = a.steps.slice(0, -1).slice(-4);
+  const curSecs = cur ? Math.max(0, Math.round((Date.now() - cur.at) / 1000)) : 0;
+  return (
+    <div className="turn floor activity" aria-live="polite">
+      <span className="turn-k">Sparky · working</span>
+      <div className="act-box">
+        {done.length ? <ol className="act-done">{done.map((st, i) => <li key={`${st.at}-${i}`}><i aria-hidden>✓</i>{st.text}</li>)}</ol> : null}
+        <p className="act-now"><i className="act-dot" aria-hidden />{cur?.text ?? "Working"}<small>{curSecs > 3 ? ` · ${curSecs} s` : ""}</small></p>
+        <small className="act-meta">{secs < 60 ? `${secs} s` : `${Math.floor(secs / 60)} min ${secs % 60} s`} · {a.steps.length} step{a.steps.length > 1 ? "s" : ""}</small>
+      </div>
+    </div>
+  );
+}
+
+/** El rastro de un turno ya respondido, plegado sobre el mensaje de Sparky. */
+function TraceSummary({ steps, ms }: { steps: Array<{ at: number; text: string }>; ms: number }) {
+  const secs = Math.round(ms / 1000);
+  return (
+    <details className="trace">
+      <summary>Worked {secs < 60 ? `${secs} s` : `${Math.floor(secs / 60)} min ${secs % 60} s`} · {steps.length} step{steps.length > 1 ? "s" : ""}</summary>
+      <ol>{steps.map((st, i) => <li key={`${st.at}-${i}`}>{st.text}{steps[i + 1] ? <small> · {Math.max(0, Math.round((steps[i + 1].at - st.at) / 1000))} s</small> : null}</li>)}</ol>
+    </details>
   );
 }
 

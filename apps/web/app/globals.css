@@ -2308,3 +2308,22 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .seed-links { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 2px; }
 .seed-links a { font-size: 10.5px; letter-spacing: 0.04em; padding: 5px 11px; border-radius: 999px; border: 1px solid rgba(236, 27, 105, 0.6); background: rgba(236, 27, 105, 0.14); color: #ffd3e1; text-decoration: none; }
 .seed-links a:hover { background: rgba(236, 27, 105, 0.24); }
+
+/* Actividad en vivo y rastro plegado (que esta haciendo el desk). */
+.turn.activity .act-box { display: flex; flex-direction: column; gap: 5px; padding: 9px 12px; border-radius: 12px; border: 1px solid rgba(236, 27, 105, 0.28); background: rgba(8, 6, 14, 0.5); max-width: 46ch; }
+.act-done { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: 11px; color: var(--mute); }
+.act-done li { display: flex; gap: 6px; align-items: baseline; }
+.act-done i { font-style: normal; color: #7fe0a8; font-size: 10px; }
+.act-now { margin: 0; display: flex; gap: 8px; align-items: baseline; font-size: 12.5px; color: #e6ecff; }
+.act-now small { color: var(--mute); font-size: 10.5px; white-space: nowrap; }
+.act-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: #ec1b69; box-shadow: 0 0 10px #ec1b69; animation: actPulse 1.2s ease-in-out infinite; align-self: center; }
+@keyframes actPulse { 0%, 100% { transform: scale(0.8); opacity: 0.6; } 50% { transform: scale(1.15); opacity: 1; } }
+.act-meta { font-size: 10px; letter-spacing: 0.06em; color: var(--mute); }
+.trace { margin: 0 0 6px; font-size: 11px; color: var(--mute); }
+.trace summary { cursor: pointer; list-style: none; letter-spacing: 0.02em; }
+.trace summary::after { content: " ›"; }
+.trace[open] summary::after { content: " ⌄"; }
+.trace summary::-webkit-details-marker { display: none; }
+.trace ol { margin: 6px 0 4px; padding-left: 16px; display: flex; flex-direction: column; gap: 2px; }
+.trace li small { color: #6f7d99; }
+@media (prefers-reduced-motion: reduce) { .act-dot { animation: none; } }
