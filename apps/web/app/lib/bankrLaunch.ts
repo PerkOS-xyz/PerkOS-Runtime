@@ -13,8 +13,10 @@ const headers = (k: string) => ({ "Content-Type": "application/json", "X-API-Key
 export type QuoteToken = { address: string; symbol: string; name: string; kind: string; deployField?: string; provider?: string; illiquid?: boolean };
 export type BankrWallet = { evm: string; solana?: string; ethBase: number; usdBase: number; club: boolean; x?: string };
 export type LaunchCheck = { label: string; ok: boolean; note: string };
-export type LaunchParams = { name: string; symbol: string; pair: QuoteToken; feeRecipient: `0x${string}`; description?: string; disableVesting?: boolean; quoteOnlyFees?: boolean };
-export type LaunchSim = { tokenAddress: string; poolId: string; feeDistribution?: unknown };
+/** A quien pagan las fees (y el vesting): wallet, handle de X, Farcaster o ENS. Bankr lo resuelve al simular. */
+export type Recipient = { type: "wallet" | "x" | "farcaster" | "ens"; value: string };
+export type LaunchParams = { name: string; symbol: string; pair: QuoteToken; feeRecipient: Recipient; description?: string; image?: string; websiteUrl?: string; tweetUrl?: string; disableVesting?: boolean; quoteOnlyFees?: boolean; degenMode?: boolean };
+export type LaunchSim = { tokenAddress: string; poolId: string; feeDistribution?: unknown; creatorAddress?: string };
 export type LaunchReceipt = LaunchSim & { txHash: string; chain: string };
 export type BankrLaunch = { tokenName: string; tokenSymbol: string; chain: string; tokenAddress: string; poolId?: string; txHash?: string; timestamp?: number; pairedStock?: { address: string; symbol: string }; deployer?: { walletAddress?: string } };
 export type LaunchResult<T> = { ok: true; data: T } | { ok: false; error: string; detail: string };
@@ -42,17 +44,41 @@ export async function launchQuotes(): Promise<QuoteToken[]> {
   return list;
 }
 
-/** "NVDA", "NVDAc", "nvidia" -> la accion del registro emparejable, o null. */
+/** "NVDA", "NVDAc", "nvidia", "WETH", "eth", "BNKR" -> el quote token del registro, o null. */
 export async function resolvePair(query: string): Promise<QuoteToken | null> {
-  const q = query.trim().toLowerCase().replace(/c$/, "");
-  if (!q) return null;
-  const stocks = (await launchQuotes()).filter((t) => t.kind === "stock");
+  const raw = query.trim().toLowerCase();
+  if (!raw) return null;
+  const all = await launchQuotes();
+  if (raw === "eth" || raw === "weth" || raw === "ether") return all.find((t) => t.symbol.toLowerCase() === "weth") ?? null;
+  const exact = all.find((t) => t.symbol.toLowerCase() === raw);
+  if (exact) return exact;
+  const q = raw.replace(/c$/, "");
+  const stocks = all.filter((t) => t.kind === "stock");
   return stocks.find((t) => t.symbol.toLowerCase() === q)
-    ?? stocks.find((t) => t.symbol.toLowerCase() === `${q}c`)
-    ?? stocks.find((t) => t.name.toLowerCase().startsWith(q))
-    ?? stocks.find((t) => t.name.toLowerCase().includes(q))
+    ?? all.find((t) => t.name.toLowerCase().startsWith(q))
+    ?? all.find((t) => t.name.toLowerCase().includes(q))
     ?? null;
 }
+
+const HANDLE = /^[A-Za-z0-9_]{1,15}$/;
+/** "0x…", "@handle", "name.eth", "farcaster:dwr", "x:handle" -> recipient tipado, o null si no se entiende. */
+export function parseRecipient(raw: string): Recipient | null {
+  const v = raw.trim();
+  if (!v) return null;
+  if (/^0x[0-9a-fA-F]{40}$/.test(v)) return { type: "wallet", value: v };
+  const typed = v.match(/^(x|twitter|farcaster|fc|ens|wallet):\s*@?(.+)$/i);
+  if (typed) {
+    const t = typed[1].toLowerCase(); const val = typed[2].trim();
+    if (t === "wallet") return /^0x[0-9a-fA-F]{40}$/.test(val) ? { type: "wallet", value: val } : null;
+    if (t === "ens") return /^[a-z0-9-]+(\.[a-z0-9-]+)*\.eth$/i.test(val) ? { type: "ens", value: val.toLowerCase() } : null;
+    if (t === "farcaster" || t === "fc") return /^[a-z0-9][a-z0-9.-]{0,31}$/i.test(val) ? { type: "farcaster", value: val.toLowerCase() } : null;
+    return HANDLE.test(val) ? { type: "x", value: val } : null;
+  }
+  if (/\.eth$/i.test(v)) return /^[a-z0-9-]+(\.[a-z0-9-]+)*\.eth$/i.test(v) ? { type: "ens", value: v.toLowerCase() } : null;
+  if (v.startsWith("@")) return HANDLE.test(v.slice(1)) ? { type: "x", value: v.slice(1) } : null;
+  return null;
+}
+export const recipientLabel = (r: Recipient) => r.type === "wallet" ? `${r.value.slice(0, 6)}…${r.value.slice(-4)}` : r.type === "x" ? `@${r.value} on X` : r.type === "farcaster" ? `${r.value} on Farcaster` : r.value;
 
 export async function bankrWallet(force = false): Promise<BankrWallet | null> {
   const k = key(); if (!k) return null;
@@ -86,23 +112,26 @@ export async function myLaunches(evm: string): Promise<{ all: BankrLaunch[]; las
 }
 
 /** Las reglas de Bankr que Risk mira antes de un GO (docs 2026-09-16). */
-export function launchChecks(w: BankrWallet | null, last24h: number, name: string, symbol: string, pair: QuoteToken | null): LaunchCheck[] {
+export function launchChecks(w: BankrWallet | null, last24h: number, name: string, symbol: string, pair: QuoteToken | null, recipient?: Recipient | null): LaunchCheck[] {
   return [
+    { label: "Fees pay to", ok: Boolean(recipient), note: recipient ? `${recipientLabel(recipient)}${recipient.type === "wallet" ? "" : " · Bankr resolves it to their wallet"}` : "no recipient" },
     { label: "Bankr wallet", ok: Boolean(w), note: w ? `${w.evm.slice(0, 6)}…${w.evm.slice(-4)}${w.club ? " · Bankr Club" : ""}` : "no Bankr key or wallet on this install" },
     { label: "ETH on Base", ok: (w?.ethBase ?? 0) >= 0.002, note: `${(w?.ethBase ?? 0).toFixed(4)} ETH · Bankr asks for 0.002 even with sponsored gas` },
     { label: "Launch quota", ok: last24h < 3, note: `${last24h} of 3 launches used in the last 24 h` },
-    { label: "Pair", ok: Boolean(pair && !pair.illiquid), note: pair ? `${pair.symbol} · ${pair.name}${pair.illiquid ? " · illiquid" : ""}` : "not a registry stock on Base" },
+    { label: "Pair", ok: Boolean(pair && !pair.illiquid), note: pair ? `${pair.symbol} · ${pair.name}${pair.kind === "stock" ? " · tokenized stock" : pair.kind === "major" ? " · the default quote" : ""}${pair.illiquid ? " · illiquid, hard to trade until liquidity arrives" : ""}` : "not in Bankr's registry on Base" },
     { label: "Name and symbol", ok: name.length >= 1 && name.length <= 100 && /^[A-Z0-9]{1,20}$/i.test(symbol), note: `${name} · ${symbol}` }
   ];
 }
 
 async function deployCall(p: LaunchParams, simulateOnly: boolean): Promise<LaunchResult<Record<string, unknown>>> {
   const k = key(); if (!k) return { ok: false, error: "bankr_key", detail: "No Bankr key on this install" };
+  // El campo del par lo dicta el registro (pairedStockAddress, pairedTokenAddress); WETH no lleva ninguno.
+  const pairField = p.pair.deployField === "pairedStockAddress" || p.pair.deployField === "pairedTokenAddress" ? { [p.pair.deployField]: p.pair.address } : {};
   const body = {
-    tokenName: p.name, tokenSymbol: p.symbol, description: p.description,
-    chain: CHAIN, provider: "doppler", pairedStockAddress: p.pair.address,
-    feeRecipient: { type: "wallet", value: p.feeRecipient },
-    disableVesting: p.disableVesting === true, quoteOnlyFees: p.quoteOnlyFees === true, simulateOnly
+    tokenName: p.name, tokenSymbol: p.symbol, description: p.description, image: p.image, websiteUrl: p.websiteUrl, tweetUrl: p.tweetUrl,
+    chain: CHAIN, provider: "doppler", ...pairField,
+    feeRecipient: { type: p.feeRecipient.type, value: p.feeRecipient.value },
+    disableVesting: p.disableVesting === true, quoteOnlyFees: p.quoteOnlyFees === true, degenMode: p.degenMode === true, simulateOnly
   };
   const r = await fetch(`${BASE}/token-launches/deploy`, { method: "POST", headers: headers(k), body: JSON.stringify(body), signal: AbortSignal.timeout(simulateOnly ? 30_000 : 120_000) })
     .catch((e) => ({ ok: false, status: 0, json: async () => ({ error: String(e) }) }) as unknown as globalThis.Response);
@@ -114,12 +143,14 @@ async function deployCall(p: LaunchParams, simulateOnly: boolean): Promise<Launc
 export async function simulateLaunch(p: LaunchParams): Promise<LaunchResult<LaunchSim>> {
   const r = await deployCall(p, true);
   if (!r.ok) return r;
-  return { ok: true, data: { tokenAddress: String(r.data.tokenAddress ?? ""), poolId: String(r.data.poolId ?? ""), feeDistribution: r.data.feeDistribution } };
+  const creator = ((r.data.feeDistribution as { creator?: { address?: string } } | undefined)?.creator?.address) ?? undefined;
+  return { ok: true, data: { tokenAddress: String(r.data.tokenAddress ?? ""), poolId: String(r.data.poolId ?? ""), feeDistribution: r.data.feeDistribution, creatorAddress: creator } };
 }
 
 export async function deployLaunch(p: LaunchParams): Promise<LaunchResult<LaunchReceipt>> {
   const r = await deployCall(p, false);
   if (!r.ok) return r;
   await bankrWallet(true).catch(() => null);
-  return { ok: true, data: { tokenAddress: String(r.data.tokenAddress ?? ""), poolId: String(r.data.poolId ?? ""), txHash: String(r.data.txHash ?? ""), chain: String(r.data.chain ?? CHAIN), feeDistribution: r.data.feeDistribution } };
+  const creator = ((r.data.feeDistribution as { creator?: { address?: string } } | undefined)?.creator?.address) ?? undefined;
+  return { ok: true, data: { tokenAddress: String(r.data.tokenAddress ?? ""), poolId: String(r.data.poolId ?? ""), txHash: String(r.data.txHash ?? ""), chain: String(r.data.chain ?? CHAIN), feeDistribution: r.data.feeDistribution, creatorAddress: creator } };
 }
