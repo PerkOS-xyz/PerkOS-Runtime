@@ -1751,6 +1751,16 @@ function Shell() {
   const run = useCallback((raw: string) => {
     const spoken = raw.trim();
     { // "sell 50% of 0x…" (boton del desk): venta de un token lanzado, a ETH. No pasa por el parser de ordenes.
+      const sa = spoken.match(/^sell\s+([0-9][0-9.]*)\s+of\s+(0x[0-9a-fA-F]{40})$/i);
+      if (sa && Number(sa[1]) > 0) {
+        flog("info", "intent: sell (launched token, amount)");
+        void fetch("/api/launches").then((r) => r.json()).then((j: { tokens?: Array<{ symbol: string; tokenAddress: string }> }) => {
+          const t = (j.tokens ?? []).find((x) => x.tokenAddress.toLowerCase() === sa[2].toLowerCase());
+          if (t) void launchSellRef.current(t.tokenAddress, t.symbol, { amountToken: Number(sa[1]) });
+          else setCaption("That token is not one of your launches.");
+        }).catch(() => setCaption("Could not read your launches."));
+        return;
+      }
       const sm = spoken.match(/^sell\s+(\d{1,3})\s*%\s+of\s+(0x[0-9a-fA-F]{40})$/i);
       if (sm) {
         flog("info", "intent: sell (launched token)");

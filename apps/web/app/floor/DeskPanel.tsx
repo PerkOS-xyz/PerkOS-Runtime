@@ -234,87 +234,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
       {screen === "history" ? (
         <History />
       ) : screen === "launches" ? (
-        <div className="automations launches">
-          <div className="auto-head">
-            <small>{err ? `Could not read your tokens: ${err}` : launchWallet ? `Tokens that pay their creator fees to ${launchWallet.slice(0, 6)}…${launchWallet.slice(-4)}, the wallet connected here. Say: launch Night Owl (OWL) paired with NVDA.` : "Connect a wallet to see your tokens."}</small>
-            <div className="acts">
-              <button type="button" onClick={() => void loadLaunches()}>Refresh</button>
-              <button type="button" onClick={() => onSay("claim my fees")}>Claim all</button>
-            </div>
-          </div>
-          <ul className="launch-cards">
-            {(launches ?? []).map((l) => {
-              const justClaimed = (claimedTokens ?? []).includes(l.tokenAddress.toLowerCase());
-              const fee = !justClaimed && l.claimable && (Number(l.claimable.token0) > 0 || Number(l.claimable.token1) > 0);
-              const fmt = (v: string) => { const n = Number(v) || 0; return n >= 1000 ? Math.round(n).toLocaleString("en-US") : n >= 1 ? n.toFixed(2) : n.toFixed(4).replace(/0+$/, "").replace(/\.$/, ""); };
-              const m = l.market; const pool = m?.pool; const indexed = Boolean(m?.priceUsd !== undefined);
-              const up24 = (m?.change24hPct ?? 0) >= 0; const up1 = (m?.change1hPct ?? 0) >= 0;
-              const earn = (m?.earnings ?? []).slice(-14).map((e) => Number(e.weth) || 0);
-              const when = l.timestamp ? new Date(l.timestamp).toISOString().slice(0, 16).replace("T", " ") : "";
-              return (
-                <li key={l.tokenAddress} className="launch-card">
-                  <div className="lc-head">
-                    <div className="lc-id">
-                      <b title={l.name}>{l.name}</b>
-                      <i className="sym">{l.symbol}</i>
-                      <small>paired with {l.pair ?? "WETH"} · {l.deployerX ? `deployed by @${l.deployerX}` : l.deployedHere ? "deployed from this install" : `deployed by ${l.deployer ? `${l.deployer.slice(0, 6)}…${l.deployer.slice(-4)}` : "?"}`}{when ? ` · ${when}` : ""}</small>
-                    </div>
-                    <span className="lc-right"><em className={`st ${fee ? "active" : ""}`}>{justClaimed ? "claimed" : fee ? "fees to claim" : l.status ?? "live"}</em><CopyAddr address={l.tokenAddress} label={`${l.symbol} token`} /></span>
-                  </div>
-                  {indexed ? <PriceChart points={m?.sparkline} label="24h · 15m closes" /> : (
-                    <div className="pc empty seed">
-                      <span>No trades yet</span>
-                      <small>Indexers list a pool after its first swap. Seed it with a small buy of {l.symbol}{l.pair ? ` with ${l.pair}` : ""}; you sign it in your wallet.</small>
-                      <nav className="seed-links buy" aria-label="Buy from the desk">{[1, 5, 10].map((usd) => <button type="button" key={usd} onClick={() => onSay(`buy $${usd} of ${l.tokenAddress}`)}>Buy ${usd}</button>)}</nav>
-                      <nav className="seed-links" aria-label="Seed the pool">
-                        <a href={`https://app.uniswap.org/explore/tokens/base/${l.tokenAddress}`} target="_blank" rel="noreferrer">Buy {l.symbol} on Uniswap ↗</a>
-                        <a href={l.bankrUrl} target="_blank" rel="noreferrer">on Bankr ↗</a>
-                      </nav>
-                    </div>
-                  )}
-                  <div className="kpis6">
-                    <span><b>{indexed ? money(m!.priceUsd) : "–"}</b><small>price</small></span>
-                    <span><b className={indexed && m?.change1hPct !== undefined ? (up1 ? "up" : "down") : ""}>{indexed ? pct(m?.change1hPct) || "–" : "–"}</b><small>1h</small></span>
-                    <span><b className={indexed && m?.change24hPct !== undefined ? (up24 ? "up" : "down") : ""}>{indexed ? pct(m?.change24hPct) || "–" : "–"}</b><small>24h</small></span>
-                    <span><b>{indexed ? money(m?.volume24hUsd) : "–"}</b><small>volume 24h</small></span>
-                    <span><b>{indexed ? money(m?.liquidityUsd) : "–"}</b><small>liquidity</small></span>
-                    <span><b>{indexed ? money(m?.fdvUsd) : "–"}</b><small>FDV</small></span>
-                  </div>
-                  {/* Operar desde el desk: comprar con ETH siempre; vender a ETH si la wallet tiene saldo. */}
-                  <div className="launch-trade">
-                    <small>{l.balance && l.balance > 0 ? `You hold ${Math.round(l.balance).toLocaleString("en-US")} ${l.symbol}${l.balanceUsd ? ` · about ${money(l.balanceUsd)}` : ""}` : `Trade ${l.symbol} from the desk, paid in ETH on Base`}</small>
-                    <nav className="seed-links buy" aria-label={`Buy ${l.symbol}`}>{indexed ? [1, 5, 10].map((usd) => <button type="button" key={usd} onClick={() => onSay(`buy $${usd} of ${l.tokenAddress}`)}>Buy ${usd}</button>) : null}</nav>
-                    {l.balance && l.balance > 0 ? <nav className="seed-links sell" aria-label={`Sell ${l.symbol}`}>{[25, 50, 100].map((p) => <button type="button" key={p} onClick={() => onSay(`sell ${p}% of ${l.tokenAddress}`)}>{p === 100 ? "Sell all" : `Sell ${p}%`}</button>)}</nav> : null}
-                  </div>
-                  <div className="launch-body">
-                    <div className="launch-pool">
-                      <small className="k">Pool</small>
-                      <span>{pool ? `${pool.label} on Base · ${l.symbol} / ${pool.quote || l.pair || "WETH"}` : `Uniswap V4 on Base · ${l.symbol} / ${l.pair ?? "WETH"}`}</span>
-                      <small className="mono">{(pool?.id ?? l.poolId) ? `${(pool?.id ?? l.poolId)!.slice(0, 12)}…${(pool?.id ?? l.poolId)!.slice(-6)}` : "pool id pending"}</small>
-                      <small>Doppler, deployed by Bankr · 0.7% pool fee, 95% to the creator{pool ? "" : " · not indexed yet"}</small>
-                    </div>
-                    <nav className="launch-links" aria-label="Open in">
-                      {pool ? <a href={pool.venueUrl} target="_blank" rel="noreferrer">Uniswap ↗</a> : null}
-                      {pool ? <a href={pool.dexscreenerUrl} target="_blank" rel="noreferrer">DexScreener ↗</a> : null}
-                      <a href={l.bankrUrl} target="_blank" rel="noreferrer">Bankr ↗</a>
-                      <a href={l.explorer} target="_blank" rel="noreferrer">Basescan ↗</a>
-                      <a className="share" href={shareLaunchUrl(l)} target="_blank" rel="noreferrer" title="Opens X in your browser with a post about this launch. Nothing is posted until you press Post.">Share on X</a>
-                    </nav>
-                    <div className="launch-fees">
-                      <small className="k">Creator fees{l.share ? ` · ${l.share} of the pool fee` : ""}</small>
-                      <span>{justClaimed ? "Claimed just now. New fees keep accruing." : l.claimable ? (fee ? `${fmt(l.claimable.token0)} ${l.claimable.token0Label} + ${fmt(l.claimable.token1)} ${l.claimable.token1Label} to claim` : "Fees accrue to the recipient. Nothing to claim yet.") : "Fees accrue to the recipient."}</span>
-                      <small>{l.claimed && l.claimed.count > 0 ? `claimed ${l.claimed.count}× · ${fmt(l.claimed.token0)} ${l.claimable?.token0Label ?? ""} + ${fmt(l.claimed.token1)} ${l.claimable?.token1Label ?? ""}` : "no claims yet"}{m?.lifetimeEarnedWeth && Number(m.lifetimeEarnedWeth) > 0 ? ` · ${fmt(m.lifetimeEarnedWeth)} WETH lifetime` : ""}</small>
-                      {earn.some((v) => v > 0) ? <Bars points={earn} w={160} h={26} /> : null}
-                      {l.mine ? <button type="button" className="claim" disabled={!fee} onClick={() => onSay(`claim fees for ${l.tokenAddress}`)}>{justClaimed ? "Claimed" : fee ? "Claim fees" : "Nothing to claim"}</button> : null}
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-            {launches && launches.length === 0 ? <li className="launch-empty"><b>No tokens yet.</b><span>Launch one paired with a tokenized stock and it shows up here with its chart and fees.</span><button type="button" onClick={() => onSay("launch Night Owl (OWL) paired with NVDA")}>Launch a token</button></li> : null}
-            {!launches ? <li className="launch-empty"><span>Reading Bankr…</span></li> : null}
-          </ul>
-        </div>
+        <LaunchesView launches={launches} err={err} wallet={launchWallet} claimedTokens={claimedTokens} onRefresh={() => void loadLaunches()} onSay={onSay} />
       ) : screen === "automations" ? (
         <div className="automations">
           <div className="auto-head">
@@ -501,6 +421,161 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
 
 
 /** Post para X sobre un launch: el token, el par, y que lo desplego PerkOS (@perk_os) por Bankr. */
+// Launches como una wallet: cabecera de portafolio, una fila por token que lidera con la posicion
+// (saldo y valor), acciones a un clic, y al abrirla tres pestanas (Trade, Pool, Fees). Operar desde
+// el desk es el camino principal; los sitios externos quedan como enlaces discretos en Pool.
+function LaunchesView({ launches, err, wallet, claimedTokens, onRefresh, onSay }: { launches: LaunchRow[] | null; err: string; wallet: string; claimedTokens?: string[]; onRefresh: () => void; onSay: (t: string) => void }) {
+  const [open, setOpen] = useState<string>("");
+  const [tab, setTab] = useState<"trade" | "pool" | "fees">("trade");
+  // Ticket al estilo de un exchange: los porcentajes y montos rapidos rellenan el campo; se puede ajustar antes de enviar.
+  const [buyUsd, setBuyUsd] = useState("5");
+  const [sellAmt, setSellAmt] = useState("");
+  const [sellPct, setSellPct] = useState<number | null>(null);
+  useEffect(() => { setSellAmt(""); setSellPct(null); setBuyUsd("5"); }, [open]);
+  const [pulse, setPulse] = useState<string[] | null>(null);
+  const [pulseOpen, setPulseOpen] = useState(false);
+  const [pulseOff, setPulseOff] = useState(() => { try { return sessionStorage.getItem("floor.pulse.off") === "1"; } catch { return false; } });
+  useEffect(() => { fetch("/api/launch/pulse").then((r) => (r.ok ? r.json() : null)).then((j: { lines?: string[] } | null) => setPulse(j?.lines?.length ? j.lines : null)).catch(() => setPulse(null)); }, []);
+  // Con un solo token no tiene sentido una lista colapsada: se abre.
+  useEffect(() => { if (launches && launches.length === 1 && !open) setOpen(launches[0].tokenAddress); }, [launches, open]);
+  const list = launches ?? [];
+  const held = list.reduce((a, l) => a + (l.balanceUsd ?? 0), 0);
+  const hasFee = (l: LaunchRow) => !(claimedTokens ?? []).includes(l.tokenAddress.toLowerCase()) && Boolean(l.claimable && (Number(l.claimable.token0) > 0 || Number(l.claimable.token1) > 0));
+  const toClaim = list.filter(hasFee).length;
+  const fmt = (v: string) => { const n = Number(v) || 0; return n >= 1000 ? Math.round(n).toLocaleString("en-US") : n >= 1 ? n.toFixed(2) : n.toFixed(4).replace(/0+$/, "").replace(/\.$/, ""); };
+  const units = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}K` : n.toFixed(n >= 1 ? 0 : 4));
+  const show = (addr: string, t: "trade" | "pool" | "fees") => { setOpen(addr); setTab(t); };
+  return (
+    <div className="automations launches lx">
+      <div className="lx-summary">
+        <div className="lx-sum-main">
+          <span><small>Held</small><b>{list.length ? money(held) : "–"}</b></span>
+          <span><small>Fees to claim</small><b>{toClaim ? `${toClaim} token${toClaim > 1 ? "s" : ""}` : "none"}</b></span>
+          <span><small>Tokens</small><b>{launches ? list.length : "…"}</b></span>
+        </div>
+        <div className="acts">
+          <button type="button" onClick={onRefresh}>Refresh</button>
+          <button type="button" disabled={!toClaim} onClick={() => onSay("claim my fees")}>Claim all</button>
+        </div>
+      </div>
+      <small className="lx-note">{err ? `Could not read your tokens: ${err}` : wallet ? `Tokens that pay their creator fees to ${wallet.slice(0, 6)}…${wallet.slice(-4)}, the wallet connected here.` : "Connect a wallet to see your tokens."}</small>
+      {pulse && !pulseOff ? (
+        <div className={`lx-pulse${pulseOpen ? " open" : ""}`}>
+          <button type="button" className="lx-pulse-line" onClick={() => setPulseOpen((o) => !o)} aria-expanded={pulseOpen}><i aria-hidden>{pulseOpen ? "▾" : "▸"}</i><b>Launch pulse</b><span>{pulseOpen ? "what is trading on Bankr right now" : pulse[0].replace(/^Launch pulse, /, "")}</span></button>
+          {pulseOpen ? <div className="lx-pulse-body">{pulse.map((t, i) => <p key={i}>{t}</p>)}<button type="button" onClick={() => { setPulseOff(true); try { sessionStorage.setItem("floor.pulse.off", "1"); } catch { /* sin storage */ } }}>Hide for now</button></div> : null}
+        </div>
+      ) : null}
+      <ul className="lx-list">
+        {list.map((l) => {
+          const justClaimed = (claimedTokens ?? []).includes(l.tokenAddress.toLowerCase());
+          const fee = hasFee(l);
+          const m = l.market; const pool = m?.pool; const indexed = Boolean(m?.priceUsd !== undefined);
+          const up24 = (m?.change24hPct ?? 0) >= 0; const up1 = (m?.change1hPct ?? 0) >= 0;
+          const earn = (m?.earnings ?? []).slice(-14).map((e) => Number(e.weth) || 0);
+          const when = l.timestamp ? new Date(l.timestamp).toISOString().slice(0, 10) : "";
+          const holds = Boolean(l.balance && l.balance > 0);
+          const isOpen = open === l.tokenAddress;
+          const by = l.deployerX ? `@${l.deployerX}` : l.deployedHere ? "this install" : l.deployer ? `${l.deployer.slice(0, 6)}…${l.deployer.slice(-4)}` : "";
+          return (
+            <li key={l.tokenAddress} className={`lx-card${isOpen ? " open" : ""}`}>
+              <div className="lx-row">
+                <button type="button" className="lx-rowmain" onClick={() => (isOpen ? setOpen("") : show(l.tokenAddress, "trade"))} aria-expanded={isOpen}>
+                  <span className="lx-id"><b title={l.name}>{l.name}</b><i className="sym">{l.symbol}</i></span>
+                  <span className="lx-mkt">{indexed ? <><b>{money(m!.priceUsd)}</b><small className={m?.change24hPct !== undefined ? (up24 ? "up" : "down") : ""}>{pct(m?.change24hPct) || "24h –"}</small></> : <small>not indexed</small>}</span>
+                  <span className="lx-spark" aria-hidden>{indexed && (m?.sparkline?.length ?? 0) > 2 ? <Spark points={m!.sparkline} w={56} h={22} /> : <i>–</i>}</span>
+                  <span className="lx-pos">{holds ? <><b>{l.balanceUsd ? money(l.balanceUsd) : `${units(l.balance!)}`}</b><small>{units(l.balance!)} {l.symbol}</small></> : <small>no balance</small>}</span>
+                  <em className={`st ${fee ? "active" : ""}`}>{justClaimed ? "claimed" : fee ? "fees to claim" : indexed ? "live" : "not indexed"}</em>
+                  <i className="lx-chev" aria-hidden>{isOpen ? "⌃" : "⌄"}</i>
+                </button>
+                <div className="lx-sub">
+                <small>paired with {l.pair ?? "WETH"}{by ? ` · ${by}` : ""}</small>
+                <nav className="lx-acts" aria-label={`${l.symbol} actions`}>
+                  <button type="button" className="buy" onClick={() => show(l.tokenAddress, "trade")}>Buy</button>
+                  <button type="button" className="sell" disabled={!holds} title={holds ? undefined : "No balance to sell"} onClick={() => show(l.tokenAddress, "trade")}>Sell</button>
+                  {l.mine ? <button type="button" className="claim" disabled={!fee} title={fee ? undefined : "Nothing to claim"} onClick={() => onSay(`claim fees for ${l.tokenAddress}`)}>{justClaimed ? "Claimed" : "Claim"}</button> : null}
+                </nav>
+                </div>
+              </div>
+              {isOpen ? (
+                <div className="lx-detail">
+                  <div className="lx-tabs" role="tablist" aria-label={`${l.symbol} views`}>
+                    {(["trade", "pool", "fees"] as const).map((t) => <button type="button" key={t} role="tab" aria-selected={tab === t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>{t === "trade" ? "Trade" : t === "pool" ? "Pool" : "Fees"}</button>)}
+                    <span className="lx-tabs-right"><CopyAddr address={l.tokenAddress} label={`${l.symbol} token`} /></span>
+                  </div>
+                  {tab === "trade" ? (
+                    <div className="lx-pane">
+                      {indexed ? <PriceChart points={m?.sparkline} label="24h · 15m closes" /> : <div className="pc empty seed"><span>No trades yet</span><small>Screeners list a pool after its first swap. A small buy from the desk is enough; you sign it in your wallet.</small></div>}
+                      <div className="kpis6">
+                        <span><b>{indexed ? money(m!.priceUsd) : "–"}</b><small>price</small></span>
+                        <span><b className={indexed && m?.change1hPct !== undefined ? (up1 ? "up" : "down") : ""}>{indexed ? pct(m?.change1hPct) || "–" : "–"}</b><small>1h</small></span>
+                        <span><b className={indexed && m?.change24hPct !== undefined ? (up24 ? "up" : "down") : ""}>{indexed ? pct(m?.change24hPct) || "–" : "–"}</b><small>24h</small></span>
+                        <span><b>{indexed ? money(m?.volume24hUsd) : "–"}</b><small>vol 24h</small></span>
+                        <span><b>{indexed ? money(m?.liquidityUsd) : "–"}</b><small>liq</small></span>
+                        <span><b>{indexed ? money(m?.fdvUsd) : "–"}</b><small>FDV</small></span>
+                      </div>
+                      <div className="lx-ticket">
+                        {(() => {
+                          const usd = Number(buyUsd); const okBuy = usd > 0 && usd <= 100;
+                          const amt = Number(sellAmt.replace(/,/g, "")); const bal = l.balance ?? 0;
+                          const okSell = holds && amt > 0 && amt <= bal * 1.0000001;
+                          const px = m?.priceUsd;
+                          return (<>
+                            <div className="lx-side">
+                              <small>Buy with ETH on Base · one signature</small>
+                              <label className="lx-field"><i>$</i><input inputMode="decimal" value={buyUsd} onChange={(e) => setBuyUsd(e.target.value.replace(/[^0-9.]/g, "").slice(0, 6))} aria-label={`Dollars of ${l.symbol} to buy`} /><em>{px && okBuy ? `about ${units(usd / px)} ${l.symbol}` : "up to $100"}</em></label>
+                              <nav className="lx-chips" aria-label="Quick amounts">{[1, 5, 10, 25].map((v) => <button type="button" key={v} className={Number(buyUsd) === v ? "on" : ""} onClick={() => setBuyUsd(String(v))}>${v}</button>)}</nav>
+                              <button type="button" className="lx-go buy" disabled={!okBuy} onClick={() => onSay(`buy $${usd} of ${l.tokenAddress}`)}>Buy {l.symbol}</button>
+                            </div>
+                            <div className="lx-side">
+                              <small>Sell to ETH on Base · two signatures</small>
+                              <label className="lx-field"><input inputMode="decimal" placeholder="0" disabled={!holds} value={sellAmt} onChange={(e) => { setSellAmt(e.target.value.replace(/[^0-9.]/g, "").slice(0, 24)); setSellPct(null); }} aria-label={`${l.symbol} to sell`} /><i>{l.symbol}</i><em>{holds ? (amt > 0 && px ? `about ${money(amt * px)}` : `you hold ${units(bal)}`) : "no balance"}</em></label>
+                              <nav className="lx-chips" aria-label="Share of your balance">{[25, 50, 75, 100].map((p) => <button type="button" key={p} disabled={!holds} className={sellPct === p ? "on" : ""} onClick={() => { setSellPct(p); setSellAmt(p === 100 ? String(bal) : String(Math.floor((bal * p) / 100))); }}>{p === 100 ? "Max" : `${p}%`}</button>)}</nav>
+                              <button type="button" className="lx-go sell" disabled={!okSell} onClick={() => onSay(sellPct ? `sell ${sellPct}% of ${l.tokenAddress}` : `sell ${amt} of ${l.tokenAddress}`)}>Sell {l.symbol}</button>
+                            </div>
+                          </>);
+                        })()}
+                      </div>
+                    </div>
+                  ) : tab === "pool" ? (
+                    <div className="lx-pane">
+                      <dl className="lx-facts">
+                        <dt>Pool</dt><dd>{pool ? `${pool.label} on Base · ${l.symbol} / ${pool.quote || l.pair || "WETH"}` : `Uniswap V4 on Base · ${l.symbol} / ${l.pair ?? "WETH"}`}</dd>
+                        <dt>Pool id</dt><dd className="mono">{(pool?.id ?? l.poolId) ? `${(pool?.id ?? l.poolId)!.slice(0, 14)}…${(pool?.id ?? l.poolId)!.slice(-6)}` : "pool id pending"}</dd>
+                        <dt>Fee</dt><dd>0.7% pool fee, 95% to the creator · Doppler, deployed by Bankr</dd>
+                        <dt>Launched</dt><dd>{when || "–"}{by ? ` · by ${by}` : ""}{pool ? "" : " · not indexed yet"}</dd>
+                      </dl>
+                      <nav className="lx-links" aria-label="Open elsewhere">
+                        <small>Open elsewhere (may not be available in your region, or may not route a new pool yet):</small>
+                        <a href={`https://app.uniswap.org/explore/tokens/base/${l.tokenAddress}`} target="_blank" rel="noreferrer">Uniswap ↗</a>
+                        {pool ? <a href={pool.dexscreenerUrl} target="_blank" rel="noreferrer">DexScreener ↗</a> : null}
+                        <a href={l.bankrUrl} target="_blank" rel="noreferrer">Bankr ↗</a>
+                        <a href={l.explorer} target="_blank" rel="noreferrer">Basescan ↗</a>
+                        <a href={shareLaunchUrl(l)} target="_blank" rel="noreferrer" title="Opens X in your browser with a post about this launch. Nothing is posted until you press Post.">Share on X ↗</a>
+                      </nav>
+                    </div>
+                  ) : (
+                    <div className="lx-pane">
+                      <dl className="lx-facts">
+                        <dt>To claim</dt><dd>{justClaimed ? "Claimed just now. New fees keep accruing." : l.claimable ? (fee ? `${fmt(l.claimable.token0)} ${l.claimable.token0Label} + ${fmt(l.claimable.token1)} ${l.claimable.token1Label}` : "Nothing to claim yet") : "Fees accrue to the recipient"}</dd>
+                        <dt>Your share</dt><dd>{l.share ? `${l.share} of the pool fee` : "95% of the pool fee"}</dd>
+                        <dt>Claimed</dt><dd>{l.claimed && l.claimed.count > 0 ? `${l.claimed.count}× · ${fmt(l.claimed.token0)} ${l.claimable?.token0Label ?? ""} + ${fmt(l.claimed.token1)} ${l.claimable?.token1Label ?? ""}` : "no claims yet"}{m?.lifetimeEarnedWeth && Number(m.lifetimeEarnedWeth) > 0 ? ` · ${fmt(m.lifetimeEarnedWeth)} WETH lifetime` : ""}</dd>
+                      </dl>
+                      {earn.some((v) => v > 0) ? <div className="lx-earn"><small>Fees per day</small><Bars points={earn} w={220} h={34} /></div> : null}
+                      {l.mine ? <button type="button" className="claim" disabled={!fee} onClick={() => onSay(`claim fees for ${l.tokenAddress}`)}>{justClaimed ? "Claimed" : fee ? "Claim fees" : "Nothing to claim"}</button> : null}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </li>
+          );
+        })}
+        {launches && launches.length === 0 ? <li className="launch-empty"><b>No tokens yet.</b><span>Launch one paired with a tokenized stock and it shows up here with its position, chart and fees.</span><button type="button" onClick={() => onSay("launch a token")}>Launch a token</button></li> : null}
+        {!launches ? <li className="launch-empty"><span>Reading Bankr…</span></li> : null}
+      </ul>
+    </div>
+  );
+}
+
 export function shareLaunchUrl(l: { name: string; symbol: string; pair?: string; tokenAddress: string }): string {
   const pair = (l.pair ?? "WETH").replace(/c$/, "");
   const text = [

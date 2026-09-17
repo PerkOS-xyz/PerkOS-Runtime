@@ -253,12 +253,13 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
       </dl> : null}
       {tx.stage === "done" && launch.receipt ? (
         <div className="lc-seed">
-          <b>Make the first buy</b>
+          <b>Trade it from the desk</b>
           <small>Screeners list the pool after its first swap. A small buy is enough. The desk drafts it here, paid with ETH on Base: one signature in your wallet.</small>
           {onBuy ? <nav className="seed-links buy" aria-label="Buy from the desk">{[1, 5, 10].map((usd) => <button type="button" key={usd} onClick={() => onBuy(usd)}>Buy ${usd}</button>)}</nav> : null}
-          <nav className="seed-links" aria-label="Other places to buy">
-            <a href={`https://app.uniswap.org/explore/tokens/base/${launch.receipt.tokenAddress}`} target="_blank" rel="noreferrer">Buy {launch.symbol} on Uniswap ↗</a>
-            <a href={launch.receipt.bankrUrl} target="_blank" rel="noreferrer">on Bankr ↗</a>
+          <nav className="lx-links" aria-label="Other places to buy">
+            <small>Other places (may not be available in your region, or may not route a new pool yet):</small>
+            <a href={`https://app.uniswap.org/explore/tokens/base/${launch.receipt.tokenAddress}`} target="_blank" rel="noreferrer">Uniswap ↗</a>
+            <a href={launch.receipt.bankrUrl} target="_blank" rel="noreferrer">Bankr ↗</a>
           </nav>
         </div>
       ) : null}
