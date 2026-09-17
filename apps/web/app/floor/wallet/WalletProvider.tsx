@@ -55,7 +55,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           accentColor: "#ec1b69",
           logo: "/logo.png",
           landingHeader: "PerkOS",
-          showWalletLoginFirst: false
+          showWalletLoginFirst: false,
+          // La misma lista para cualquier modal de wallets de Privy (login y reconexion).
+          walletList: ["wallet_connect_qr", "coinbase_wallet", "detected_ethereum_wallets"]
         }
       }}
     >
@@ -144,7 +146,9 @@ function Bridge({ children }: { children: ReactNode }) {
   const walletName = String((active as { meta?: { name?: string } } | undefined)?.meta?.name ?? "").replace(/^WalletConnect$/i, "");
   // La sesion puede estar viva sin wallet enlazada a esta ventana (WalletConnect caido).
   const canSign = Boolean(authenticated && address && wallets.some((x) => x.address.toLowerCase() === address.toLowerCase()));
-  const reconnect = () => { setError(""); connectWallet(); };
+  // El modal de "connect wallet" no usa loginMethodsAndOrder: sin lista propia, en
+  // Electron solo ofrecia Coinbase Wallet. MetaMask Mobile entra por el QR de WalletConnect.
+  const reconnect = () => { setError(""); connectWallet({ walletList: ["wallet_connect_qr", "coinbase_wallet", "detected_ethereum_wallets"], suggestedAddress: address || undefined }); };
 
   const value = useMemo<Wallet>(
     () => ({
