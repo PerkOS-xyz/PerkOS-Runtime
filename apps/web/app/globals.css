@@ -2284,3 +2284,7 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .draft-card.launch.max .lc-logo { width: 112px; height: 112px; border-radius: 24px; }
 .draft-card.launch.max .lc-chips { max-height: 220px; }
 .draft-card.launch.max .launch-checks { font-size: 13px; }
+
+/* Campos de texto mas altos en la tarjeta normal: escribir el About o el prompt sin expandir. */
+.lc-fields textarea, .lc-gen textarea { min-height: 92px; line-height: 1.45; font-size: 12.5px; }
+.lc-basics input, .lc-fields input, .lc-search, .lc-adv-body .lc-field input { padding: 8px 10px; font-size: 12.5px; }

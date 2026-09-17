@@ -176,7 +176,7 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
               </div>
               {genOpen ? (
                 <div className="lc-gen">
-                  <textarea rows={2} maxLength={600} value={genPrompt} onChange={(e) => setGenPrompt(e.target.value)} placeholder="Describe the logo in one line" />
+                  <textarea rows={4} maxLength={600} value={genPrompt} onChange={(e) => setGenPrompt(e.target.value)} placeholder="Describe the logo in one line" />
                   <div className="lc-gen-acts">
                     <button type="button" className="lc-pick ai" onClick={() => void generateLogo()} disabled={gen === "busy"}>{gen === "busy" ? "Drawing with Grok…" : image ? "Draw again" : "Draw it"}</button>
                     <small>Grok draws it, PerkOS hosts it, Bankr shows it. About 10 seconds.</small>
@@ -186,7 +186,7 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
               {uploading && uploading !== "busy" ? <em className="lc-err">{uploading}</em> : null}
               {gen && gen !== "busy" ? <em className="lc-err">{gen}</em> : null}
             </label>
-            <label><span>About</span><textarea rows={2} maxLength={500} placeholder="One or two lines: what the token is for" value={about} onChange={(e) => onEdit?.({ description: e.target.value })} /></label>
+            <label><span>About</span><textarea rows={4} maxLength={500} placeholder="One or two lines: what the token is for" value={about} onChange={(e) => onEdit?.({ description: e.target.value })} /></label>
           </div>
         </div>
       ) : null}
