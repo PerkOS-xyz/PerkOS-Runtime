@@ -945,12 +945,16 @@ function Shell() {
       quoteRef.current = null;
       setFocusAsset("");
       modeRef.current = "pair";
-      status("Handing to the desk: which pair draws attention and has depth.");
-      await chat("Which tokenized stock should a new token launch be paired with?", { youId });
       const ranked = movers.map((m) => m.symbol).concat(rows.map((r) => r.symbol)).concat(quotes.stocks.filter((q) => !q.illiquid).map((q) => `${q.symbol}c`)).filter((v, i, a) => a.findIndex((x) => key(x) === key(v)) === i).slice(0, 8);
       const options = ranked.map((sym) => { const r = rows.find((x) => x.symbol === sym); const q = registry.get(key(sym)); return { value: sym, label: sym, note: `${r?.name ?? q?.name ?? ""}${typeof r?.change24hPct === "number" ? ` · ${r.change24hPct >= 0 ? "+" : ""}${r.change24hPct.toFixed(1)}% 24h` : ""}${q?.illiquid ? " · thin" : ""}` }; });
       options.push({ value: "WETH", label: "WETH", note: "the default quote" });
-      setMessages((m) => [...m.slice(-60), { id: youId + 95, role: "floor", kind: "picks", text: "Pick the pair for the new token:", turnId: youId, picks: { kind: "pair", options } }]);
+      // Los chips salen ya, con los datos: la persona puede elegir sin esperar a la mesa.
+      // Cuando el desk termina, los mismos chips vuelven a quedar al final, bajo Sparky.
+      const picks = { id: youId + 95, role: "floor" as const, kind: "picks" as const, text: "Pick the pair now from the data, or wait for the desk's read (about a minute if the team is waking up):", turnId: youId, picks: { kind: "pair" as const, options } };
+      setMessages((m) => [...m.slice(-60), picks]);
+      status("Handing to the desk: which pair draws attention and has depth.");
+      await chat("Which tokenized stock should a new token launch be paired with?", { youId });
+      setMessages((m) => (m.some((x) => x.id === picks.id) ? [...m.filter((x) => x.id !== picks.id), { ...picks, text: "Pick the pair for the new token:" }] : m));
       setCaption("Pick the pair. Then the token gets its name.");
     } catch (e) {
       flog("error", `launch guide: ${(e as Error).message}`);
