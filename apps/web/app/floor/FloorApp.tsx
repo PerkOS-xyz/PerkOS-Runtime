@@ -117,7 +117,7 @@ function Shell() {
   type Brief = { at: string; stock: { symbol: string; ticker: string; name: string; issuer: string }; priceUsd?: number; change24hPct?: number; range24h?: { low: number; high: number; open: number; last: number }; volume24hUsd?: number; sparkline?: number[]; pool: { fee: number; usdcDepth: number; priceUsd?: number } | null; chainlink?: { priceUsd: number; ageMin: number; stale: boolean }; premiumPct?: number; swaps24h?: { count: number; usdcVolume: number; buys: number; sells: number }; holding?: { balance: string; valueUsd: number }; lines: string[] };
   type News = { text: string; sources: Array<{ url: string; title?: string }>; at: string };
   type Analysis = { brief: Brief; news?: News; scout?: string; risk?: string; verdict?: "GO" | "BLOCK"; prev?: { priceUsd?: number; at: string }; loadingNews?: boolean };
-  type Msg = { id: number; role: "you" | "floor" | "team" | "draft" | "analysis"; who?: string; text: string; streaming?: boolean; draft?: Draft; launch?: LaunchDraft; auto?: AutoRec; fees?: FeesInfo; tx?: DraftTx; verdict?: "GO" | "BLOCK"; analysis?: Analysis; turnId?: number; kind?: "open" | "side" | "status" | "picks"; picks?: { kind: "pair"; options: Array<{ value: string; label: string; note?: string }> } };
+  type Msg = { id: number; role: "you" | "floor" | "team" | "draft" | "analysis"; who?: string; text: string; streaming?: boolean; draft?: Draft; launch?: LaunchDraft; auto?: AutoRec; fees?: FeesInfo; tx?: DraftTx; verdict?: "GO" | "BLOCK"; analysis?: Analysis; turnId?: number; kind?: "open" | "side" | "status" | "picks"; picks?: { kind: "pair"; options: Array<{ value: string; label: string; note?: string; rec?: number; avoid?: boolean }> } };
   // Agent graph del turno en curso (cards bajo las esferas) y turnos plegados.
   const [turn, setTurn] = useState<DeskTurn | null>(null);
   const turnRef = useRef<DeskTurn | null>(null);
@@ -919,8 +919,20 @@ function Shell() {
   // Launch guiado, paso 1: elegir el par conversando. El desk compara las acciones tokenizadas
   // que Bankr acepta como par (liquidez, movimiento, noticias), Sparky resume y la persona elige
   // entre chips. Recien entonces existe una tarjeta de launch (con el par puesto).
+  // La lectura de pairing vale un rato: si la mesa ya la hizo hace menos de 30 min, se reutiliza
+  // (mismos chips, mismo resumen) en vez de despertar al equipo otra vez. Ademas queda en el
+  // conocimiento local del desk (Notes) como analisis fechado.
+  const pairReadRef = useRef<{ at: number; options: NonNullable<Msg["picks"]>["options"]; summary: string } | null>(null);
   const launchGuide = useCallback(async () => {
     const youId = Date.now();
+    const prev = pairReadRef.current;
+    if (prev && Date.now() - prev.at < 30 * 60_000) {
+      const mins = Math.max(1, Math.round((Date.now() - prev.at) / 60_000));
+      touch();
+      setMessages((m) => [...m.slice(-60), { id: youId, role: "you", text: "Launch a token", turnId: youId }, { id: youId + 1, role: "floor", text: `The desk read the pairs ${mins} minute${mins > 1 ? "s" : ""} ago, so here it is again. ${prev.summary}`, turnId: youId }, { id: youId + 95, role: "floor", kind: "picks", text: "Pick the pair for the new token:", turnId: youId, picks: { kind: "pair", options: prev.options } }]);
+      setCaption("Pick the pair. Say \"read the pairs again\" for a fresh desk read.");
+      return;
+    }
     const statusId = youId + 1;
     const status = (t: string) => setMessages((m) => m.map((x) => (x.id === statusId ? { ...x, text: t } : x)));
     touch();
@@ -954,7 +966,24 @@ function Shell() {
       setMessages((m) => [...m.slice(-60), picks]);
       status("Handing to the desk: which pair draws attention and has depth.");
       await chat("Which tokenized stock should a new token launch be paired with?", { youId });
-      setMessages((m) => (m.some((x) => x.id === picks.id) ? [...m.filter((x) => x.id !== picks.id), { ...picks, text: "Pick the pair for the new token:" }] : m));
+      // Recomendaciones de la mesa: el orden en que Trader, Sparky y Scout nombran los pares; lo
+      // que va despues de "avoid" queda marcado. Los tres primeros se resaltan.
+      const norm = (x: string) => x.toUpperCase().replace(/C$/, "");
+      const cands = options.map((o) => norm(o.value));
+      const findAll = (t: string) => { const out: string[] = []; const re = /\b([A-Z]{2,6})c?\b/g; let mm: RegExpExecArray | null; while ((mm = re.exec(t))) { const k = norm(mm[1]); if (cands.includes(k) && !out.includes(k)) out.push(k); } return out; };
+      const before = (t: string) => t.split(/\bavoid\b/i)[0] ?? "";
+      const after = (t: string) => t.split(/\bavoid\b/i).slice(1).join(" ");
+      const replies = lastRepliesRef.current;
+      const say = (role: string) => replies.find((r) => r.role === role && r.ok)?.reply ?? "";
+      const sparkyText = [...messagesRef.current].reverse().find((x) => x.role === "floor" && x.turnId === youId && !x.kind && x.text)?.text ?? "";
+      const avoided = new Set([...findAll(after(say("trader"))), ...findAll(after(say("scout"))), ...findAll(after(sparkyText))]);
+      const ordered = [...findAll(before(say("trader"))), ...findAll(before(sparkyText)), ...findAll(before(say("scout")))].filter((k, i, a) => a.indexOf(k) === i && !avoided.has(k)).slice(0, 3);
+      const rated = options.map((o) => ({ ...o, rec: ordered.indexOf(norm(o.value)) >= 0 ? ordered.indexOf(norm(o.value)) + 1 : undefined, avoid: avoided.has(norm(o.value)) || undefined })).sort((a, b) => (a.rec ?? 9) - (b.rec ?? 9));
+      setMessages((m) => (m.some((x) => x.id === picks.id) ? [...m.filter((x) => x.id !== picks.id), { ...picks, text: ordered.length ? "The desk's picks first. Pick the pair for the new token:" : "Pick the pair for the new token:", picks: { kind: "pair", options: rated } }] : m));
+      pairReadRef.current = { at: Date.now(), options: rated, summary: sparkyText };
+      const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+      const who = replies.filter((x) => x.ok && x.reply).map((x) => `- **${cap(x.role)}**: ${x.reply.replace(/\s+/g, " ")}`).join("\n");
+      kbWriteRef.current({ kind: "analysis", ticker: "PAIR", title: `Launch pairing · ${stamp} UTC`, body: `**Asked**: which tokenized stock to pair a new token launch with.\n\n## Desk picks\n${ordered.length ? ordered.map((k, i) => `${i + 1}. ${k}c`).join("\n") : "(none parsed)"}${avoided.size ? `\n\nAvoid: ${[...avoided].map((k) => `${k}c`).join(", ")}` : ""}\n\n## Candidates\n${lines.map((l) => `- ${l}`).join("\n")}\n\n## Desk\n${who}\n\n## Sparky\n${sparkyText}` });
       setCaption("Pick the pair. Then the token gets its name.");
     } catch (e) {
       flog("error", `launch guide: ${(e as Error).message}`);
@@ -2144,7 +2173,7 @@ function Shell() {
             ) : m.kind === "picks" && m.picks ? (
               <div className="bubble picks">
                 <p>{m.text}</p>
-                <div className="pick-chips">{m.picks.options.map((o) => <button type="button" key={o.value} onClick={() => pickPair(m.id, o.value)}><b>{o.label}</b>{o.note ? <small>{o.note}</small> : null}</button>)}</div>
+                <div className="pick-chips">{m.picks.options.map((o) => <button type="button" key={o.value} className={`${o.rec ? ` rec rec-${o.rec}` : ""}${o.avoid ? " avoid" : ""}`} onClick={() => pickPair(m.id, o.value)}>{o.rec ? <em>Desk pick {o.rec}</em> : o.avoid ? <em className="no">Desk says avoid</em> : null}<b>{o.label}</b>{o.note ? <small>{o.note}</small> : null}</button>)}</div>
               </div>
             ) : (
               <div className="bubble">
