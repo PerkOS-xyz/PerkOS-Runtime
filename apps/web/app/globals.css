@@ -1943,3 +1943,35 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .desk-panel .launch-empty b { color: #e6ecff; font-size: 14px; }
 .desk-panel .launch-empty button { margin-top: 8px; font: inherit; font-size: 11px; padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); background: transparent; color: #e6ecff; cursor: pointer; }
 @container stage (max-width: 700px) { .desk-panel .launch-body { grid-template-columns: 1fr; } .desk-panel .launch-links { flex-direction: row; flex-wrap: wrap; border-left: 0; padding-left: 0; } .desk-panel .kpis6 { grid-template-columns: repeat(3, 1fr); } }
+
+/* Portfolio (spec 2026-09-17): una sola rejilla para cabecera y filas, el
+   venue siempre a la vista, botones que dicen "Draft" y nunca van en coral. */
+/* Cada li es su propia rejilla: nada de `auto`, o la cabecera y las filas miden distinto. */
+.desk-panel .rows.positions li { grid-template-columns: minmax(100px, 1fr) minmax(170px, 1.35fr) 96px minmax(80px, 0.6fr) minmax(116px, 0.85fr) 290px; column-gap: 12px; cursor: default; align-items: center; }
+.desk-panel .rows.positions li.head .cell.num, .desk-panel .rows.positions .cell.num { text-align: right; align-items: flex-end; }
+.desk-panel .rows.positions li.head .cell.num small { width: 100%; text-align: right; }
+.desk-panel .rows.positions li.head .cell.chart small { width: 100%; text-align: center; }
+.desk-panel .rows.positions .cell.chart { display: flex; justify-content: center; }
+.desk-panel .rows.positions .cell.venue { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.desk-panel .rows.positions .cell.venue b { font-size: 12px; font-weight: 600; color: #9fc2ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.desk-panel .rows.positions .cell.venue b i { font-style: normal; font-weight: 400; color: var(--mute); }
+.desk-panel .rows.positions li:not(.head) .cell.venue small { font-size: 11px; color: var(--mute); }
+.desk-panel .rows.positions .cell.venue small a { color: #cdd7ee; text-decoration: none; border-bottom: 1px dotted rgba(160, 180, 220, 0.4); }
+.desk-panel .rows.positions .cell.venue small a:hover { color: #fff; }
+.desk-panel .rows.positions li:not(.head) .cell.venue small.also { font-size: 10px; }
+.desk-panel .rows.positions .cell.num small em { font-style: normal; }
+.desk-panel .rows.positions .cell.num small em.up, .desk-panel .kpi b.up { color: #7fe0a8; }
+.desk-panel .rows.positions .cell.num small em.down, .desk-panel .kpi b.down { color: #ff8a92; }
+.desk-panel .rows.positions .cell.acts { display: flex; gap: 6px; justify-content: flex-end; }
+.desk-panel .rows.positions .cell.acts button { display: inline-flex; align-items: center; gap: 5px; font: inherit; font-size: 11px; letter-spacing: 0.02em; text-transform: none; padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); background: transparent; color: #cdd7ee; cursor: pointer; white-space: nowrap; }
+.desk-panel .rows.positions .cell.acts button:hover:not(:disabled) { border-color: rgba(160, 180, 220, 0.6); color: #fff; }
+.desk-panel .rows.positions .cell.acts button:disabled { opacity: 0.45; cursor: default; }
+.desk-panel .hint-line.draft-note { margin-top: 2px; }
+.desk-panel .rows.positions li.skeleton .cell i { display: block; height: 12px; border-radius: 6px; background: linear-gradient(90deg, rgba(160, 180, 220, 0.08), rgba(160, 180, 220, 0.18), rgba(160, 180, 220, 0.08)); background-size: 200% 100%; animation: pf-shimmer 1.4s linear infinite; }
+@keyframes pf-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@container stage (max-width: 700px) {
+  .desk-panel .rows.positions li { grid-template-columns: minmax(90px, 1fr) minmax(130px, 1.2fr) minmax(100px, 0.9fr) 128px; }
+  .desk-panel .rows.positions .cell.chart, .desk-panel .rows.positions .cell.venue small.also { display: none; }
+  .desk-panel .rows.positions li > .cell.num:nth-of-type(4) { display: none; }
+  .desk-panel .rows.positions .cell.acts { flex-direction: column; }
+}

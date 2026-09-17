@@ -28,7 +28,9 @@ function printNote(title: string, html: string) {
 
 type Row = { symbol: string; ticker: string; name: string; issuer: string; address: string; priceUsd?: number; priceChange24hPct?: number; volume24hUsd?: number; logoUrl?: string; sparkline?: number[]; pool: { venue?: "uniswap" | "aerodrome"; address: string; fee: number; usdcDepth: number } | null; tradeable: boolean };
 const venueName = (v?: string) => (v === "aerodrome" ? "Aerodrome" : "Uniswap V3");
-type Position = { symbol: string; ticker: string; name: string; issuer: string; balance: string; valueUsd: number; priceUsd?: number; priceChange24hPct?: number; sparkline?: number[] };
+type VenueInfo = { venue: string; label: string; pool: string; feePct: number; usdcDepth: number; url: string };
+type Position = { symbol: string; ticker: string; name: string; issuer: string; address?: string; balance: string; valueUsd: number; priceUsd?: number; priceChange24hPct?: number; sparkline?: number[]; sharePct?: number; venue?: VenueInfo | null; otherVenue?: VenueInfo | null; tradeable?: boolean };
+const deep = (n: number) => (n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(2)}M` : n >= 1000 ? `$${Math.round(n / 1000)}K` : `$${Math.round(n)}`);
 
 /** Linea de precio de las ultimas 24 h (un punto por hora). Sin ejes: es
  *  una senal, no un grafico de analisis. */
@@ -93,6 +95,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
   const [positions, setPositions] = useState<Position[] | null>(null);
   const [total, setTotal] = useState(0);
   const [usdc, setUsdc] = useState<number | undefined>(undefined);
+  const [chg24, setChg24] = useState<number | undefined>(undefined);
   const [q, setQ] = useState("");
   const [err, setErr] = useState("");
   const [notes, setNotes] = useState<Note[] | null>(null);
@@ -145,7 +148,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
       setOpen(null);
       fetch("/api/kb/notes?limit=40").then((r) => r.json()).then((j) => { if (live) setNotes(j.notes ?? []); }).catch((e) => live && setErr(String(e)));
     } else {
-      fetch("/api/market/portfolio").then((r) => r.json()).then((j) => { if (!live) return; if (j.error) { setErr(j.detail ?? j.error); setPositions([]); } else { setPositions(j.positions ?? []); setTotal(j.totalUsd ?? 0); setUsdc(typeof j.usdc === "number" ? j.usdc : undefined); } }).catch((e) => live && setErr(String(e)));
+      fetch("/api/market/portfolio").then((r) => r.json()).then((j) => { if (!live) return; if (j.error) { setErr(j.detail ?? j.error); setPositions([]); } else { setPositions(j.positions ?? []); setTotal(j.totalUsd ?? 0); setUsdc(typeof j.usdc === "number" ? j.usdc : undefined); setChg24(typeof j.change24hPct === "number" ? j.change24hPct : undefined); } }).catch((e) => live && setErr(String(e)));
     }
     return () => { live = false; };
   }, [screen]);
@@ -399,16 +402,14 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
         </>
       ) : (
         <>
-          <p className="hint-line">Your tokenized stocks on Base, in your wallet. Sell drafts an order; Send moves them out.</p>
+          <p className="hint-line">Your tokenized stocks on Base, in your wallet, and where each one trades.</p>
           {err ? <p className="hint-line err">{err}</p> : null}
-          {!positions ? <p className="hint-line">Reading your wallet…</p> : null}
-          {positions ? (
-            <div className="kpi">
-              <div><b>{usdc === undefined ? "…" : usd(usdc)}</b><small>USDC on Base</small></div>
-              <div><b>{positions.length}</b><small>positions</small></div>
-              <div><b>{usd(total)}</b><small>value</small></div>
-            </div>
-          ) : null}
+          <div className="kpi k4">
+            <div><b>{positions ? usd(total + (usdc ?? 0)) : "…"}</b><small>value</small></div>
+            <div><b>{usdc === undefined ? "…" : usd(usdc)}</b><small>USDC on Base</small></div>
+            <div><b>{positions ? positions.length : "…"}</b><small>positions</small></div>
+            <div><b className={chg24 === undefined ? "" : chg24 >= 0 ? "up" : "down"}>{chg24 === undefined ? "–" : `${chg24 > 0 ? "+" : ""}${chg24.toFixed(2)}%`}</b><small>24h</small></div>
+          </div>
           {positions && positions.length === 0 ? (
             <div className="empty">
               <b>No tokenized stocks yet</b>
@@ -416,35 +417,55 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
               <button type="button" onClick={() => onSay("buy $5 of NVDAc")}>Try "buy $5 of NVDAc"</button>
             </div>
           ) : null}
-          <ul className="rows">
+          {positions && positions.length ? <p className="hint-line draft-note">These buttons draft an order. Risk reviews it, you hold to approve, then you sign in your wallet. Nothing sells until then.</p> : null}
+          <ul className="rows positions">
             <li className="head" aria-hidden="true">
               <div className="cell name"><small>Position · issuer</small></div>
+              <div className="cell venue"><small>Trades on</small></div>
               <div className="cell chart"><small>24h</small></div>
               <div className="cell num"><small>Shares</small></div>
               <div className="cell num"><small>Value · price</small></div>
               <div className="cell acts"><small>Actions</small></div>
             </li>
-            {(positions ?? []).map((p) => (
-              <li key={p.symbol + p.issuer}>
-                <div className="cell name">
-                  <b>{p.symbol}</b>
-                  <small>{p.name} · {issuerLabel(p.issuer)}</small>
-                </div>
-                <div className="cell chart"><Spark points={p.sparkline} /></div>
-                <div className="cell num">
-                  <b>{p.balance}</b>
-                  <small>shares</small>
-                </div>
-                <div className="cell num">
-                  <b>{usd(p.valueUsd)}</b>
-                  <small>@ {usd(p.priceUsd)}</small>
-                </div>
-                <div className="cell acts">
-                  <button type="button" onClick={() => onSay(`sell half of my ${p.symbol}`)}>Sell half</button>
-                  <button type="button" onClick={() => onSay(`sell all of my ${p.symbol}`)}>Sell all</button>
-                </div>
+            {!positions ? [0, 1, 2].map((i) => (
+              <li key={`sk-${i}`} className="skeleton" aria-hidden="true">
+                <div className="cell name"><i /></div><div className="cell venue"><i /></div><div className="cell chart"><i /></div><div className="cell num"><i /></div><div className="cell num"><i /></div><div className="cell acts"><i /></div>
               </li>
-            ))}
+            )) : null}
+            {(positions ?? []).map((p) => {
+              const ok = p.tradeable !== false;
+              const tip = ok ? "Drafts an order for the team to review. You approve and sign before anything sells." : "Pool too thin to trade safely right now.";
+              return (
+                <li key={p.symbol + p.issuer} className={ok ? "" : "thin"}>
+                  <div className="cell name">
+                    <b>{p.symbol}</b>
+                    <small>{p.name} · {issuerLabel(p.issuer)}{p.sharePct !== undefined && (positions?.length ?? 0) > 1 ? ` · ${p.sharePct.toFixed(0)}% of portfolio` : ""}</small>
+                  </div>
+                  <div className="cell venue">
+                    {p.venue ? (
+                      <>
+                        <b>{p.venue.label} <i>· {p.venue.feePct}% fee</i></b>
+                        <small><a href={p.venue.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>{deep(p.venue.usdcDepth)} USDC deep ↗</a></small>
+                        {p.otherVenue ? <small className="also">also {p.otherVenue.label} · {deep(p.otherVenue.usdcDepth)} deep</small> : null}
+                      </>
+                    ) : <small>no USDC pool found</small>}
+                  </div>
+                  <div className="cell chart"><Spark points={p.sparkline} /></div>
+                  <div className="cell num">
+                    <b>{p.balance}</b>
+                    <small>shares</small>
+                  </div>
+                  <div className="cell num">
+                    <b>{usd(p.valueUsd)}</b>
+                    <small>@ {usd(p.priceUsd)}{p.priceChange24hPct !== undefined ? <em className={p.priceChange24hPct >= 0 ? "up" : "down"}> {p.priceChange24hPct > 0 ? "+" : ""}{p.priceChange24hPct.toFixed(2)}%</em> : null}</small>
+                  </div>
+                  <div className="cell acts">
+                    <button type="button" disabled={!ok} title={tip} onClick={() => onSay(`sell half of my ${p.symbol}`)}><PencilIcon />Draft: sell half</button>
+                    <button type="button" disabled={!ok} title={tip} onClick={() => onSay(`sell all of my ${p.symbol}`)}><PencilIcon />Draft: sell all</button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </>
       )}
@@ -453,6 +474,10 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
   );
 }
 
+
+function PencilIcon() {
+  return <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>;
+}
 
 /** History: cada decision de la mesa (nota decisions/ con el run en JSON) y su replay. */
 function History() {
