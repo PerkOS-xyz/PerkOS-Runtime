@@ -97,6 +97,22 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
       setUploading("");
     } catch (e) { setUploading((e as Error).message); }
   };
+  // Logo con IA: Grok genera la imagen desde un prompt propuesto (nombre + About), editable.
+  const [genOpen, setGenOpen] = useState(false);
+  const [genPrompt, setGenPrompt] = useState("");
+  const [gen, setGen] = useState<"" | "busy" | string>("");
+  const suggestedPrompt = () => `Logo for ${launch.name || "a new token"}${launch.symbol ? ` (${launch.symbol})` : ""}${about ? `: ${about}` : ""}. Coral and black on a dark background`;
+  const generateLogo = async () => {
+    const prompt = (genPrompt.trim() || suggestedPrompt()).slice(0, 600);
+    setGen("busy");
+    try {
+      const r = await fetch("/api/launch/logo/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt }) });
+      const j = (await r.json().catch(() => ({}))) as { url?: string; detail?: string; error?: string };
+      if (!r.ok || !j.url) throw new Error(j.detail ?? j.error ?? `generate ${r.status}`);
+      onEdit?.({ image: j.url });
+      setGen("");
+    } catch (e) { setGen((e as Error).message); }
+  };
   const q = pairQ.trim().toLowerCase();
   const list = [...PINNED, ...pairs].filter((p) => !q || p.symbol.toLowerCase().includes(q) || p.name.toLowerCase().includes(q));
   const pick = (sym: string) => { onEdit?.({ pair: sym }); setPairQ(""); };
@@ -144,10 +160,21 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
           <div className="lc-fields">
             <label><span>Logo</span>
               <div className="lc-logo-row">
-                <button type="button" className="lc-pick" onClick={() => fileRef.current?.click()} disabled={uploading === "busy"}>{uploading === "busy" ? "Uploading…" : image ? "Change file" : "Choose file"}</button>
+                <button type="button" className="lc-pick" onClick={() => fileRef.current?.click()} disabled={uploading === "busy" || gen === "busy"}>{uploading === "busy" ? "Uploading…" : image ? "Change file" : "Choose file"}</button>
+                <button type="button" className="lc-pick ai" onClick={() => { if (!genOpen) setGenPrompt(suggestedPrompt()); setGenOpen((v) => !v); }} disabled={gen === "busy"}>{gen === "busy" ? "Drawing…" : "Generate with AI"}</button>
                 <input type="url" placeholder="or paste an https:// image URL" value={image} onChange={(e) => onEdit?.({ image: e.target.value.trim() })} className={httpsOk(image) ? "" : "bad"} />
               </div>
+              {genOpen ? (
+                <div className="lc-gen">
+                  <textarea rows={2} maxLength={600} value={genPrompt} onChange={(e) => setGenPrompt(e.target.value)} placeholder="Describe the logo in one line" />
+                  <div className="lc-gen-acts">
+                    <button type="button" className="lc-pick ai" onClick={() => void generateLogo()} disabled={gen === "busy"}>{gen === "busy" ? "Drawing with Grok…" : image ? "Draw again" : "Draw it"}</button>
+                    <small>Grok draws it, PerkOS hosts it, Bankr shows it. About 10 seconds.</small>
+                  </div>
+                </div>
+              ) : null}
               {uploading && uploading !== "busy" ? <em className="lc-err">{uploading}</em> : null}
+              {gen && gen !== "busy" ? <em className="lc-err">{gen}</em> : null}
             </label>
             <label><span>About</span><textarea rows={2} maxLength={500} placeholder="One or two lines: what the token is for" value={about} onChange={(e) => onEdit?.({ description: e.target.value })} /></label>
           </div>

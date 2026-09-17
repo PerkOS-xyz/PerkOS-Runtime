@@ -2265,3 +2265,11 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .pick-chips button.rec-1 b { color: #fff; }
 .pick-chips button.avoid { opacity: 0.55; }
 .pick-chips button.avoid:hover { opacity: 0.85; }
+
+/* Logo generado con Grok */
+.lc-pick.ai { border-color: rgba(61, 126, 255, 0.6); background: rgba(61, 126, 255, 0.14); color: #cfe0ff; }
+.lc-gen { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.lc-gen textarea { font: inherit; font-size: 12px; letter-spacing: 0; text-transform: none; padding: 6px 9px; border-radius: 8px; border: 1px solid rgba(160, 180, 220, 0.25); background: rgba(6, 10, 22, 0.55); color: #e6ecff; outline: none; resize: vertical; }
+.lc-gen textarea:focus { border-color: rgba(61, 126, 255, 0.6); }
+.lc-gen-acts { display: flex; align-items: center; gap: 8px; }
+.lc-gen-acts small { font-size: 10px; letter-spacing: 0; text-transform: none; color: var(--mute); }
