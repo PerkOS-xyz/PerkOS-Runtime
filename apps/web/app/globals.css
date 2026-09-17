@@ -1380,8 +1380,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
    las etiquetas y del badge 1Claw del Trader. */
 .ag-layer { position: absolute; left: 27%; width: 52%; top: calc(21% + 165px); z-index: 4; }
 .ag-layer.chips { top: calc(21% + 165px); }
-.stage.split .ag-layer { left: 53%; width: 44%; top: calc(10% + 165px); }
-.stage.split .ag-layer.chips { top: calc(10% + 165px); }
+.stage.split .ag-layer { left: 53%; width: 44%; }
 .stage.turn-live .core-wrap { top: 82%; transform: translate(-50%, -50%) scale(0.5); transition: left var(--split-ms) var(--split-ease), top var(--split-ms) var(--split-ease), transform var(--split-ms) var(--split-ease); }
 .stage.turn-live .whisper { display: none; }
 .ag-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; align-items: start; }
@@ -1578,11 +1577,12 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .stage.split .trader { left: 80.5%; top: 40%; }
 .stage.split .auditor { left: 91.5%; top: 40%; }
 .stage.split .guest { left: 97%; top: 54%; }
-.stage.split .ag-layer { top: calc(40% + 118px); transition: top var(--split-ms) var(--split-ease); }
-.stage.split .ag-layer.chips { top: calc(40% + 118px); }
+.stage.split .ag-layer { top: calc(40% + 175px); transition: top var(--split-ms) var(--split-ease); }
+.stage.split .ag-layer.chips { top: calc(40% + 175px); }
 .stage.split.turn-live .scout, .stage.split.turn-live .risk, .stage.split.turn-live .trader, .stage.split.turn-live .auditor { top: 16%; }
 .stage.split.turn-live .guest { top: 30%; }
-.stage.split.turn-live .ag-layer { top: calc(16% + 118px); }
+.stage.split.turn-live .ag-layer { top: calc(16% + 175px); }
+.stage.split.turn-live .ag-layer.chips { top: calc(16% + 175px); }
 /* Con un panel abierto la esfera se queda arriba del chat, como antes. */
 .stage.split.desk-open .core-wrap { left: calc(40px + clamp(280px, 46%, 620px) / 2); top: 81px; transform: translate(-50%, -50%) scale(0.27); }
 /* El caption de estado va a la izquierda: el dock de pantallas ocupa la derecha. */
