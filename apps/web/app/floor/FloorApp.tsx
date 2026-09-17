@@ -872,14 +872,17 @@ function Shell() {
     heldDraftRef.current = null;
     const msg = { ...d, turnId };
     setMessages((m) => {
-      // La tarjeta de launch ya esta en el chat desde el primer segundo: solo se le anota el turno.
-      if (m.some((x) => x.id === d.id)) return m.map((x) => (x.id === d.id ? { ...x, tx: x.tx?.stage === "idle" && d.tx?.stage === "blocked" ? d.tx : x.tx } : x));
+      // La tarjeta de launch esta en el chat desde el primer segundo, pero arriba de la conversacion
+      // de la mesa: al cerrar el turno baja al final, bajo el resumen de Sparky, que es donde se decide.
+      const cur = m.find((x) => x.id === d.id);
+      if (cur) return [...m.filter((x) => x.id !== d.id), { ...cur, tx: cur.tx?.stage === "idle" && d.tx?.stage === "blocked" ? d.tx : cur.tx }];
       const rest = floorId ? m.filter((x) => x.id !== floorId) : m;
       const floor = floorId ? m.find((x) => x.id === floorId) : undefined;
       return floor ? [...rest, msg, floor] : [...rest, msg];
     });
+    if (d.launch) { stickRef.current = true; window.setTimeout(() => followLatest(true), 60); }
     if (d.draft) setCaption(`Trader drafted: ${d.draft.amountInHuman} ${d.draft.tokenIn.symbol} → ${d.draft.quoteOutHuman} ${d.draft.tokenOut.symbol}. Hold Approve to sign.`);
-  }, []);
+  }, [followLatest]);
   const tradeDraft = useCallback(async (intent: TradeIntent) => {
     const id = Date.now() + 3;
     const what = intent.stock ?? "NVDAc";
