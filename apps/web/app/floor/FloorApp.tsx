@@ -39,6 +39,10 @@ function Shell() {
   // Sesion viva pero sin wallet enlazada a esta ventana: se avisa antes de cualquier firma.
   const linkLost = wallet.connected && wallet.loaded && !wallet.busy && !wallet.canSign;
   useEffect(() => { if (linkLost) flog("warn", "wallet: session is alive but no wallet is linked to this window (reconnect needed)"); }, [linkLost]);
+  // El texto "RPC 0x2105 Custom ...: RPC endpoint returned HTTP client error" no existe en
+  // nuestras dependencias: lo emite la app de la wallet (MetaMask Mobile) cuando SU RPC de
+  // Base falla, y vuelve por WalletConnect. La peticion llego al celular; el arreglo es alla.
+  const WALLET_RPC = `The request reached ${wallet.walletName || "your wallet app"}, but the wallet could not reach its own RPC for Base. In the wallet: Settings, Networks, Base, set the RPC URL to https://mainnet.base.org (or remove Base and add it again), then press Retry.`;
   const LINK_LOST = "Your wallet is signed in but not linked to this window, so nothing can be signed. Sign in again with the QR, then ask for it again.";
   const [listening, setListening] = useState(false);
   const [team, setTeam] = useState<Team>("hibernated");
@@ -925,7 +929,7 @@ function Shell() {
       const m = (e as Error).message || "signature failed";
       flog("error", `fees claim: ${m}`);
       const timedOut = /timeout|timed out|expired/i.test(m);
-      patch({ stage: "failed", hashes: [...hashes], note: /reject|denied|4001/i.test(m) ? "You declined in the wallet." : /wallet_link_lost|No wallet connected/i.test(m) ? LINK_LOST : timedOut ? `The wallet did not answer in time. ${signHint} Then press Retry.` : m });
+      patch({ stage: "failed", hashes: [...hashes], note: /reject|denied|4001/i.test(m) ? "You declined in the wallet." : /wallet_link_lost|No wallet connected/i.test(m) ? LINK_LOST : /RPC endpoint|RPC 0x[0-9a-f]+/i.test(m) ? WALLET_RPC : timedOut ? `The wallet did not answer in time. ${signHint} Then press Retry.` : m });
       setCaption(/reject|denied|4001/i.test(m) ? "Claim cancelled in the wallet." : timedOut ? "The wallet did not answer. Nothing was claimed." : "Claim failed.");
     }
   }, [wallet, speak, touch, feesCard, signHint, signShort]);
@@ -980,7 +984,7 @@ function Shell() {
       const m = (e as Error).message || "signature failed";
       flog("error", `trade: ${m}`);
       const timedOut = /timeout|timed out|expired/i.test(m);
-      patch({ stage: "failed", hashes: [...hashes], note: /reject|denied|4001/i.test(m) ? "You declined in the wallet." : /wallet_link_lost|No wallet connected/i.test(m) ? LINK_LOST : timedOut ? `The wallet did not answer in time. ${signHint} Then press Retry.` : m });
+      patch({ stage: "failed", hashes: [...hashes], note: /reject|denied|4001/i.test(m) ? "You declined in the wallet." : /wallet_link_lost|No wallet connected/i.test(m) ? LINK_LOST : /RPC endpoint|RPC 0x[0-9a-f]+/i.test(m) ? WALLET_RPC : timedOut ? `The wallet did not answer in time. ${signHint} Then press Retry.` : m });
       setCaption(/reject|denied|4001/i.test(m) ? "Trade cancelled in the wallet." : timedOut ? "The wallet did not answer. Nothing was traded." : "Trade failed.");
     }
   }, [wallet, speak, touch, signHint, signShort]);
