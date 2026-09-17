@@ -2341,3 +2341,7 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .lc-max-layer { background: rgba(3, 4, 10, 0.62); }
 /* Las notas de los pasos informativos (First buy, Token profile) se leen completas. */
 .launch-checks li.skip small { white-space: normal; overflow: visible; line-height: 1.35; }
+
+/* Compra desde el desk: botones de monto, mas presentes que los enlaces externos. */
+.seed-links.buy button { font: inherit; font-size: 11px; letter-spacing: 0.04em; padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(62, 224, 143, 0.6); background: rgba(62, 224, 143, 0.14); color: #c9f7dd; cursor: pointer; }
+.seed-links.buy button:hover { background: rgba(62, 224, 143, 0.26); }

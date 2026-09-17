@@ -51,7 +51,8 @@ async function squareDataUrl(file: File, size = 512): Promise<string> {
 }
 const httpsOk = (v?: string) => !v || /^https:\/\/[^\s]+$/i.test(v);
 
-export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onResim, wallet, pairWarning }: {
+export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onResim, onBuy, wallet, pairWarning }: {
+  onBuy?: (amountUsd: number) => void;
   launch: LaunchView;
   tx: LaunchTx;
   /** Wallet conectada: es quien cobra las fees salvo que la persona nombre a otro. */
@@ -253,8 +254,9 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
       {tx.stage === "done" && launch.receipt ? (
         <div className="lc-seed">
           <b>Make the first buy</b>
-          <small>Screeners list the pool after its first swap. A small buy of {launch.symbol}{launch.pair.symbol ? ` with ${launch.pair.symbol}` : ""} is enough; you sign it in your wallet.</small>
-          <nav className="seed-links" aria-label="Make the first buy">
+          <small>Screeners list the pool after its first swap. A small buy is enough. The desk drafts it here, paid with ETH on Base: one signature in your wallet.</small>
+          {onBuy ? <nav className="seed-links buy" aria-label="Buy from the desk">{[1, 5, 10].map((usd) => <button type="button" key={usd} onClick={() => onBuy(usd)}>Buy ${usd}</button>)}</nav> : null}
+          <nav className="seed-links" aria-label="Other places to buy">
             <a href={`https://app.uniswap.org/swap?chain=base${launch.pair.address ? `&inputCurrency=${launch.pair.address}` : ""}&outputCurrency=${launch.receipt.tokenAddress}`} target="_blank" rel="noreferrer">Buy {launch.symbol} on Uniswap ↗</a>
             <a href={launch.receipt.bankrUrl} target="_blank" rel="noreferrer">on Bankr ↗</a>
           </nav>

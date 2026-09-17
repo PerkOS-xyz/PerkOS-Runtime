@@ -40,7 +40,7 @@ function client() {
 }
 
 export type TradeSide = "buy" | "sell";
-export type TradeTx = { to: `0x${string}`; data: Hex; value: "0x0"; label: "approve" | "swap" };
+export type TradeTx = { to: `0x${string}`; data: Hex; value: `0x${string}`; label: "approve" | "swap" };
 export type TradeDraft = {
   id: string;
   chainId: number;
@@ -74,6 +74,9 @@ export type TradeDraft = {
   venues: VenueQuote[];
   /** Segunda cotizacion (Bankr, read-only). null si no hay key o fallo. */
   bankr?: BankrQuote | null;
+  /** Compra de un token lanzado: se paga con ETH (no USDC) y la ruta se describe en una linea. */
+  payWith?: { symbol: string; amountHuman: string; balanceHuman: string; priceUsd: number };
+  route?: string;
 };
 
 export class TradeError extends Error {
