@@ -268,6 +268,11 @@ function Shell() {
       // o una firma en curso) el chat no se esconde: ahi esta el boton.
       const waiting = messagesRef.current.some((x) => x.role === "draft" && x.tx && ["idle", "signing", "pending"].includes(x.tx.stage) && (x.draft || x.launch || x.auto || (x.fees && x.fees.tokens.some((t) => Number(t.claimable.token0) > 0 || Number(t.claimable.token1) > 0))));
       if (waiting) { touchRef.current(); return; }
+      // Una eleccion pendiente (chips de par o de nombre) o la pregunta "de que va el token" tambien
+      // esperan a la persona: el chat no se pliega hasta 15 min despues de haberlas mostrado.
+      const FIFTEEN = 15 * 60_000;
+      const choosing = messagesRef.current.some((x) => x.kind === "picks" && Date.now() - x.id < FIFTEEN) || Boolean(identityAskRef.current && Date.now() - identityAskRef.current.at < FIFTEEN);
+      if (choosing) { touchRef.current(); return; }
       setSplit(false);
     }, 120_000);
   }, []);
@@ -1069,7 +1074,7 @@ function Shell() {
   // persona se toma como esa descripcion y Sparky propone tres nombre + simbolo + About.
   // La tarjeta no existe todavia: primero el par, luego nombre y descripcion con Sparky, y
   // recien con las tres cosas aparece la tarjeta llena (fees a la wallet conectada) y se simula.
-  const identityAskRef = useRef<{ pair: string; about?: string } | null>(null);
+  const identityAskRef = useRef<{ pair: string; about?: string; at: number } | null>(null);
   // Aviso de par fino: lo que la mesa dijo evitar (o no puso entre sus picks) en la ultima lectura.
   const pairWarningFor = (pair: string): string | undefined => {
     const read = pairReadRef.current;
@@ -1085,7 +1090,7 @@ function Shell() {
     setMessages((m) => m.filter((x) => x.id !== msgId));
     modeRef.current = "launch";
     setFocusAsset(pair);
-    identityAskRef.current = { pair };
+    identityAskRef.current = { pair, at: Date.now() };
     const qid = Date.now();
     setMessages((m) => [...m.slice(-60), { id: qid, role: "floor", text: `Paired with ${pair}. Now the token itself: tell me in one line what it is about (who it is for, what it celebrates or does) and I propose three names, each with a symbol and a short description.` }]);
     setCaption("What is the token about? One line.");
