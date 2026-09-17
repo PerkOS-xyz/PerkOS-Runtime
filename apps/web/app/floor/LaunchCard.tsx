@@ -120,6 +120,7 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
       if (!r.ok || !j.url) throw new Error(j.detail ?? j.error ?? `generate ${r.status}`);
       onEdit?.({ image: j.url });
       setGen("");
+      setGenOpen(false); // el logo ya esta: el prompt se pliega; "Edit prompt" lo reabre para redibujar
     } catch (e) { setGen((e as Error).message); }
   };
   const q = pairQ.trim().toLowerCase();
@@ -171,7 +172,7 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
             <label><span>Logo</span>
               <div className="lc-logo-row">
                 <button type="button" className="lc-pick" onClick={() => fileRef.current?.click()} disabled={uploading === "busy" || gen === "busy"}>{uploading === "busy" ? "Uploading…" : image ? "Change file" : "Choose file"}</button>
-                <button type="button" className="lc-pick ai" onClick={() => { if (!genOpen) setGenPrompt(suggestedPrompt()); setGenOpen((v) => !v); }} disabled={gen === "busy"}>{gen === "busy" ? "Drawing…" : "Generate with AI"}</button>
+                <button type="button" className="lc-pick ai" onClick={() => { if (!genOpen && !genPrompt) setGenPrompt(suggestedPrompt()); setGenOpen((v) => !v); }} disabled={gen === "busy"}>{gen === "busy" ? "Drawing…" : genOpen ? "Hide prompt" : genPrompt && image ? "Edit prompt" : "Generate with AI"}</button>
                 <input type="url" placeholder="or paste an https:// image URL" value={image} onChange={(e) => onEdit?.({ image: e.target.value.trim() })} className={httpsOk(image) ? "" : "bad"} />
               </div>
               {genOpen ? (
