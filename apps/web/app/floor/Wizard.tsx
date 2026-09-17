@@ -45,6 +45,18 @@ export type RailStep = {
 
 export default function Wizard({ onDone, start = 0, team, rail }: { onDone: () => void; start?: number; team?: TeamStep; rail?: RailStep }) {
   const [step, setStep] = useState(start);
+  const wallet = useWallet();
+  // "Meet the Floor Desk" abre Privy directamente; la pagina de sign in (paso 1) queda solo
+  // para quien llega por "sign in again". Al conectar, sigue al paso del LLM.
+  const [wantsIn, setWantsIn] = useState(false);
+  useEffect(() => {
+    if (step === 0 && wantsIn && wallet.connected) { setWantsIn(false); setStep(2); }
+  }, [step, wantsIn, wallet.connected]);
+  const meet = () => {
+    if (wallet.connected) { setStep(2); return; }
+    setWantsIn(true);
+    wallet.open();
+  };
   if (step === 0) {
     return (
       <div className="wizard">
@@ -61,8 +73,10 @@ export default function Wizard({ onDone, start = 0, team, rail }: { onDone: () =
               <h1 className="hero-title">They draft.<br /><span>You approve.</span></h1>
               <p className="hero-sub">PerkOS Floor Desk puts four agents on tokenized stocks on Base. Scout reads the market, Risk says go or block, Trader drafts the order, Auditor checks it. Nothing moves until you sign in your own wallet.</p>
               <div className="hero-cta">
-                <button className="hero-primary" type="button" onClick={() => setStep(1)}>Meet the Floor Desk <span aria-hidden>&rarr;</span></button>
+                <button className="hero-primary" type="button" disabled={!wallet.enabled || wallet.busy} onClick={meet}>{wallet.busy ? "Opening…" : "Meet the Floor Desk"} <span aria-hidden>&rarr;</span></button>
               </div>
+              {!wallet.enabled ? <p className="hint-line err">Set NEXT_PUBLIC_PRIVY_APP_ID in apps/web/.env.local</p> : null}
+              {wallet.error ? <p className="hint-line err">{wallet.error}</p> : null}
               <ul className="hero-checks">
                 {["Your keys, your trade", "Uniswap, Aerodrome and Bankr", "Launches and automations", "Ready in two minutes"].map((t) => (
                   <li key={t}><svg viewBox="0 0 16 16" aria-hidden><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>{t}</li>

@@ -2183,3 +2183,5 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 @container stage (max-width: 940px) { .hero { padding-left: 40px; } .hero-copy { flex-basis: 420px; } .hero-mark { margin-bottom: 16px; } .hero-sub { margin-bottom: 20px; } .hero-cta { margin-bottom: 18px; } .hero-stage { height: min(58%, 420px); } }
 @container stage (max-width: 860px) { .hero { justify-content: flex-start; } .hero-stage { position: absolute; right: 0; bottom: 0; height: 45%; opacity: 0.35 !important; z-index: 0; } .hero-glow { display: none; } }
 @media (prefers-reduced-motion: reduce) { .ident .hero-stage, .ident .hero-mark, .ident .hero-title, .ident .hero-sub, .ident .hero-cta, .ident .hero-checks li, .hero-sparky { animation: none !important; opacity: 1 !important; transform: none !important; } }
+.hero-primary:disabled { opacity: 0.5; cursor: default; }
+.hero-copy .hint-line { margin: -12px 0 16px; }
