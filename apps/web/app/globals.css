@@ -2211,3 +2211,30 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .lc-fields input.bad { border-color: rgba(255, 90, 106, 0.7); }
 .lc-two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 @container stage (max-width: 700px) { .lc-two { grid-template-columns: 1fr; } }
+
+/* Launch card guiada: basics (nombre, simbolo, par, destinatario), opciones avanzadas. */
+.lc-basics { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 2px; padding: 10px; border-radius: 12px; border: 1px dashed rgba(160, 180, 220, 0.22); background: rgba(6, 10, 22, 0.35); }
+.lc-basics label, .lc-recipient { display: flex; flex-direction: column; gap: 3px; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--mute); min-width: 0; }
+.lc-basics input, .lc-search { font: inherit; font-size: 12px; letter-spacing: 0; text-transform: none; padding: 6px 9px; border-radius: 8px; border: 1px solid rgba(160, 180, 220, 0.25); background: rgba(6, 10, 22, 0.55); color: #e6ecff; outline: none; min-width: 0; width: 100%; }
+.lc-basics input:focus, .lc-search:focus { border-color: rgba(236, 27, 105, 0.6); }
+.lc-pairs { display: flex; flex-direction: column; gap: 6px; }
+.lc-pairs-head { display: flex; flex-direction: column; gap: 2px; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--mute); }
+.lc-pairs-head small { font-size: 10px; letter-spacing: 0; text-transform: none; }
+.lc-chips { display: flex; flex-wrap: wrap; gap: 6px; max-height: 128px; overflow: auto; padding: 2px; }
+.lc-chip { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 5px 10px; border-radius: 10px; border: 1px solid rgba(160, 180, 220, 0.25); background: rgba(6, 10, 22, 0.45); color: #cdd7ee; cursor: pointer; font: inherit; text-transform: none; letter-spacing: 0; text-align: left; }
+.lc-chip b { font-size: 12px; font-weight: 600; color: #e6ecff; }
+.lc-chip small { font-size: 9.5px; color: var(--mute); }
+.lc-chip:hover { border-color: rgba(160, 180, 220, 0.55); }
+.lc-chip.on { border-color: rgba(236, 27, 105, 0.75); background: rgba(236, 27, 105, 0.12); box-shadow: 0 0 10px rgba(236, 27, 105, 0.25); }
+.lc-chip.thin small { color: #ffb347; }
+.lc-none { font-size: 11px; color: var(--mute); padding: 4px 2px; }
+.lc-adv { margin: 8px 0 4px; }
+.lc-adv-toggle { font: inherit; font-size: 10px; letter-spacing: 0.06em; text-transform: none; color: var(--mute); background: transparent; border: 0; padding: 0; cursor: pointer; }
+.lc-adv-toggle:hover { color: #e6ecff; }
+.lc-adv-body { display: grid; gap: 6px; margin-top: 8px; }
+.lc-opt { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 7px 10px; border-radius: 10px; border: 1px solid rgba(160, 180, 220, 0.22); background: rgba(6, 10, 22, 0.4); color: #cdd7ee; cursor: pointer; font: inherit; text-transform: none; letter-spacing: 0; text-align: left; }
+.lc-opt b { font-size: 12px; font-weight: 600; }
+.lc-opt small { font-size: 10.5px; color: var(--mute); }
+.lc-opt.on { border-color: rgba(236, 27, 105, 0.7); background: rgba(236, 27, 105, 0.1); }
+.lc-opt.on b { color: #ffd3e1; }
+.draft-card.launch .approve.busy .lbl { opacity: 0.7; }

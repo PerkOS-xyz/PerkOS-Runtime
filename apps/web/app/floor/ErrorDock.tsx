@@ -27,13 +27,15 @@ export default function ErrorDock({ open, onOpen }: { open: boolean; onOpen: (v:
   const [rows, setRows] = useState<Row[]>([]);
   const errors = rows.filter((r) => r.level === "error").length;
   const onOpenRef = useRef(onOpen);
+  // Clave secuencial: varias lineas en el mismo milisegundo chocaban con Date.now() + Math.random().
+  const seq = useRef(0);
   onOpenRef.current = onOpen;
 
   useEffect(() => {
     const add = (level: LogLevel, raw: string) => {
       const text = raw.replace(/\s+/g, " ").trim().slice(0, 600);
       if (!text) return;
-      setRows((r) => [{ id: Date.now() + Math.random(), level, msg: text, at: new Date().toLocaleTimeString() }, ...r].slice(0, 80));
+      setRows((r) => [{ id: ++seq.current, level, msg: text, at: new Date().toLocaleTimeString() }, ...r].slice(0, 80));
       if (level === "error") onOpenRef.current(true);
     };
     const onLog = (e: Event) => {

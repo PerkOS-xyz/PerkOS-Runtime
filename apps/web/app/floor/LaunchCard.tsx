@@ -1,0 +1,180 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { shareLaunchUrl } from "./DeskPanel";
+
+// Tarjeta guiada para lanzar un token emparejado con una accion tokenizada (Bankr, Base).
+// Una sola tarjeta en el chat que se completa por bloques: Basics (nombre, simbolo, par,
+// destinatario de fees), Profile (logo, about, web, post en X), Advanced (vesting, fees,
+// degen), Checks + simulacion, y Hold to launch. Nada se despliega sin el hold.
+// La tarjeta aparece al instante; el turno de mesa llega despues, sin retenerla.
+
+export type LaunchEdit = {
+  name?: string; symbol?: string; pair?: string; recipient?: string;
+  vesting?: "on" | "off"; feesIn?: "both" | "quote"; degen?: boolean;
+  description?: string; image?: string; websiteUrl?: string; tweetUrl?: string;
+};
+export type LaunchView = {
+  name: string; symbol: string; description?: string;
+  pair: { address: string; symbol: string; name: string; kind?: string; illiquid?: boolean };
+  recipient: { type: string; value: string }; recipientLabel: string; resolvedRecipient?: string; feeRecipient: string; ownRecipient: boolean;
+  options: { vesting: "on" | "off"; feesIn: "both" | "quote"; degen: boolean; description?: string; image?: string; websiteUrl?: string; tweetUrl?: string };
+  deployer: string | null; ownKey: boolean;
+  checks: Array<{ label: string; ok: boolean; note: string }>; ready: boolean;
+  sim: { tokenAddress: string; poolId: string } | null; simError?: string;
+  wallet: { evm: string; ethBase: number; club: boolean } | null; last24h: number;
+  receipt?: { tokenAddress: string; poolId: string; txHash: string; explorer: string; bankrUrl: string };
+  // Solo cliente
+  recipientRaw?: string; stale?: boolean; busy?: boolean; fromStarter?: boolean; turnDone?: boolean;
+};
+export type LaunchTx = { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
+type PairOption = { address: string; symbol: string; name: string; illiquid?: boolean };
+
+// Lista de pares de Bankr (acciones tokenizadas); WETH y BNKR fijos arriba. Cache por ventana.
+let pairCache: PairOption[] | null = null;
+const PINNED: PairOption[] = [{ address: "", symbol: "WETH", name: "Wrapped Ether, the default quote" }, { address: "", symbol: "BNKR", name: "Bankr" }];
+
+const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
+const httpsOk = (v?: string) => !v || /^https:\/\/[^\s]+$/i.test(v);
+
+export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onResim }: {
+  launch: LaunchView;
+  tx: LaunchTx;
+  onLaunch: () => void;
+  onFees?: () => void;
+  /** Cualquier edicion; el padre decide si hay que volver a simular. */
+  onEdit?: (patch: LaunchEdit) => void;
+  /** Volver a simular ahora (sin esperar el debounce). */
+  onResim?: () => void;
+}) {
+  const [holding, setHolding] = useState(false);
+  const holdRef = useRef(0);
+  const editable = Boolean(onEdit) && (tx.stage === "idle" || tx.stage === "failed" || tx.stage === "blocked");
+  const basicsOk = Boolean(launch.name.trim() && launch.symbol.trim() && launch.pair.symbol);
+  const armed = (tx.stage === "idle" || tx.stage === "failed") && launch.ready && basicsOk && !launch.stale && !launch.busy;
+  const [showBasics, setShowBasics] = useState(!basicsOk);
+  const [showAdv, setShowAdv] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [pairs, setPairs] = useState<PairOption[]>(pairCache ?? []);
+  const [pairQ, setPairQ] = useState("");
+  useEffect(() => {
+    if (pairCache || !editable) return;
+    fetch("/api/launch/quotes").then((r) => r.json()).then((j: { stocks?: PairOption[] }) => { pairCache = j.stocks ?? []; setPairs(pairCache); }).catch(() => undefined);
+  }, [editable]);
+
+  const start = () => { if (!armed) return; setHolding(true); holdRef.current = window.setTimeout(() => { setHolding(false); onLaunch(); }, 2000); };
+  const cancel = () => { window.clearTimeout(holdRef.current); setHolding(false); };
+
+  const image = launch.options.image ?? "", website = launch.options.websiteUrl ?? "", tweet = launch.options.tweetUrl ?? "", about = launch.options.description ?? launch.description ?? "";
+  const profileOk = Boolean(image) && Boolean(about);
+  const recipientRaw = launch.recipientRaw ?? (launch.ownRecipient ? "" : launch.recipient.value);
+  const decision = tx.stage === "blocked" ? "Wait" : tx.stage === "done" ? "Live" : tx.stage === "pending" ? "Deploying" : tx.stage === "failed" ? "Not deployed" : !basicsOk ? "Draft" : launch.busy ? "Checking" : launch.stale ? "Recheck" : launch.ready ? "Launch" : "Fix";
+  const tone = tx.stage === "blocked" || (!launch.ready && basicsOk && !launch.busy && !launch.stale) ? "wait" : tx.stage === "done" ? "done" : basicsOk && launch.ready && !launch.stale && !launch.busy ? "go" : "wait";
+  const label = tx.stage === "done" ? "Live" : tx.stage === "blocked" ? "Blocked" : tx.stage === "pending" ? "Deploying on Base…" : tx.stage === "failed" ? "Retry" : !basicsOk ? "Add a name, a symbol and a pair" : launch.busy ? "Simulating…" : launch.stale ? "Needs re-simulation" : launch.ready ? (holding ? "Keep holding…" : "Hold to launch") : "Fix the checks first";
+  const q = pairQ.trim().toLowerCase();
+  const list = [...PINNED, ...pairs].filter((p) => !q || p.symbol.toLowerCase().includes(q) || p.name.toLowerCase().includes(q));
+  const pick = (sym: string) => { onEdit?.({ pair: sym }); setPairQ(""); };
+
+  return (
+    <div className={`draft-card launch st-${tx.stage}${open ? " open" : ""}`}>
+      <div className="draft-head">
+        <b><span className={`decision ${tone}`}>{decision}</span> {launch.name || "New token"}{launch.symbol ? ` (${launch.symbol})` : ""} <small>{launch.pair.symbol ? `paired with ${launch.pair.symbol} on Base` : "pick a pair"} · Bankr</small></b>
+        <span className="draft-btns">
+          {tx.stage === "done" && launch.receipt ? <a className="draft-more share" href={shareLaunchUrl({ name: launch.name, symbol: launch.symbol, pair: launch.pair.symbol, tokenAddress: launch.receipt.tokenAddress })} target="_blank" rel="noreferrer" title="Post it on X">Share</a> : null}
+          {tx.stage === "done" && onFees ? <button type="button" className="draft-more" onClick={onFees}>Fees</button> : null}
+          {editable && basicsOk ? <button type="button" className="draft-more" onClick={() => setShowBasics((v) => !v)}>{showBasics ? "Done" : "Edit"}</button> : null}
+          <button type="button" className="draft-more" onClick={() => setOpen((o) => !o)} aria-expanded={open}>{open ? "Less" : "Details"}</button>
+        </span>
+      </div>
+
+      {editable && showBasics ? (
+        <div className="lc-basics">
+          <div className="lc-two">
+            <label><span>Name</span><input value={launch.name} maxLength={40} placeholder="Night Owl" onChange={(e) => onEdit?.({ name: e.target.value })} /></label>
+            <label><span>Symbol</span><input value={launch.symbol} maxLength={8} placeholder="OWL" onChange={(e) => onEdit?.({ symbol: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "") })} /></label>
+          </div>
+          <div className="lc-pairs">
+            <div className="lc-pairs-head"><span>Pair</span><small>{launch.symbol || "The token"} trades against this. Tokenized stocks are Coinbase B20 on Base.</small></div>
+            <input className="lc-search" value={pairQ} placeholder="Search a stock or symbol…" onChange={(e) => setPairQ(e.target.value)} />
+            <div className="lc-chips" role="listbox" aria-label="Pair">
+              {list.map((p) => (
+                <button type="button" key={p.symbol} role="option" aria-selected={launch.pair.symbol.toLowerCase() === p.symbol.toLowerCase()} className={`lc-chip${launch.pair.symbol.toLowerCase() === p.symbol.toLowerCase() ? " on" : ""}${p.illiquid ? " thin" : ""}`} onClick={() => pick(p.symbol)} title={p.name}>
+                  <b>{p.symbol}</b><small>{p.illiquid ? "low liquidity" : p.name.length > 22 ? `${p.name.slice(0, 21)}…` : p.name}</small>
+                </button>
+              ))}
+              {!list.length ? <span className="lc-none">{pairs.length ? "No match" : "Loading Bankr's list…"}</span> : null}
+            </div>
+          </div>
+          <label className="lc-recipient"><span>Fees pay to</span><input value={recipientRaw} placeholder="Your connected wallet. Or @handle, name.eth, farcaster:name, 0x…" onChange={(e) => onEdit?.({ recipient: e.target.value })} /></label>
+        </div>
+      ) : null}
+
+      {editable ? (
+        <div className="lc-profile">
+          <div className="lc-logo">
+            {httpsOk(image) && image ? <img src={image} alt="" onError={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = "0.25"; }} /> : <span className="lc-logo-empty">{(launch.symbol || "?").slice(0, 4)}</span>}
+          </div>
+          <div className="lc-fields">
+            <label><span>Logo URL</span><input type="url" placeholder="https://… .png or .jpg, square works best. You can add it later." value={image} onChange={(e) => onEdit?.({ image: e.target.value.trim() })} className={httpsOk(image) ? "" : "bad"} /></label>
+            <label><span>About</span><textarea rows={2} maxLength={500} placeholder="One or two lines: what the token is for" value={about} onChange={(e) => onEdit?.({ description: e.target.value })} /></label>
+            <div className="lc-two">
+              <label><span>Website</span><input type="url" placeholder="https://…" value={website} onChange={(e) => onEdit?.({ websiteUrl: e.target.value.trim() })} className={httpsOk(website) ? "" : "bad"} /></label>
+              <label><span>X post</span><input type="url" placeholder="https://x.com/…/status/…" value={tweet} onChange={(e) => onEdit?.({ tweetUrl: e.target.value.trim() })} className={httpsOk(tweet) ? "" : "bad"} /></label>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {editable ? (
+        <div className="lc-adv">
+          <button type="button" className="lc-adv-toggle" onClick={() => setShowAdv((v) => !v)} aria-expanded={showAdv}>Advanced (optional) · vesting {launch.options.vesting} · fees in {launch.options.feesIn === "quote" ? "quote only" : "both"}{launch.options.degen ? " · degen" : ""}</button>
+          {showAdv ? (
+            <div className="lc-adv-body">
+              <button type="button" className={`lc-opt${launch.options.vesting === "on" ? " on" : ""}`} onClick={() => onEdit?.({ vesting: launch.options.vesting === "on" ? "off" : "on" })}><b>Vesting</b><small>{launch.options.vesting === "on" ? "15% of supply to the fee recipient over one year, 30 day cliff" : "off: 100% of supply goes to the pool"}</small></button>
+              <button type="button" className={`lc-opt${launch.options.feesIn === "quote" ? " on" : ""}`} onClick={() => onEdit?.({ feesIn: launch.options.feesIn === "quote" ? "both" : "quote" })}><b>Fees in quote only</b><small>{launch.options.feesIn === "quote" ? "fees paid in the pair token only" : "fees paid in the token and the pair"}</small></button>
+              <button type="button" className={`lc-opt${launch.options.degen ? " on" : ""}`} onClick={() => onEdit?.({ degen: !launch.options.degen })}><b>Degen mode</b><small>{launch.options.degen ? "$2,500 starting cap, faster curve" : "standard curve"}</small></button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      <ul className="launch-checks">
+        {launch.checks.map((c) => <li key={c.label} className={c.ok ? "ok" : "bad"}><i aria-hidden>{c.ok ? "✓" : "✕"}</i><span>{c.label}</span><small>{c.note}</small></li>)}
+        <li className={profileOk ? "ok" : "skip"}><i aria-hidden>{profileOk ? "✓" : "·"}</i><span>Token profile</span><small>{profileOk ? "logo and description set" : "logo or description missing: Bankr and the screeners show them (not blocking)"}</small></li>
+        <li className={launch.busy ? "skip" : launch.stale ? "skip" : launch.sim ? "ok" : launch.simError ? "bad" : "skip"}><i aria-hidden>{launch.busy ? "…" : launch.stale ? "·" : launch.sim ? "✓" : launch.simError ? "✕" : "·"}</i><span>Bankr simulation</span><small>{launch.busy ? "running…" : launch.stale ? (basicsOk ? "changed, simulating again in a moment" : "waiting for name, symbol and pair") : launch.sim ? `token ${short(launch.sim.tokenAddress)} · pool ${short(launch.sim.poolId)}` : launch.simError ?? "not run"}{launch.last24h ? ` · launch ${launch.last24h} of 3 today` : ""}</small></li>
+      </ul>
+
+      {open ? <dl className="draft-rows">
+        <dt>Pair</dt><dd>{launch.pair.name || launch.pair.symbol} <small>({launch.pair.symbol}{launch.pair.kind === "stock" ? " · Coinbase B20 on Base" : launch.pair.kind === "major" ? " · the default quote" : ""})</small></dd>
+        <dt>Pool</dt><dd>Uniswap V4 via Doppler, deployed by Bankr <small>(gas sponsored on Base{launch.options.degen ? " · degen mode, $2,500 starting cap" : ""})</small></dd>
+        <dt>Fees pay to</dt><dd>{launch.ownRecipient ? (launch.feeRecipient ? short(launch.feeRecipient) : "your wallet") : launch.recipientLabel}{launch.resolvedRecipient && !launch.ownRecipient ? <small> (Bankr resolved it to {short(launch.resolvedRecipient)})</small> : null}</dd>
+        <dt>Split</dt><dd>95% of the pool fee to the recipient · 5% to Bankr · fees in {launch.options.feesIn === "quote" ? "the quote token only" : "the token and the quote"}</dd>
+        <dt>Vesting</dt><dd>{launch.options.vesting === "on" ? "15% of supply to the fee recipient over one year, 30 day cliff" : "off: 100% of supply goes to the pool"}</dd>
+        <dt>Deployer</dt><dd>{launch.deployer ? short(launch.deployer) : "no Bankr wallet"} <small>{launch.ownKey ? "(your Bankr wallet)" : "(Bankr wallet on this install: it keeps nothing)"}</small></dd>
+        {about ? <><dt>About</dt><dd>{about}</dd></> : null}
+        {website || tweet ? <><dt>Links</dt><dd>{website ? <a href={website} target="_blank" rel="noreferrer">website</a> : null}{website && tweet ? " · " : ""}{tweet ? <a href={tweet} target="_blank" rel="noreferrer">X post</a> : null}</dd></> : null}
+        {launch.receipt ? <><dt>Token</dt><dd><a href={`https://basescan.org/token/${launch.receipt.tokenAddress}`} target="_blank" rel="noreferrer">{short(launch.receipt.tokenAddress)}</a> · <a href={launch.receipt.bankrUrl} target="_blank" rel="noreferrer">on Bankr</a> · <a href={launch.receipt.explorer} target="_blank" rel="noreferrer">tx</a></dd></> : null}
+      </dl> : null}
+      {tx.note ? <p className="hint-line err">{tx.note}</p> : null}
+      {tx.hashes.length ? (
+        <ul className="draft-tx">
+          {tx.hashes.map((h) => (
+            <li key={h.hash} className={h.status}>
+              <span>{h.label}</span>
+              <a href={h.explorer} target="_blank" rel="noreferrer">{h.hash.slice(0, 10)}…{h.hash.slice(-6)}</a>
+              <em>{h.status === "success" ? "confirmed" : "pending"}</em>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <div className="draft-actions">
+        <button type="button" className={`approve${holding ? " holding" : ""}${tx.stage === "done" ? " done" : ""}${tx.stage === "pending" || launch.busy ? " busy" : ""}`} disabled={!armed} onPointerDown={start} onPointerUp={cancel} onPointerLeave={cancel} onPointerCancel={cancel}
+          onClick={editable && launch.stale && basicsOk && !launch.busy && onResim ? onResim : undefined}>
+          <span className="ring" />
+          <span className="lbl">{label}</span>
+        </button>
+        <small>{tx.stage === "done" ? `Token live on Base. Fees pay to ${launch.ownRecipient ? "your wallet" : launch.recipientLabel}.` : tx.stage === "blocked" ? "Risk said no. Nothing deployed." : "They draft. You launch. Bankr deploys, gas sponsored."}</small>
+      </div>
+    </div>
+  );
+}

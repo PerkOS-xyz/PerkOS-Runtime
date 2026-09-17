@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import "./apiToken";
 import { parseIntent } from "./parseCommand";
 import DeskPanel, { shareLaunchUrl, type DeskScreen } from "./DeskPanel";
+import LaunchCard, { type LaunchEdit } from "./LaunchCard";
 import ChatsDrawer from "./ChatsDrawer";
 import KnowledgeMap, { type GraphNode } from "./KnowledgeMap";
 import { CHAINS, chainOf, ChainMark, deskManifest } from "./ChainMark";
@@ -30,7 +31,7 @@ type Team = "hibernated" | "waking" | "ready";
 const STARTERS = [
   "What should I buy today?",
   "What to short this month?",
-  "Pairs for a token launch?",
+  "Launch a token",
   "My portfolio"
 ];
 
@@ -107,7 +108,7 @@ function Shell() {
   type DraftTx = { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; step?: "approve" | "swap"; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
   // Launch (Bankr): un token nuevo emparejado con una accion tokenizada; la
   // persona lo despliega con Hold to launch. Las fees (95%) van a su wallet.
-  type LaunchDraft = { id: string; name: string; symbol: string; description?: string; pair: { address: string; symbol: string; name: string; kind?: string; illiquid?: boolean }; recipient: { type: "wallet" | "x" | "farcaster" | "ens"; value: string }; recipientLabel: string; resolvedRecipient?: string; feeRecipient: string; ownRecipient: boolean; options: { vesting: "on" | "off"; feesIn: "both" | "quote"; degen: boolean; description?: string; image?: string; websiteUrl?: string; tweetUrl?: string }; chain: string; provider: string; deployer: string | null; ownKey: boolean; disableVesting: boolean; checks: Array<{ label: string; ok: boolean; note: string }>; ready: boolean; sim: { tokenAddress: string; poolId: string } | null; simError?: string; wallet: { evm: string; ethBase: number; club: boolean } | null; last24h: number; facts: string[]; draftedAt: string; receipt?: { tokenAddress: string; poolId: string; txHash: string; explorer: string; bankrUrl: string } };
+  type LaunchDraft = { id: string; name: string; symbol: string; description?: string; pair: { address: string; symbol: string; name: string; kind?: string; illiquid?: boolean }; recipient: { type: "wallet" | "x" | "farcaster" | "ens"; value: string }; recipientLabel: string; resolvedRecipient?: string; feeRecipient: string; ownRecipient: boolean; options: { vesting: "on" | "off"; feesIn: "both" | "quote"; degen: boolean; description?: string; image?: string; websiteUrl?: string; tweetUrl?: string }; chain: string; provider: string; deployer: string | null; ownKey: boolean; disableVesting: boolean; checks: Array<{ label: string; ok: boolean; note: string }>; ready: boolean; sim: { tokenAddress: string; poolId: string } | null; simError?: string; wallet: { evm: string; ethBase: number; club: boolean } | null; last24h: number; facts: string[]; draftedAt: string; receipt?: { tokenAddress: string; poolId: string; txHash: string; explorer: string; bankrUrl: string }; recipientRaw?: string; stale?: boolean; busy?: boolean; fromStarter?: boolean; turnDone?: boolean };
   // Fees del creador (Bankr): lo que ganan los tokens que la persona lanzo; el claim lo firma ella.
   type FeeToken = { tokenAddress: string; name: string; symbol: string; share: string; token0Label: string; token1Label: string; claimable: { token0: string; token1: string }; claimed: { token0: string; token1: string; count: number } };
   type FeesInfo = { address: string; tokens: FeeToken[]; totals: { claimableWeth: string; claimedWeth: string; claimCount: number }; lifetimeEarnedWeth: string; at: string; only?: string };
@@ -816,6 +817,8 @@ function Shell() {
     heldDraftRef.current = null;
     const msg = { ...d, turnId };
     setMessages((m) => {
+      // La tarjeta de launch ya esta en el chat desde el primer segundo: solo se le anota el turno.
+      if (m.some((x) => x.id === d.id)) return m.map((x) => (x.id === d.id ? { ...x, turnId, tx: x.tx?.stage === "idle" && d.tx?.stage === "blocked" ? d.tx : x.tx } : x));
       const rest = floorId ? m.filter((x) => x.id !== floorId) : m;
       const floor = floorId ? m.find((x) => x.id === floorId) : undefined;
       return floor ? [...rest, msg, floor] : [...rest, msg];
@@ -851,34 +854,90 @@ function Shell() {
 
   // Launch: Bankr simula el token emparejado (nombre, simbolo, accion) y la
   // mesa lo revisa; la card se libera cuando Trader entrega, como una orden.
+  // Launch guiado: la tarjeta aparece al instante (vacia si faltan datos) y la simulacion de
+  // Bankr la completa. No se retiene hasta el turno de mesa: el turno llega despues.
+  const resimTimers = useRef<Record<number, number>>({});
+  const resimLaunch = useCallback(async (msgId: number): Promise<boolean> => {
+    const cur = messagesRef.current.find((x) => x.id === msgId)?.launch;
+    if (!cur) return false;
+    const name = cur.name.trim(), symbol = cur.symbol.trim().toUpperCase(), pair = cur.pair.symbol.trim();
+    if (!name || !symbol || !pair) return false;
+    const setL = (fn: (l: LaunchDraft) => LaunchDraft) => setMessages((m) => m.map((x) => (x.id === msgId && x.launch ? { ...x, launch: fn(x.launch) } : x)));
+    setL((l) => ({ ...l, busy: true }));
+    try {
+      const res = await fetch("/api/launch/draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, symbol, pair, recipient: cur.recipientRaw?.trim() || undefined, vesting: cur.options.vesting, feesIn: cur.options.feesIn === "quote" ? "quote" : undefined, degen: cur.options.degen === true, description: cur.options.description ?? cur.description, image: cur.options.image, website: cur.options.websiteUrl, tweet: cur.options.tweetUrl }) });
+      const j = (await res.json().catch(() => ({}))) as LaunchDraft & { error?: string; detail?: string };
+      if (!res.ok || !j.checks) {
+        flog("warn", `launch draft ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`);
+        setL((l) => ({ ...l, busy: false, stale: false, ready: false, sim: null, simError: j.detail ?? j.error ?? `Bankr answered ${res.status}` }));
+        setCaption(j.detail ?? "Bankr could not simulate the launch.");
+        return false;
+      }
+      flog("info", `launch draft: ${j.symbol} paired with ${j.pair.symbol} · fees to ${j.recipientLabel}${j.resolvedRecipient ? ` (${j.resolvedRecipient.slice(0, 8)})` : ""} · vesting ${j.options.vesting} · fees in ${j.options.feesIn}${j.options.degen ? " · degen" : ""} · checks ${j.checks.filter((c) => c.ok).length}/${j.checks.length}${j.sim ? ` · sim ${j.sim.tokenAddress}` : j.simError ? ` · sim failed: ${j.simError}` : ""} · ${j.ownKey ? "own key" : "operator key"}`);
+      let first = false;
+      setL((l) => {
+        first = Boolean(l.fromStarter) && !l.turnDone && j.ready;
+        return { ...l, ...j, id: l.id, options: { ...j.options, description: l.options.description ?? j.options.description, image: l.options.image ?? j.options.image, websiteUrl: l.options.websiteUrl ?? j.options.websiteUrl, tweetUrl: l.options.tweetUrl ?? j.options.tweetUrl }, recipientRaw: l.recipientRaw, fromStarter: l.fromStarter, turnDone: l.turnDone || first, busy: false, stale: false };
+      });
+      briefRef.current = { lines: j.facts };
+      setCaption(j.ready ? `Launch on the table, fees to ${j.ownRecipient ? "your wallet" : j.recipientLabel}. Hold to launch when you are ready.` : "Launch drafted, a check failed. Fix it on the card.");
+      if (first) {
+        // Primer draft completo desde la tarjeta guiada: ahora si, el turno de mesa lo revisa.
+        modeRef.current = "launch";
+        heldDraftRef.current = messagesRef.current.find((x) => x.id === msgId) ?? null;
+        void chat(`launch ${name} (${symbol}) paired with ${j.pair.symbol}`);
+      }
+      return j.ready;
+    } catch (e) {
+      flog("warn", `launch draft: ${(e as Error).message}`);
+      setL((l) => ({ ...l, busy: false, stale: false, ready: false, simError: "Bankr did not answer." }));
+      return false;
+    }
+  }, [chat]);
+  const editLaunch = useCallback((msgId: number, patch: LaunchEdit) => {
+    const structural = patch.name !== undefined || patch.symbol !== undefined || patch.pair !== undefined || patch.recipient !== undefined || patch.vesting !== undefined || patch.feesIn !== undefined || patch.degen !== undefined;
+    setMessages((m) => m.map((x) => {
+      if (x.id !== msgId || !x.launch) return x;
+      const l = x.launch;
+      return { ...x, launch: {
+        ...l,
+        name: patch.name ?? l.name,
+        symbol: patch.symbol ?? l.symbol,
+        pair: patch.pair !== undefined ? { address: "", symbol: patch.pair, name: patch.pair } : l.pair,
+        recipientRaw: patch.recipient ?? l.recipientRaw,
+        description: patch.description ?? l.description,
+        options: { ...l.options, vesting: patch.vesting ?? l.options.vesting, feesIn: patch.feesIn ?? l.options.feesIn, degen: patch.degen ?? l.options.degen, ...(patch.description !== undefined ? { description: patch.description } : {}), ...(patch.image !== undefined ? { image: patch.image || undefined } : {}), ...(patch.websiteUrl !== undefined ? { websiteUrl: patch.websiteUrl || undefined } : {}), ...(patch.tweetUrl !== undefined ? { tweetUrl: patch.tweetUrl || undefined } : {}) },
+        stale: structural ? true : l.stale
+      } };
+    }));
+    if (structural) {
+      // Cada simulacion cuenta contra el limite diario de Bankr: se espera a que la persona termine de escribir.
+      window.clearTimeout(resimTimers.current[msgId]);
+      resimTimers.current[msgId] = window.setTimeout(() => void resimLaunch(msgId), 1500);
+    }
+  }, [resimLaunch]);
   const launchDraft = useCallback(async (it: { name?: string; symbol?: string; pair?: string; recipient?: string; vesting?: "on" | "off"; feesIn?: "quote"; degen?: boolean }): Promise<boolean> => {
     const id = Date.now() + 4;
     const symbol = (it.symbol ?? (it.name ?? "").replace(/[^A-Za-z0-9]/g, "").slice(0, 8)).toUpperCase();
-    const name = it.name ?? symbol;
+    const name = it.name ?? (it.symbol ?? "");
+    const complete = Boolean(name && symbol && it.pair);
     heldDraftRef.current = null;
-    setCaption(`Trader is drafting the launch: ${name} (${symbol}) paired with ${it.pair}${it.recipient ? `, fees to ${it.recipient}` : ""}…`);
+    const skeleton: LaunchDraft = {
+      id: String(id), name, symbol, pair: { address: "", symbol: it.pair ?? "", name: it.pair ?? "" },
+      recipient: { type: "wallet", value: "" }, recipientLabel: "your wallet", feeRecipient: "", ownRecipient: !it.recipient,
+      options: { vesting: it.vesting ?? "off", feesIn: it.feesIn === "quote" ? "quote" : "both", degen: it.degen === true },
+      chain: "base", provider: "doppler", deployer: null, ownKey: false, disableVesting: it.vesting !== "on",
+      checks: [], ready: false, sim: null, wallet: null, last24h: 0, facts: [], draftedAt: new Date().toISOString(),
+      recipientRaw: it.recipient ?? "", stale: true, fromStarter: !complete, turnDone: complete
+    };
+    setMessages((m) => [...m.slice(-60), { id, role: "draft", who: "trader", text: "", launch: skeleton, tx: { stage: "idle", hashes: [] } }]);
     touch();
-    try {
-      const res = await fetch("/api/launch/draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, symbol, pair: it.pair, recipient: it.recipient, vesting: it.vesting, feesIn: it.feesIn, degen: it.degen === true }) });
-      const j = (await res.json().catch(() => ({}))) as LaunchDraft & { error?: string; detail?: string };
-      if (!res.ok || !j.checks) {
-        flog("error", `launch draft ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`);
-        setMessages((m) => [...m.slice(-60), { id, role: "draft", who: "trader", text: `Could not draft the launch: ${j.detail ?? j.error ?? res.status}` }]);
-        setCaption("");
-        return false;
-      }
-      flog("info", `launch draft: ${j.symbol} paired with ${j.pair.symbol} · fees to ${j.recipientLabel}${j.resolvedRecipient ? ` (${j.resolvedRecipient.slice(0, 8)})` : ""} · vesting ${j.options.vesting} · fees in ${j.options.feesIn}${j.options.degen ? " · degen" : ""} · checks ${j.checks.filter((c) => c.ok).length}/${j.checks.length} · sim ${j.sim ? j.sim.tokenAddress : j.simError ?? "skipped"} · ${j.ownKey ? "own key" : "operator key"}`);
-      heldDraftRef.current = { id, role: "draft", who: "trader", text: "", launch: j, tx: { stage: "idle", hashes: [] } };
-      quoteRef.current = null;
-      briefRef.current = { lines: j.facts };
-      setCaption(j.ready ? `Launch on the table, fees to ${j.ownRecipient ? "your wallet" : j.recipientLabel}. The desk is reviewing it…` : "Launch drafted, a check failed. The desk is reviewing it…");
-      return true;
-    } catch (e) {
-      flog("error", `launch draft: ${(e as Error).message}`);
-      setMessages((m) => [...m.slice(-60), { id, role: "draft", who: "trader", text: "Could not draft the launch." }]);
-      return false;
-    }
-  }, [touch]);
+    if (!complete) { setCaption("Name the token, pick a pair and the desk simulates it with Bankr."); return false; }
+    setCaption(`Trader is drafting the launch: ${name} (${symbol}) paired with ${it.pair}${it.recipient ? `, fees to ${it.recipient}` : ""}…`);
+    const ok = await resimLaunch(id);
+    heldDraftRef.current = messagesRef.current.find((x) => x.id === id) ?? null;
+    return ok;
+  }, [touch, resimLaunch]);
   const deployLaunch = useCallback(async (msgId: number) => {
     const msg = messagesRef.current.find((x) => x.id === msgId);
     const d = msg?.launch;
@@ -1379,10 +1438,8 @@ function Shell() {
     if (cmd === "history") { setDeskScreen("history"); setCaption("Every decision the desk made"); return; }
     if (cmd === "launch") {
       quoteRef.current = null;
-      if (!it.symbol && !it.name) { setCaption("What is the token called? Say: launch Night Owl (OWL) paired with NVDA."); return; }
-      if (!it.pair) { setCaption(`Pair ${it.name ?? it.symbol} with what? A tokenized stock like NVDA or TSLA, or WETH. Add fees to @handle if someone else should earn.`); return; }
       modeRef.current = "launch";
-      setFocusAsset(it.pair);
+      if (it.pair) setFocusAsset(it.pair);
       // Primero el draft simulado en Bankr (el launch en la mesa), despues el turno de mesa.
       void launchDraft(it).then((ok) => (ok ? chat(spoken) : undefined));
       return;
@@ -2021,7 +2078,7 @@ function Shell() {
             {m.role === "draft" && m.draft ? (
               <DraftCard draft={m.draft} tx={m.tx ?? { stage: "idle", hashes: [] }} onApprove={() => void approveDraft(m.id)} signHint={signHint} onPhone={wallet.signWhere === "phone"} onReconnect={logout} linkLost={linkLost} />
             ) : m.role === "draft" && m.launch ? (
-              <LaunchCard launch={m.launch} tx={m.tx ?? { stage: "idle", hashes: [] }} onLaunch={() => void deployLaunch(m.id)} onFees={() => void feesCard()}  onEdit={(patch) => setMessages((prev) => prev.map((x) => x.id === m.id && x.launch ? { ...x, launch: { ...x.launch, description: patch.description ?? x.launch.description, options: { ...x.launch.options, ...(patch.description !== undefined ? { description: patch.description } : {}), ...(patch.image !== undefined ? { image: patch.image || undefined } : {}), ...(patch.websiteUrl !== undefined ? { websiteUrl: patch.websiteUrl || undefined } : {}), ...(patch.tweetUrl !== undefined ? { tweetUrl: patch.tweetUrl || undefined } : {}) } } } : x))} />
+              <LaunchCard launch={m.launch} tx={m.tx ?? { stage: "idle", hashes: [] }} onLaunch={() => void deployLaunch(m.id)} onFees={() => void feesCard()} onEdit={(patch) => editLaunch(m.id, patch)} onResim={() => { window.clearTimeout(resimTimers.current[m.id]); void resimLaunch(m.id); }} />
             ) : m.role === "draft" && m.fees ? (
               <FeesCard fees={m.fees} tx={m.tx ?? { stage: "idle", hashes: [] }} onClaim={() => void claimFees(m.id)} onRefresh={() => void feesCard(m.id)} signHint={signHint} onPhone={wallet.signWhere === "phone"} onReconnect={logout} linkLost={linkLost} />
             ) : m.role === "draft" && m.auto ? (
@@ -2462,95 +2519,6 @@ function DraftCard({ draft, tx, onApprove, signHint, onPhone, onReconnect, linkL
 
 // Launch card: el token emparejado en la mesa. Los checks de Bankr se ven
 // siempre; Hold to launch solo cuando todos pasan y la simulacion paso.
-type LaunchProfile = { description?: string; image?: string; websiteUrl?: string; tweetUrl?: string };
-function LaunchCard({ launch, tx, onLaunch, onFees, onEdit }: {
-  launch: { name: string; symbol: string; description?: string; pair: { symbol: string; name: string; kind?: string }; recipient: { type: string; value: string }; recipientLabel: string; resolvedRecipient?: string; feeRecipient: string; ownRecipient: boolean; options: { vesting: "on" | "off"; feesIn: "both" | "quote"; degen: boolean; description?: string; image?: string; websiteUrl?: string; tweetUrl?: string }; deployer: string | null; ownKey: boolean; checks: Array<{ label: string; ok: boolean; note: string }>; ready: boolean; sim: { tokenAddress: string; poolId: string } | null; simError?: string; receipt?: { tokenAddress: string; txHash: string; explorer: string; bankrUrl: string } };
-  tx: { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
-  onLaunch: () => void;
-  onFees?: () => void;
-  /** Perfil del token (logo, descripcion, web, post en X): lo que Bankr y los screeners muestran. Editable hasta lanzar. */
-  onEdit?: (patch: LaunchProfile) => void;
-}) {
-  const [holding, setHolding] = useState(false);
-  const holdRef = useRef(0);
-  const armed = (tx.stage === "idle" || tx.stage === "failed") && launch.ready;
-  const editable = Boolean(onEdit) && (tx.stage === "idle" || tx.stage === "failed" || tx.stage === "blocked");
-  const httpsOk = (v?: string) => !v || /^https:\/\/[^\s]+$/i.test(v);
-  const image = launch.options.image ?? "", website = launch.options.websiteUrl ?? "", tweet = launch.options.tweetUrl ?? "", about = launch.options.description ?? launch.description ?? "";
-  const profileOk = Boolean(image) && Boolean(about);
-  const start = () => {
-    if (!armed) return;
-    setHolding(true);
-    holdRef.current = window.setTimeout(() => { setHolding(false); onLaunch(); }, 2000);
-  };
-  const cancel = () => { window.clearTimeout(holdRef.current); setHolding(false); };
-  const [open, setOpen] = useState(false);
-  const decision = tx.stage === "blocked" ? "Wait" : tx.stage === "done" ? "Live" : tx.stage === "pending" ? "Deploying" : tx.stage === "failed" ? "Not deployed" : launch.ready ? "Launch" : "Fix";
-  const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
-  return (
-    <div className={`draft-card launch st-${tx.stage}${open ? " open" : ""}`}>
-      <div className="draft-head">
-        <b><span className={`decision ${tx.stage === "blocked" || !launch.ready ? "wait" : tx.stage === "done" ? "done" : "go"}`}>{decision}</span> {launch.name} ({launch.symbol}) <small>paired with {launch.pair.symbol} on Base · fees to {launch.ownRecipient ? "your wallet" : launch.recipientLabel}{launch.options.degen ? " · degen" : ""}</small></b>
-        <span className="draft-btns">
-          {tx.stage === "done" && launch.receipt ? <a className="draft-more share" href={shareLaunchUrl({ name: launch.name, symbol: launch.symbol, pair: launch.pair.symbol, tokenAddress: launch.receipt.tokenAddress })} target="_blank" rel="noreferrer" title="Opens X in your browser with a post about this launch. Nothing is posted until you press Post.">Share on X</a> : null}
-          {tx.stage === "done" && onFees ? <button type="button" className="draft-more" onClick={onFees}>Fees</button> : null}
-          <button type="button" className="draft-more" onClick={() => setOpen((o) => !o)} aria-expanded={open}>{open ? "Less" : "Details"}</button>
-        </span>
-      </div>
-      <ul className="launch-checks">
-        {launch.checks.map((c) => <li key={c.label} className={c.ok ? "ok" : "bad"}><i aria-hidden>{c.ok ? "✓" : "✕"}</i><span>{c.label}</span><small>{c.note}</small></li>)}
-        <li className={profileOk ? "ok" : "skip"}><i aria-hidden>{profileOk ? "✓" : "·"}</i><span>Token profile</span><small>{profileOk ? "logo and description set" : "add a logo and a line about the token: Bankr and the screeners show them"}</small></li>
-        <li className={launch.sim ? "ok" : launch.simError ? "bad" : "skip"}><i aria-hidden>{launch.sim ? "✓" : launch.simError ? "✕" : "·"}</i><span>Bankr simulation</span><small>{launch.sim ? `token ${short(launch.sim.tokenAddress)}` : launch.simError ?? "skipped until every check passes"}</small></li>
-      </ul>
-      {editable ? (
-        <div className="lc-profile">
-          <div className="lc-logo">
-            {httpsOk(image) && image ? <img src={image} alt="" onError={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = "0.25"; }} /> : <span className="lc-logo-empty">{launch.symbol.slice(0, 4)}</span>}
-          </div>
-          <div className="lc-fields">
-            <label><span>Logo URL</span><input type="url" placeholder="https://… .png or .jpg (square works best)" value={image} onChange={(e) => onEdit?.({ image: e.target.value.trim() })} className={httpsOk(image) ? "" : "bad"} /></label>
-            <label><span>About</span><textarea rows={2} maxLength={500} placeholder="One or two lines: what the token is for" value={about} onChange={(e) => onEdit?.({ description: e.target.value })} /></label>
-            <div className="lc-two">
-              <label><span>Website</span><input type="url" placeholder="https://…" value={website} onChange={(e) => onEdit?.({ websiteUrl: e.target.value.trim() })} className={httpsOk(website) ? "" : "bad"} /></label>
-              <label><span>X post</span><input type="url" placeholder="https://x.com/…/status/…" value={tweet} onChange={(e) => onEdit?.({ tweetUrl: e.target.value.trim() })} className={httpsOk(tweet) ? "" : "bad"} /></label>
-            </div>
-          </div>
-        </div>
-      ) : null}
-      {open ? <dl className="draft-rows">
-        <dt>Pair</dt><dd>{launch.pair.name} <small>({launch.pair.symbol}{launch.pair.kind === "stock" ? " · Coinbase B20 on Base" : launch.pair.kind === "major" ? " · the default quote" : ""})</small></dd>
-        <dt>Pool</dt><dd>Uniswap V4 via Doppler, deployed by Bankr <small>(gas sponsored on Base{launch.options.degen ? " · degen mode, $2,500 starting cap" : ""})</small></dd>
-        <dt>Fees pay to</dt><dd>{launch.ownRecipient ? `${short(launch.feeRecipient)}` : launch.recipientLabel}{launch.resolvedRecipient && !launch.ownRecipient ? <small> (Bankr resolved it to {short(launch.resolvedRecipient)})</small> : null} <small>{launch.ownRecipient ? "(the wallet connected here)" : "(someone else: say fees to @handle, name.eth or 0x… to change)"}</small></dd>
-        <dt>Split</dt><dd>95% of the pool fee to the recipient · 5% to Bankr · fees in {launch.options.feesIn === "quote" ? "the quote token only" : "the token and the quote"}</dd>
-        <dt>Vesting</dt><dd>{launch.options.vesting === "on" ? "15% of supply to the fee recipient over one year, 30 day cliff" : "off: 100% of supply goes to the pool"}</dd>
-        <dt>Deployer</dt><dd>{launch.deployer ? short(launch.deployer) : "no Bankr wallet"} <small>{launch.ownKey ? "(your Bankr wallet)" : "(Bankr wallet on this install: it keeps nothing)"}</small></dd>
-        {about ? <><dt>About</dt><dd>{about}</dd></> : null}
-        {website || tweet ? <><dt>Links</dt><dd>{website ? <a href={website} target="_blank" rel="noreferrer">website</a> : null}{website && tweet ? " · " : ""}{tweet ? <a href={tweet} target="_blank" rel="noreferrer">X post</a> : null}</dd></> : null}
-        {launch.receipt ? <><dt>Token</dt><dd><a href={`https://basescan.org/token/${launch.receipt.tokenAddress}`} target="_blank" rel="noreferrer">{short(launch.receipt.tokenAddress)}</a> · <a href={launch.receipt.bankrUrl} target="_blank" rel="noreferrer">Bankr ↗</a></dd></> : null}
-      </dl> : null}
-      {tx.note ? <p className="hint-line err">{tx.note}</p> : null}
-      {tx.hashes.length ? (
-        <ul className="draft-tx">
-          {tx.hashes.map((h) => (
-            <li key={h.hash} className={h.status}>
-              <span>{h.label}</span>
-              <a href={h.explorer} target="_blank" rel="noreferrer">{h.hash.slice(0, 10)}…{h.hash.slice(-6)}</a>
-              <em>{h.status === "success" ? "confirmed" : "pending"}</em>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      <div className="draft-actions">
-        <button type="button" className={`approve${holding ? " holding" : ""}${tx.stage === "done" ? " done" : ""}${tx.stage === "pending" ? " busy" : ""}`} disabled={!armed} onPointerDown={start} onPointerUp={cancel} onPointerLeave={cancel} onPointerCancel={cancel} aria-label="Hold to launch">
-          <span className="ring" />
-          <span className="lbl">{tx.stage === "done" ? "Live" : tx.stage === "blocked" ? "Blocked" : tx.stage === "pending" ? "Deploying on Base…" : tx.stage === "failed" ? "Retry" : launch.ready ? "Hold to launch" : "Checks first"}</span>
-        </button>
-        <small>{tx.stage === "done" ? `Token live on Base. Fees pay to ${launch.ownRecipient ? "your wallet" : launch.recipientLabel}.` : tx.stage === "blocked" ? "Risk said no. Nothing deployed." : "They draft. You launch. Bankr deploys."}</small>
-      </div>
-    </div>
-  );
-}
-
 // Sesion viva sin wallet enlazada: se dice antes de intentar nada, con el boton para reenlazar.
 function LinkLostNotice({ onReconnect }: { onReconnect?: () => void }) {
   return (
