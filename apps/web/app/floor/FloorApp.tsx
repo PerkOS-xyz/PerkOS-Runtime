@@ -1013,6 +1013,17 @@ function Shell() {
   // La tarjeta no existe todavia: primero el par, luego nombre y descripcion con Sparky, y
   // recien con las tres cosas aparece la tarjeta llena (fees a la wallet conectada) y se simula.
   const identityAskRef = useRef<{ pair: string; about?: string } | null>(null);
+  // Aviso de par fino: lo que la mesa dijo evitar (o no puso entre sus picks) en la ultima lectura.
+  const pairWarningFor = (pair: string): string | undefined => {
+    const read = pairReadRef.current;
+    if (!read || !pair) return undefined;
+    const k = pair.toUpperCase().replace(/C$/, "");
+    const o = read.options.find((x) => x.value.toUpperCase().replace(/C$/, "") === k);
+    if (!o) return undefined;
+    if (o.avoid) return `The desk said to avoid ${pair}: thin pool, no driver.`;
+    if (!o.rec && read.options.some((x) => x.rec)) return `${pair} was not among the desk's picks.`;
+    return undefined;
+  };
   const pickPair = useCallback((msgId: number, pair: string) => {
     setMessages((m) => m.filter((x) => x.id !== msgId));
     modeRef.current = "launch";
@@ -2240,7 +2251,7 @@ function Shell() {
             {m.role === "draft" && m.draft ? (
               <DraftCard draft={m.draft} tx={m.tx ?? { stage: "idle", hashes: [] }} onApprove={() => void approveDraft(m.id)} signHint={signHint} onPhone={wallet.signWhere === "phone"} onReconnect={relink} linkLost={linkLost} />
             ) : m.role === "draft" && m.launch ? (
-              <LaunchCard launch={m.launch} tx={m.tx ?? { stage: "idle", hashes: [] }} wallet={wallet.address} onLaunch={() => void deployLaunch(m.id)} onFees={() => void feesCard()} onEdit={(patch) => editLaunch(m.id, patch)} onResim={() => { window.clearTimeout(resimTimers.current[m.id]); void resimLaunch(m.id); }} />
+              <LaunchCard launch={m.launch} tx={m.tx ?? { stage: "idle", hashes: [] }} wallet={wallet.address} pairWarning={pairWarningFor(m.launch.pair.symbol)} onLaunch={() => void deployLaunch(m.id)} onFees={() => void feesCard()} onEdit={(patch) => editLaunch(m.id, patch)} onResim={() => { window.clearTimeout(resimTimers.current[m.id]); void resimLaunch(m.id); }} />
             ) : m.role === "draft" && m.fees ? (
               <FeesCard fees={m.fees} tx={m.tx ?? { stage: "idle", hashes: [] }} onClaim={() => void claimFees(m.id)} onRefresh={() => void feesCard(m.id)} signHint={signHint} onPhone={wallet.signWhere === "phone"} onReconnect={relink} linkLost={linkLost} />
             ) : m.role === "draft" && m.auto ? (

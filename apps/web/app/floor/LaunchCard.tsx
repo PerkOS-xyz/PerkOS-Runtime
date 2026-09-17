@@ -50,11 +50,13 @@ async function squareDataUrl(file: File, size = 512): Promise<string> {
 }
 const httpsOk = (v?: string) => !v || /^https:\/\/[^\s]+$/i.test(v);
 
-export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onResim, wallet }: {
+export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onResim, wallet, pairWarning }: {
   launch: LaunchView;
   tx: LaunchTx;
   /** Wallet conectada: es quien cobra las fees salvo que la persona nombre a otro. */
   wallet?: string;
+  /** Aviso sobre el par elegido (fino, o el desk dijo evitarlo): el token puede quedar sin indexar hasta el primer swap. */
+  pairWarning?: string;
   onLaunch: () => void;
   onFees?: () => void;
   /** Cualquier edicion; el padre decide si hay que volver a simular. */
@@ -154,6 +156,9 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
         <small>95% of the pool fee, 5% to Bankr</small>
         {editable && !showBasics ? <button type="button" className="lc-link" onClick={() => setShowBasics(true)}>Change</button> : null}
       </p>
+      {(pairWarning || launch.pair.illiquid) && tx.stage !== "done" ? (
+        <p className="lc-warn"><b>Thin pair.</b> {pairWarning ?? `Bankr flags ${launch.pair.symbol} as illiquid.`} Until someone makes the first swap, DexScreener will not list the token and it will look inactive. {editable ? "Consider one of the desk's picks." : ""}</p>
+      ) : null}
       {editable && showBasics ? (
         <div className="lc-basics">
           <div className="lc-two">
