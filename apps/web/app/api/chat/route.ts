@@ -140,7 +140,9 @@ export async function POST(req: Request) {
     : "";
   const instructions = buildInstructions(base, brief, live?.context ?? "") + factsCtx + localCtx + launchCtx + pairCtx + styleCtx + sideCtx + (fleetCtx
     ? "\n\n## Your teammates just answered this turn (Hermes agents on PerkOS infra). Speak for the desk: summarize what they found, name who said what when it matters, flag disagreements and what needs the human's approval. Do not invent what they did not say.\n" + fleetCtx
-    : "");
+    : body.mode !== "pair" && body.side !== true
+      ? "\n\n## You are answering alone\nNo agent was woken and no card was created by this message. Never say you are drafting, sizing, simulating or launching anything, and never address @Scout, @Risk, @Trader or @Auditor: they are not in this turn. If the person wants an order, an analysis or a launch, tell them the exact sentence that starts it (for a launch: launch NAME (SYMBOL) paired with NVDAc, or the Launch a token button) and that the draft card appears then."
+      : "");
   const knowledgeInfo = live
     ? `knowledge: ${live.count} items · ${live.ms} ms${live.note ? ` · ${live.note}` : ""}`
     : "knowledge: skipped (small talk)";
