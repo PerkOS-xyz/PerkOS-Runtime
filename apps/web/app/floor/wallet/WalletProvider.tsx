@@ -119,17 +119,24 @@ function Bridge({ children }: { children: ReactNode }) {
     onComplete: () => setError(""),
     onError: (code) => setError(humanPrivyError(String(code)))
   });
+  // Valor vivo de `authenticated`: el closure de openLogin lo leeria viejo.
+  const authRef = useRef(authenticated);
+  authRef.current = authenticated;
   const openLogin = useCallback(async () => {
     setError("");
     if (logoutRef.current) await logoutRef.current;
-    if (authenticated && !logoutRef.current) {
+    if (authRef.current && !logoutRef.current) {
       // Sesion vieja todavia viva: cerrarla primero, si no login() no abre nada.
       flog("info", "privy: stale session before login, closing it first");
       await logout();
     }
+    // Privy resuelve logout() antes de que `authenticated` baje; si login() entra en ese hueco
+    // abre el modal de "enlazar cuenta" (sin WalletConnect). Esperar a que baje, hasta 4 s.
+    for (let i = 0; i < 40 && authRef.current; i++) await new Promise((r) => setTimeout(r, 100));
+    if (authRef.current) flog("warn", "privy: still authenticated after logout, the login modal may miss the wallet options");
     flog("info", "privy: login modal");
     login();
-  }, [authenticated, login, logout]);
+  }, [login, logout]);
 
   // user.wallet es la wallet primaria (embebida o enlazada); wallets[0] cubre
   // las externas que Privy conecta sin enlazar todavia.
@@ -181,7 +188,7 @@ function Bridge({ children }: { children: ReactNode }) {
   // de WalletConnect dentro de Electron (solo Coinbase Wallet), y forzar una lista de
   // wallets en la config le quito WalletConnect tambien al login. El camino que si
   // funciona es el login normal: More options > WalletConnect.
-  const reconnect = () => { setError(""); void logout().then(() => login()).catch(() => login()); };
+  const reconnect = () => { void openLogin(); };
 
   const value = useMemo<Wallet>(
     () => ({
