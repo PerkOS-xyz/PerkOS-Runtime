@@ -1484,6 +1484,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .stage.split .orb.on { transform: translate(-50%, 0) scale(0.77); }
 
 /* ==== Panel del desk como dock (2026-09-16): todo el lado derecho ==== */
+.desk-panel { container-type: inline-size; container-name: panel; }
 .desk-panel.dock { right: 0; top: 56px; bottom: 0; width: 50%; border-radius: 18px 0 0 0; border-right: 0; border-bottom: 0; padding: 14px 18px 18px; animation: dockIn 260ms var(--split-ease) both; }
 @keyframes dockIn { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
 .desk-panel.dock.max { width: 100%; border-radius: 0; border-left: 0; }
@@ -1942,12 +1943,12 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .desk-panel .launch-empty { border: 1px dashed rgba(160, 180, 220, 0.2); border-radius: 16px; padding: 28px 18px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; color: var(--mute); font-size: 12px; }
 .desk-panel .launch-empty b { color: #e6ecff; font-size: 14px; }
 .desk-panel .launch-empty button { margin-top: 8px; font: inherit; font-size: 11px; padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); background: transparent; color: #e6ecff; cursor: pointer; }
-@container stage (max-width: 700px) { .desk-panel .launch-body { grid-template-columns: 1fr; } .desk-panel .launch-links { flex-direction: row; flex-wrap: wrap; border-left: 0; padding-left: 0; } .desk-panel .kpis6 { grid-template-columns: repeat(3, 1fr); } }
+@container panel (max-width: 760px) { .desk-panel .launch-body { grid-template-columns: 1fr; } .desk-panel .launch-links { flex-direction: row; flex-wrap: wrap; border-left: 0; padding-left: 0; } .desk-panel .kpis6 { grid-template-columns: repeat(3, 1fr); } }
 
 /* Portfolio (spec 2026-09-17): una sola rejilla para cabecera y filas, el
    venue siempre a la vista, botones que dicen "Draft" y nunca van en coral. */
 /* Cada li es su propia rejilla: nada de `auto`, o la cabecera y las filas miden distinto. */
-.desk-panel .rows.positions li { grid-template-columns: minmax(100px, 1fr) minmax(170px, 1.35fr) 96px minmax(80px, 0.6fr) minmax(116px, 0.85fr) 290px; column-gap: 12px; cursor: default; align-items: center; }
+.desk-panel .rows.positions li { grid-template-columns: minmax(124px, 1fr) minmax(156px, 1.35fr) 88px minmax(80px, 0.6fr) minmax(116px, 0.85fr) 294px; column-gap: 12px; cursor: default; align-items: center; }
 .desk-panel .rows.positions li.head .cell.num, .desk-panel .rows.positions .cell.num { text-align: right; align-items: flex-end; }
 .desk-panel .rows.positions li.head .cell.num small { width: 100%; text-align: right; }
 .desk-panel .rows.positions li.head .cell.chart small { width: 100%; text-align: center; }
@@ -1969,9 +1970,25 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .desk-panel .hint-line.draft-note { margin-top: 2px; }
 .desk-panel .rows.positions li.skeleton .cell i { display: block; height: 12px; border-radius: 6px; background: linear-gradient(90deg, rgba(160, 180, 220, 0.08), rgba(160, 180, 220, 0.18), rgba(160, 180, 220, 0.08)); background-size: 200% 100%; animation: pf-shimmer 1.4s linear infinite; }
 @keyframes pf-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
-@container stage (max-width: 700px) {
-  .desk-panel .rows.positions li { grid-template-columns: minmax(90px, 1fr) minmax(130px, 1.2fr) minmax(100px, 0.9fr) 128px; }
-  .desk-panel .rows.positions .cell.chart, .desk-panel .rows.positions .cell.venue small.also { display: none; }
-  .desk-panel .rows.positions li > .cell.num:nth-of-type(4) { display: none; }
-  .desk-panel .rows.positions .cell.acts { flex-direction: column; }
+/* Panel acoplado (media ventana, ~490 px): la fila pasa a tres lineas con
+   areas, sin cabecera, y los botones ocupan todo el ancho. */
+@container panel (max-width: 760px) {
+  .desk-panel .rows.positions li.head { display: none; }
+  .desk-panel .rows.positions li { grid-template-columns: 1fr auto auto; grid-template-areas: "name name value" "venue chart shares" "acts acts acts"; row-gap: 10px; column-gap: 14px; padding: 12px 10px; border-bottom: 1px solid rgba(120, 160, 255, 0.1); border-radius: 0; align-items: start; }
+  .desk-panel .rows.positions .cell.name { grid-area: name; }
+  .desk-panel .rows.positions .cell.venue { grid-area: venue; }
+  .desk-panel .rows.positions .cell.chart { grid-area: chart; align-self: center; }
+  .desk-panel .rows.positions .cell.num.shares { grid-area: shares; align-self: center; }
+  .desk-panel .rows.positions .cell.num.value { grid-area: value; }
+  .desk-panel .rows.positions .cell.acts { grid-area: acts; justify-content: stretch; }
+  .desk-panel .rows.positions .cell.acts button { flex: 1; justify-content: center; padding: 7px 10px; }
+  .desk-panel .kpi.k4 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
 }
+
+/* Copiar contrato: direccion corta + icono; confirma con "Copied". */
+.desk-panel .rows .copy-addr, .desk-panel .copy-addr, .copy-addr { display: inline-flex; align-items: center; gap: 5px; font: 10.5px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--mute); background: transparent; border: 1px solid rgba(160, 180, 220, 0.22); border-radius: 999px; padding: 2px 8px; cursor: pointer; margin-top: 4px; width: fit-content; letter-spacing: 0; text-transform: none; }
+.desk-panel .copy-addr:hover, .copy-addr:hover { color: #e6ecff; border-color: rgba(160, 180, 220, 0.5); }
+.desk-panel .rows .copy-addr.done, .desk-panel .copy-addr.done, .copy-addr.done { color: #7fe0a8; border-color: rgba(61, 200, 120, 0.6); }
+.copy-addr svg { flex: 0 0 auto; }
+.desk-panel .launch-card .lc-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex: 0 0 auto; }
+.copy-addr.manual { user-select: all; cursor: text; white-space: normal; word-break: break-all; border-radius: 8px; color: #e6ecff; max-width: 100%; }
