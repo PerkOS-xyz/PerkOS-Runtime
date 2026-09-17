@@ -67,6 +67,14 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
   const [showBasics, setShowBasics] = useState(!basicsOk);
   const [showAdv, setShowAdv] = useState(false);
   const [open, setOpen] = useState(false);
+  // Maximizar: la tarjeta pasa a una capa amplia sobre la escena para escribir comodo (prompt, About).
+  const [max, setMax] = useState(false);
+  useEffect(() => {
+    if (!max) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMax(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [max]);
   const [pairs, setPairs] = useState<PairOption[]>(pairCache ?? []);
   const [pairQ, setPairQ] = useState("");
   useEffect(() => {
@@ -117,8 +125,8 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
   const list = [...PINNED, ...pairs].filter((p) => !q || p.symbol.toLowerCase().includes(q) || p.name.toLowerCase().includes(q));
   const pick = (sym: string) => { onEdit?.({ pair: sym }); setPairQ(""); };
 
-  return (
-    <div className={`draft-card launch st-${tx.stage}${open ? " open" : ""}`}>
+  const card = (
+    <div className={`draft-card launch st-${tx.stage}${open ? " open" : ""}${max ? " max" : ""}`}>
       <div className="draft-head">
         <b><span className={`decision ${tone}`}>{decision}</span> {launch.name || "New token"}{launch.symbol ? ` (${launch.symbol})` : ""} <small>{launch.pair.symbol ? `paired with ${launch.pair.symbol} on Base` : "pick a pair"} · Bankr</small></b>
         <span className="draft-btns">
@@ -126,6 +134,7 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
           {tx.stage === "done" && onFees ? <button type="button" className="draft-more" onClick={onFees}>Fees</button> : null}
           {editable && basicsOk ? <button type="button" className="draft-more" onClick={() => setShowBasics((v) => !v)}>{showBasics ? "Done" : "Edit"}</button> : null}
           <button type="button" className="draft-more" onClick={() => setOpen((o) => !o)} aria-expanded={open}>{open ? "Less" : "Details"}</button>
+          <button type="button" className="draft-more" onClick={() => setMax((v) => !v)} title={max ? "Back to the chat (Esc)" : "Open the card large to write comfortably"} aria-label={max ? "Collapse" : "Expand"}>{max ? "Close" : "Expand"}</button>
         </span>
       </div>
 
@@ -236,5 +245,14 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
         <small>{tx.stage === "done" ? `Token live on Base. Fees pay to ${launch.ownRecipient ? "your wallet" : launch.recipientLabel}.` : tx.stage === "blocked" ? "Risk said no. Nothing deployed." : "They draft. You launch. Bankr deploys, gas sponsored."}</small>
       </div>
     </div>
+  );
+  if (!max) return card;
+  return (
+    <>
+      <div className="lc-max-hold" aria-hidden />
+      <div className="lc-max-layer" role="dialog" aria-label="Launch a token" onClick={(e) => { if (e.target === e.currentTarget) setMax(false); }}>
+        {card}
+      </div>
+    </>
   );
 }
