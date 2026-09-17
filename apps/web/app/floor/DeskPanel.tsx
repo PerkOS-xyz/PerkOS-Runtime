@@ -49,7 +49,20 @@ function Spark({ points, w = 96, h = 28, big = false }: { points?: number[]; w?:
 export type DeskScreen = "market" | "portfolio" | "launches" | "automations" | "notes" | "map" | "history";
 // Launches: los tokens que pagan fees a la wallet conectada (o que desplego la
 // wallet Bankr del install), con Bankr, Basescan y Claim.
-type LaunchRow = { tokenAddress: string; name: string; symbol: string; chain: string; timestamp?: number; status?: string; pair?: string; deployer?: string; deployerX?: string; feeRecipient?: string; mine: boolean; deployedHere: boolean; claimable?: { token0: string; token1: string; token0Label: string; token1Label: string }; claimed?: { token0: string; token1: string; count: number }; share?: string; bankrUrl: string; explorer: string };
+type LaunchMarket = { priceUsd?: number; change24hPct?: number; change1hPct?: number; volume24hUsd?: number; liquidityUsd?: number; fdvUsd?: number; pool?: { id: string; dex: string; label: string; quote: string; venueUrl: string; dexscreenerUrl: string; geckoUrl: string }; sparkline?: number[]; earnings?: Array<{ date: string; weth: string }>; lifetimeEarnedWeth?: string };
+type LaunchRow = { tokenAddress: string; name: string; symbol: string; chain: string; timestamp?: number; status?: string; pair?: string; deployer?: string; deployerX?: string; feeRecipient?: string; mine: boolean; deployedHere: boolean; claimable?: { token0: string; token1: string; token0Label: string; token1Label: string }; claimed?: { token0: string; token1: string; count: number }; share?: string; bankrUrl: string; explorer: string; poolId?: string; market?: LaunchMarket };
+const money = (n?: number) => (n === undefined ? "–" : n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(2)}M` : n >= 1000 ? `$${Math.round(n).toLocaleString("en-US")}` : n >= 1 ? `$${n.toFixed(2)}` : `$${n.toPrecision(3)}`);
+const pct = (n?: number) => (n === undefined ? "" : `${n > 0 ? "+" : ""}${n.toFixed(1)}%`);
+/** Barras de ganancias por dia (WETH equivalente segun Bankr). */
+function Bars({ points, w = 96, h = 28 }: { points: number[]; w?: number; h?: number }) {
+  if (!points.length) return null;
+  const max = Math.max(...points) || 1; const bw = w / points.length;
+  return (
+    <svg className="bars" width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden>
+      {points.map((v, i) => { const bh = Math.max(1, (v / max) * (h - 2)); return <rect key={i} x={(i * bw + 1).toFixed(1)} y={(h - bh).toFixed(1)} width={Math.max(1, bw - 2).toFixed(1)} height={bh.toFixed(1)} rx="1" />; })}
+    </svg>
+  );
+}
 // Automations (Bankr): DCA, stop loss y limit que corren en Bankr desde la
 // wallet Bankr de la persona. Floor guarda lo que pidio y lo que Bankr contesto.
 type AutoRec = { id: string; kind: string; asset?: string; amountUsd?: number; interval?: string; price?: number; text: string; prompt: string; createdAt: string; status: "active" | "paused" | "cancelled"; reply?: string };
@@ -217,23 +230,50 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
               <button type="button" onClick={() => onSay("claim my fees")}>Claim all</button>
             </div>
           </div>
-          <ul className="rows autos">
+          <ul className="launch-cards">
             {(launches ?? []).map((l) => {
               const fee = l.claimable && (Number(l.claimable.token0) > 0 || Number(l.claimable.token1) > 0);
               const fmt = (v: string) => { const n = Number(v) || 0; return n >= 1000 ? Math.round(n).toLocaleString("en-US") : n >= 1 ? n.toFixed(2) : n.toFixed(4).replace(/0+$/, "").replace(/\.$/, ""); };
+              const m = l.market; const pool = m?.pool; const up = (m?.change24hPct ?? 0) >= 0;
+              const earn = (m?.earnings ?? []).slice(-14).map((e) => Number(e.weth) || 0);
               return (
-                <li key={l.tokenAddress} className={l.status === "deployed" || !l.status ? "active" : "paused"}>
-                  <div className="cell name">
-                    <b>{l.name} <small>({l.symbol})</small></b>
-                    <small>paired with {l.pair ?? "WETH"} · {l.deployerX ? `deployed by @${l.deployerX}` : l.deployedHere ? "deployed from this install" : "deployed by " + (l.deployer ? `${l.deployer.slice(0, 6)}…${l.deployer.slice(-4)}` : "?")}{l.mine ? " · fees to you" : ""}{l.share ? ` · ${l.share} of the pool fee` : ""}</small>
-                    {l.claimable ? <small className="snip">{fee ? `to claim: ${fmt(l.claimable.token0)} ${l.claimable.token0Label} + ${fmt(l.claimable.token1)} ${l.claimable.token1Label}` : "nothing to claim yet"}{l.claimed ? ` · claimed ${l.claimed.count}×` : ""}</small> : null}
-                  </div>
-                  <em className={`st ${fee ? "active" : ""}`}>{fee ? "fees" : l.status ?? "live"}</em>
-                  <small>{l.timestamp ? new Date(l.timestamp).toISOString().slice(0, 16).replace("T", " ") : ""}</small>
-                  <div className="acts">
-                    <a className="pill" href={l.bankrUrl} target="_blank" rel="noreferrer">Bankr ↗</a>
-                    <a className="pill" href={l.explorer} target="_blank" rel="noreferrer">Basescan ↗</a>
-                    {l.mine ? <button type="button" disabled={!fee} onClick={() => onSay(`claim fees for ${l.tokenAddress}`)}>Claim fees</button> : null}
+                <li key={l.tokenAddress} className="launch-card">
+                  <header>
+                    <div>
+                      <b>{l.name} <small>{l.symbol}</small></b>
+                      <small>paired with {l.pair ?? "WETH"} · {l.deployerX ? `deployed by @${l.deployerX}` : l.deployedHere ? "deployed from this install" : `deployed by ${l.deployer ? `${l.deployer.slice(0, 6)}…${l.deployer.slice(-4)}` : "?"}`}{l.mine ? " · fees to you" : ""}{l.timestamp ? ` · ${new Date(l.timestamp).toISOString().slice(0, 16).replace("T", " ")}` : ""}</small>
+                    </div>
+                    <em className={`st ${fee ? "active" : ""}`}>{fee ? "fees to claim" : l.status ?? "live"}</em>
+                  </header>
+                  <div className="launch-body">
+                    <div className="launch-price">
+                      <Spark points={m?.sparkline} w={220} h={56} big />
+                      <div className="kpis">
+                        <span><b>{m?.priceUsd !== undefined ? money(m.priceUsd) : "–"}</b><small>price</small></span>
+                        <span><b className={up ? "up" : "down"}>{pct(m?.change24hPct) || "–"}</b><small>24h</small></span>
+                        <span><b>{money(m?.volume24hUsd)}</b><small>volume 24h</small></span>
+                        <span><b>{money(m?.liquidityUsd)}</b><small>liquidity</small></span>
+                        <span><b>{money(m?.fdvUsd)}</b><small>FDV</small></span>
+                      </div>
+                    </div>
+                    <div className="launch-pool">
+                      <small className="k">Pool</small>
+                      <span>{pool ? `${pool.label} on Base · ${l.symbol} / ${pool.quote || l.pair || "WETH"}` : "not indexed yet"}</span>
+                      {pool ? <small className="mono">{pool.id.slice(0, 10)}…{pool.id.slice(-6)} · Doppler, deployed by Bankr · 0.7% pool fee, 95% to the creator</small> : null}
+                      <div className="acts">
+                        {pool ? <a className="pill" href={pool.venueUrl} target="_blank" rel="noreferrer">Uniswap ↗</a> : null}
+                        {pool ? <a className="pill" href={pool.dexscreenerUrl} target="_blank" rel="noreferrer">DexScreener ↗</a> : null}
+                        <a className="pill" href={l.bankrUrl} target="_blank" rel="noreferrer">Bankr ↗</a>
+                        <a className="pill" href={l.explorer} target="_blank" rel="noreferrer">Basescan ↗</a>
+                      </div>
+                    </div>
+                    <div className="launch-fees">
+                      <small className="k">Creator fees{l.share ? ` · ${l.share} of the pool fee` : ""}</small>
+                      <span>{l.claimable ? (fee ? `${fmt(l.claimable.token0)} ${l.claimable.token0Label} + ${fmt(l.claimable.token1)} ${l.claimable.token1Label} to claim` : "nothing to claim yet") : "fees accrue to the recipient"}</span>
+                      <small>{l.claimed ? `claimed ${l.claimed.count}× · ${fmt(l.claimed.token0)} ${l.claimable?.token0Label ?? ""} + ${fmt(l.claimed.token1)} ${l.claimable?.token1Label ?? ""}` : ""}{m?.lifetimeEarnedWeth && Number(m.lifetimeEarnedWeth) > 0 ? ` · ${fmt(m.lifetimeEarnedWeth)} WETH lifetime` : ""}</small>
+                      {earn.some((v) => v > 0) ? <Bars points={earn} w={140} h={26} /> : null}
+                      {l.mine ? <button type="button" className="claim" disabled={!fee} onClick={() => onSay(`claim fees for ${l.tokenAddress}`)}>{fee ? "Claim fees" : "Nothing to claim"}</button> : null}
+                    </div>
                   </div>
                 </li>
               );
