@@ -2,6 +2,15 @@
 
 All notable changes to the PerkOS desktop app. Versions follow [Semantic Versioning](https://semver.org); the version lives in `apps/desktop/package.json` and shows in Settings › About with the git short SHA of the build.
 
+## [0.5.4] - 2026-09-17
+
+### Added
+- Share on X for a launched token, on the Launch card and on the chat card once the token is live: the token, its pair, that the desk drafted it, you approved it and @perk_os deployed it through Bankr, the contract address and the Bankr page. It opens in your browser and nothing is posted until you press Post.
+- Copy contract chip on every Portfolio position and every Launch card.
+
+### Fixed
+- The docked desk panel (half the window) lays out by its own width: Portfolio rows go to three lines with the draft buttons in full view, Launches stacks. Before, the narrow rules looked at the window and never fired.
+
 ## [0.5.3] - 2026-09-17
 
 ### Changed
