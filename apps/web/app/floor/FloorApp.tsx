@@ -4,9 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import "./apiToken";
 import { parseIntent } from "./parseCommand";
 import DeskPanel, { shareLaunchUrl, type DeskScreen } from "./DeskPanel";
+import ChatsDrawer from "./ChatsDrawer";
 import KnowledgeMap, { type GraphNode } from "./KnowledgeMap";
 import { CHAINS, chainOf, ChainMark, deskManifest } from "./ChainMark";
 import AgentCards, { applyTurnEvent, newTurn, type DeskTurn, type Role as AgentRole } from "./AgentCards";
+import AgentAvatar, { type AgentAvatarState } from "./AgentAvatar";
 import SettingsPanel from "./SettingsPanel";
 import Wizard from "./Wizard";
 import Ambient from "./Ambient";
@@ -51,6 +53,9 @@ function Shell() {
   const [market, setMarket] = useState(false);
   // Pantallas propias del desk (Market / Portfolio) y el activo enfocado.
   const [deskScreen, setDeskScreen] = useState<DeskScreen | "">("");
+  // El panel del desk recarga cuando algo fuera de el movio los datos (claim, orden firmada).
+  const [deskRefresh, setDeskRefresh] = useState(0);
+  const [claimedTokens, setClaimedTokens] = useState<string[]>([]);
   const [deskMax, setDeskMax] = useState(false);
   const [focusAsset, setFocusAsset] = useState("");
   // El prompt "Hey PerkOS" vive bajo el microfono (.whisper). Esta linea es solo
@@ -137,6 +142,79 @@ function Shell() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const messagesRef = useRef<Msg[]>([]);
   messagesRef.current = messages;
+  // Historial de chat como en cualquier app de chat: hilos guardados en disco (cifrados
+  // con la llave de la wallet, ver lib/chatKey.ts), autoguardado, chat nuevo y lista para
+  // reabrir. Al abrir el app vuelve el ultimo hilo, cerrado detras de "Show chat".
+  const [threadId, setThreadId] = useState("");
+  const threadRef = useRef("");
+  threadRef.current = threadId;
+  const [historyLocked, setHistoryLocked] = useState(false);
+  const [chatsKey, setChatsKey] = useState(0);
+  const [chatsOpen, setChatsOpen] = useState(false);
+  const savedSigRef = useRef("");
+  const keepable = (list: Msg[]) => list.filter((x) => !x.streaming && (x.text || x.draft || x.launch || x.auto || x.fees || x.analysis)).slice(-200);
+  // Los drafts sin aprobar de otra sesion vuelven vencidos: su cotizacion ya no vale.
+  const restoreMsgs = (saved: Msg[]): Msg[] => saved.filter((x) => x && typeof x.id === "number").map((x) => ({ ...x, streaming: false, ...(x.role === "draft" && x.tx && ["idle", "signing", "pending"].includes(x.tx.stage) && (x.draft || x.launch || x.auto) ? { tx: { ...x.tx, stage: "failed" as const, note: "From an earlier session. Ask for it again to get a fresh draft." } } : {}) }));
+  const openChat = useCallback(async (id: string, show = true) => {
+    const r = await fetch(`/api/chats?id=${encodeURIComponent(id)}`).catch(() => null);
+    if (!r) return;
+    if (r.status === 428) { setHistoryLocked(true); return; }
+    const t = (await r.json().catch(() => ({}))) as { messages?: Msg[]; title?: string };
+    if (!Array.isArray(t.messages)) return;
+    const back = restoreMsgs(t.messages);
+    savedSigRef.current = JSON.stringify(keepable(back));
+    setMessages(back);
+    setThreadId(id);
+    flog("info", `chat: opened "${t.title ?? id}" · ${back.length} messages`);
+    if (show) touchRef.current();
+  }, []);
+  const chatsLoadedFor = useRef("");
+  const loadLatestChat = useCallback(async () => {
+    const r = await fetch("/api/chats").catch(() => null);
+    if (!r) return;
+    if (r.status === 428) { setHistoryLocked(true); flog("info", "chat history: locked, waiting for the wallet to unlock it once on this computer"); return; }
+    setHistoryLocked(false);
+    const j = (await r.json().catch(() => ({}))) as { chats?: Array<{ id: string }> };
+    const first = (j.chats ?? [])[0];
+    if (first && messagesRef.current.length === 0) await openChat(first.id, false);
+  }, [openChat]);
+  useEffect(() => {
+    const addr = wallet.address.toLowerCase();
+    if (!addr || chatsLoadedFor.current === addr) return;
+    chatsLoadedFor.current = addr;
+    void loadLatestChat();
+  }, [wallet.address, loadLatestChat]);
+  // Autoguardado: 1.2 s despues del ultimo cambio, solo si el contenido cambio.
+  useEffect(() => {
+    if (!wallet.address || historyLocked || chatsLoadedFor.current !== wallet.address.toLowerCase()) return;
+    const t = window.setTimeout(() => {
+      const keep = keepable(messages);
+      const sig = JSON.stringify(keep);
+      if (!keep.length || sig === savedSigRef.current) return;
+      let id = threadRef.current;
+      if (!id) { id = `t-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`; threadRef.current = id; setThreadId(id); }
+      void fetch(`/api/chats?id=${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: keep, desk: deskRef.current?.id ?? "floor-desk" }) })
+        .then((r) => { if (r.status === 428) setHistoryLocked(true); else if (r.ok) { savedSigRef.current = sig; setChatsKey((n) => n + 1); } })
+        .catch(() => undefined);
+    }, 1200);
+    return () => window.clearTimeout(t);
+  }, [messages, wallet.address, historyLocked]);
+  // Una firma, una vez por computadora: deriva la llave del historial (queda en el Llavero).
+  const unlockHistory = useCallback(async () => {
+    try {
+      const probe = await fetch("/api/chats", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      if (probe.ok) { setHistoryLocked(false); void loadLatestChat(); return; }
+      const need = (await probe.json().catch(() => ({}))) as { message?: string };
+      if (!need.message) return;
+      setCaption(wallet.signWhere === "phone" ? `Confirm the history key in ${wallet.walletName || "your wallet"} on your phone…` : "Confirm the history key in your wallet…");
+      const signature = await wallet.signMessage(need.message);
+      const r = await fetch("/api/chats", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ signature }) });
+      if (r.ok) { setHistoryLocked(false); setCaption("Chat history unlocked. It is saved encrypted on this computer."); flog("info", "chat history: unlocked with a wallet signature"); void loadLatestChat(); setChatsKey((n) => n + 1); }
+      else { const e = (await r.json().catch(() => ({}))) as { detail?: string }; setCaption(e.detail ?? "Could not unlock the chat history."); }
+    } catch (e) { flog("warn", `chat history unlock: ${(e as Error).message}`); setCaption("The history key was not signed."); }
+  }, [wallet, loadLatestChat]);
+  // Chat nuevo: el hilo actual ya esta guardado; la escena vuelve a reposo con el tablero limpio.
+  const newChatRef = useRef<() => void>(() => undefined);
   const [split, setSplit] = useState(false);
   const idleTimer = useRef<number>(0);
   const voiceRef = useRef<{ continuous: boolean; listening: boolean } | null>(null);
@@ -151,6 +229,10 @@ function Shell() {
     idleTimer.current = window.setTimeout(() => {
       // En conversacion continua o hablando, la charla sigue viva: no volver a idle.
       if (voiceRef.current?.continuous || voiceRef.current?.listening || busyRef.current) { touchRef.current(); return; }
+      // Con una card esperando a la persona (orden, launch, claim o automatizacion sin aprobar,
+      // o una firma en curso) el chat no se esconde: ahi esta el boton.
+      const waiting = messagesRef.current.some((x) => x.role === "draft" && x.tx && ["idle", "signing", "pending"].includes(x.tx.stage) && (x.draft || x.launch || x.auto || (x.fees && x.fees.tokens.some((t) => Number(t.claimable.token0) > 0 || Number(t.claimable.token1) > 0))));
+      if (waiting) { touchRef.current(); return; }
       setSplit(false);
     }, 120_000);
   }, []);
@@ -276,7 +358,12 @@ function Shell() {
       let f0 = fleetRef.current;
       if (f0 && Date.now() - fleetAtRef.current > 60_000) f0 = (await fleetActionRef.current("status")) ?? f0;
       const asleep = (x: Fleet | null | undefined) => Boolean(x && x.agents.some((a) => a.state === "hibernated" || a.state === "waking"));
-      if (asleep(f0)) {
+      // Regla: los agentes solo se despiertan cuando se les asigna una tarea (analyze, advise,
+      // una orden, un launch). En modo chat Sparky contesta cualquier consulta por su cuenta y
+      // el equipo sigue dormido: despertarlo cuesta infra y tiempo, y no aporta a la respuesta.
+      if (asleep(f0) && modeRef.current === "chat") {
+        flog("info", "chat: Sparky answers on its own; the team stays asleep (no task assigned)");
+      } else if (asleep(f0)) {
         setCaption("Waking the team on PerkOS…");
         setTeam("waking");
         f0 = (await fleetActionRef.current("wake")) ?? f0;
@@ -919,6 +1006,13 @@ function Shell() {
         flog("info", `fees claim ${t.tokenSymbol}: confirmed ${hash}`);
       }
       patch({ stage: "done", hashes: [...hashes] });
+      // Bankr cachea lo reclamable 2 min: la card y la pantalla Launches lo muestran ya en cero.
+      const claimedNow = j.txs.map((t) => (t as { tokenAddress?: string }).tokenAddress ?? "").filter(Boolean).map((a) => a.toLowerCase());
+      const zero = f.tokens.map((t) => (claimedNow.length === 0 || claimedNow.includes(t.tokenAddress.toLowerCase()) ? { ...t, claimable: { token0: "0", token1: "0" }, claimed: { ...t.claimed, count: (t.claimed?.count ?? 0) + 1 } } : t));
+      setMessages((m) => m.map((x) => (x.id === msgId && x.fees ? { ...x, fees: { ...x.fees, tokens: zero } } : x)));
+      setClaimedTokens((c) => [...new Set([...c, ...(claimedNow.length ? claimedNow : f.tokens.map((t) => t.tokenAddress.toLowerCase()))])]);
+      setDeskRefresh((n) => n + 1);
+      window.setTimeout(() => { setClaimedTokens([]); setDeskRefresh((n) => n + 1); }, 135_000);
       kbWriteRef.current({ kind: "order", title: `claim fees ${new Date().toISOString().slice(0, 16).replace("T", " ")}`, body: `- Claimed creator fees for ${j.txs.map((t) => t.tokenSymbol).join(", ")} to ${wallet.address}\n- Signed by the human in their wallet.\n${hashes.map((h) => `- ${h.label}: ${h.explorer}`).join("\n")}` });
       setCaption(`Fees claimed for ${j.txs.map((t) => t.tokenSymbol).join(", ")}. Receipt on Base.`);
       speak(`Done. Your creator fees are in your wallet, receipt on chain.`);
@@ -972,6 +1066,7 @@ function Shell() {
         flog("info", `trade ${t.label}: confirmed`);
       }
       patch({ stage: "done", step: undefined, hashes: [...hashes] });
+      setDeskRefresh((n) => n + 1);
       {
         const last = hashes[hashes.length - 1];
         setTurn((t) => (t ? { ...t, receipt: { hash: last?.hash, explorer: last?.explorer, status: "signed" } } : t));
@@ -1236,6 +1331,23 @@ function Shell() {
     return () => window.clearTimeout(t);
   }, []);
 
+  newChatRef.current = () => {
+    savedSigRef.current = "";
+    threadRef.current = "";
+    setThreadId("");
+    setMessages([]);
+    quoteRef.current = null;
+    briefRef.current = null;
+    heldDraftRef.current = null;
+    modeRef.current = "chat";
+    setTurn(null);
+    setBeams([]);
+    setVerdict("");
+    window.clearTimeout(idleTimer.current);
+    setSplit(false);
+    setCaption("New chat. The last one is saved in Chats.");
+    flog("info", "chat: new thread");
+  };
   const run = useCallback((raw: string) => {
     const spoken = raw.trim();
     const it = parseIntent(raw);
@@ -1265,6 +1377,8 @@ function Shell() {
     if (cmd === "automations") { setDeskScreen("automations"); setCaption("Your Bankr automations"); return; }
     if (cmd === "fees") { quoteRef.current = null; void feesCard(undefined, it.token); return; }
     if (cmd === "launches") { setDeskScreen("launches"); setCaption("Your tokens on Base"); return; }
+    if (cmd === "chats") { setChatsOpen(true); setCaption("Your conversations"); return; }
+    if (cmd === "newchat") { newChatRef.current(); return; }
     if (cmd === "buy" || cmd === "sell") {
       quoteRef.current = null;
       // Sin activo reconocido no se asume NVDAc: se usa el activo en foco o se pregunta.
@@ -1589,7 +1703,10 @@ function Shell() {
     setWizard(true);
     setSplash(false);
     setWho("");
-    // La conversacion es de la cuenta que se va: no debe quedar para la siguiente.
+    // La conversacion es de la cuenta que se va: no debe quedar para la siguiente (sigue guardada, cifrada, para ella).
+    savedSigRef.current = "";
+    chatsLoadedFor.current = "";
+    setThreadId("");
     setMessages([]);
     setSplit(false);
     setTeam("hibernated");
@@ -1822,6 +1939,8 @@ function Shell() {
           onClose={() => { setDeskScreen(""); setDeskMax(false); }}
           onSay={(t) => runRef.current(t)}
           onSummarize={() => void summarizeDay()}
+          refreshKey={deskRefresh}
+          claimedTokens={claimedTokens}
           max={deskMax}
           onMax={setDeskMax}
           map={(
@@ -1915,6 +2034,20 @@ function Shell() {
         }}
       >
         <div className="ask-top">
+        <span className="ask-left">
+        <button type="button" className={`chat-peek${chatsOpen ? " on" : ""}`} onClick={() => setChatsOpen((o) => !o)} title="Your saved conversations"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden><path d="M4 6h16M4 12h16M4 18h10" /></svg>Chats</button>
+        {messages.length > 0 ? <button type="button" className="chat-peek" onClick={() => newChatRef.current()} title="Start a new conversation. This one stays saved in Chats.">New chat</button> : null}
+        {historyLocked && wallet.canSign ? <button type="button" className="chat-peek pending" onClick={() => void unlockHistory()} title="One signature, once on this computer: it derives the key that encrypts your chat history on disk. It moves no funds.">Unlock history</button> : null}
+        {!split && messages.length > 0 ? (() => {
+          const pending = messages.filter((x) => x.role === "draft" && x.tx?.stage === "idle" && (x.draft || x.launch || x.auto)).length;
+          return (
+            <button type="button" className={`chat-peek${pending ? " pending" : ""}`} onClick={() => touch()} title="The conversation is still here. Open it to read the desk's turn or approve a draft.">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M21 12a8 8 0 0 1-11.8 7L4 20l1.1-4.6A8 8 0 1 1 21 12z" /></svg>
+              {pending ? `Show chat · ${pending} draft${pending > 1 ? "s" : ""} waiting` : `Show chat · ${messages.filter((x) => x.role !== "floor" || x.text).length}`}
+            </button>
+          );
+        })() : null}
+        </span>
         <select
           className="model-chip"
           value={model}
@@ -1998,6 +2131,7 @@ function Shell() {
         </div>
       </form>
       </div>
+      {chatsOpen ? <ChatsDrawer bridge={{ activeId: threadId, locked: historyLocked, canUnlock: wallet.canSign, refreshKey: chatsKey, onOpen: (id: string) => void openChat(id), onNew: () => newChatRef.current(), onUnlock: () => void unlockHistory(), onDeleted: (id: string) => { if (id === threadRef.current) newChatRef.current(); } }} onClose={() => setChatsOpen(false)} /> : null}
       <div className="caption">{caption}</div>
       <ErrorDock open={debug} onOpen={setDebug} />
     </div>
@@ -2073,11 +2207,29 @@ function StopIcon() {
   );
 }
 
+/** Estado de runtime del agente en el vocabulario del avatar (Asset Kit, seccion 24).
+ *  Hibernado = hibernating (dormido, identidad intacta), nunca offline. */
+function avatarState(state: string, talking?: boolean, verdict?: "GO" | "BLOCK" | ""): AgentAvatarState {
+  if (talking) return "working";
+  if (verdict === "GO") return "success";
+  if (verdict === "BLOCK") return "warning";
+  if (state === "ready") return "idle";
+  if (state === "provisioning" || state === "waking") return "thinking";
+  if (state === "failed") return "error";
+  if (state === "hibernated") return "hibernating";
+  return "offline"; // planned / not created
+}
+
 function Orb({ className, label, on, state = "", rail, onRail, talking, verdict, refCb }: { className: string; label: string; on: boolean; state?: string; rail?: { linked: boolean; lockUsd: number }; onRail?: () => void; talking?: boolean; verdict?: "GO" | "BLOCK" | ""; refCb?: (el: HTMLDivElement | null) => void }) {
   const sub = talking ? "Thinking" : state === "ready" ? "Online" : state === "provisioning" ? "Provisioning" : state === "waking" ? "Waking" : state === "hibernated" ? "Hibernating" : state === "failed" ? "Failed" : state === "planned" ? "Not created" : "";
+  const role = className.split(" ")[0];
+  const desk = role === "scout" || role === "risk" || role === "trader" || role === "auditor";
   return (
     <div ref={refCb} className={`orb ${className}${on ? " on" : ""}${state ? ` st-${state}` : ""}${talking ? " talking" : ""}`} title={sub}>
-      <div className="ball" />
+      {/* Avatar de identidad persistente (kit v1); el estado solo cambia ojos, anillo y brillo. El Grok Bot invitado va como guest. */}
+      <div className="ball avatar">
+        <AgentAvatar agent={{ id: desk ? role : "grok-bot", role: desk ? role : "guest", name: label, custody: role === "trader" ? "1claw" : null }} state={desk ? avatarState(state, talking, verdict) : on ? "idle" : "offline"} size={80} label={label} />
+      </div>
       <span>{label}</span>
       {sub ? <small>{sub}</small> : null}
       {verdict ? <em className={`verdict ${verdict.toLowerCase()}`}>{verdict}</em> : null}
@@ -2414,7 +2566,8 @@ function FeesCard({ fees, tx, onClaim, onRefresh, signHint, onPhone, onReconnect
   const byQuote = new Map<string, number>();
   for (const t of fees.tokens) byQuote.set(t.token0Label, (byQuote.get(t.token0Label) ?? 0) + num(t.claimable.token0));
   const quoteLine = [...byQuote.entries()].filter(([, v]) => v > 0).map(([k, v]) => `${fmt(String(v))} ${k}`).join(" + ");
-  const head = fees.tokens.length === 0 ? "no launches paying this wallet yet" : `${fees.tokens.length} token${fees.tokens.length > 1 ? "s" : ""} · ${quoteLine ? `${quoteLine} to claim` : "nothing to claim yet"} · claimed ${fees.totals.claimCount}×`;
+  const claimedTimes = fees.tokens.reduce((n, t) => n + (t.claimed?.count ?? 0), 0);
+  const head = fees.tokens.length === 0 ? "no launches paying this wallet yet" : `${fees.tokens.length} token${fees.tokens.length > 1 ? "s" : ""} · ${tx.stage === "done" ? "claimed just now" : quoteLine ? `${quoteLine} to claim` : "nothing to claim yet"} · claimed ${claimedTimes}×`;
   return (
     <div className={`draft-card fees st-${tx.stage}`}>
       <div className="draft-head">
@@ -2428,7 +2581,7 @@ function FeesCard({ fees, tx, onClaim, onRefresh, signHint, onPhone, onReconnect
             return (
               <li key={t.tokenAddress} className={zero ? "zero" : ""}>
                 <b>{t.symbol}</b>
-                <span>{zero ? "nothing to claim" : `${fmt(t.claimable.token0)} ${t.token0Label} + ${fmt(t.claimable.token1)} ${t.token1Label}`}</span>
+                <span>{zero ? (tx.stage === "done" ? "claimed, in your wallet" : "nothing to claim") : `${fmt(t.claimable.token0)} ${t.token0Label} + ${fmt(t.claimable.token1)} ${t.token1Label}`}</span>
                 <small>{t.share} of the pool fee · claimed {t.claimed.count}×</small>
               </li>
             );
@@ -2501,6 +2654,13 @@ function AutomationCard({ auto, tx, onCreate, onOpen }: {
   );
 }
 
+function ChatIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M21 12a8 8 0 0 1-11.8 7L4 20l1.1-4.6A8 8 0 1 1 21 12z" />
+    </svg>
+  );
+}
 function RocketIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

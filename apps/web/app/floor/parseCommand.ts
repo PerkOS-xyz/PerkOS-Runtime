@@ -13,7 +13,7 @@ export type Command =
   | "unknown";
 
 export type Intent =
-  | { kind: "listen" | "wake" | "sleep" | "invite" | "stop" | "settings" | "docs" | "market" | "portfolio" | "map" | "history" | "approve" | "cancel" | "summarize" | "advise" | "chat" | "automations" | "launches" }
+  | { kind: "listen" | "wake" | "sleep" | "invite" | "stop" | "settings" | "docs" | "market" | "portfolio" | "map" | "history" | "approve" | "cancel" | "summarize" | "advise" | "chat" | "automations" | "launches" | "chats" | "newchat" }
   | { kind: "fees"; token?: string }
   | { kind: "launch"; name?: string; symbol?: string; pair?: string; recipient?: string; vesting?: "on" | "off"; feesIn?: "quote"; degen?: boolean }
   | { kind: "automate"; text: string }
@@ -124,6 +124,8 @@ export function parseIntent(raw: string): Intent {
   if (trade) return trade;
   if (/\b(portfolio|portafolio|holdings|positions|posiciones|what do i (hold|own)|que tengo|qué tengo|mis acciones)\b/.test(t)) return { kind: "portfolio" };
   if (/\b(show|open|see|ver|muestra|abre)\b.*\b(map|graph|mapa|grafo|the team)\b|^(map|mapa|team map|desk map)$/.test(t)) return { kind: "map" };
+  if (/^(new chat|new conversation|start over|nuevo chat|nueva conversaci[oó]n|chat nuevo)$/.test(t) || /\b(start|open|begin|abre|empieza|inicia)\b.*\b(new|nuevo|nueva)\b.*\b(chat|conversation|conversaci[oó]n|thread|hilo)\b/.test(t)) return { kind: "newchat" };
+  if (/\b(chat history|my chats|show (my |the )?chats|conversations|past chats|threads|mis chats|historial de chat|conversaciones|hilos)\b|^chats$/.test(t)) return { kind: "chats" };
   if (/\b(history|decisions|past (turns|trades|decisions)|historial|decisiones|historico|histórico)\b/.test(t)) return { kind: "history" };
   // Tolerante a typos frecuentes al dictar/teclear: anayze, analize, analyse, analisa.
   const analyzeVerb = /\b(ana(?:l|ly|lyz|liz|lys|y)[sz]?e?|analiza|analizar|analisa|analisis|análisis|research|investiga|look into|check|revisa|mira)\b/;

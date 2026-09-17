@@ -1336,7 +1336,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 @keyframes typingDot { 0%, 80%, 100% { transform: translateY(0); opacity: 0.35; } 40% { transform: translateY(-3px); opacity: 1; } }
 
 /* ==== Agent graph (2026-09-16): color por agente, cards bajo las esferas ==== */
-:root { --ag-scout: #3d7eff; --ag-risk: #ffb347; --ag-trader: #a855f7; --ag-auditor: #2dd4bf; --ag-floor: #ec1b69; }
+:root { --ag-scout: #3d7eff; --ag-risk: #ffb347; --ag-trader: #f0262a; --ag-auditor: #2dd4bf; --ag-floor: #ec1b69; } /* Trader = rojo 1Claw: es el agente que firma con 1Claw */
 .orb.scout { --ag: var(--ag-scout); } .orb.risk { --ag: var(--ag-risk); } .orb.trader { --ag: var(--ag-trader); } .orb.auditor { --ag: var(--ag-auditor); }
 .orb.scout .ball, .orb.risk .ball, .orb.trader .ball, .orb.auditor .ball {
   background: radial-gradient(circle at 35% 30%, #ffffff, var(--ag) 42%, #070a1a);
@@ -1367,7 +1367,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .m { display: inline-block; font-size: 10px; padding: 0 7px; border-radius: 999px; border: 1px solid; margin-right: 3px; line-height: 16px; vertical-align: baseline; }
 .m.scout { color: #9fc2ff; border-color: color-mix(in srgb, var(--ag-scout) 60%, transparent); background: color-mix(in srgb, var(--ag-scout) 14%, transparent); }
 .m.risk { color: #ffd08a; border-color: color-mix(in srgb, var(--ag-risk) 60%, transparent); background: color-mix(in srgb, var(--ag-risk) 12%, transparent); }
-.m.trader { color: #d8b4fe; border-color: color-mix(in srgb, var(--ag-trader) 60%, transparent); background: color-mix(in srgb, var(--ag-trader) 14%, transparent); }
+.m.trader { color: #ffb3b3; border-color: color-mix(in srgb, var(--ag-trader) 60%, transparent); background: color-mix(in srgb, var(--ag-trader) 14%, transparent); }
 .m.auditor { color: #99f6e4; border-color: color-mix(in srgb, var(--ag-auditor) 60%, transparent); background: color-mix(in srgb, var(--ag-auditor) 12%, transparent); }
 .m.floor, .m.sparky { color: #ff8fa8; border-color: rgba(236, 27, 105, 0.7); background: rgba(236, 27, 105, 0.15); }
 /* Turnos anteriores plegados. */
@@ -1723,7 +1723,9 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 /* Sparky es mas alto que la esfera: en reposo un poco mas arriba para que la
    linea de promesa no toque el compositor; en split, debajo de la fila 2 de
    la cabecera para no pegarse al lockup. */
-.stage:not(.split):not(.desk-open):not(.turn-live) .core-wrap { top: 54%; }
+.stage:not(.split):not(.desk-open):not(.turn-live) .core-wrap { top: calc(54% + 18px); }
+/* La promesa sube 15 px: Sparky bajo, la linea no. */
+.stage:not(.split):not(.desk-open):not(.turn-live) .mic-dock { margin-top: -15px; }
 /* En split, Sparky mini nunca pisa el lockup: como minimo 320 px desde la izquierda. */
 .stage.split .core-wrap, .stage.split.turn-live .core-wrap { top: 11%; left: max(23%, 320px); }
 /* Split con panel abierto: Sparky mini un poco mas arriba para no pisar la card de analisis. */
@@ -2032,3 +2034,111 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .who .wk { font-style: normal; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); color: var(--mute); }
 .settings-dock .linkdot { font-style: normal; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); color: var(--mute); margin-left: 8px; }
 .settings-dock .linkdot.on { color: #7fe0a8; border-color: rgba(61, 200, 120, 0.6); }
+
+/* Tanda 2026-09-17 (revision en vivo tras el claim). */
+/* Sparky mini nunca pisa el lockup PerkOS + Base con el panel abierto: minimo a la derecha del lockup. */
+.stage.split.desk-open .core-wrap { left: max(calc(40px + clamp(280px, 46%, 620px) / 2), 272px); }
+@container stage (max-width: 900px) { .stage.split.desk-open .core-wrap { left: max(calc(46% - 40px), 272px); } }
+@container stage (max-width: 700px) { .stage.split.desk-open .core-wrap { left: calc(100% - 92px); } }
+/* Cabecera de Launches / Automations: en panel estrecho los botones bajan bajo el texto. */
+@container panel (max-width: 620px) {
+  .desk-panel .auto-head { flex-wrap: wrap; row-gap: 8px; }
+  .desk-panel .auto-head small { flex: 1 1 100%; }
+  .desk-panel .auto-head .acts { margin-left: auto; }
+}
+/* Fees card: el monto en su linea, el reparto debajo en pequeno; nada de tres columnas apretadas. */
+.fees-rows li { grid-template-columns: auto 1fr; row-gap: 2px; }
+.fees-rows li small { grid-column: 2; }
+/* "Show chat": la conversacion sigue ahi aunque la escena vuelva a reposo. */
+.ask-top .chat-peek { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 11px; letter-spacing: 0.02em; padding: 4px 11px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); background: rgba(6, 10, 22, 0.45); color: #cdd7ee; cursor: pointer; }
+.ask-top .chat-peek:hover { border-color: rgba(160, 180, 220, 0.6); color: #fff; }
+.ask-top .chat-peek.pending { border-color: rgba(236, 27, 105, 0.7); color: #ffd3e1; background: rgba(236, 27, 105, 0.14); }
+/* Pie de la escena: con siete pantallas en el dock, la linea de venues solo cabe en stages anchos. */
+@container stage (max-width: 1360px) { .venue-line { display: none; } }
+
+/* Chats: lista de hilos por grupo, con acciones al pasar el raton. */
+.chat-drawer .chat-search { font: inherit; font-size: 12px; padding: 7px 12px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.22); background: rgba(6, 10, 22, 0.45); color: #e6ecff; outline: none; }
+.chat-drawer .chat-search:focus { border-color: rgba(160, 180, 220, 0.5); }
+.chat-drawer .chat-groups { overflow: auto; flex: 1; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.chat-drawer .chat-groups h4 { margin: 0 0 4px; font-size: 10px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); }
+.chat-drawer .chat-groups ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.chat-drawer .chat-groups li { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "open meta" "acts acts"; column-gap: 10px; padding: 8px 10px; border-radius: 10px; border: 1px solid transparent; }
+.chat-drawer .chat-groups li:hover { background: rgba(120, 160, 255, 0.06); }
+.chat-drawer .chat-groups li.on { border-color: rgba(236, 27, 105, 0.5); background: rgba(236, 27, 105, 0.07); }
+.chat-drawer .chat-open { grid-area: open; min-width: 0; text-align: left; background: transparent; border: 0; padding: 0; cursor: pointer; display: flex; flex-direction: column; gap: 2px; font: inherit; text-transform: none; letter-spacing: 0; }
+.chat-drawer .chat-open b { font-size: 13px; font-weight: 600; color: #e6ecff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-drawer .chat-open small { font-size: 11px; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-drawer .chat-meta { grid-area: meta; font-size: 10px; color: var(--mute); white-space: nowrap; align-self: start; padding-top: 2px; }
+.chat-drawer .chat-acts { grid-area: acts; display: none; gap: 6px; padding-top: 6px; }
+.chat-drawer .chat-groups li:hover .chat-acts, .chat-drawer .chat-groups li:focus-within .chat-acts { display: flex; }
+.chat-drawer .chat-acts button, .chat-drawer .chat-edit button { font: inherit; font-size: 10px; letter-spacing: 0.04em; text-transform: none; padding: 3px 9px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); background: transparent; color: #cdd7ee; cursor: pointer; }
+.chat-drawer .chat-acts button:hover { border-color: rgba(160, 180, 220, 0.6); color: #fff; }
+.chat-drawer .chat-acts button.danger { border-color: rgba(255, 90, 106, 0.7); color: #ff9aa2; }
+.chat-drawer .chat-edit { grid-area: open; display: flex; gap: 6px; }
+.chat-drawer .chat-edit input { flex: 1; min-width: 0; font: inherit; font-size: 12px; padding: 5px 10px; border-radius: 8px; border: 1px solid rgba(160, 180, 220, 0.4); background: rgba(6, 10, 22, 0.6); color: #e6ecff; outline: none; }
+
+/* Compositor: a la izquierda Chats / New chat / Show chat; a la derecha modelo y esfuerzo. */
+.ask-top { align-items: center; }
+.ask-top .ask-left { display: flex; gap: 6px; flex-wrap: wrap; margin-right: auto; min-width: 0; }
+.ask-top .chat-peek.on { border-color: rgba(236, 27, 105, 0.6); color: #ff5a6a; }
+.ask-top .chat-peek svg { flex: 0 0 auto; }
+
+/* Cajon de hilos: sobre la columna del chat, a la izquierda, como la barra lateral de un app de chat. */
+/* Mismo material que .desk-panel.dock (casi negro, borde tenue): el drawer es un panel mas del app, no un popup azul aparte. */
+.chat-drawer { position: absolute; left: 24px; top: 96px; bottom: 132px; z-index: 9; width: min(380px, calc(100% - 48px)); display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: 18px; background: linear-gradient(180deg, rgba(10, 12, 22, 0.97), rgba(3, 4, 10, 0.985)); border: 1px solid rgba(120, 160, 255, 0.14); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45); backdrop-filter: blur(16px); animation: drawerIn 200ms ease-out both; }
+@keyframes drawerIn { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .chat-drawer { animation: none; } }
+.chat-drawer header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.chat-drawer header b { font-size: 14px; font-weight: 600; color: #e6ecff; }
+.chat-drawer header .acts { display: flex; gap: 6px; align-items: center; }
+.chat-drawer header button { font: inherit; font-size: 11px; padding: 4px 11px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); background: transparent; color: #e6ecff; cursor: pointer; }
+.chat-drawer header button.x { width: 26px; height: 26px; padding: 0; border-radius: 50%; font-size: 15px; line-height: 1; color: var(--mute); }
+.chat-drawer .lead { font-size: 11px; line-height: 1.4; color: var(--mute); }
+.chat-drawer .chat-search { width: 100%; }
+.chat-drawer .launch-empty { border: 1px dashed rgba(160, 180, 220, 0.2); border-radius: 14px; padding: 22px 16px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; color: var(--mute); font-size: 12px; }
+.chat-drawer .launch-empty b { color: #e6ecff; font-size: 13px; }
+.chat-drawer .launch-empty button { margin-top: 6px; font: inherit; font-size: 11px; padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(236, 27, 105, 0.7); background: rgba(236, 27, 105, 0.16); color: #ffd3e1; cursor: pointer; }
+@container stage (max-width: 700px) { .chat-drawer { top: 80px; bottom: 120px; left: 16px; width: min(380px, calc(100% - 32px)); } }
+
+/* Con un panel del desk abierto, el caption se queda en la mitad izquierda. */
+.stage.desk-open .caption { max-width: calc(50% - 56px); }
+
+/* Avatares de agentes (PerkOS-Avatars): el movimiento comunica estado, nunca compite con el trabajo. */
+/* Identidad = geometria (nunca cambia). Estado = anillo, brillo, filtro y animacion. Hibernar no es offline:
+   gris, ojos sleepy, sin anillo, acento al 20%, quieto; la identidad sigue reconocible (Asset Kit, secciones 12 a 18, 28). */
+.agent-avatar { display: inline-block; line-height: 0; position: relative; transition: filter 600ms ease, opacity 600ms ease; }
+.agent-avatar svg { display: block; overflow: visible; }
+.agent-avatar .aa-ring { transform-origin: 500px 500px; transform-box: view-box; opacity: 0.9; }
+.agent-avatar .aa-accent, .agent-avatar .aa-eyes, .agent-avatar .aa-eyes-glow { transition: opacity 500ms ease; }
+.agent-avatar[data-state="idle"] svg { animation: aaBreathe 3.6s ease-in-out infinite; transform-origin: 50% 60%; }
+.agent-avatar[data-state="idle"] .aa-ring { opacity: 0.45; }
+.agent-avatar[data-state="working"] .aa-ring { animation: aaSpin 5s linear infinite; }
+.agent-avatar[data-state="thinking"] .aa-ring { animation: aaSpin 9s linear infinite; }
+.agent-avatar[data-state="thinking"] .aa-eyes { animation: aaScan 2.6s ease-in-out infinite; }
+.agent-avatar[data-state="listening"] .aa-module, .agent-avatar[data-state="listening"] .aa-ring { animation: aaPulse 1.5s ease-in-out infinite; }
+.agent-avatar[data-state="waiting"] .aa-ring, .agent-avatar[data-state="waiting"] .aa-accent { animation: aaPulse 2.4s ease-in-out infinite; }
+.agent-avatar[data-state="error"] svg { animation: aaShake 420ms ease-in-out 2; }
+.agent-avatar[data-mode="offline"] { filter: saturate(0.35) brightness(0.62); }
+.agent-avatar[data-mode="offline"] .aa-eyes-glow { opacity: 0; }
+.agent-avatar[data-mode="hibernating"] { filter: grayscale(0.8) saturate(0.3) brightness(0.75); opacity: 0.9; }
+.agent-avatar[data-mode="hibernating"] .aa-accent { opacity: 0.2; }
+.agent-avatar[data-mode="hibernating"] .aa-eyes-glow { opacity: 0; }
+.agent-avatar[data-mode="hibernating"] .aa-eyes { opacity: 0.7; }
+.agent-avatar[data-mode="hibernating"] svg { animation: aaBreathe 9s ease-in-out infinite; transform-origin: 50% 60%; }
+@keyframes aaBreathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.015); } }
+@keyframes aaSpin { to { transform: rotate(360deg); } }
+@keyframes aaPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@keyframes aaScan { 0%, 100% { transform: translateX(-2.2px); } 50% { transform: translateX(2.2px); } }
+@keyframes aaShake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-2px); } 75% { transform: translateX(2px); } }
+@media (prefers-reduced-motion: reduce) { .agent-avatar svg, .agent-avatar .aa-ring, .agent-avatar .aa-eyes, .agent-avatar .aa-module, .agent-avatar .aa-accent { animation: none !important; } }
+.agent-avatar .aa-accent-glow, .agent-avatar .aa-module-glow { transition: opacity 500ms ease; }
+.agent-avatar[data-mode="hibernating"] .aa-accent-glow, .agent-avatar[data-mode="hibernating"] .aa-module-glow, .agent-avatar[data-mode="offline"] .aa-accent-glow { opacity: 0; }
+.agent-avatar[data-state="working"] .aa-accent-glow, .agent-avatar[data-state="listening"] .aa-module-glow { animation: aaPulse 2.2s ease-in-out infinite; }
+
+/* ==== Avatares en la escena (kit v1): la esfera deja paso al avatar; el estado lo pinta el propio avatar. ==== */
+.ball.avatar { width: 80px; height: 80px; background: none !important; box-shadow: none !important; filter: none !important; display: flex; align-items: center; justify-content: center; }
+.orb.talking .ball.avatar { animation: orbTalk 1.6s ease-in-out infinite; }
+.orb.st-planned .ball.avatar, .orb.st-failed .ball.avatar { filter: none !important; }
+.ag-who { display: inline-flex; align-items: center; gap: 6px; }
+.ag-who .agent-avatar { margin: -3px 0; }
+.qlog-h .agent-avatar { margin: -4px 0; }
