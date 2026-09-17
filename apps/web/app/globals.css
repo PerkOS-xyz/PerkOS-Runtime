@@ -2331,3 +2331,13 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .trace ol { margin: 6px 0 4px; padding-left: 16px; display: flex; flex-direction: column; gap: 2px; }
 .trace li small { color: #6f7d99; }
 @media (prefers-reduced-motion: reduce) { .act-dot { animation: none; } }
+
+/* Tarjetas de decision (trade, launch, automation, fees) en el material del dock y del drawer de
+   Chats: casi negro neutro con blur, no el azul oscuro anterior. El borde sigue marcando el estado. */
+.draft-card { background: linear-gradient(180deg, rgba(10, 12, 22, 0.97), rgba(3, 4, 10, 0.985)); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45); backdrop-filter: blur(16px); }
+.lc-profile, .lc-basics { background: rgba(255, 255, 255, 0.02); border-color: rgba(160, 180, 220, 0.16); }
+.lc-logo { background: rgba(255, 255, 255, 0.03); border-color: rgba(160, 180, 220, 0.18); }
+.lc-basics input, .lc-search, .lc-fields input, .lc-fields textarea, .lc-gen textarea, .lc-adv-body .lc-field input { background: rgba(3, 4, 10, 0.6); border-color: rgba(160, 180, 220, 0.22); }
+.lc-max-layer { background: rgba(3, 4, 10, 0.62); }
+/* Las notas de los pasos informativos (First buy, Token profile) se leen completas. */
+.launch-checks li.skip small { white-space: normal; overflow: visible; line-height: 1.35; }
