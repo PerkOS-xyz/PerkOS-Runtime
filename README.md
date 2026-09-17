@@ -11,7 +11,46 @@ They draft. You approve.
 - A native macOS app (`PerkOS.app`, Apple Silicon) built from an Electron shell and a Next.js 16 app that runs a local server on 127.0.0.1 for its own window.
 - Wallet login with Privy, PerkOS session, Grok (xAI) by OAuth for chat and voice, DeepSeek agents on PerkOS infrastructure for the desk turns.
 - Uniswap drafts with a Bankr second quote, 1Claw spend rail for the Trader, Chainlink and Base data for facts, PerkOS Knowledge for shared desk knowledge, a local Markdown vault for memory.
+- Bankr for launching tokens paired with tokenized stocks, for automations (DCA, stop loss, limit) and for the creator fees those launches earn.
 - Everything that spends, signs or changes the wallet waits for the person: hold to approve in the app, confirm in the wallet.
+
+## What you can do
+
+Sign in, wake the desk, ask Sparky. Six requests are understood. Four of them go through the desk (Scout and Risk first, then Trader and Auditor; Risk says GO or BLOCK when there is something to sign). Automations and fee claims are rules or collections, not decisions, so they go straight to a card. Every card waits for a two second hold.
+
+```mermaid
+flowchart TD
+  A[Sign in with Privy<br/>wallet on Base] --> B[Wake the desk<br/>Scout, Risk, Trader, Auditor]
+  B --> S[Ask Sparky<br/>voice or text, English or Spanish]
+  S --> AN[Analyze a stock<br/>facts, news, desk read]
+  S --> AD[Ask what to buy<br/>market scan, ranking]
+  S --> TR[Buy or sell<br/>up to 100 USDC]
+  S --> LA[Launch a token<br/>paired with a B20 stock]
+  S --> AU[Automate<br/>DCA, stop loss, limit]
+  S --> FE[Claim fees<br/>your launch earnings]
+  AN --> D[The desk reviews it<br/>Scout and Risk, then Trader and Auditor<br/>Risk: GO or BLOCK]
+  AD --> D
+  TR --> D
+  LA --> D
+  AU --> C
+  FE --> C
+  D --> C[Card on the table<br/>Hold to approve, launch, create or claim]
+  C --> X[You sign in your wallet, or Bankr executes]
+  X --> R[Receipt on Base<br/>Notes, History and Map keep the record]
+```
+
+| Say | Who works | Card | Who executes |
+|---|---|---|---|
+| `analyze nvidia` | the four agents (analyze mode) | Analysis card: brief, news, the desk's read | nobody, it is a read |
+| `what should I buy this month` | the four agents over a market scan (advise mode) | Outlook by the Auditor, reviewed a month later | nobody |
+| `buy $5 of NVDA`, `sell half my TSLA` | Uniswap or Aerodrome draft plus a Bankr second quote; the four agents (order mode); Risk GO or BLOCK | Draft card, Hold to approve | you sign in your wallet, receipt on Base |
+| `launch Night Owl (OWL) paired with NVDA` | Bankr checks and simulation; the four agents (launch mode); Risk GO or BLOCK | Launch card, Hold to launch | Bankr deploys, gas sponsored; 95% of the pool fee pays your wallet |
+| `dca $5 into NVDA every week`, `stop loss on TSLA at 380` | Trader drafts the prompt, no desk turn | Automation card, Hold to create | Bankr's agent, from your Bankr wallet |
+| `claim my fees`, `what did I earn` | public Bankr read, no desk turn | Fees card, Hold to claim | you sign the claim, gas on Base |
+| `show my automations`, `history`, `notes`, `map`, `portfolio`, `market` | the desk dock | | |
+| `summarize the day` | Sparky folds the journal into the desk memory | | |
+
+Fixed rules: nothing executes without a hold; a swap or a fee claim pays only the wallet connected in Settings; a BLOCK from Risk disables the card; every turn is kept in History and every note in the local vault.
 
 ## Layout
 
@@ -32,7 +71,7 @@ cd ../desktop && npm install && npm run brand              # brand the dev Elect
 cd ../.. && npm start                                      # Electron shell; it starts the web server itself
 ```
 
-`npm run dev` runs the web app alone at http://127.0.0.1:3000 (no per-launch API token in that mode). Ask the desk: `Hey Sparky`, `Wake the team`, `Analyze NVDA`, `What should I buy this month`, `Buy $3 of NVDAc`, `Show the market`, `Stop`.
+`npm run dev` runs the web app alone at http://127.0.0.1:3000 (no per-launch API token in that mode). Ask the desk: `Hey Sparky`, `Wake the team`, `Analyze NVDA`, `What should I buy this month`, `Buy $3 of NVDAc`, `Launch Night Owl (OWL) paired with NVDA`, `DCA $5 into NVDA every week`, `Claim my fees`, `Show the market`, `Stop`.
 
 ## Environment
 
@@ -40,7 +79,7 @@ cd ../.. && npm start                                      # Electron shell; it 
 |---|---|---|
 | `NEXT_PUBLIC_PRIVY_APP_ID`, `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | build time | public ids for wallet login |
 | `BASE_RPC_URL` | run time, optional | Base JSON-RPC; default public node |
-| `BANKR_API_KEY` | run time, optional | read-only key for the second quote |
+| `BANKR_API_KEY` | run time, optional | Bankr key: read-only is enough for the second quote; Token Launch API and read-write for launches and automations |
 | `PERKOS_API_URL`, `PERKOS_OAUTH_URL`, `PERKOS_FLEET_TEMPLATE` | run time, optional | PerkOS endpoints and desk template |
 | `KNOWLEDGE_*` | run time, optional | PerkOS Knowledge tier and, for one install, the publishing token |
 | `XAI_BASE_URL` | run time, optional | Grok API base |
@@ -61,7 +100,7 @@ npm run package:mac --prefix apps/desktop
 Builds the web app in production mode (`next build`, standalone output), makes the icon and the DMG background from the vertical logo, packs the shell with electron-builder and puts the desk server inside the bundle (`after-pack.cjs`). Output: `apps/desktop/release/PerkOS-<version>-arm64.dmg` and `apps/desktop/release/mac-arm64/PerkOS.app`. The app starts the bundled server with Electron's own Node, so the Mac that runs it needs no Node install.
 
 - Build-time: `apps/web/.env.local` with the `NEXT_PUBLIC_*` values (they are inlined).
-- Run-time: optional `~/.perkos-xyz/env` with server keys (`BASE_RPC_URL`, `BANKR_API_KEY`, `KNOWLEDGE_*`), same `KEY=VALUE` format. Without it the app uses the public Base RPC and PerkOS Knowledge and skips the Bankr second quote. Keys never travel inside the bundle.
+- Run-time: optional `~/.perkos-xyz/env` with server keys (`BASE_RPC_URL`, `BANKR_API_KEY`, `KNOWLEDGE_*`), same `KEY=VALUE` format. Without it the app uses the public Base RPC and PerkOS Knowledge and skips the Bankr second quote, launches and automations (fee reads and claims need no key). Keys never travel inside the bundle.
 - Settings, session, vault and logs stay in `~/.perkos-xyz/` (`logs/perkos-app.log` is the server output of the packaged app). Installs from 0.2.0 kept them in `~/.perkos-floor/`; the folder is renamed on first start.
 
 ### Signing and notarization
