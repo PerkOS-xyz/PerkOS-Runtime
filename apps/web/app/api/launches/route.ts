@@ -3,6 +3,10 @@ import { loadSettings } from "../../lib/settingsStore";
 import { bankrLaunchConfigured, bankrWallet, launchQuotes, launchRecord, walletLaunches } from "../../lib/bankrLaunch";
 import { creatorFees } from "../../lib/bankrFees";
 import { launchMarket, type LaunchMarket } from "../../lib/launchMarket";
+import { createPublicClient, formatUnits, http, parseAbi } from "viem";
+import { base } from "viem/chains";
+
+const BALANCE_ABI = parseAbi(["function balanceOf(address) view returns (uint256)"]);
 
 // GET /api/launches -> { wallet, deployer, tokens[] }
 // Los tokens de la persona: los que pagan fees a su wallet conectada (registro
@@ -11,6 +15,8 @@ import { launchMarket, type LaunchMarket } from "../../lib/launchMarket";
 export type LaunchRow = {
   tokenAddress: string; name: string; symbol: string; chain: string; timestamp?: number; status?: string;
   pair?: string; pairAddress?: string; deployer?: string; deployerX?: string; feeRecipient?: string;
+  /** Cuanto tiene la wallet conectada de este token (unidades enteras) y cuanto vale al precio del pool. */
+  balance?: number; balanceUsd?: number;
   mine: boolean; deployedHere: boolean;
   claimable?: { token0: string; token1: string; token0Label: string; token1Label: string }; claimed?: { token0: string; token1: string; count: number }; share?: string;
   bankrUrl: string; explorer: string; poolId?: string; market?: LaunchMarket;
@@ -60,6 +66,14 @@ export async function GET(req: Request) {
     const tokens = [...rows.values()].sort((x, y) => (y.timestamp ?? 0) - (x.timestamp ?? 0));
     // Mercado y pool por token (DexScreener, GeckoTerminal, Bankr), en paralelo y con cache de 60 s.
     await Promise.all(tokens.slice(0, 12).map(async (t) => { t.market = await launchMarket(t.tokenAddress, t.poolId).catch(() => undefined); }));
+    // Saldo de la wallet en cada token: con saldo, la fila ofrece vender desde el desk.
+    const chain = createPublicClient({ chain: base, transport: http(process.env.BASE_RPC_URL?.trim() || "https://base-rpc.publicnode.com", { retryCount: 1 }) });
+    await Promise.all(tokens.slice(0, 12).map(async (t) => {
+      const raw = await chain.readContract({ address: t.tokenAddress as `0x${string}`, abi: BALANCE_ABI, functionName: "balanceOf", args: [wallet as `0x${string}`] }).catch(() => null);
+      if (raw === null) return;
+      t.balance = Number(formatUnits(raw, 18));
+      if (t.market?.priceUsd) t.balanceUsd = t.balance * t.market.priceUsd;
+    }));
     return Response.json({ wallet, deployer: bw?.evm ?? null, tokens });
   } catch (e) {
     return Response.json({ error: "launches_failed", detail: (e as Error).message }, { status: 502 });

@@ -103,9 +103,9 @@ function Shell() {
   // "draft": carta del Trader (cotizacion Uniswap V3 Base + calldata) con la
   // orb Approve; la wallet de la persona firma approve + swap. `tx` es el
   // progreso de la firma; `draft` es lo que devolvio /api/trade/draft.
-  type Draft = { id: string; chainId: number; recipient?: string; side: "buy" | "sell"; stock: { symbol: string; ticker: string; name: string; issuer: string; address: string; decimals: number }; pool: string; fee: number; poolUsdcDepth: number; tokenIn: { symbol: string; decimals: number }; tokenOut: { symbol: string; decimals: number }; amountInHuman: string; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; deadline: number; quotedAt: string; needsApproval: boolean; balanceUsdc: string; balanceToken: string; txs: Array<{ label: "approve" | "swap"; to: `0x${string}`; data: `0x${string}`; value: `0x${string}` }>; payWith?: { symbol: string; amountHuman: string; balanceHuman: string; priceUsd: number }; route?: string; bankr?: { impliedPriceUsd: number; outHuman: string; outSymbol: string; feeBps: number; priceImpactBps?: number } | null; venue?: "uniswap" | "aerodrome"; venueLabel?: string; venues?: Array<{ venue: string; label: string; priceUsd: number; outHuman: string; usdcDepth: number; fee: number }> };
+  type Draft = { id: string; chainId: number; recipient?: string; side: "buy" | "sell"; stock: { symbol: string; ticker: string; name: string; issuer: string; address: string; decimals: number }; pool: string; fee: number; poolUsdcDepth: number; tokenIn: { symbol: string; decimals: number }; tokenOut: { symbol: string; decimals: number }; amountInHuman: string; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; deadline: number; quotedAt: string; needsApproval: boolean; balanceUsdc: string; balanceToken: string; txs: Array<{ label: "approve" | "permit" | "swap"; to: `0x${string}`; data: `0x${string}`; value: `0x${string}`; simulate?: boolean }>; receive?: { symbol: string; amountHuman: string; minHuman: string; usd: number }; payWith?: { symbol: string; amountHuman: string; balanceHuman: string; priceUsd: number }; route?: string; bankr?: { impliedPriceUsd: number; outHuman: string; outSymbol: string; feeBps: number; priceImpactBps?: number } | null; venue?: "uniswap" | "aerodrome"; venueLabel?: string; venues?: Array<{ venue: string; label: string; priceUsd: number; outHuman: string; usdcDepth: number; fee: number }> };
   type TradeIntent = { side: "buy" | "sell"; stock?: string; amountUsd?: number; amountToken?: number; fraction?: number };
-  type DraftTx = { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; step?: "approve" | "swap"; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
+  type DraftTx = { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; step?: "approve" | "permit" | "swap"; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
   // Launch (Bankr): un token nuevo emparejado con una accion tokenizada; la
   // persona lo despliega con Hold to launch. Las fees (95%) van a su wallet.
   type LaunchDraft = { id: string; name: string; symbol: string; description?: string; pair: { address: string; symbol: string; name: string; kind?: string; illiquid?: boolean }; recipient: { type: "wallet" | "x" | "farcaster" | "ens"; value: string }; recipientLabel: string; resolvedRecipient?: string; feeRecipient: string; ownRecipient: boolean; options: { vesting: "on" | "off"; feesIn: "both" | "quote"; degen: boolean; description?: string; image?: string; websiteUrl?: string; tweetUrl?: string }; chain: string; provider: string; deployer: string | null; ownKey: boolean; disableVesting: boolean; checks: Array<{ label: string; ok: boolean; note: string }>; ready: boolean; sim: { tokenAddress: string; poolId: string } | null; simError?: string; wallet: { evm: string; ethBase: number; club: boolean } | null; last24h: number; facts: string[]; draftedAt: string; receipt?: { tokenAddress: string; poolId: string; txHash: string; explorer: string; bankrUrl: string }; recipientRaw?: string; stale?: boolean; busy?: boolean; fromStarter?: boolean; turnDone?: boolean };
@@ -895,6 +895,10 @@ function Shell() {
       const j = (await res.json().catch(() => ({}))) as Draft & { error?: string; detail?: string };
       if (!res.ok || !j.txs) {
         // No es una accion tokenizada: puede ser un token lanzado desde este desk (se compra con ETH).
+        if (j.error === "unknown_stock" && intent.side === "sell" && intent.stock) {
+          const mine = await fetch("/api/launches").then((r) => r.json()).then((x: { tokens?: Array<{ symbol: string; tokenAddress: string }> }) => (x.tokens ?? []).find((t) => t.symbol.toLowerCase() === String(intent.stock).toLowerCase())).catch(() => undefined);
+          if (mine) { void launchSellRef.current(mine.tokenAddress, mine.symbol, intent.amountToken ? { amountToken: intent.amountToken } : { fraction: intent.fraction ?? 1 }); return "launch"; }
+        }
         if (j.error === "unknown_stock" && intent.side === "buy" && intent.stock && intent.amountUsd) {
           const mine = await fetch("/api/launches").then((r) => r.json()).then((x: { tokens?: Array<{ symbol: string; tokenAddress: string }> }) => (x.tokens ?? []).find((t) => t.symbol.toLowerCase() === String(intent.stock).toLowerCase())).catch(() => undefined);
           if (mine) { void launchBuyRef.current(mine.tokenAddress, mine.symbol, intent.amountUsd); return "launch"; }
@@ -1382,6 +1386,33 @@ function Shell() {
   }, [touch, act, actEnd]);
   const launchBuyRef = useRef(launchBuy);
   launchBuyRef.current = launchBuy;
+  // Venta de un token lanzado, a ETH. Mismo camino: el servidor cotiza y arma; aqui llega el draft para el hold.
+  const launchSell = useCallback(async (token: string, symbol: string, how: { fraction?: number; amountToken?: number }) => {
+    const id = Date.now() + 6;
+    touch();
+    setCaption(`Trader is drafting: sell ${how.fraction ? `${Math.round(how.fraction * 100)}% of your` : how.amountToken ?? ""} ${symbol} for ETH…`);
+    act(`Quoting the sale of ${symbol} for ETH on Base (nothing is sent)`);
+    try {
+      const res = await fetch("/api/launch/sell", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, ...how }) });
+      const j = (await res.json().catch(() => ({}))) as Draft & { error?: string; detail?: string };
+      actEnd();
+      if (!res.ok || !j.txs) {
+        flog("warn", `launch sell draft ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`);
+        setMessages((m) => [...m.slice(-60), { id, role: "floor", text: j.detail ?? "I could not draft that sale." }]);
+        setCaption("");
+        return;
+      }
+      flog("info", `launch sell draft: ${j.amountInHuman} ${j.tokenIn.symbol} → ${j.receive?.amountHuman ?? "?"} ETH ($${j.amountInUsd}) · ${j.txs.map((t) => t.label).join(" + ")}`);
+      setMessages((m) => [...m.slice(-60), { id, role: "draft", who: "trader", text: "", draft: j, tx: { stage: "idle", hashes: [] } }]);
+      setCaption(`About ${j.receive?.amountHuman ?? j.quoteOutHuman} ETH for ${Number(j.amountInHuman).toLocaleString("en-US")} ${symbol}. ${j.txs.length} signature${j.txs.length > 1 ? "s" : ""}. Hold to sell.`);
+    } catch (e) {
+      actEnd();
+      flog("error", `launch sell draft: ${(e as Error).message}`);
+      setMessages((m) => [...m.slice(-60), { id, role: "floor", text: "I could not draft that sale." }]);
+    }
+  }, [touch, act, actEnd]);
+  const launchSellRef = useRef(launchSell);
+  launchSellRef.current = launchSell;
   const approveDraft = useCallback(async (msgId: number) => {
     const msg = messagesRef.current.find((x) => x.id === msgId);
     const d = msg?.draft;
@@ -1398,14 +1429,19 @@ function Shell() {
     const hashes: DraftTx["hashes"] = [];
     try {
       for (const t of d.txs) {
+        if (t.simulate) {
+          // El ultimo paso depende de los permisos recien minados: se simula antes de pedir la firma.
+          const sim = (await fetch("/api/trade/simulate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: t.to, data: t.data, value: t.value }) }).then((r) => r.json()).catch(() => ({ ok: true }))) as { ok?: boolean; reason?: string };
+          if (sim.ok === false) throw new Error(`simulation failed: ${sim.reason ?? "reverted"}`);
+        }
         patch({ stage: "signing", step: t.label, hashes: [...hashes], note: "" });
-        setCaption(t.label === "approve" ? `Confirm the approval ${signShort}…` : `Confirm the swap ${signShort}…`);
+        setCaption(t.label === "swap" ? `Confirm the swap ${signShort}…` : `Confirm the ${t.label === "permit" ? "router permission" : "approval"} ${signShort}…`);
         flog("info", `trade ${t.label}: waiting for signature`);
         const hash = await wallet.sendTransaction({ to: t.to, data: t.data, value: t.value, chainId: d.chainId });
         flog("info", `trade ${t.label}: sent ${hash}`);
         hashes.push({ label: t.label, hash, status: "pending", explorer: `https://basescan.org/tx/${hash}` });
         patch({ stage: "pending", step: t.label, hashes: [...hashes] });
-        setCaption(t.label === "approve" ? "Approval sent · waiting for Base…" : "Swap sent · waiting for Base…");
+        setCaption(t.label === "swap" ? "Swap sent · waiting for Base…" : "Permission sent · waiting for Base…");
         const started = Date.now();
         for (;;) {
           await new Promise((r) => setTimeout(r, 4000));
@@ -1424,7 +1460,7 @@ function Shell() {
         setTurn((t) => (t ? { ...t, receipt: { hash: last?.hash, explorer: last?.explorer, status: "signed" } } : t));
       }
       kbWriteRef.current({ kind: "order", ticker: d.stock.ticker, title: `${d.side} ${d.side === "buy" ? `$${d.amountInUsd}` : d.amountInHuman} ${d.stock.symbol} ${new Date().toISOString().slice(0, 16).replace("T", " ")}`, body: `- Side: ${d.side}\n- Asset: ${d.stock.name} (${d.stock.symbol}, ${d.stock.issuer})\n- Paid: ${d.amountInHuman} ${d.tokenIn.symbol}\n- Received (quoted): ${d.quoteOutHuman} ${d.tokenOut.symbol}\n- Price: $${d.impliedPriceUsd.toFixed(2)} per share\n- Pool: ${d.pool} (${d.fee / 10_000}%)\n- Signed by the human in their wallet.\n${hashes.map((h) => `- ${h.label}: ${h.explorer}`).join("\n")}` });
-      setCaption(d.side === "buy" ? `Bought ${d.quoteOutHuman} ${d.stock.symbol} for $${d.amountInUsd} on Base.` : `Sold ${d.amountInHuman} ${d.stock.symbol} for $${d.quoteOutHuman} on Base.`);
+      setCaption(d.side === "buy" ? `Bought ${d.quoteOutHuman} ${d.stock.symbol} for $${d.amountInUsd} on Base.` : d.receive ? `Sold ${d.amountInHuman} ${d.stock.symbol} for ${d.receive.amountHuman} ${d.receive.symbol} on Base.` : `Sold ${d.amountInHuman} ${d.stock.symbol} for $${d.quoteOutHuman} on Base.`);
       speak(d.side === "buy" ? `Done. You now hold ${Number(d.quoteOutHuman).toFixed(4)} ${d.stock.name} on Base, and the receipt is on chain.` : `Done. ${d.amountInHuman} ${d.stock.name} sold for ${Number(d.quoteOutHuman).toFixed(2)} dollars on Base, receipt on chain.`);
       touch();
     } catch (e) {
@@ -1706,6 +1742,19 @@ function Shell() {
   };
   const run = useCallback((raw: string) => {
     const spoken = raw.trim();
+    { // "sell 50% of 0x…" (boton del desk): venta de un token lanzado, a ETH. No pasa por el parser de ordenes.
+      const sm = spoken.match(/^sell\s+(\d{1,3})\s*%\s+of\s+(0x[0-9a-fA-F]{40})$/i);
+      if (sm) {
+        flog("info", "intent: sell (launched token)");
+        const f = Math.min(1, Math.max(0.01, Number(sm[1]) / 100));
+        void fetch("/api/launches").then((r) => r.json()).then((j: { tokens?: Array<{ symbol: string; tokenAddress: string }> }) => {
+          const t = (j.tokens ?? []).find((x) => x.tokenAddress.toLowerCase() === sm[2].toLowerCase());
+          if (t) void launchSellRef.current(t.tokenAddress, t.symbol, { fraction: f });
+          else setCaption("That token is not one of your launches.");
+        }).catch(() => setCaption("Could not read your launches."));
+        return;
+      }
+    }
     let it = parseIntent(raw);
     // Sparky espera la linea sobre el token: una frase (no un comando corto) es esa descripcion,
     // aunque nombre "market", "portfolio" o "history". Siguen pasando new chat, chats, cancel y stop.
@@ -2806,7 +2855,7 @@ function AnalysisCard({ a, onSay }: {
 /** Carta del draft del Trader + orb Approve (se mantiene 2 s para firmar).
  *  Sin llaves aqui: Approve manda las tx a la wallet de la persona. */
 function DraftCard({ draft, tx, onApprove, signHint, onPhone, onReconnect, linkLost }: {
-  draft: { payWith?: { symbol: string; amountHuman: string; balanceHuman: string; priceUsd: number }; route?: string; side: "buy" | "sell"; recipient?: string; stock: { symbol: string; ticker: string; name: string; issuer: string }; tokenIn: { symbol: string; decimals: number }; tokenOut: { symbol: string; decimals: number }; amountInHuman: string; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; pool: string; fee: number; poolUsdcDepth: number; deadline: number; needsApproval: boolean; balanceUsdc: string; balanceToken: string; txs: Array<{ label: string }>; bankr?: { impliedPriceUsd: number; outHuman: string; outSymbol: string; feeBps: number; priceImpactBps?: number } | null; venueLabel?: string; venues?: Array<{ label: string; priceUsd: number; outHuman: string; usdcDepth: number; fee: number }> };
+  draft: { receive?: { symbol: string; amountHuman: string; minHuman: string; usd: number }; payWith?: { symbol: string; amountHuman: string; balanceHuman: string; priceUsd: number }; route?: string; side: "buy" | "sell"; recipient?: string; stock: { symbol: string; ticker: string; name: string; issuer: string }; tokenIn: { symbol: string; decimals: number }; tokenOut: { symbol: string; decimals: number }; amountInHuman: string; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; pool: string; fee: number; poolUsdcDepth: number; deadline: number; needsApproval: boolean; balanceUsdc: string; balanceToken: string; txs: Array<{ label: string }>; bankr?: { impliedPriceUsd: number; outHuman: string; outSymbol: string; feeBps: number; priceImpactBps?: number } | null; venueLabel?: string; venues?: Array<{ label: string; priceUsd: number; outHuman: string; usdcDepth: number; fee: number }> };
   tx: { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; step?: string; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
   onApprove: () => void;
   signHint?: string;
@@ -2828,13 +2877,13 @@ function DraftCard({ draft, tx, onApprove, signHint, onPhone, onReconnect, linkL
     holdRef.current = window.setTimeout(() => { setHolding(false); onApprove(); }, 2000);
   };
   const cancel = () => { window.clearTimeout(holdRef.current); setHolding(false); };
-  const minOutHuman = (Number(draft.minOut) / 10 ** draft.tokenOut.decimals).toFixed(buy ? 6 : 2);
+  const minOutHuman = draft.receive ? draft.receive.minHuman : (Number(draft.minOut) / 10 ** draft.tokenOut.decimals).toFixed(buy ? 6 : 2);
   const issuer = draft.stock.issuer === "coinbase" ? "Coinbase B20" : draft.stock.issuer;
   // Minimalista: la decision en una linea (comprar, esperar, hecho); el proceso
   // ya esta explicado en el chat. Los detalles de la ruta se pliegan.
   const [open, setOpen] = useState(false);
   const decision = tx.stage === "blocked" ? "Wait" : tx.stage === "done" ? (buy ? "Bought" : "Sold") : tx.stage === "failed" ? "Not signed" : tx.stage === "signing" || tx.stage === "pending" ? "Signing" : buy ? "Buy" : "Sell";
-  const what = buy ? `$${draft.amountInUsd.toFixed(2)} of ${draft.stock.symbol}` : `${draft.amountInHuman} ${draft.stock.symbol}`;
+  const what = buy ? `$${draft.amountInUsd.toFixed(2)} of ${draft.stock.symbol}` : `${Number(draft.amountInHuman).toLocaleString("en-US")} ${draft.stock.symbol}${draft.receive ? ` for about ${draft.receive.amountHuman} ${draft.receive.symbol} ($${draft.receive.usd.toFixed(2)})` : ""}`;
   return (
     <div className={`draft-card st-${tx.stage}${open ? " open" : ""}`}>
       <div className="draft-head">
@@ -2851,7 +2900,7 @@ function DraftCard({ draft, tx, onApprove, signHint, onPhone, onReconnect, linkL
         {draft.route ? <><dt>Route</dt><dd>{draft.route}</dd></> : null}
         {draft.route ? null : <><dt>Route</dt><dd>{draft.venueLabel ?? "Uniswap V3"} · {draft.tokenIn.symbol} → {draft.tokenOut.symbol} · pool {draft.pool.slice(0, 6)}…{draft.pool.slice(-4)} · {draft.fee / 10_000}% · ${draft.poolUsdcDepth.toFixed(0)} USDC deep</dd></>}
         {draft.venues && draft.venues.length > 1 ? <><dt>Venues</dt><dd>{draft.venues.map((v) => `${v.label} $${v.priceUsd.toFixed(2)} ($${Math.round(v.usdcDepth).toLocaleString("en-US")} deep)`).join(" · ")} · the desk took the best price</dd></> : null}
-        <dt>Signatures</dt><dd>{draft.txs.map((t) => t.label).join(" + ")}{pay ? " (one signature, no approvals: you pay with ETH)" : draft.needsApproval ? "" : ` (${draft.tokenIn.symbol} already approved)`}</dd>
+        <dt>Signatures</dt><dd>{draft.txs.map((t) => t.label).join(" + ")}{pay ? " (one signature, no approvals: you pay with ETH)" : draft.receive ? " (the router permission covers this amount for 30 minutes)" : draft.needsApproval ? "" : ` (${draft.tokenIn.symbol} already approved)`}</dd>
       </dl> : null}
       {linkLost && (tx.stage === "idle" || tx.stage === "failed") ? <LinkLostNotice onReconnect={onReconnect} /> : null}
       {tx.stage === "signing" ? <SignNotice hint={signHint} onPhone={onPhone} onReconnect={onReconnect} /> : null}
