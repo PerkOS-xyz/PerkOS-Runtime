@@ -1996,3 +1996,19 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .desk-panel .launch-links a.share { color: #ffd3e1; border-color: rgba(236, 27, 105, 0.6); background: rgba(236, 27, 105, 0.12); }
 .desk-panel .launch-links a.share:hover { background: rgba(236, 27, 105, 0.24); border-color: rgba(236, 27, 105, 0.9); }
 .draft-card a.draft-more.share { text-decoration: none; color: #ffd3e1; border-color: rgba(236, 27, 105, 0.6); }
+
+/* Pestanas del panel: nunca se cortan. La fila de pestanas ocupa lo que sobra,
+   los botones de maximizar y cerrar quedan fijos a la derecha, y cuando el
+   panel es estrecho las pestanas se compactan y pasan a dos lineas. */
+.desk-panel header { gap: 8px; min-width: 0; align-items: flex-start; }
+.desk-panel .tabs { flex: 1 1 auto; min-width: 0; flex-wrap: wrap; row-gap: 6px; }
+.desk-panel .tabs button { flex: 0 0 auto; white-space: nowrap; }
+.desk-panel .panel-acts { flex: 0 0 auto; }
+@container panel (max-width: 760px) {
+  .desk-panel .tabs { gap: 5px; row-gap: 6px; }
+  .desk-panel .tabs button { padding: 5px 10px; font-size: 10px; letter-spacing: 0.07em; }
+}
+@container panel (max-width: 520px) {
+  .desk-panel .tabs { gap: 4px; row-gap: 5px; }
+  .desk-panel .tabs button { padding: 4px 8px; font-size: 9.5px; letter-spacing: 0.04em; }
+}
