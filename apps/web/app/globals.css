@@ -2238,3 +2238,13 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .lc-opt.on { border-color: rgba(236, 27, 105, 0.7); background: rgba(236, 27, 105, 0.1); }
 .lc-opt.on b { color: #ffd3e1; }
 .draft-card.launch .approve.busy .lbl { opacity: 0.7; }
+
+/* Launch card: logo desde archivo */
+button.lc-logo { cursor: pointer; padding: 0; }
+button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
+.lc-logo-row { display: flex; gap: 6px; align-items: center; }
+.lc-pick { flex: none; font: inherit; font-size: 11px; letter-spacing: 0.02em; text-transform: none; padding: 6px 11px; border-radius: 999px; border: 1px solid rgba(236, 27, 105, 0.6); background: rgba(236, 27, 105, 0.14); color: #ffd3e1; cursor: pointer; }
+.lc-pick:disabled { opacity: 0.6; cursor: default; }
+.lc-err { font-size: 10.5px; letter-spacing: 0; text-transform: none; color: #ff9aa2; font-style: normal; }
+.lc-adv-body .lc-field { display: flex; flex-direction: column; gap: 3px; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--mute); }
+.lc-adv-body .lc-field input { font: inherit; font-size: 12px; letter-spacing: 0; text-transform: none; padding: 6px 9px; border-radius: 8px; border: 1px solid rgba(160, 180, 220, 0.25); background: rgba(6, 10, 22, 0.55); color: #e6ecff; outline: none; min-width: 0; }

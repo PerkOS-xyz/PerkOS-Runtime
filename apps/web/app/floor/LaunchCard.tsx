@@ -35,6 +35,18 @@ let pairCache: PairOption[] | null = null;
 const PINNED: PairOption[] = [{ address: "", symbol: "WETH", name: "Wrapped Ether, the default quote" }, { address: "", symbol: "BNKR", name: "Bankr" }];
 
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
+
+// El logo del laptop: se reduce a 512 px (cuadrado, centrado) y se sube via /api/launch/logo,
+// que lo aloja en PerkOS (Firebase Storage) y devuelve la URL publica que Bankr exige.
+async function squareDataUrl(file: File, size = 512): Promise<string> {
+  const bmp = await createImageBitmap(file);
+  const side = Math.min(bmp.width, bmp.height);
+  const canvas = document.createElement("canvas");
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, size, size);
+  return canvas.toDataURL("image/png");
+}
 const httpsOk = (v?: string) => !v || /^https:\/\/[^\s]+$/i.test(v);
 
 export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onResim }: {
@@ -71,6 +83,20 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
   const decision = tx.stage === "blocked" ? "Wait" : tx.stage === "done" ? "Live" : tx.stage === "pending" ? "Deploying" : tx.stage === "failed" ? "Not deployed" : !basicsOk ? "Draft" : launch.busy ? "Checking" : launch.stale ? "Recheck" : launch.ready ? "Launch" : "Fix";
   const tone = tx.stage === "blocked" || (!launch.ready && basicsOk && !launch.busy && !launch.stale) ? "wait" : tx.stage === "done" ? "done" : basicsOk && launch.ready && !launch.stale && !launch.busy ? "go" : "wait";
   const label = tx.stage === "done" ? "Live" : tx.stage === "blocked" ? "Blocked" : tx.stage === "pending" ? "Deploying on Base…" : tx.stage === "failed" ? "Retry" : !basicsOk ? "Add a name, a symbol and a pair" : launch.busy ? "Simulating…" : launch.stale ? "Needs re-simulation" : launch.ready ? (holding ? "Keep holding…" : "Hold to launch") : "Fix the checks first";
+  const [uploading, setUploading] = useState<"" | "busy" | string>("");
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const uploadLogo = async (file: File) => {
+    setUploading("busy");
+    try {
+      if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) throw new Error("Pick a PNG, JPG, WebP or GIF");
+      const data = await squareDataUrl(file);
+      const r = await fetch("/api/launch/logo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data }) });
+      const j = (await r.json().catch(() => ({}))) as { url?: string; detail?: string; error?: string };
+      if (!r.ok || !j.url) throw new Error(j.detail ?? j.error ?? `upload ${r.status}`);
+      onEdit?.({ image: j.url });
+      setUploading("");
+    } catch (e) { setUploading((e as Error).message); }
+  };
   const q = pairQ.trim().toLowerCase();
   const list = [...PINNED, ...pairs].filter((p) => !q || p.symbol.toLowerCase().includes(q) || p.name.toLowerCase().includes(q));
   const pick = (sym: string) => { onEdit?.({ pair: sym }); setPairQ(""); };
@@ -111,16 +137,19 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
 
       {editable ? (
         <div className="lc-profile">
-          <div className="lc-logo">
-            {httpsOk(image) && image ? <img src={image} alt="" onError={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = "0.25"; }} /> : <span className="lc-logo-empty">{(launch.symbol || "?").slice(0, 4)}</span>}
-          </div>
+          <button type="button" className="lc-logo" onClick={() => fileRef.current?.click()} title="Choose a logo from this computer">
+            {httpsOk(image) && image ? <img src={image} alt="" onError={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = "0.25"; }} /> : <span className="lc-logo-empty">{uploading === "busy" ? "…" : "+ logo"}</span>}
+          </button>
+          <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadLogo(f); e.target.value = ""; }} />
           <div className="lc-fields">
-            <label><span>Logo URL</span><input type="url" placeholder="https://… .png or .jpg, square works best. You can add it later." value={image} onChange={(e) => onEdit?.({ image: e.target.value.trim() })} className={httpsOk(image) ? "" : "bad"} /></label>
+            <label><span>Logo</span>
+              <div className="lc-logo-row">
+                <button type="button" className="lc-pick" onClick={() => fileRef.current?.click()} disabled={uploading === "busy"}>{uploading === "busy" ? "Uploading…" : image ? "Change file" : "Choose file"}</button>
+                <input type="url" placeholder="or paste an https:// image URL" value={image} onChange={(e) => onEdit?.({ image: e.target.value.trim() })} className={httpsOk(image) ? "" : "bad"} />
+              </div>
+              {uploading && uploading !== "busy" ? <em className="lc-err">{uploading}</em> : null}
+            </label>
             <label><span>About</span><textarea rows={2} maxLength={500} placeholder="One or two lines: what the token is for" value={about} onChange={(e) => onEdit?.({ description: e.target.value })} /></label>
-            <div className="lc-two">
-              <label><span>Website</span><input type="url" placeholder="https://…" value={website} onChange={(e) => onEdit?.({ websiteUrl: e.target.value.trim() })} className={httpsOk(website) ? "" : "bad"} /></label>
-              <label><span>X post</span><input type="url" placeholder="https://x.com/…/status/…" value={tweet} onChange={(e) => onEdit?.({ tweetUrl: e.target.value.trim() })} className={httpsOk(tweet) ? "" : "bad"} /></label>
-            </div>
           </div>
         </div>
       ) : null}
@@ -133,6 +162,10 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
               <button type="button" className={`lc-opt${launch.options.vesting === "on" ? " on" : ""}`} onClick={() => onEdit?.({ vesting: launch.options.vesting === "on" ? "off" : "on" })}><b>Vesting</b><small>{launch.options.vesting === "on" ? "15% of supply to the fee recipient over one year, 30 day cliff" : "off: 100% of supply goes to the pool"}</small></button>
               <button type="button" className={`lc-opt${launch.options.feesIn === "quote" ? " on" : ""}`} onClick={() => onEdit?.({ feesIn: launch.options.feesIn === "quote" ? "both" : "quote" })}><b>Fees in quote only</b><small>{launch.options.feesIn === "quote" ? "fees paid in the pair token only" : "fees paid in the token and the pair"}</small></button>
               <button type="button" className={`lc-opt${launch.options.degen ? " on" : ""}`} onClick={() => onEdit?.({ degen: !launch.options.degen })}><b>Degen mode</b><small>{launch.options.degen ? "$2,500 starting cap, faster curve" : "standard curve"}</small></button>
+              <div className="lc-two">
+                <label className="lc-field"><span>Website (optional)</span><input type="url" placeholder="https://…" value={website} onChange={(e) => onEdit?.({ websiteUrl: e.target.value.trim() })} className={httpsOk(website) ? "" : "bad"} /></label>
+                <label className="lc-field"><span>X post (optional)</span><input type="url" placeholder="https://x.com/…/status/…" value={tweet} onChange={(e) => onEdit?.({ tweetUrl: e.target.value.trim() })} className={httpsOk(tweet) ? "" : "bad"} /></label>
+              </div>
             </div>
           ) : null}
         </div>
