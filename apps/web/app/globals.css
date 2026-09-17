@@ -2439,3 +2439,16 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .lx-hold { font-size: 11.5px; line-height: 1.4; color: #cdd7ee; }
 .lx-pane .pc.empty { height: 76px !important; } /* el alto viene en linea desde PriceChart */
 .lx-pane .pc.empty.seed { height: auto; min-height: 76px; }
+/* Ticket de compra y venta: campo de monto, chips que lo rellenan y un boton de accion por lado. */
+.lx-field { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(160, 180, 220, 0.22); background: rgba(3, 4, 10, 0.6); }
+.lx-field:focus-within { border-color: rgba(236, 27, 105, 0.6); }
+.lx-field input { grid-column: auto; min-width: 0; width: 100%; font: inherit; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 17px; font-weight: 600; color: #ffffff; background: transparent; border: 0; outline: none; padding: 0; }
+.lx-field input:disabled { color: var(--mute); }
+.lx-field i { font-style: normal; font-size: 12px; color: #9aabc8; }
+.lx-field em { grid-column: 1 / -1; font-style: normal; font-size: 10.5px; color: var(--mute); }
+.lx-chips { display: flex; gap: 5px; flex-wrap: wrap; }
+.desk-panel .lx .lx-chips button:not(.close) { font-size: 10.5px; letter-spacing: 0.03em; text-transform: none; padding: 4px 10px; background: transparent; border-color: rgba(160, 180, 220, 0.25); color: #cdd7ee; }
+.desk-panel .lx .lx-chips button.on:not(.close) { border-color: rgba(236, 27, 105, 0.6); background: rgba(236, 27, 105, 0.12); color: #ffd3e1; }
+.desk-panel .lx button.lx-go:not(.close) { width: 100%; font-size: 12px; letter-spacing: 0.04em; text-transform: none; padding: 9px 12px; border-radius: 12px; font-weight: 600; }
+.desk-panel .lx button.lx-go.buy:not(.close):not(:disabled) { border-color: rgba(62, 224, 143, 0.7); background: rgba(62, 224, 143, 0.18); color: #d6ffe8; }
+.desk-panel .lx button.lx-go.sell:not(.close):not(:disabled) { border-color: rgba(255, 179, 71, 0.65); background: rgba(255, 179, 71, 0.16); color: #ffe9c4; }

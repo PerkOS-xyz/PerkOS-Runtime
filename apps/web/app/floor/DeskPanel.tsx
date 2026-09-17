@@ -427,6 +427,11 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
 function LaunchesView({ launches, err, wallet, claimedTokens, onRefresh, onSay }: { launches: LaunchRow[] | null; err: string; wallet: string; claimedTokens?: string[]; onRefresh: () => void; onSay: (t: string) => void }) {
   const [open, setOpen] = useState<string>("");
   const [tab, setTab] = useState<"trade" | "pool" | "fees">("trade");
+  // Ticket al estilo de un exchange: los porcentajes y montos rapidos rellenan el campo; se puede ajustar antes de enviar.
+  const [buyUsd, setBuyUsd] = useState("5");
+  const [sellAmt, setSellAmt] = useState("");
+  const [sellPct, setSellPct] = useState<number | null>(null);
+  useEffect(() => { setSellAmt(""); setSellPct(null); setBuyUsd("5"); }, [open]);
   const [pulse, setPulse] = useState<string[] | null>(null);
   const [pulseOpen, setPulseOpen] = useState(false);
   const [pulseOff, setPulseOff] = useState(() => { try { return sessionStorage.getItem("floor.pulse.off") === "1"; } catch { return false; } });
@@ -509,16 +514,26 @@ function LaunchesView({ launches, err, wallet, claimedTokens, onRefresh, onSay }
                         <span><b>{indexed ? money(m?.fdvUsd) : "–"}</b><small>FDV</small></span>
                       </div>
                       <div className="lx-ticket">
-                        <div className="lx-side">
-                          <small>Buy with ETH on Base · one signature</small>
-                          <span className="lx-hold">Pick an amount. The desk quotes it, simulates it and drafts it for your hold.</span>
-                          <nav className="seed-links buy" aria-label={`Buy ${l.symbol}`}>{[1, 5, 10].map((usd) => <button type="button" key={usd} onClick={() => onSay(`buy $${usd} of ${l.tokenAddress}`)}>Buy ${usd}</button>)}</nav>
-                        </div>
-                        <div className="lx-side">
-                          <small>Sell to ETH on Base · two signatures</small>
-                          <span className="lx-hold">{holds ? `You hold ${Math.round(l.balance!).toLocaleString("en-US")} ${l.symbol}${l.balanceUsd ? `, about ${money(l.balanceUsd)}` : ""}` : "No balance to sell"}</span>
-                          {holds ? <nav className="seed-links sell" aria-label={`Sell ${l.symbol}`}>{[25, 50, 100].map((p) => <button type="button" key={p} onClick={() => onSay(`sell ${p}% of ${l.tokenAddress}`)}>{p === 100 ? "Sell all" : `Sell ${p}%`}</button>)}</nav> : null}
-                        </div>
+                        {(() => {
+                          const usd = Number(buyUsd); const okBuy = usd > 0 && usd <= 100;
+                          const amt = Number(sellAmt.replace(/,/g, "")); const bal = l.balance ?? 0;
+                          const okSell = holds && amt > 0 && amt <= bal * 1.0000001;
+                          const px = m?.priceUsd;
+                          return (<>
+                            <div className="lx-side">
+                              <small>Buy with ETH on Base · one signature</small>
+                              <label className="lx-field"><i>$</i><input inputMode="decimal" value={buyUsd} onChange={(e) => setBuyUsd(e.target.value.replace(/[^0-9.]/g, "").slice(0, 6))} aria-label={`Dollars of ${l.symbol} to buy`} /><em>{px && okBuy ? `about ${units(usd / px)} ${l.symbol}` : "up to $100"}</em></label>
+                              <nav className="lx-chips" aria-label="Quick amounts">{[1, 5, 10, 25].map((v) => <button type="button" key={v} className={Number(buyUsd) === v ? "on" : ""} onClick={() => setBuyUsd(String(v))}>${v}</button>)}</nav>
+                              <button type="button" className="lx-go buy" disabled={!okBuy} onClick={() => onSay(`buy $${usd} of ${l.tokenAddress}`)}>Buy {l.symbol}</button>
+                            </div>
+                            <div className="lx-side">
+                              <small>Sell to ETH on Base · two signatures</small>
+                              <label className="lx-field"><input inputMode="decimal" placeholder="0" disabled={!holds} value={sellAmt} onChange={(e) => { setSellAmt(e.target.value.replace(/[^0-9.]/g, "").slice(0, 24)); setSellPct(null); }} aria-label={`${l.symbol} to sell`} /><i>{l.symbol}</i><em>{holds ? (amt > 0 && px ? `about ${money(amt * px)}` : `you hold ${units(bal)}`) : "no balance"}</em></label>
+                              <nav className="lx-chips" aria-label="Share of your balance">{[25, 50, 75, 100].map((p) => <button type="button" key={p} disabled={!holds} className={sellPct === p ? "on" : ""} onClick={() => { setSellPct(p); setSellAmt(p === 100 ? String(bal) : String(Math.floor((bal * p) / 100))); }}>{p === 100 ? "Max" : `${p}%`}</button>)}</nav>
+                              <button type="button" className="lx-go sell" disabled={!okSell} onClick={() => onSay(sellPct ? `sell ${sellPct}% of ${l.tokenAddress}` : `sell ${amt} of ${l.tokenAddress}`)}>Sell {l.symbol}</button>
+                            </div>
+                          </>);
+                        })()}
                       </div>
                     </div>
                   ) : tab === "pool" ? (
