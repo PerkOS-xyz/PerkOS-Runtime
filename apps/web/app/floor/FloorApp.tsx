@@ -292,6 +292,8 @@ function Shell() {
     window.clearTimeout(settleTimer.current);
     settleTimer.current = window.setTimeout(() => { if (stickRef.current) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" }); }, 2000);
   }, []);
+  // El bloque de actividad crece paso a paso: el hilo lo sigue igual que a un mensaje nuevo.
+  useEffect(() => { if (activity?.live) followLatest(); }, [activity, followLatest]);
   const scrollToLatest = useCallback(() => {
     stickRef.current = true;
     setShowJump(false);
