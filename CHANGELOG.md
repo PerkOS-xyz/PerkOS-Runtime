@@ -2,6 +2,11 @@
 
 All notable changes to the PerkOS desktop app. Versions follow [Semantic Versioning](https://semver.org); the version lives in `apps/desktop/package.json` and shows in Settings › About with the git short SHA of the build.
 
+## [0.5.3] - 2026-09-17
+
+### Changed
+- Portfolio screen redesigned: header and rows share one grid so every title sits over its column; a Trades on column says where each position sells (Aerodrome or Uniswap V3, pool fee, USDC depth with a link to the pool, and the other venue); the buttons read Draft: sell half and Draft: sell all, with a line and a tooltip that nothing sells until you hold to approve and sign; four KPIs (value including USDC, USDC on Base, positions, 24h); skeleton rows while loading.
+
 ## [0.5.2] - 2026-09-17
 
 ### Changed
