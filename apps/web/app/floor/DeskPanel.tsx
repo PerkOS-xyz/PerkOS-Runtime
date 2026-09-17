@@ -412,7 +412,6 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
                 </li>
               );
             })}
-          </ul>
           {(() => {
             // Lo que cada token lanzado ha pagado en su accion (el par): reclamado, que ya esta dentro de las
             // posiciones de arriba, y por reclamar. Varias pueden pagar en la misma accion (NVDAc) y se funden alli.
@@ -423,7 +422,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
             const px = (label: string) => (positions ?? []).find((p) => p.symbol.toUpperCase().replace(/C$/, "") === label.toUpperCase().replace(/C$/, ""))?.priceUsd;
             const amt = (n: number) => (n === 0 ? "0" : n < 0.000001 ? "<0.000001" : n < 1 ? n.toFixed(6).replace(/0+$/, "") : n.toFixed(4));
             return (
-              <div className="pf-launches">
+              <li className="pf-li"><div className="pf-launches">
                 <div className="pf-l-head"><b>From your launches</b><small>creator fees paid in the paired stock · claimed ones are already inside the positions above</small></div>
                 <ul>
                   {mine.map((l) => { const f = stockSide(l); const price = px(f.label); return (
@@ -436,9 +435,10 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
                   ); })}
                 </ul>
                 <button type="button" onClick={() => onScreen("launches")}>Open Launches</button>
-              </div>
+              </div></li>
             );
           })()}
+          </ul>
         </>
       )}
       </div>
