@@ -79,7 +79,7 @@ cd ../.. && npm start                                      # Electron shell; it 
 |---|---|---|
 | `NEXT_PUBLIC_PRIVY_APP_ID`, `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | build time | public ids for wallet login |
 | `BASE_RPC_URL` | run time, optional | Base JSON-RPC; default public node |
-| `BANKR_API_KEY` | run time, optional | read-only key for the second quote |
+| `BANKR_API_KEY` | run time, optional | Bankr key: read-only is enough for the second quote; Token Launch API and read-write for launches and automations |
 | `PERKOS_API_URL`, `PERKOS_OAUTH_URL`, `PERKOS_FLEET_TEMPLATE` | run time, optional | PerkOS endpoints and desk template |
 | `KNOWLEDGE_*` | run time, optional | PerkOS Knowledge tier and, for one install, the publishing token |
 | `XAI_BASE_URL` | run time, optional | Grok API base |
@@ -100,7 +100,7 @@ npm run package:mac --prefix apps/desktop
 Builds the web app in production mode (`next build`, standalone output), makes the icon and the DMG background from the vertical logo, packs the shell with electron-builder and puts the desk server inside the bundle (`after-pack.cjs`). Output: `apps/desktop/release/PerkOS-<version>-arm64.dmg` and `apps/desktop/release/mac-arm64/PerkOS.app`. The app starts the bundled server with Electron's own Node, so the Mac that runs it needs no Node install.
 
 - Build-time: `apps/web/.env.local` with the `NEXT_PUBLIC_*` values (they are inlined).
-- Run-time: optional `~/.perkos-xyz/env` with server keys (`BASE_RPC_URL`, `BANKR_API_KEY`, `KNOWLEDGE_*`), same `KEY=VALUE` format. Without it the app uses the public Base RPC and PerkOS Knowledge and skips the Bankr second quote. Keys never travel inside the bundle.
+- Run-time: optional `~/.perkos-xyz/env` with server keys (`BASE_RPC_URL`, `BANKR_API_KEY`, `KNOWLEDGE_*`), same `KEY=VALUE` format. Without it the app uses the public Base RPC and PerkOS Knowledge and skips the Bankr second quote, launches and automations (fee reads and claims need no key). Keys never travel inside the bundle.
 - Settings, session, vault and logs stay in `~/.perkos-xyz/` (`logs/perkos-app.log` is the server output of the packaged app). Installs from 0.2.0 kept them in `~/.perkos-floor/`; the folder is renamed on first start.
 
 ### Signing and notarization
