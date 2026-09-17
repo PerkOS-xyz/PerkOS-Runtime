@@ -2345,3 +2345,6 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 /* Compra desde el desk: botones de monto, mas presentes que los enlaces externos. */
 .seed-links.buy button { font: inherit; font-size: 11px; letter-spacing: 0.04em; padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(62, 224, 143, 0.6); background: rgba(62, 224, 143, 0.14); color: #c9f7dd; cursor: pointer; }
 .seed-links.buy button:hover { background: rgba(62, 224, 143, 0.26); }
+/* "No trades yet" lleva texto, botones de compra y enlaces: crece con su contenido, no con la altura fija del grafico. */
+.pc.empty.seed { height: auto; min-height: 132px; overflow: visible; padding: 16px 14px; gap: 8px; }
+.pc.empty.seed small { max-width: 46ch; line-height: 1.4; }

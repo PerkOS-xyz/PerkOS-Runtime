@@ -1,6 +1,6 @@
 import { guard } from "../../lib/guard";
 import { loadSettings } from "../../lib/settingsStore";
-import { bankrLaunchConfigured, bankrWallet, walletLaunches } from "../../lib/bankrLaunch";
+import { bankrLaunchConfigured, bankrWallet, launchQuotes, launchRecord, walletLaunches } from "../../lib/bankrLaunch";
 import { creatorFees } from "../../lib/bankrFees";
 import { launchMarket, type LaunchMarket } from "../../lib/launchMarket";
 
@@ -45,6 +45,18 @@ export async function GET(req: Request) {
       if (!row.pair && t.token0Label) row.pair = t.token0Label;
       rows.set(a, row);
     }
+    // Filas que solo vienen de fees (el token ya salio de la lista publica): se completan con su registro.
+    await Promise.all([...rows.values()].filter((r) => !r.poolId).map(async (r) => {
+      const l = await launchRecord(r.tokenAddress).catch(() => null);
+      if (!l) return;
+      r.name = l.tokenName || r.name; r.symbol = l.tokenSymbol || r.symbol; r.timestamp = l.timestamp; r.status = l.status; r.poolId = l.poolId;
+      r.pair = l.pairedStock?.symbol ?? "WETH"; r.pairAddress = l.pairedStock?.address;
+      r.deployer = l.deployer?.walletAddress; r.deployerX = l.deployer?.xUsername; r.feeRecipient = l.feeRecipient?.walletAddress;
+      r.deployedHere = Boolean(bw && (l.deployer?.walletAddress ?? "").toLowerCase() === bw.evm.toLowerCase());
+    }));
+    // El par se muestra con su simbolo en cadena (NVDAc), no con la etiqueta del registro (NVDA).
+    const quotes = await launchQuotes().catch(() => []);
+    for (const r of rows.values()) { const q = r.pairAddress ? quotes.find((x) => x.address.toLowerCase() === r.pairAddress!.toLowerCase()) : undefined; if (q) r.pair = q.symbol; }
     const tokens = [...rows.values()].sort((x, y) => (y.timestamp ?? 0) - (x.timestamp ?? 0));
     // Mercado y pool por token (DexScreener, GeckoTerminal, Bankr), en paralelo y con cache de 60 s.
     await Promise.all(tokens.slice(0, 12).map(async (t) => { t.market = await launchMarket(t.tokenAddress, t.poolId).catch(() => undefined); }));
