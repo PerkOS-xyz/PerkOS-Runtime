@@ -973,7 +973,7 @@ function Shell() {
       const cands = options.map((o) => norm(o.value));
       const findAll = (t: string) => { const out: string[] = []; const re = /\b([A-Z]{2,6})c?\b/g; let mm: RegExpExecArray | null; while ((mm = re.exec(t))) { const k = norm(mm[1]); if (cands.includes(k) && !out.includes(k)) out.push(k); } return out; };
       const sentences = (t: string) => t.split(/(?<=[.;!?])\s+|\n+/).map((x) => x.trim()).filter(Boolean);
-      const NEG = /\b(avoid|skip|stay away|pass on|thinnest|dull|would not|wouldn't|do not|don't)\b/i, POS = /\b(accept|recommend|pair it with|pair with|first choice|second choice|top pick|would pick|would draft|draft against|best|deepest)\b/i;
+      const NEG = /\b(avoid|skip|stay away|pass on|thinnest|dull|would not|wouldn't|do not|don't)\b/i, POS = /\b(accept|recommend|pair it with|pair with|first choice|second choice|top pick|would pick|would draft|draft against|best|deepest)\b/i, RANK = /\b(ranks?|first|then|top)\b/i;
       const replies = lastRepliesRef.current;
       const say = (role: string) => replies.find((r) => r.role.toLowerCase() === role && r.ok)?.reply ?? "";
       const sparkyText = [...messagesRef.current].reverse().find((x) => x.role === "floor" && x.turnId === youId && !x.kind && x.text)?.text ?? "";
@@ -983,8 +983,14 @@ function Shell() {
       for (const t of texts) for (const sent of sentences(t)) {
         const syms = findAll(sent);
         if (!syms.length) continue;
-        if (NEG.test(sent) && !POS.test(sent)) syms.forEach((k) => avoided.add(k));
-        else if (POS.test(sent)) syms.forEach((k) => { if (!liked.includes(k)) liked.push(k); });
+        const neg = sent.match(NEG);
+        if (neg && neg.index !== undefined) {
+          // "ranks METAc first, then NVDAc, and would skip SPCXc": lo de antes del verbo negativo se
+          // recomienda, lo de despues se evita.
+          const head = sent.slice(0, neg.index), tail = sent.slice(neg.index);
+          findAll(tail).forEach((k) => avoided.add(k));
+          if (POS.test(head) || RANK.test(head)) findAll(head).forEach((k) => { if (!liked.includes(k)) liked.push(k); });
+        } else if (POS.test(sent) || RANK.test(sent)) syms.forEach((k) => { if (!liked.includes(k)) liked.push(k); });
       }
       const mentioned = texts.flatMap(findAll).filter((k, i, a) => a.indexOf(k) === i);
       const ordered = [...liked, ...mentioned].filter((k, i, a) => a.indexOf(k) === i && !avoided.has(k)).slice(0, 3);
