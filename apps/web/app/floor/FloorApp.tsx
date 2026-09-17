@@ -2021,7 +2021,7 @@ function Shell() {
             {m.role === "draft" && m.draft ? (
               <DraftCard draft={m.draft} tx={m.tx ?? { stage: "idle", hashes: [] }} onApprove={() => void approveDraft(m.id)} signHint={signHint} onPhone={wallet.signWhere === "phone"} onReconnect={logout} linkLost={linkLost} />
             ) : m.role === "draft" && m.launch ? (
-              <LaunchCard launch={m.launch} tx={m.tx ?? { stage: "idle", hashes: [] }} onLaunch={() => void deployLaunch(m.id)} onFees={() => void feesCard()} />
+              <LaunchCard launch={m.launch} tx={m.tx ?? { stage: "idle", hashes: [] }} onLaunch={() => void deployLaunch(m.id)} onFees={() => void feesCard()}  onEdit={(patch) => setMessages((prev) => prev.map((x) => x.id === m.id && x.launch ? { ...x, launch: { ...x.launch, description: patch.description ?? x.launch.description, options: { ...x.launch.options, ...(patch.description !== undefined ? { description: patch.description } : {}), ...(patch.image !== undefined ? { image: patch.image || undefined } : {}), ...(patch.websiteUrl !== undefined ? { websiteUrl: patch.websiteUrl || undefined } : {}), ...(patch.tweetUrl !== undefined ? { tweetUrl: patch.tweetUrl || undefined } : {}) } } } : x))} />
             ) : m.role === "draft" && m.fees ? (
               <FeesCard fees={m.fees} tx={m.tx ?? { stage: "idle", hashes: [] }} onClaim={() => void claimFees(m.id)} onRefresh={() => void feesCard(m.id)} signHint={signHint} onPhone={wallet.signWhere === "phone"} onReconnect={logout} linkLost={linkLost} />
             ) : m.role === "draft" && m.auto ? (
@@ -2462,15 +2462,22 @@ function DraftCard({ draft, tx, onApprove, signHint, onPhone, onReconnect, linkL
 
 // Launch card: el token emparejado en la mesa. Los checks de Bankr se ven
 // siempre; Hold to launch solo cuando todos pasan y la simulacion paso.
-function LaunchCard({ launch, tx, onLaunch, onFees }: {
-  launch: { name: string; symbol: string; pair: { symbol: string; name: string; kind?: string }; recipient: { type: string; value: string }; recipientLabel: string; resolvedRecipient?: string; feeRecipient: string; ownRecipient: boolean; options: { vesting: "on" | "off"; feesIn: "both" | "quote"; degen: boolean; description?: string; websiteUrl?: string; tweetUrl?: string }; deployer: string | null; ownKey: boolean; checks: Array<{ label: string; ok: boolean; note: string }>; ready: boolean; sim: { tokenAddress: string; poolId: string } | null; simError?: string; receipt?: { tokenAddress: string; txHash: string; explorer: string; bankrUrl: string } };
+type LaunchProfile = { description?: string; image?: string; websiteUrl?: string; tweetUrl?: string };
+function LaunchCard({ launch, tx, onLaunch, onFees, onEdit }: {
+  launch: { name: string; symbol: string; description?: string; pair: { symbol: string; name: string; kind?: string }; recipient: { type: string; value: string }; recipientLabel: string; resolvedRecipient?: string; feeRecipient: string; ownRecipient: boolean; options: { vesting: "on" | "off"; feesIn: "both" | "quote"; degen: boolean; description?: string; image?: string; websiteUrl?: string; tweetUrl?: string }; deployer: string | null; ownKey: boolean; checks: Array<{ label: string; ok: boolean; note: string }>; ready: boolean; sim: { tokenAddress: string; poolId: string } | null; simError?: string; receipt?: { tokenAddress: string; txHash: string; explorer: string; bankrUrl: string } };
   tx: { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
   onLaunch: () => void;
   onFees?: () => void;
+  /** Perfil del token (logo, descripcion, web, post en X): lo que Bankr y los screeners muestran. Editable hasta lanzar. */
+  onEdit?: (patch: LaunchProfile) => void;
 }) {
   const [holding, setHolding] = useState(false);
   const holdRef = useRef(0);
   const armed = (tx.stage === "idle" || tx.stage === "failed") && launch.ready;
+  const editable = Boolean(onEdit) && (tx.stage === "idle" || tx.stage === "failed" || tx.stage === "blocked");
+  const httpsOk = (v?: string) => !v || /^https:\/\/[^\s]+$/i.test(v);
+  const image = launch.options.image ?? "", website = launch.options.websiteUrl ?? "", tweet = launch.options.tweetUrl ?? "", about = launch.options.description ?? launch.description ?? "";
+  const profileOk = Boolean(image) && Boolean(about);
   const start = () => {
     if (!armed) return;
     setHolding(true);
@@ -2492,8 +2499,24 @@ function LaunchCard({ launch, tx, onLaunch, onFees }: {
       </div>
       <ul className="launch-checks">
         {launch.checks.map((c) => <li key={c.label} className={c.ok ? "ok" : "bad"}><i aria-hidden>{c.ok ? "✓" : "✕"}</i><span>{c.label}</span><small>{c.note}</small></li>)}
+        <li className={profileOk ? "ok" : "skip"}><i aria-hidden>{profileOk ? "✓" : "·"}</i><span>Token profile</span><small>{profileOk ? "logo and description set" : "add a logo and a line about the token: Bankr and the screeners show them"}</small></li>
         <li className={launch.sim ? "ok" : launch.simError ? "bad" : "skip"}><i aria-hidden>{launch.sim ? "✓" : launch.simError ? "✕" : "·"}</i><span>Bankr simulation</span><small>{launch.sim ? `token ${short(launch.sim.tokenAddress)}` : launch.simError ?? "skipped until every check passes"}</small></li>
       </ul>
+      {editable ? (
+        <div className="lc-profile">
+          <div className="lc-logo">
+            {httpsOk(image) && image ? <img src={image} alt="" onError={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = "0.25"; }} /> : <span className="lc-logo-empty">{launch.symbol.slice(0, 4)}</span>}
+          </div>
+          <div className="lc-fields">
+            <label><span>Logo URL</span><input type="url" placeholder="https://… .png or .jpg (square works best)" value={image} onChange={(e) => onEdit?.({ image: e.target.value.trim() })} className={httpsOk(image) ? "" : "bad"} /></label>
+            <label><span>About</span><textarea rows={2} maxLength={500} placeholder="One or two lines: what the token is for" value={about} onChange={(e) => onEdit?.({ description: e.target.value })} /></label>
+            <div className="lc-two">
+              <label><span>Website</span><input type="url" placeholder="https://…" value={website} onChange={(e) => onEdit?.({ websiteUrl: e.target.value.trim() })} className={httpsOk(website) ? "" : "bad"} /></label>
+              <label><span>X post</span><input type="url" placeholder="https://x.com/…/status/…" value={tweet} onChange={(e) => onEdit?.({ tweetUrl: e.target.value.trim() })} className={httpsOk(tweet) ? "" : "bad"} /></label>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {open ? <dl className="draft-rows">
         <dt>Pair</dt><dd>{launch.pair.name} <small>({launch.pair.symbol}{launch.pair.kind === "stock" ? " · Coinbase B20 on Base" : launch.pair.kind === "major" ? " · the default quote" : ""})</small></dd>
         <dt>Pool</dt><dd>Uniswap V4 via Doppler, deployed by Bankr <small>(gas sponsored on Base{launch.options.degen ? " · degen mode, $2,500 starting cap" : ""})</small></dd>
@@ -2501,7 +2524,8 @@ function LaunchCard({ launch, tx, onLaunch, onFees }: {
         <dt>Split</dt><dd>95% of the pool fee to the recipient · 5% to Bankr · fees in {launch.options.feesIn === "quote" ? "the quote token only" : "the token and the quote"}</dd>
         <dt>Vesting</dt><dd>{launch.options.vesting === "on" ? "15% of supply to the fee recipient over one year, 30 day cliff" : "off: 100% of supply goes to the pool"}</dd>
         <dt>Deployer</dt><dd>{launch.deployer ? short(launch.deployer) : "no Bankr wallet"} <small>{launch.ownKey ? "(your Bankr wallet)" : "(Bankr wallet on this install: it keeps nothing)"}</small></dd>
-        {launch.options.description ? <><dt>About</dt><dd>{launch.options.description}</dd></> : null}
+        {about ? <><dt>About</dt><dd>{about}</dd></> : null}
+        {website || tweet ? <><dt>Links</dt><dd>{website ? <a href={website} target="_blank" rel="noreferrer">website</a> : null}{website && tweet ? " · " : ""}{tweet ? <a href={tweet} target="_blank" rel="noreferrer">X post</a> : null}</dd></> : null}
         {launch.receipt ? <><dt>Token</dt><dd><a href={`https://basescan.org/token/${launch.receipt.tokenAddress}`} target="_blank" rel="noreferrer">{short(launch.receipt.tokenAddress)}</a> · <a href={launch.receipt.bankrUrl} target="_blank" rel="noreferrer">Bankr ↗</a></dd></> : null}
       </dl> : null}
       {tx.note ? <p className="hint-line err">{tx.note}</p> : null}
