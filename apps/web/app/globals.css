@@ -1992,3 +1992,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .copy-addr svg { flex: 0 0 auto; }
 .desk-panel .launch-card .lc-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex: 0 0 auto; }
 .copy-addr.manual { user-select: all; cursor: text; white-space: normal; word-break: break-all; border-radius: 8px; color: #e6ecff; max-width: 100%; }
+/* Share on X: el unico enlace en coral de la columna, es la accion de difusion. */
+.desk-panel .launch-links a.share { color: #ffd3e1; border-color: rgba(236, 27, 105, 0.6); background: rgba(236, 27, 105, 0.12); }
+.desk-panel .launch-links a.share:hover { background: rgba(236, 27, 105, 0.24); border-color: rgba(236, 27, 105, 0.9); }
+.draft-card a.draft-more.share { text-decoration: none; color: #ffd3e1; border-color: rgba(236, 27, 105, 0.6); }

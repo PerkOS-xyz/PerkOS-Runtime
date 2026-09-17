@@ -214,7 +214,10 @@ async function create() {
     try {
       const u = new URL(url);
       if (u.protocol === "file:" || u.protocol === "javascript:") return { action: "deny" };
-      if (/^https?:$/.test(u.protocol) && IN_APP_HOSTS.some((re) => re.test(u.hostname))) return { action: "allow" };
+      // Compartir en X va al browser del sistema, donde la persona tiene su sesion
+      // (dentro del app x.com solo se abre para el login con X).
+      const shareIntent = /(^|\.)(x|twitter)\.com$/.test(u.hostname) && /^\/(intent|share)\b/.test(u.pathname);
+      if (!shareIntent && /^https?:$/.test(u.protocol) && IN_APP_HOSTS.some((re) => re.test(u.hostname))) return { action: "allow" };
       process.stderr.write(`window-open: ${u.hostname || u.protocol} -> system browser\n`);
       shell.openExternal(url);
     } catch {}

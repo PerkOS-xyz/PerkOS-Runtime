@@ -275,6 +275,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
                       {pool ? <a href={pool.dexscreenerUrl} target="_blank" rel="noreferrer">DexScreener ↗</a> : null}
                       <a href={l.bankrUrl} target="_blank" rel="noreferrer">Bankr ↗</a>
                       <a href={l.explorer} target="_blank" rel="noreferrer">Basescan ↗</a>
+                      <a className="share" href={shareLaunchUrl(l)} target="_blank" rel="noreferrer" title="Opens X in your browser with a post about this launch. Nothing is posted until you press Post.">Share on X</a>
                     </nav>
                     <div className="launch-fees">
                       <small className="k">Creator fees{l.share ? ` · ${l.share} of the pool fee` : ""}</small>
@@ -475,6 +476,17 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
   );
 }
 
+
+/** Post para X sobre un launch: el token, el par, y que lo desplego PerkOS (@perk_os) por Bankr. */
+export function shareLaunchUrl(l: { name: string; symbol: string; pair?: string; tokenAddress: string }): string {
+  const pair = (l.pair ?? "WETH").replace(/c$/, "");
+  const text = [
+    `$${l.symbol} (${l.name}) is live on Base, paired with tokenized $${pair}.`,
+    `My desk of agents drafted it, I approved it, and @perk_os deployed it through @bankrbot.`,
+    `CA: ${l.tokenAddress}`
+  ].join("\n\n");
+  return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(`https://bankr.bot/launches/${l.tokenAddress}`)}`;
+}
 
 /** Direccion corta con boton de copiar (contrato del token, pool). Si el
  *  portapapeles no esta disponible, muestra la direccion completa y seleccionable. */

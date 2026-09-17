@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import "./apiToken";
 import { parseIntent } from "./parseCommand";
-import DeskPanel, { type DeskScreen } from "./DeskPanel";
+import DeskPanel, { shareLaunchUrl, type DeskScreen } from "./DeskPanel";
 import KnowledgeMap, { type GraphNode } from "./KnowledgeMap";
 import { CHAINS, chainOf, ChainMark, deskManifest } from "./ChainMark";
 import AgentCards, { applyTurnEvent, newTurn, type DeskTurn, type Role as AgentRole } from "./AgentCards";
@@ -2287,6 +2287,7 @@ function LaunchCard({ launch, tx, onLaunch, onFees }: {
       <div className="draft-head">
         <b><span className={`decision ${tx.stage === "blocked" || !launch.ready ? "wait" : tx.stage === "done" ? "done" : "go"}`}>{decision}</span> {launch.name} ({launch.symbol}) <small>paired with {launch.pair.symbol} on Base · fees to {launch.ownRecipient ? "your wallet" : launch.recipientLabel}{launch.options.degen ? " · degen" : ""}</small></b>
         <span className="draft-btns">
+          {tx.stage === "done" && launch.receipt ? <a className="draft-more share" href={shareLaunchUrl({ name: launch.name, symbol: launch.symbol, pair: launch.pair.symbol, tokenAddress: launch.receipt.tokenAddress })} target="_blank" rel="noreferrer" title="Opens X in your browser with a post about this launch. Nothing is posted until you press Post.">Share on X</a> : null}
           {tx.stage === "done" && onFees ? <button type="button" className="draft-more" onClick={onFees}>Fees</button> : null}
           <button type="button" className="draft-more" onClick={() => setOpen((o) => !o)} aria-expanded={open}>{open ? "Less" : "Details"}</button>
         </span>
