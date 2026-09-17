@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { shareLaunchUrl } from "./DeskPanel";
+import { flog } from "./log";
 
 // Tarjeta guiada para lanzar un token emparejado con una accion tokenizada (Bankr, Base).
 // Una sola tarjeta en el chat que se completa por bloques: Basics (nombre, simbolo, par,
@@ -109,16 +110,18 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
       if (!r.ok || !j.url) throw new Error(j.detail ?? j.error ?? `upload ${r.status}`);
       onEdit?.({ image: j.url });
       setUploading("");
-    } catch (e) { setUploading((e as Error).message); }
+      flog("info", `launch logo: uploaded for ${launch.symbol || "the token"} · ${Math.round(data.length / 1024)} KB`);
+    } catch (e) { flog("warn", `launch logo upload: ${(e as Error).message}`); setUploading((e as Error).message); }
   };
   // Logo con IA: Grok genera la imagen desde un prompt propuesto (nombre + About), editable.
   const [genOpen, setGenOpen] = useState(false);
   const [genPrompt, setGenPrompt] = useState("");
   const [gen, setGen] = useState<"" | "busy" | string>("");
-  const suggestedPrompt = () => `Logo for ${launch.name || "a new token"}${launch.symbol ? ` (${launch.symbol})` : ""}${about ? `: ${about}` : ""}. Coral and black on a dark background`;
+  const suggestedPrompt = () => `Logo for ${launch.name || "a new token"}${launch.symbol ? ` (${launch.symbol})` : ""}${about ? `: ${about.trim().replace(/[.\s]+$/, "")}` : ""}. One single centered symbol that fills most of the frame, flat vector, no text, coral and black on a dark background`;
   const generateLogo = async () => {
     const prompt = (genPrompt.trim() || suggestedPrompt()).slice(0, 600);
     setGen("busy");
+    const t0 = Date.now();
     try {
       const r = await fetch("/api/launch/logo/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt }) });
       const j = (await r.json().catch(() => ({}))) as { url?: string; detail?: string; error?: string };
@@ -126,7 +129,8 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
       onEdit?.({ image: j.url });
       setGen("");
       setGenOpen(false); // el logo ya esta: el prompt se pliega; "Edit prompt" lo reabre para redibujar
-    } catch (e) { setGen((e as Error).message); }
+      flog("info", `launch logo: drawn for ${launch.symbol || "the token"} · ${Date.now() - t0} ms`);
+    } catch (e) { flog("warn", `launch logo generate: ${(e as Error).message}`); setGen((e as Error).message); }
   };
   const q = pairQ.trim().toLowerCase();
   const list = [...PINNED, ...pairs].filter((p) => !q || p.symbol.toLowerCase().includes(q) || p.name.toLowerCase().includes(q));
@@ -231,6 +235,7 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
       <ul className="launch-checks">
         {launch.checks.map((c) => <li key={c.label} className={c.ok ? "ok" : "bad"}><i aria-hidden>{c.ok ? "✓" : "✕"}</i><span>{c.label}</span><small>{c.note}</small></li>)}
         <li className={profileOk ? "ok" : "skip"}><i aria-hidden>{profileOk ? "✓" : "·"}</i><span>Token profile</span><small>{profileOk ? "logo and description set" : "logo or description missing: Bankr and the screeners show them (not blocking)"}</small></li>
+        {tx.stage !== "done" ? <li className="skip"><i aria-hidden>·</i><span>First buy</span><small>Bankr deploys with no initial buy. Once the token is live this card offers the first buy, you sign it, and the screeners list the pool after it.</small></li> : null}
         <li className={launch.busy ? "skip" : launch.stale ? "skip" : launch.sim ? "ok" : launch.simError ? "bad" : "skip"}><i aria-hidden>{launch.busy ? "…" : launch.stale ? "·" : launch.sim ? "✓" : launch.simError ? "✕" : "·"}</i><span>Bankr simulation</span><small>{launch.busy ? "running…" : launch.stale ? (basicsOk ? "changed, simulating again in a moment" : "waiting for name, symbol and pair") : launch.sim ? `token ${short(launch.sim.tokenAddress)} · pool ${short(launch.sim.poolId)}` : launch.simError ?? "not run"}{launch.last24h ? ` · launch ${launch.last24h} of 3 today` : ""}</small></li>
       </ul>
 
@@ -245,6 +250,16 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
         {website || tweet ? <><dt>Links</dt><dd>{website ? <a href={website} target="_blank" rel="noreferrer">website</a> : null}{website && tweet ? " · " : ""}{tweet ? <a href={tweet} target="_blank" rel="noreferrer">X post</a> : null}</dd></> : null}
         {launch.receipt ? <><dt>Token</dt><dd><a href={`https://basescan.org/token/${launch.receipt.tokenAddress}`} target="_blank" rel="noreferrer">{short(launch.receipt.tokenAddress)}</a> · <a href={launch.receipt.bankrUrl} target="_blank" rel="noreferrer">on Bankr</a> · <a href={launch.receipt.explorer} target="_blank" rel="noreferrer">tx</a></dd></> : null}
       </dl> : null}
+      {tx.stage === "done" && launch.receipt ? (
+        <div className="lc-seed">
+          <b>Make the first buy</b>
+          <small>Screeners list the pool after its first swap. A small buy of {launch.symbol}{launch.pair.symbol ? ` with ${launch.pair.symbol}` : ""} is enough; you sign it in your wallet.</small>
+          <nav className="seed-links" aria-label="Make the first buy">
+            <a href={`https://app.uniswap.org/swap?chain=base${launch.pair.address ? `&inputCurrency=${launch.pair.address}` : ""}&outputCurrency=${launch.receipt.tokenAddress}`} target="_blank" rel="noreferrer">Buy {launch.symbol} on Uniswap ↗</a>
+            <a href={launch.receipt.bankrUrl} target="_blank" rel="noreferrer">on Bankr ↗</a>
+          </nav>
+        </div>
+      ) : null}
       {tx.note ? <p className="hint-line err">{tx.note}</p> : null}
       {tx.hashes.length ? (
         <ul className="draft-tx">
