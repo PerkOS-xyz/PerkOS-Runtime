@@ -2,6 +2,7 @@ import { guard } from "../../lib/guard";
 import { loadSettings } from "../../lib/settingsStore";
 import { bankrLaunchConfigured, bankrWallet, walletLaunches } from "../../lib/bankrLaunch";
 import { creatorFees } from "../../lib/bankrFees";
+import { launchMarket, type LaunchMarket } from "../../lib/launchMarket";
 
 // GET /api/launches -> { wallet, deployer, tokens[] }
 // Los tokens de la persona: los que pagan fees a su wallet conectada (registro
@@ -12,7 +13,7 @@ export type LaunchRow = {
   pair?: string; deployer?: string; deployerX?: string; feeRecipient?: string;
   mine: boolean; deployedHere: boolean;
   claimable?: { token0: string; token1: string; token0Label: string; token1Label: string }; claimed?: { token0: string; token1: string; count: number }; share?: string;
-  bankrUrl: string; explorer: string;
+  bankrUrl: string; explorer: string; poolId?: string; market?: LaunchMarket;
 };
 
 export async function GET(req: Request) {
@@ -29,7 +30,7 @@ export async function GET(req: Request) {
       const a = l.tokenAddress.toLowerCase();
       rows.set(a, {
         tokenAddress: l.tokenAddress, name: l.tokenName, symbol: l.tokenSymbol, chain: l.chain, timestamp: l.timestamp, status: l.status,
-        pair: l.pairedStock?.symbol ?? "WETH", deployer: l.deployer?.walletAddress, deployerX: l.deployer?.xUsername, feeRecipient: l.feeRecipient?.walletAddress,
+        pair: l.pairedStock?.symbol ?? "WETH", deployer: l.deployer?.walletAddress, deployerX: l.deployer?.xUsername, feeRecipient: l.feeRecipient?.walletAddress, poolId: l.poolId,
         mine: (l.feeRecipient?.walletAddress ?? "").toLowerCase() === wallet.toLowerCase(),
         deployedHere: Boolean(bw && (l.deployer?.walletAddress ?? "").toLowerCase() === bw.evm.toLowerCase()),
         bankrUrl: `https://bankr.bot/launches/${l.tokenAddress}`, explorer: `https://basescan.org/token/${l.tokenAddress}`
@@ -45,6 +46,8 @@ export async function GET(req: Request) {
       rows.set(a, row);
     }
     const tokens = [...rows.values()].sort((x, y) => (y.timestamp ?? 0) - (x.timestamp ?? 0));
+    // Mercado y pool por token (DexScreener, GeckoTerminal, Bankr), en paralelo y con cache de 60 s.
+    await Promise.all(tokens.slice(0, 12).map(async (t) => { t.market = await launchMarket(t.tokenAddress, t.poolId).catch(() => undefined); }));
     return Response.json({ wallet, deployer: bw?.evm ?? null, tokens });
   } catch (e) {
     return Response.json({ error: "launches_failed", detail: (e as Error).message }, { status: 502 });
