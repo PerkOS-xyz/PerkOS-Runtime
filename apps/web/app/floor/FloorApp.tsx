@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import "./apiToken";
 import { parseIntent } from "./parseCommand";
 import DeskPanel, { shareLaunchUrl, type DeskScreen } from "./DeskPanel";
+import ChatsDrawer from "./ChatsDrawer";
 import KnowledgeMap, { type GraphNode } from "./KnowledgeMap";
 import { CHAINS, chainOf, ChainMark, deskManifest } from "./ChainMark";
 import AgentCards, { applyTurnEvent, newTurn, type DeskTurn, type Role as AgentRole } from "./AgentCards";
@@ -148,6 +149,7 @@ function Shell() {
   threadRef.current = threadId;
   const [historyLocked, setHistoryLocked] = useState(false);
   const [chatsKey, setChatsKey] = useState(0);
+  const [chatsOpen, setChatsOpen] = useState(false);
   const savedSigRef = useRef("");
   const keepable = (list: Msg[]) => list.filter((x) => !x.streaming && (x.text || x.draft || x.launch || x.auto || x.fees || x.analysis)).slice(-200);
   // Los drafts sin aprobar de otra sesion vuelven vencidos: su cotizacion ya no vale.
@@ -1369,7 +1371,7 @@ function Shell() {
     if (cmd === "automations") { setDeskScreen("automations"); setCaption("Your Bankr automations"); return; }
     if (cmd === "fees") { quoteRef.current = null; void feesCard(undefined, it.token); return; }
     if (cmd === "launches") { setDeskScreen("launches"); setCaption("Your tokens on Base"); return; }
-    if (cmd === "chats") { setDeskScreen("chats"); setCaption("Your conversations"); return; }
+    if (cmd === "chats") { setChatsOpen(true); setCaption("Your conversations"); return; }
     if (cmd === "newchat") { newChatRef.current(); return; }
     if (cmd === "buy" || cmd === "sell") {
       quoteRef.current = null;
@@ -1912,9 +1914,6 @@ function Shell() {
             <LoopIcon /><span>Automations</span>
           </button>
           <i className="dock-sep" aria-hidden="true" />
-          <button type="button" className={deskScreen === "chats" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "chats" ? "" : "chats")} title="Chats · your saved conversations, encrypted with your wallet">
-            <ChatIcon /><span>Chats</span>
-          </button>
           <button type="button" className={deskScreen === "notes" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "notes" ? "" : "notes")} title="Notes · what this desk remembers (local, Obsidian-compatible)">
             <NotesIcon /><span>Notes</span>
           </button>
@@ -1936,7 +1935,6 @@ function Shell() {
           onSummarize={() => void summarizeDay()}
           refreshKey={deskRefresh}
           claimedTokens={claimedTokens}
-          chats={{ activeId: threadId, locked: historyLocked, canUnlock: wallet.canSign, refreshKey: chatsKey, onOpen: (id: string) => void openChat(id), onNew: () => newChatRef.current(), onUnlock: () => void unlockHistory(), onDeleted: (id: string) => { if (id === threadRef.current) newChatRef.current(); } }}
           max={deskMax}
           onMax={setDeskMax}
           map={(
@@ -2030,8 +2028,9 @@ function Shell() {
         }}
       >
         <div className="ask-top">
+        <span className="ask-left">
+        <button type="button" className={`chat-peek${chatsOpen ? " on" : ""}`} onClick={() => setChatsOpen((o) => !o)} title="Your saved conversations"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden><path d="M4 6h16M4 12h16M4 18h10" /></svg>Chats</button>
         {messages.length > 0 ? <button type="button" className="chat-peek" onClick={() => newChatRef.current()} title="Start a new conversation. This one stays saved in Chats.">New chat</button> : null}
-        <button type="button" className="chat-peek" onClick={() => setDeskScreen(deskScreen === "chats" ? "" : "chats")} title="Your saved conversations">Chats</button>
         {historyLocked && wallet.canSign ? <button type="button" className="chat-peek pending" onClick={() => void unlockHistory()} title="One signature, once on this computer: it derives the key that encrypts your chat history on disk. It moves no funds.">Unlock history</button> : null}
         {!split && messages.length > 0 ? (() => {
           const pending = messages.filter((x) => x.role === "draft" && x.tx?.stage === "idle" && (x.draft || x.launch || x.auto)).length;
@@ -2042,6 +2041,7 @@ function Shell() {
             </button>
           );
         })() : null}
+        </span>
         <select
           className="model-chip"
           value={model}
@@ -2125,6 +2125,7 @@ function Shell() {
         </div>
       </form>
       </div>
+      {chatsOpen ? <ChatsDrawer bridge={{ activeId: threadId, locked: historyLocked, canUnlock: wallet.canSign, refreshKey: chatsKey, onOpen: (id: string) => void openChat(id), onNew: () => newChatRef.current(), onUnlock: () => void unlockHistory(), onDeleted: (id: string) => { if (id === threadRef.current) newChatRef.current(); } }} onClose={() => setChatsOpen(false)} /> : null}
       <div className="caption">{caption}</div>
       <ErrorDock open={debug} onOpen={setDebug} />
     </div>

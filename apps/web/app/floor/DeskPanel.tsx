@@ -49,10 +49,7 @@ function Spark({ points, w = 96, h = 28, big = false }: { points?: number[]; w?:
   );
 }
 
-export type DeskScreen = "market" | "portfolio" | "launches" | "automations" | "chats" | "notes" | "map" | "history";
-// Chats: los hilos guardados de la wallet (cifrados en disco con su llave).
-type ChatMeta = { id: string; title: string; desk: string; group?: string; pinned?: boolean; createdAt: string; updatedAt: string; count: number; preview?: string };
-export type ChatsBridge = { activeId: string; locked: boolean; canUnlock: boolean; refreshKey: number; onOpen: (id: string) => void; onNew: () => void; onUnlock: () => void; onDeleted: (id: string) => void };
+export type DeskScreen = "market" | "portfolio" | "launches" | "automations" | "notes" | "map" | "history";
 // Launches: los tokens que pagan fees a la wallet conectada (o que desplego la
 // wallet Bankr del install), con Bankr, Basescan y Claim.
 type LaunchMarket = { priceUsd?: number; change24hPct?: number; change1hPct?: number; volume24hUsd?: number; liquidityUsd?: number; fdvUsd?: number; pool?: { id: string; dex: string; label: string; quote: string; venueUrl: string; dexscreenerUrl: string; geckoUrl: string }; sparkline?: number[]; earnings?: Array<{ date: string; weth: string }>; lifetimeEarnedWeth?: string };
@@ -78,13 +75,12 @@ type Hit = { id: string; kind: string; title: string; ticker?: string; updatedAt
 const usd = (n?: number, d = 2) => (n === undefined || !Number.isFinite(n) ? "–" : `$${n.toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d })}`);
 const issuerLabel = (i: string) => (i === "coinbase" ? "Coinbase" : i === "dinari" ? "Dinari" : i === "anchored" ? "Anchored" : i === "st0x" ? "ST0x" : i);
 
-export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onSummarize, map, max, onMax, refreshKey, claimedTokens, chats }: {
+export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onSummarize, map, max, onMax, refreshKey, claimedTokens }: {
   /** Cambia cuando algo fuera del panel movio los datos (un claim, una orden firmada): recarga la pantalla. */
   refreshKey?: number;
   /** Tokens cuyo claim se acaba de confirmar: Bankr cachea 2 min, asi que aqui se muestran ya sin saldo. */
   claimedTokens?: string[];
-  /** Historial de chat: lo maneja FloorApp (abrir, nuevo, desbloquear); aqui se lista. */
-  chats?: ChatsBridge;
+
   /** Maximizado: ocupa todo el stage y oculta el chat. */
   max?: boolean;
   onMax?: (v: boolean) => void;
@@ -148,7 +144,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
     setErr("");
     if (screen === "market") {
       fetch("/api/market/stocks?depth=1&limit=24").then((r) => r.json()).then((j) => { if (live) setRows(j.stocks ?? []); }).catch((e) => live && setErr(String(e)));
-    } else if (screen === "chats" || screen === "map" || screen === "history") {
+    } else if (screen === "map" || screen === "history") {
       // pantallas con su propio componente y su propia carga
     } else if (screen === "launches") {
       void loadLaunches();
@@ -217,7 +213,6 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
           <button type="button" role="tab" aria-selected={screen === "portfolio"} className={screen === "portfolio" ? "on" : ""} onClick={() => onScreen("portfolio")}>Portfolio</button>
           <button type="button" role="tab" aria-selected={screen === "launches"} className={screen === "launches" ? "on" : ""} onClick={() => onScreen("launches")}>Launches</button>
           <button type="button" role="tab" aria-selected={screen === "automations"} className={screen === "automations" ? "on" : ""} onClick={() => onScreen("automations")}>Automations</button>
-          <button type="button" role="tab" aria-selected={screen === "chats"} className={screen === "chats" ? "on" : ""} onClick={() => onScreen("chats")}>Chats</button>
           <button type="button" role="tab" aria-selected={screen === "notes"} className={screen === "notes" ? "on" : ""} onClick={() => onScreen("notes")}>Notes</button>
           <button type="button" role="tab" aria-selected={screen === "map"} className={screen === "map" ? "on" : ""} onClick={() => onScreen("map")}>Map</button>
           <button type="button" role="tab" aria-selected={screen === "history"} className={screen === "history" ? "on" : ""} onClick={() => onScreen("history")}>History</button>
@@ -237,8 +232,6 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
 
       {screen === "history" ? (
         <History />
-      ) : screen === "chats" ? (
-        <Chats bridge={chats} />
       ) : screen === "launches" ? (
         <div className="automations launches">
           <div className="auto-head">
@@ -491,78 +484,6 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
   );
 }
 
-
-/** Chats: hilos guardados, como en cualquier app de chat. Fijados arriba, luego por grupo. */
-function Chats({ bridge }: { bridge?: ChatsBridge }) {
-  const [list, setList] = useState<ChatMeta[] | null>(null);
-  const [locked, setLocked] = useState(false);
-  const [edit, setEdit] = useState<{ id: string; field: "title" | "group"; value: string } | null>(null);
-  const [confirmDel, setConfirmDel] = useState("");
-  const [q, setQ] = useState("");
-  const load = () => fetch("/api/chats").then(async (r) => { if (r.status === 428) { setLocked(true); setList([]); return; } const j = await r.json(); setLocked(false); setList(j.chats ?? []); }).catch(() => setList([]));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { void load(); }, [bridge?.refreshKey, bridge?.locked]);
-  const patch = async (id: string, body: Record<string, unknown>) => { await fetch(`/api/chats?id=${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); void load(); };
-  const del = async (id: string) => { await fetch(`/api/chats?id=${id}`, { method: "DELETE" }); setConfirmDel(""); bridge?.onDeleted(id); void load(); };
-  const shown = (list ?? []).filter((c) => !q || `${c.title} ${c.group ?? ""} ${c.preview ?? ""}`.toLowerCase().includes(q.toLowerCase()));
-  const groups = new Map<string, ChatMeta[]>();
-  for (const c of shown) { const k = c.pinned ? "Pinned" : c.group || "Chats"; groups.set(k, [...(groups.get(k) ?? []), c]); }
-  const order = [...groups.keys()].sort((a, b) => (a === "Pinned" ? -1 : b === "Pinned" ? 1 : a === "Chats" ? 1 : b === "Chats" ? -1 : a.localeCompare(b)));
-  const when = (iso: string) => { const d = new Date(iso); const today = new Date().toDateString() === d.toDateString(); return today ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : d.toLocaleDateString([], { month: "short", day: "numeric" }); };
-  return (
-    <div className="automations chats">
-      <div className="auto-head">
-        <small>Your conversations with the desk. Saved as you go, encrypted on this computer with a key from your wallet.</small>
-        <div className="acts">
-          <button type="button" onClick={() => bridge?.onNew()}>New chat</button>
-        </div>
-      </div>
-      {locked || bridge?.locked ? (
-        <div className="launch-empty">
-          <b>Chat history is locked</b>
-          <span>One signature from your wallet, once on this computer, derives the key that encrypts your history. It moves no funds and approves nothing.</span>
-          {bridge?.canUnlock ? <button type="button" onClick={() => bridge.onUnlock()}>Unlock with my wallet</button> : <span>Link your wallet first.</span>}
-        </div>
-      ) : (
-        <>
-          <input className="chat-search" placeholder="Search chats" value={q} onChange={(e) => setQ(e.target.value)} spellCheck={false} />
-          {list && shown.length === 0 ? <div className="launch-empty"><b>{q ? "No chat matches" : "No chats yet"}</b><span>{q ? "Try another word." : "Ask Sparky anything and the conversation is saved here."}</span></div> : null}
-          <div className="chat-groups">
-            {order.map((g) => (
-              <section key={g}>
-                <h4>{g}</h4>
-                <ul>
-                  {groups.get(g)!.map((c) => (
-                    <li key={c.id} className={c.id === bridge?.activeId ? "on" : ""}>
-                      {edit?.id === c.id ? (
-                        <form className="chat-edit" onSubmit={(e) => { e.preventDefault(); void patch(c.id, edit.field === "title" ? { title: edit.value } : { group: edit.value.trim() || null }); setEdit(null); }}>
-                          <input autoFocus value={edit.value} placeholder={edit.field === "title" ? "Chat title" : "Group name, empty to remove"} onChange={(e) => setEdit({ ...edit, value: e.target.value })} onKeyDown={(e) => { if (e.key === "Escape") setEdit(null); }} />
-                          <button type="submit">Save</button>
-                        </form>
-                      ) : (
-                        <button type="button" className="chat-open" onClick={() => bridge?.onOpen(c.id)}>
-                          <b>{c.title}</b>
-                          <small>{c.preview || "…"}</small>
-                        </button>
-                      )}
-                      <span className="chat-meta">{when(c.updatedAt)} · {c.count}</span>
-                      <span className="chat-acts">
-                        <button type="button" title={c.pinned ? "Unpin" : "Pin to the top"} onClick={() => void patch(c.id, { pinned: !c.pinned })}>{c.pinned ? "Unpin" : "Pin"}</button>
-                        <button type="button" title="Rename" onClick={() => setEdit({ id: c.id, field: "title", value: c.title })}>Rename</button>
-                        <button type="button" title="Put it in a group" onClick={() => setEdit({ id: c.id, field: "group", value: c.group ?? "" })}>Group</button>
-                        {confirmDel === c.id ? <button type="button" className="danger" onClick={() => void del(c.id)}>Confirm</button> : <button type="button" title="Delete this chat" onClick={() => setConfirmDel(c.id)}>Delete</button>}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
 
 /** Post para X sobre un launch: el token, el par, y que lo desplego PerkOS (@perk_os) por Bankr. */
 export function shareLaunchUrl(l: { name: string; symbol: string; pair?: string; tokenAddress: string }): string {

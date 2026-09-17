@@ -11,9 +11,9 @@ export const CHAINS: Record<ChainId, { name: string; color: string; builtOn: str
 };
 
 export type DeskScreenId = "market" | "portfolio" | "launches" | "automations";
-export type AppScreenId = "chats" | "notes" | "map" | "history";
+export type AppScreenId = "notes" | "map" | "history";
 /** Pantallas del shell, iguales en todo desk. */
-export const APP_SCREENS: AppScreenId[] = ["chats", "notes", "map", "history"];
+export const APP_SCREENS: AppScreenId[] = ["notes", "map", "history"];
 
 export type DeskLike = { id?: string; chain?: string; tagline?: string } | null | undefined;
 
