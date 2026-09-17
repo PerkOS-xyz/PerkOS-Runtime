@@ -32,6 +32,10 @@ export default function FloorApp() {
 
 function Shell() {
   const wallet = useWallet();
+  // Donde aparece la firma, en palabras: con login por QR es el celular.
+  const signHint = wallet.signWhere === "phone" ? `Open ${wallet.walletName || "your wallet app"} on your phone to confirm. The request only shows while the app is open.` : wallet.signWhere === "embedded" ? "Your PerkOS wallet signs here." : "Confirm in your wallet.";
+  const signShort = wallet.signWhere === "phone" ? `in ${wallet.walletName || "your wallet"} on your phone` : "in your wallet";
+  useEffect(() => { if (wallet.signWhere) flog("info", `wallet signs: ${wallet.signWhere}${wallet.walletName ? ` · ${wallet.walletName}` : ""}`); }, [wallet.signWhere, wallet.walletName]);
   const [listening, setListening] = useState(false);
   const [team, setTeam] = useState<Team>("hibernated");
   const [guest, setGuest] = useState(false);
@@ -888,7 +892,7 @@ function Shell() {
       if (!j.recipient || j.recipient.toLowerCase() !== wallet.address.toLowerCase()) throw new Error("claim built for another wallet");
       if (!j.txs?.length) { patch({ stage: "failed", note: j.errors?.[0]?.message ?? j.errors?.[0]?.error ?? j.detail ?? "Nothing to claim yet." }); setCaption("Nothing to claim yet."); return; }
       for (const t of j.txs) {
-        setCaption(`Confirm the ${t.tokenSymbol} fee claim in your wallet…`);
+        setCaption(`Confirm the ${t.tokenSymbol} fee claim ${signShort}…`);
         flog("info", `fees claim ${t.tokenSymbol}: waiting for signature`);
         const hash = await wallet.sendTransaction({ to: t.to, data: t.data, value: "0x0", chainId: t.chainId });
         hashes.push({ label: `claim ${t.tokenSymbol}`, hash, status: "pending", explorer: `https://basescan.org/tx/${hash}` });
@@ -915,10 +919,11 @@ function Shell() {
     } catch (e) {
       const m = (e as Error).message || "signature failed";
       flog("error", `fees claim: ${m}`);
-      patch({ stage: "failed", hashes: [...hashes], note: /reject|denied|4001/i.test(m) ? "You declined in the wallet." : m });
-      setCaption(/reject|denied|4001/i.test(m) ? "Claim cancelled in the wallet." : "Claim failed.");
+      const timedOut = /timeout|timed out|expired/i.test(m);
+      patch({ stage: "failed", hashes: [...hashes], note: /reject|denied|4001/i.test(m) ? "You declined in the wallet." : timedOut ? `The wallet did not answer in time. ${signHint} Then press Retry.` : m });
+      setCaption(/reject|denied|4001/i.test(m) ? "Claim cancelled in the wallet." : timedOut ? "The wallet did not answer. Nothing was claimed." : "Claim failed.");
     }
-  }, [wallet, speak, touch, feesCard]);
+  }, [wallet, speak, touch, feesCard, signHint, signShort]);
 
   // Approve: la persona firma en su wallet (MetaMask por WalletConnect) cada
   // tx del draft en orden; Floor espera el receipt en Base y muestra el hash.
@@ -938,7 +943,7 @@ function Shell() {
     try {
       for (const t of d.txs) {
         patch({ stage: "signing", step: t.label, hashes: [...hashes], note: "" });
-        setCaption(t.label === "approve" ? "Confirm the USDC approval in your wallet…" : "Confirm the swap in your wallet…");
+        setCaption(t.label === "approve" ? `Confirm the approval ${signShort}…` : `Confirm the swap ${signShort}…`);
         flog("info", `trade ${t.label}: waiting for signature`);
         const hash = await wallet.sendTransaction({ to: t.to, data: t.data, value: t.value, chainId: d.chainId });
         flog("info", `trade ${t.label}: sent ${hash}`);
@@ -968,10 +973,11 @@ function Shell() {
     } catch (e) {
       const m = (e as Error).message || "signature failed";
       flog("error", `trade: ${m}`);
-      patch({ stage: "failed", hashes: [...hashes], note: /reject|denied|4001/i.test(m) ? "You declined in the wallet." : m });
-      setCaption(/reject|denied|4001/i.test(m) ? "Trade cancelled in the wallet." : "Trade failed.");
+      const timedOut = /timeout|timed out|expired/i.test(m);
+      patch({ stage: "failed", hashes: [...hashes], note: /reject|denied|4001/i.test(m) ? "You declined in the wallet." : timedOut ? `The wallet did not answer in time. ${signHint} Then press Retry.` : m });
+      setCaption(/reject|denied|4001/i.test(m) ? "Trade cancelled in the wallet." : timedOut ? "The wallet did not answer. Nothing was traded." : "Trade failed.");
     }
-  }, [wallet, speak, touch]);
+  }, [wallet, speak, touch, signHint, signShort]);
 
   // Cotizacion inmediata (sin agentes): "price of Apple".
   const quoteAsset = useCallback(async (asset: string) => {
@@ -1867,11 +1873,11 @@ function Shell() {
               {m.verdict ? <em className={`vchip ${m.verdict.toLowerCase()}`}>{m.verdict}</em> : null}
             </span>
             {m.role === "draft" && m.draft ? (
-              <DraftCard draft={m.draft} tx={m.tx ?? { stage: "idle", hashes: [] }} onApprove={() => void approveDraft(m.id)} />
+              <DraftCard draft={m.draft} tx={m.tx ?? { stage: "idle", hashes: [] }} onApprove={() => void approveDraft(m.id)} signHint={signHint} />
             ) : m.role === "draft" && m.launch ? (
               <LaunchCard launch={m.launch} tx={m.tx ?? { stage: "idle", hashes: [] }} onLaunch={() => void deployLaunch(m.id)} onFees={() => void feesCard()} />
             ) : m.role === "draft" && m.fees ? (
-              <FeesCard fees={m.fees} tx={m.tx ?? { stage: "idle", hashes: [] }} onClaim={() => void claimFees(m.id)} onRefresh={() => void feesCard(m.id)} />
+              <FeesCard fees={m.fees} tx={m.tx ?? { stage: "idle", hashes: [] }} onClaim={() => void claimFees(m.id)} onRefresh={() => void feesCard(m.id)} signHint={signHint} />
             ) : m.role === "draft" && m.auto ? (
               <AutomationCard auto={m.auto} tx={m.tx ?? { stage: "idle", hashes: [] }} onCreate={() => void createAutomation(m.id)} onOpen={() => setDeskScreen("automations")} />
             ) : m.role === "analysis" && m.analysis ? (
@@ -2187,10 +2193,11 @@ function AnalysisCard({ a, onSay }: {
 
 /** Carta del draft del Trader + orb Approve (se mantiene 2 s para firmar).
  *  Sin llaves aqui: Approve manda las tx a la wallet de la persona. */
-function DraftCard({ draft, tx, onApprove }: {
+function DraftCard({ draft, tx, onApprove, signHint }: {
   draft: { side: "buy" | "sell"; recipient?: string; stock: { symbol: string; ticker: string; name: string; issuer: string }; tokenIn: { symbol: string; decimals: number }; tokenOut: { symbol: string; decimals: number }; amountInHuman: string; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; pool: string; fee: number; poolUsdcDepth: number; deadline: number; needsApproval: boolean; balanceUsdc: string; balanceToken: string; txs: Array<{ label: string }>; bankr?: { impliedPriceUsd: number; outHuman: string; outSymbol: string; feeBps: number; priceImpactBps?: number } | null; venueLabel?: string; venues?: Array<{ label: string; priceUsd: number; outHuman: string; usdcDepth: number; fee: number }> };
   tx: { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; step?: string; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
   onApprove: () => void;
+  signHint?: string;
 }) {
   const [holding, setHolding] = useState(false);
   const holdRef = useRef(0);
@@ -2256,7 +2263,7 @@ function DraftCard({ draft, tx, onApprove }: {
             {tx.stage === "done" ? "Done" : tx.stage === "blocked" ? "Blocked" : tx.stage === "signing" ? `Sign ${tx.step}…` : tx.stage === "pending" ? `${cap(tx.step ?? "")} on Base…` : tx.stage === "failed" ? "Retry" : "Hold to approve"}
           </span>
         </button>
-        <small>{tx.stage === "done" ? "Receipt on Base. Your keys, your trade." : tx.stage === "blocked" ? "Risk said no. Nothing to sign." : "They draft. You sign in your wallet."}</small>
+        <small>{tx.stage === "done" ? "Receipt on Base. Your keys, your trade." : tx.stage === "blocked" ? "Risk said no. Nothing to sign." : tx.stage === "signing" && signHint ? signHint : "They draft. You sign in your wallet."}</small>
       </div>
     </div>
   );
@@ -2331,11 +2338,12 @@ function LaunchCard({ launch, tx, onLaunch, onFees }: {
 
 // Fees card: lo que ganan los tokens lanzados (lectura publica de Bankr) y
 // el claim, que firma la persona con su wallet. Hold to claim solo con saldo.
-function FeesCard({ fees, tx, onClaim, onRefresh }: {
+function FeesCard({ fees, tx, onClaim, onRefresh, signHint }: {
   fees: { address: string; tokens: Array<{ tokenAddress: string; name: string; symbol: string; share: string; token0Label: string; token1Label: string; claimable: { token0: string; token1: string }; claimed: { token0: string; token1: string; count: number } }>; totals: { claimableWeth: string; claimedWeth: string; claimCount: number }; lifetimeEarnedWeth: string; at: string };
   tx: { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
   onClaim: () => void;
   onRefresh: () => void;
+  signHint?: string;
 }) {
   const [holding, setHolding] = useState(false);
   const holdRef = useRef(0);
@@ -2392,7 +2400,7 @@ function FeesCard({ fees, tx, onClaim, onRefresh }: {
           <span className="ring" />
           <span className="lbl">{tx.stage === "done" ? "Claimed" : tx.stage === "signing" ? "Sign in your wallet…" : tx.stage === "pending" ? "Claiming on Base…" : tx.stage === "failed" ? "Retry" : withFees.length ? "Hold to claim" : "Nothing to claim"}</span>
         </button>
-        <small>{tx.stage === "done" ? "Fees in your wallet. Receipt on Base." : "Bankr builds it. You sign. You pay the gas on Base."}</small>
+        <small>{tx.stage === "done" ? "Fees in your wallet. Receipt on Base." : tx.stage === "signing" && signHint ? signHint : "Bankr builds it. You sign. You pay the gas on Base."}</small>
       </div>
     </div>
   );

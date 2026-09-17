@@ -27,6 +27,11 @@ export type Wallet = {
   // eth_sendTransaction con la wallet activa en la cadena pedida (Base para el
   // swap del Trader). Externa: MetaMask pide confirmar. Devuelve el hash.
   sendTransaction: (tx: { to: `0x${string}`; data: `0x${string}`; value?: `0x${string}`; chainId: number }) => Promise<`0x${string}`>;
+  /** Donde va a aparecer la confirmacion: "phone" (WalletConnect: la app de la wallet en el
+   *  celular, que tiene que estar abierta), "extension" (wallet del navegador) o "embedded" (Privy). */
+  signWhere: "phone" | "extension" | "embedded" | "";
+  /** Nombre de la wallet activa cuando Privy lo sabe ("MetaMask", "Rainbow"). */
+  walletName: string;
 };
 
 export const disabledWallet: Wallet = {
@@ -48,7 +53,9 @@ export const disabledWallet: Wallet = {
   forget: () => undefined,
   logout: () => undefined,
   signMessage: async () => { throw new Error("wallet disabled"); },
-  sendTransaction: async () => { throw new Error("wallet disabled"); }
+  sendTransaction: async () => { throw new Error("wallet disabled"); },
+  signWhere: "",
+  walletName: ""
 };
 
 const Ctx = createContext<Wallet>(disabledWallet);

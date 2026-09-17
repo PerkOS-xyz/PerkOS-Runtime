@@ -127,6 +127,14 @@ function Bridge({ children }: { children: ReactNode }) {
     return hash as `0x${string}`;
   };
 
+  // Donde firma la persona: con WalletConnect (login por QR) la peticion llega a la
+  // app de la wallet en el celular y solo se ve si esa app esta abierta.
+  const active = wallets.find((x) => x.address.toLowerCase() === address.toLowerCase()) ?? wallets[0];
+  const clientType = String(active?.walletClientType ?? "");
+  const connector = String((active as { connectorType?: string } | undefined)?.connectorType ?? "");
+  const signWhere: Wallet["signWhere"] = !active ? "" : clientType.startsWith("privy") ? "embedded" : /wallet_?connect/i.test(connector) || /wallet_?connect/i.test(clientType) ? "phone" : "extension";
+  const walletName = String((active as { meta?: { name?: string } } | undefined)?.meta?.name ?? "").replace(/^WalletConnect$/i, "");
+
   const value = useMemo<Wallet>(
     () => ({
       enabled: true,
@@ -160,10 +168,12 @@ function Bridge({ children }: { children: ReactNode }) {
         void logout();
       },
       signMessage,
-      sendTransaction
+      sendTransaction,
+      signWhere,
+      walletName
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [address, authenticated, error, login, logout, ready, walletsReady, wallets]
+    [address, authenticated, error, login, logout, ready, walletsReady, wallets, signWhere, walletName]
   );
   return <WalletContext value={value}>{children}</WalletContext>;
 }
