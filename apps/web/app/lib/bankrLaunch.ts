@@ -1,4 +1,9 @@
 import { DiskCache } from "./diskCache";
+import { createPublicClient, http, parseAbi } from "viem";
+import { base } from "viem/chains";
+import { listStocks } from "./stocks";
+
+const SYMBOL_ABI = parseAbi(["function symbol() view returns (string)"]);
 
 // Bankr token launches ("Stock Paired Token"): un ERC-20 nuevo via Doppler
 // sobre un pool Uniswap V4 cuyo quote token es una accion tokenizada (B20 en
@@ -21,7 +26,7 @@ export type LaunchReceipt = LaunchSim & { txHash: string; chain: string };
 export type BankrLaunch = { tokenName: string; tokenSymbol: string; chain: string; tokenAddress: string; poolId?: string; txHash?: string; timestamp?: number; status?: string; imageUri?: string; pairedStock?: { address: string; symbol: string }; deployer?: { walletAddress?: string; xUsername?: string }; feeRecipient?: { walletAddress?: string } };
 export type LaunchResult<T> = { ok: true; data: T } | { ok: false; error: string; detail: string };
 
-const quotesCache = new DiskCache<QuoteToken[]>("bankr-launch-quotes", 60 * 60_000);
+const quotesCache = new DiskCache<QuoteToken[]>("bankr-launch-quotes-v3", 60 * 60_000);
 const walletCache = new DiskCache<BankrWallet>("bankr-wallet", 60_000);
 
 export function bankrLaunchConfigured(): boolean { return key() !== null; }
@@ -39,7 +44,18 @@ export async function launchQuotes(): Promise<QuoteToken[]> {
   const hit = await quotesCache.get(CHAIN); if (hit) return hit;
   const r = await fetch(`${BASE}/token-launches/quote-tokens?chain=${CHAIN}`, { headers: headers(k), signal: AbortSignal.timeout(15_000) });
   if (!r.ok) throw new Error(`quote tokens ${r.status}`);
-  const list = asList<QuoteToken>(await r.json(), ["quoteTokens", "tokens", "data"]);
+  const raw = asList<QuoteToken>(await r.json(), ["quoteTokens", "tokens", "data"]);
+  // Bankr etiqueta las acciones con el ticker ("NVDA"); el contrato en Base se llama "NVDAc".
+  // Es el mismo token (misma direccion): se muestra el simbolo on-chain, el que la persona ve
+  // en el resto del desk y en los exploradores.
+  const onchain = await listStocks().then((st) => new Map(st.map((x) => [x.address.toLowerCase(), x.symbol]))).catch(() => new Map<string, string>());
+  // Las que el desk no lista todavia: se lee symbol() del contrato (una vez por hora, con la cache).
+  const missing = raw.filter((t) => t.kind === "stock" && !onchain.has(t.address.toLowerCase()));
+  if (missing.length) {
+    const client = createPublicClient({ chain: base, transport: http(process.env.BASE_RPC_URL?.trim() || undefined, { retryCount: 1 }) });
+    await Promise.all(missing.map((t) => client.readContract({ address: t.address as `0x${string}`, abi: SYMBOL_ABI, functionName: "symbol" }).then((sym) => { if (sym) onchain.set(t.address.toLowerCase(), sym); }).catch(() => undefined)));
+  }
+  const list = raw.map((t) => (t.kind === "stock" ? { ...t, symbol: onchain.get(t.address.toLowerCase()) ?? t.symbol } : t));
   await quotesCache.set(CHAIN, list);
   return list;
 }
@@ -54,7 +70,7 @@ export async function resolvePair(query: string): Promise<QuoteToken | null> {
   if (exact) return exact;
   const q = raw.replace(/c$/, "");
   const stocks = all.filter((t) => t.kind === "stock");
-  return stocks.find((t) => t.symbol.toLowerCase() === q)
+  return stocks.find((t) => t.symbol.toLowerCase().replace(/c$/, "") === q)
     ?? all.find((t) => t.name.toLowerCase().startsWith(q))
     ?? all.find((t) => t.name.toLowerCase().includes(q))
     ?? null;
