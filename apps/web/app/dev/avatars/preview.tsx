@@ -55,6 +55,17 @@ export default function AvatarsPreview() {
         <img src="/sparky.png" alt="Sparky" style={{ width: 210, height: "auto", filter: "drop-shadow(0 0 28px rgba(236,27,105,.55))" }} />
       </div>
 
+      <div style={h}>Scene markup check: .orb / .ball.avatar as FloorApp renders them (ready, talking, hibernated, failed + guest)</div>
+      <div style={{ position: "relative", height: 170, width: 640, background: "#070914", borderRadius: 12 }}>
+        {[["scout", "st-ready on", "idle", "Online"], ["risk", "st-ready on talking", "working", "Thinking"], ["trader", "st-hibernated", "hibernating", "Hibernating"], ["auditor", "st-failed on", "error", "Failed"], ["guest dim", "on", "idle", ""]].map(([r, cls, st, sub], i) => (
+          <div key={r} className={`orb ${r} ${cls}`} style={{ left: `${12 + i * 19}%`, top: 14 }}>
+            <div className="ball avatar"><AgentAvatar agent={{ id: r.split(" ")[0] === "guest" ? "grok-bot" : r, role: r.split(" ")[0], custody: r === "trader" ? "1claw" : null }} state={st as AgentAvatarState} size={80} /></div>
+            <span>{r.split(" ")[0]}</span>{sub ? <small>{sub}</small> : null}
+            {r === "trader" ? <em className="rail on"><img src="/1claw.svg" alt="" />1Claw</em> : null}
+          </div>
+        ))}
+      </div>
+
       <div style={h}>Runtime states (identity never changes; hibernating is not offline, not error)</div>
       {FLOOR.map((r) => (
         <div key={r} style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 10 }}>

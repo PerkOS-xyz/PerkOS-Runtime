@@ -1336,7 +1336,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 @keyframes typingDot { 0%, 80%, 100% { transform: translateY(0); opacity: 0.35; } 40% { transform: translateY(-3px); opacity: 1; } }
 
 /* ==== Agent graph (2026-09-16): color por agente, cards bajo las esferas ==== */
-:root { --ag-scout: #3d7eff; --ag-risk: #ffb347; --ag-trader: #a855f7; --ag-auditor: #2dd4bf; --ag-floor: #ec1b69; }
+:root { --ag-scout: #3d7eff; --ag-risk: #ffb347; --ag-trader: #f0262a; --ag-auditor: #2dd4bf; --ag-floor: #ec1b69; } /* Trader = rojo 1Claw: es el agente que firma con 1Claw */
 .orb.scout { --ag: var(--ag-scout); } .orb.risk { --ag: var(--ag-risk); } .orb.trader { --ag: var(--ag-trader); } .orb.auditor { --ag: var(--ag-auditor); }
 .orb.scout .ball, .orb.risk .ball, .orb.trader .ball, .orb.auditor .ball {
   background: radial-gradient(circle at 35% 30%, #ffffff, var(--ag) 42%, #070a1a);
@@ -1367,7 +1367,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .m { display: inline-block; font-size: 10px; padding: 0 7px; border-radius: 999px; border: 1px solid; margin-right: 3px; line-height: 16px; vertical-align: baseline; }
 .m.scout { color: #9fc2ff; border-color: color-mix(in srgb, var(--ag-scout) 60%, transparent); background: color-mix(in srgb, var(--ag-scout) 14%, transparent); }
 .m.risk { color: #ffd08a; border-color: color-mix(in srgb, var(--ag-risk) 60%, transparent); background: color-mix(in srgb, var(--ag-risk) 12%, transparent); }
-.m.trader { color: #d8b4fe; border-color: color-mix(in srgb, var(--ag-trader) 60%, transparent); background: color-mix(in srgb, var(--ag-trader) 14%, transparent); }
+.m.trader { color: #ffb3b3; border-color: color-mix(in srgb, var(--ag-trader) 60%, transparent); background: color-mix(in srgb, var(--ag-trader) 14%, transparent); }
 .m.auditor { color: #99f6e4; border-color: color-mix(in srgb, var(--ag-auditor) 60%, transparent); background: color-mix(in srgb, var(--ag-auditor) 12%, transparent); }
 .m.floor, .m.sparky { color: #ff8fa8; border-color: rgba(236, 27, 105, 0.7); background: rgba(236, 27, 105, 0.15); }
 /* Turnos anteriores plegados. */
@@ -2131,3 +2131,11 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .agent-avatar .aa-accent-glow, .agent-avatar .aa-module-glow { transition: opacity 500ms ease; }
 .agent-avatar[data-mode="hibernating"] .aa-accent-glow, .agent-avatar[data-mode="hibernating"] .aa-module-glow, .agent-avatar[data-mode="offline"] .aa-accent-glow { opacity: 0; }
 .agent-avatar[data-state="working"] .aa-accent-glow, .agent-avatar[data-state="listening"] .aa-module-glow { animation: aaPulse 2.2s ease-in-out infinite; }
+
+/* ==== Avatares en la escena (kit v1): la esfera deja paso al avatar; el estado lo pinta el propio avatar. ==== */
+.ball.avatar { width: 80px; height: 80px; background: none !important; box-shadow: none !important; filter: none !important; display: flex; align-items: center; justify-content: center; }
+.orb.talking .ball.avatar { animation: orbTalk 1.6s ease-in-out infinite; }
+.orb.st-planned .ball.avatar, .orb.st-failed .ball.avatar { filter: none !important; }
+.ag-who { display: inline-flex; align-items: center; gap: 6px; }
+.ag-who .agent-avatar { margin: -3px 0; }
+.qlog-h .agent-avatar { margin: -4px 0; }

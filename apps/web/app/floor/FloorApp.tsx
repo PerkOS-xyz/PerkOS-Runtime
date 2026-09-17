@@ -8,6 +8,7 @@ import ChatsDrawer from "./ChatsDrawer";
 import KnowledgeMap, { type GraphNode } from "./KnowledgeMap";
 import { CHAINS, chainOf, ChainMark, deskManifest } from "./ChainMark";
 import AgentCards, { applyTurnEvent, newTurn, type DeskTurn, type Role as AgentRole } from "./AgentCards";
+import AgentAvatar, { type AgentAvatarState } from "./AgentAvatar";
 import SettingsPanel from "./SettingsPanel";
 import Wizard from "./Wizard";
 import Ambient from "./Ambient";
@@ -2206,11 +2207,29 @@ function StopIcon() {
   );
 }
 
+/** Estado de runtime del agente en el vocabulario del avatar (Asset Kit, seccion 24).
+ *  Hibernado = hibernating (dormido, identidad intacta), nunca offline. */
+function avatarState(state: string, talking?: boolean, verdict?: "GO" | "BLOCK" | ""): AgentAvatarState {
+  if (talking) return "working";
+  if (verdict === "GO") return "success";
+  if (verdict === "BLOCK") return "warning";
+  if (state === "ready") return "idle";
+  if (state === "provisioning" || state === "waking") return "thinking";
+  if (state === "failed") return "error";
+  if (state === "hibernated") return "hibernating";
+  return "offline"; // planned / not created
+}
+
 function Orb({ className, label, on, state = "", rail, onRail, talking, verdict, refCb }: { className: string; label: string; on: boolean; state?: string; rail?: { linked: boolean; lockUsd: number }; onRail?: () => void; talking?: boolean; verdict?: "GO" | "BLOCK" | ""; refCb?: (el: HTMLDivElement | null) => void }) {
   const sub = talking ? "Thinking" : state === "ready" ? "Online" : state === "provisioning" ? "Provisioning" : state === "waking" ? "Waking" : state === "hibernated" ? "Hibernating" : state === "failed" ? "Failed" : state === "planned" ? "Not created" : "";
+  const role = className.split(" ")[0];
+  const desk = role === "scout" || role === "risk" || role === "trader" || role === "auditor";
   return (
     <div ref={refCb} className={`orb ${className}${on ? " on" : ""}${state ? ` st-${state}` : ""}${talking ? " talking" : ""}`} title={sub}>
-      <div className="ball" />
+      {/* Avatar de identidad persistente (kit v1); el estado solo cambia ojos, anillo y brillo. El Grok Bot invitado va como guest. */}
+      <div className="ball avatar">
+        <AgentAvatar agent={{ id: desk ? role : "grok-bot", role: desk ? role : "guest", name: label, custody: role === "trader" ? "1claw" : null }} state={desk ? avatarState(state, talking, verdict) : on ? "idle" : "offline"} size={80} label={label} />
+      </div>
       <span>{label}</span>
       {sub ? <small>{sub}</small> : null}
       {verdict ? <em className={`verdict ${verdict.toLowerCase()}`}>{verdict}</em> : null}

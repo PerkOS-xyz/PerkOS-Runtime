@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import AgentAvatar from "./AgentAvatar";
 
 // Agent graph del turno de mesa: una card bajo cada esfera con la pantalla
 // de esa etapa (metrica hero, barra, 3 micro-pasos) que avanza con los
@@ -185,7 +186,7 @@ export default function AgentCards({ turn, mode, onFocus, onApprove, canApprove,
         return (
           <div key={r} className={`ag-card ${r} ${tone}`}>
             <div className="ag-lbl">
-              <span>{BADGE[r]} · {r.toUpperCase()}</span>
+              <span className="ag-who"><AgentAvatar agent={{ id: r, role: r, custody: r === "trader" ? "1claw" : null }} state={a.state === "thinking" ? "working" : a.verdict === "GO" ? "success" : a.verdict === "BLOCK" || a.state === "blocked" ? "warning" : a.state === "queued" ? "waiting" : "idle"} size={22} />{BADGE[r]} · {r.toUpperCase()}</span>
               <span>{a.state === "thinking" ? `${Math.max(0, elapsed).toFixed(0)} s` : a.ms ? `${(a.ms / 1000).toFixed(1)} s` : a.state === "queued" ? "waiting" : ""}</span>
             </div>
             <Screen a={a} turn={turn} elapsed={elapsed} />

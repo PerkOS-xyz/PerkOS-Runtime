@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import AgentCards, { type DeskTurn } from "./AgentCards";
 import PriceChart from "./PriceChart";
+import AgentAvatar from "./AgentAvatar";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 
@@ -679,6 +680,7 @@ function QualityLog() {
             return (
               <div key={r} className={`qlog-reply ${r}`}>
                 <div className="qlog-h">
+                  <AgentAvatar agent={{ id: r, role: r, custody: r === "trader" ? "1claw" : null }} state={rep ? (flags.length ? "warning" : "success") : "offline"} size={26} />
                   <b>{r}</b>
                   <span>{rep?.ms ? `${(rep.ms / 1000).toFixed(1)} s` : rep ? "" : "did not run"}</span>
                   {flags.map((f) => <em key={f} title={FLAG_HELP[flagName(f)] ?? f}>{f.replace(/^[a-z]+:/, "")}</em>)}
