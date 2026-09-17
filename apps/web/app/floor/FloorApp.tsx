@@ -1728,7 +1728,8 @@ function Shell() {
       ) : null}
       {who ? (
         <div className="who">
-          <span>{who}</span>
+          <span title={wallet.signWhere === "phone" ? `${wallet.walletName || "External wallet"} over WalletConnect: approvals show up on your phone` : wallet.signWhere === "embedded" ? "PerkOS wallet (Privy): signs inside this app" : undefined}>{who}</span>
+          {wallet.signWhere && !linkLost ? <em className="wk" title={wallet.signWhere === "phone" ? "Approvals show up in your wallet app on your phone" : wallet.signWhere === "embedded" ? "Signs inside this app" : "Signs in your browser wallet"}>{wallet.signWhere === "phone" ? "phone wallet" : wallet.signWhere === "embedded" ? "app wallet" : "browser wallet"}</em> : null}
           <em className={`pk${perkos.connected ? " on" : ""}`} title={perkos.connected ? "PerkOS session active" : perkos.note || "PerkOS not connected"}>PerkOS</em>
           {linkLost ? <button type="button" className="relink" onClick={wallet.reconnect} title="You are signed in, but no wallet is linked to this window. Nothing can be signed until you reconnect it.">Wallet not linked · reconnect</button> : null}
           <button type="button" onClick={logout}>

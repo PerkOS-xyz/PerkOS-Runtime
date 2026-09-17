@@ -2028,3 +2028,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .sign-notice.lost b { color: #ffc2c7; }
 .sign-notice.lost span { color: #e7c3c6; }
 .who button.relink { border-color: rgba(255, 179, 71, 0.6); color: #ffd08a; }
+/* Tipo de wallet en la cabecera y estado del enlace en Settings. */
+.who .wk { font-style: normal; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); color: var(--mute); }
+.settings-dock .linkdot { font-style: normal; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); color: var(--mute); margin-left: 8px; }
+.settings-dock .linkdot.on { color: #7fe0a8; border-color: rgba(61, 200, 120, 0.6); }
