@@ -140,34 +140,78 @@ function Shell() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const messagesRef = useRef<Msg[]>([]);
   messagesRef.current = messages;
-  // La conversacion sobrevive a cerrar y abrir el app: se guarda por wallet en el perfil
-  // local (localStorage) y vuelve cerrada, detras del boton "Show chat". Los drafts sin
-  // aprobar de una sesion anterior vuelven vencidos: la cotizacion ya no vale.
-  const chatRestored = useRef("");
+  // Historial de chat como en cualquier app de chat: hilos guardados en disco (cifrados
+  // con la llave de la wallet, ver lib/chatKey.ts), autoguardado, chat nuevo y lista para
+  // reabrir. Al abrir el app vuelve el ultimo hilo, cerrado detras de "Show chat".
+  const [threadId, setThreadId] = useState("");
+  const threadRef = useRef("");
+  threadRef.current = threadId;
+  const [historyLocked, setHistoryLocked] = useState(false);
+  const [chatsKey, setChatsKey] = useState(0);
+  const savedSigRef = useRef("");
+  const keepable = (list: Msg[]) => list.filter((x) => !x.streaming && (x.text || x.draft || x.launch || x.auto || x.fees || x.analysis)).slice(-200);
+  // Los drafts sin aprobar de otra sesion vuelven vencidos: su cotizacion ya no vale.
+  const restoreMsgs = (saved: Msg[]): Msg[] => saved.filter((x) => x && typeof x.id === "number").map((x) => ({ ...x, streaming: false, ...(x.role === "draft" && x.tx && ["idle", "signing", "pending"].includes(x.tx.stage) && (x.draft || x.launch || x.auto) ? { tx: { ...x.tx, stage: "failed" as const, note: "From an earlier session. Ask for it again to get a fresh draft." } } : {}) }));
+  const openChat = useCallback(async (id: string, show = true) => {
+    const r = await fetch(`/api/chats?id=${encodeURIComponent(id)}`).catch(() => null);
+    if (!r) return;
+    if (r.status === 428) { setHistoryLocked(true); return; }
+    const t = (await r.json().catch(() => ({}))) as { messages?: Msg[]; title?: string };
+    if (!Array.isArray(t.messages)) return;
+    const back = restoreMsgs(t.messages);
+    savedSigRef.current = JSON.stringify(keepable(back));
+    setMessages(back);
+    setThreadId(id);
+    flog("info", `chat: opened "${t.title ?? id}" · ${back.length} messages`);
+    if (show) touchRef.current();
+  }, []);
+  const chatsLoadedFor = useRef("");
+  const loadLatestChat = useCallback(async () => {
+    const r = await fetch("/api/chats").catch(() => null);
+    if (!r) return;
+    if (r.status === 428) { setHistoryLocked(true); flog("info", "chat history: locked, waiting for the wallet to unlock it once on this computer"); return; }
+    setHistoryLocked(false);
+    const j = (await r.json().catch(() => ({}))) as { chats?: Array<{ id: string }> };
+    const first = (j.chats ?? [])[0];
+    if (first && messagesRef.current.length === 0) await openChat(first.id, false);
+  }, [openChat]);
   useEffect(() => {
     const addr = wallet.address.toLowerCase();
-    if (!addr || chatRestored.current === addr) return;
-    chatRestored.current = addr;
-    try {
-      const raw = window.localStorage.getItem(`perkos.chat.${addr}`);
-      if (!raw || messagesRef.current.length) return;
-      const saved = (JSON.parse(raw) as Msg[]).filter((x) => x && typeof x.id === "number" && (x.text || x.draft || x.launch || x.auto || x.fees || x.analysis));
-      const stale = "From an earlier session. Ask for it again to get a fresh draft.";
-      const back = saved.map((x) => ({ ...x, streaming: false, ...(x.role === "draft" && x.tx && ["idle", "signing", "pending"].includes(x.tx.stage) && (x.draft || x.launch || x.auto) ? { tx: { ...x.tx, stage: "failed" as const, note: stale } } : {}) }));
-      if (back.length) { setMessages(back); flog("info", `chat: restored ${back.length} messages from the last session`); }
-    } catch { /* perfil sin almacenamiento: se empieza en blanco */ }
-  }, [wallet.address]);
+    if (!addr || chatsLoadedFor.current === addr) return;
+    chatsLoadedFor.current = addr;
+    void loadLatestChat();
+  }, [wallet.address, loadLatestChat]);
+  // Autoguardado: 1.2 s despues del ultimo cambio, solo si el contenido cambio.
   useEffect(() => {
-    const addr = wallet.address.toLowerCase();
-    if (!addr || chatRestored.current !== addr) return;
+    if (!wallet.address || historyLocked || chatsLoadedFor.current !== wallet.address.toLowerCase()) return;
     const t = window.setTimeout(() => {
-      try {
-        const keep = messages.filter((x) => !x.streaming && (x.text || x.draft || x.launch || x.auto || x.fees || x.analysis)).slice(-60);
-        if (keep.length) window.localStorage.setItem(`perkos.chat.${addr}`, JSON.stringify(keep)); else window.localStorage.removeItem(`perkos.chat.${addr}`);
-      } catch { /* cuota o perfil sin almacenamiento */ }
-    }, 800);
+      const keep = keepable(messages);
+      const sig = JSON.stringify(keep);
+      if (!keep.length || sig === savedSigRef.current) return;
+      let id = threadRef.current;
+      if (!id) { id = `t-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`; threadRef.current = id; setThreadId(id); }
+      void fetch(`/api/chats?id=${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: keep, desk: deskRef.current?.id ?? "floor-desk" }) })
+        .then((r) => { if (r.status === 428) setHistoryLocked(true); else if (r.ok) { savedSigRef.current = sig; setChatsKey((n) => n + 1); } })
+        .catch(() => undefined);
+    }, 1200);
     return () => window.clearTimeout(t);
-  }, [messages, wallet.address]);
+  }, [messages, wallet.address, historyLocked]);
+  // Una firma, una vez por computadora: deriva la llave del historial (queda en el Llavero).
+  const unlockHistory = useCallback(async () => {
+    try {
+      const probe = await fetch("/api/chats", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      if (probe.ok) { setHistoryLocked(false); void loadLatestChat(); return; }
+      const need = (await probe.json().catch(() => ({}))) as { message?: string };
+      if (!need.message) return;
+      setCaption(wallet.signWhere === "phone" ? `Confirm the history key in ${wallet.walletName || "your wallet"} on your phone…` : "Confirm the history key in your wallet…");
+      const signature = await wallet.signMessage(need.message);
+      const r = await fetch("/api/chats", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ signature }) });
+      if (r.ok) { setHistoryLocked(false); setCaption("Chat history unlocked. It is saved encrypted on this computer."); flog("info", "chat history: unlocked with a wallet signature"); void loadLatestChat(); setChatsKey((n) => n + 1); }
+      else { const e = (await r.json().catch(() => ({}))) as { detail?: string }; setCaption(e.detail ?? "Could not unlock the chat history."); }
+    } catch (e) { flog("warn", `chat history unlock: ${(e as Error).message}`); setCaption("The history key was not signed."); }
+  }, [wallet, loadLatestChat]);
+  // Chat nuevo: el hilo actual ya esta guardado; la escena vuelve a reposo con el tablero limpio.
+  const newChatRef = useRef<() => void>(() => undefined);
   const [split, setSplit] = useState(false);
   const idleTimer = useRef<number>(0);
   const voiceRef = useRef<{ continuous: boolean; listening: boolean } | null>(null);
@@ -1279,6 +1323,23 @@ function Shell() {
     return () => window.clearTimeout(t);
   }, []);
 
+  newChatRef.current = () => {
+    savedSigRef.current = "";
+    threadRef.current = "";
+    setThreadId("");
+    setMessages([]);
+    quoteRef.current = null;
+    briefRef.current = null;
+    heldDraftRef.current = null;
+    modeRef.current = "chat";
+    setTurn(null);
+    setBeams([]);
+    setVerdict("");
+    window.clearTimeout(idleTimer.current);
+    setSplit(false);
+    setCaption("New chat. The last one is saved in Chats.");
+    flog("info", "chat: new thread");
+  };
   const run = useCallback((raw: string) => {
     const spoken = raw.trim();
     const it = parseIntent(raw);
@@ -1308,6 +1369,8 @@ function Shell() {
     if (cmd === "automations") { setDeskScreen("automations"); setCaption("Your Bankr automations"); return; }
     if (cmd === "fees") { quoteRef.current = null; void feesCard(undefined, it.token); return; }
     if (cmd === "launches") { setDeskScreen("launches"); setCaption("Your tokens on Base"); return; }
+    if (cmd === "chats") { setDeskScreen("chats"); setCaption("Your conversations"); return; }
+    if (cmd === "newchat") { newChatRef.current(); return; }
     if (cmd === "buy" || cmd === "sell") {
       quoteRef.current = null;
       // Sin activo reconocido no se asume NVDAc: se usa el activo en foco o se pregunta.
@@ -1632,7 +1695,10 @@ function Shell() {
     setWizard(true);
     setSplash(false);
     setWho("");
-    // La conversacion es de la cuenta que se va: no debe quedar para la siguiente.
+    // La conversacion es de la cuenta que se va: no debe quedar para la siguiente (sigue guardada, cifrada, para ella).
+    savedSigRef.current = "";
+    chatsLoadedFor.current = "";
+    setThreadId("");
     setMessages([]);
     setSplit(false);
     setTeam("hibernated");
@@ -1846,6 +1912,9 @@ function Shell() {
             <LoopIcon /><span>Automations</span>
           </button>
           <i className="dock-sep" aria-hidden="true" />
+          <button type="button" className={deskScreen === "chats" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "chats" ? "" : "chats")} title="Chats · your saved conversations, encrypted with your wallet">
+            <ChatIcon /><span>Chats</span>
+          </button>
           <button type="button" className={deskScreen === "notes" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "notes" ? "" : "notes")} title="Notes · what this desk remembers (local, Obsidian-compatible)">
             <NotesIcon /><span>Notes</span>
           </button>
@@ -1867,6 +1936,7 @@ function Shell() {
           onSummarize={() => void summarizeDay()}
           refreshKey={deskRefresh}
           claimedTokens={claimedTokens}
+          chats={{ activeId: threadId, locked: historyLocked, canUnlock: wallet.canSign, refreshKey: chatsKey, onOpen: (id: string) => void openChat(id), onNew: () => newChatRef.current(), onUnlock: () => void unlockHistory(), onDeleted: (id: string) => { if (id === threadRef.current) newChatRef.current(); } }}
           max={deskMax}
           onMax={setDeskMax}
           map={(
@@ -1960,6 +2030,9 @@ function Shell() {
         }}
       >
         <div className="ask-top">
+        {messages.length > 0 ? <button type="button" className="chat-peek" onClick={() => newChatRef.current()} title="Start a new conversation. This one stays saved in Chats.">New chat</button> : null}
+        <button type="button" className="chat-peek" onClick={() => setDeskScreen(deskScreen === "chats" ? "" : "chats")} title="Your saved conversations">Chats</button>
+        {historyLocked && wallet.canSign ? <button type="button" className="chat-peek pending" onClick={() => void unlockHistory()} title="One signature, once on this computer: it derives the key that encrypts your chat history on disk. It moves no funds.">Unlock history</button> : null}
         {!split && messages.length > 0 ? (() => {
           const pending = messages.filter((x) => x.role === "draft" && x.tx?.stage === "idle" && (x.draft || x.launch || x.auto)).length;
           return (
@@ -2556,6 +2629,13 @@ function AutomationCard({ auto, tx, onCreate, onOpen }: {
   );
 }
 
+function ChatIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M21 12a8 8 0 0 1-11.8 7L4 20l1.1-4.6A8 8 0 1 1 21 12z" />
+    </svg>
+  );
+}
 function RocketIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

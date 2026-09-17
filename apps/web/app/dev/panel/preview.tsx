@@ -4,7 +4,7 @@ import { useState } from "react";
 import "../../floor/apiToken";
 import DeskPanel, { type DeskScreen } from "../../floor/DeskPanel";
 
-const SCREENS: DeskScreen[] = ["market", "portfolio", "launches", "automations", "notes", "map", "history"];
+const SCREENS: DeskScreen[] = ["market", "portfolio", "launches", "automations", "chats", "notes", "map", "history"];
 
 export default function PanelPreview({ initial }: { initial: string }) {
   const [screen, setScreen] = useState<DeskScreen>((SCREENS as string[]).includes(initial) ? (initial as DeskScreen) : "launches");
