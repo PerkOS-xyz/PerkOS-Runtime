@@ -267,7 +267,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
                       <small>Indexers list a pool after its first swap. Seed it with a small buy of {l.symbol}{l.pair ? ` with ${l.pair}` : ""}; you sign it in your wallet.</small>
                       <nav className="seed-links buy" aria-label="Buy from the desk">{[1, 5, 10].map((usd) => <button type="button" key={usd} onClick={() => onSay(`buy $${usd} of ${l.tokenAddress}`)}>Buy ${usd}</button>)}</nav>
                       <nav className="seed-links" aria-label="Seed the pool">
-                        <a href={`https://app.uniswap.org/swap?chain=base${l.pairAddress ? `&inputCurrency=${l.pairAddress}` : ""}&outputCurrency=${l.tokenAddress}`} target="_blank" rel="noreferrer">Buy {l.symbol} on Uniswap ↗</a>
+                        <a href={`https://app.uniswap.org/explore/tokens/base/${l.tokenAddress}`} target="_blank" rel="noreferrer">Buy {l.symbol} on Uniswap ↗</a>
                         <a href={l.bankrUrl} target="_blank" rel="noreferrer">on Bankr ↗</a>
                       </nav>
                     </div>
