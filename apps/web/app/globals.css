@@ -2418,3 +2418,15 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .desk-panel.max .lx-card.open { grid-column: 1 / -1; }
 @container (max-width: 560px) { .lx-ticket { grid-template-columns: 1fr; } }
 @media (max-width: 1100px) { .lx-rowmain { grid-template-columns: minmax(0, 1.4fr) minmax(70px, auto) minmax(76px, auto) auto 14px; } .lx-spark { display: none; } }
+/* Ajustes tras verlo renderizado: la fila en dos lineas (datos arriba, par y acciones abajo) y los
+   botones del panel sin su borde, mayusculas ni relleno genericos dentro de la fila. */
+.lx-row { flex-direction: column; align-items: stretch; gap: 7px; padding: 10px 12px; }
+.desk-panel .lx .lx-rowmain:not(.close) { border: 0; border-radius: 0; padding: 0; background: transparent; text-transform: none; letter-spacing: 0; font-size: inherit; color: inherit; grid-template-columns: minmax(110px, 1fr) auto 56px minmax(84px, auto) auto 12px; }
+.desk-panel .lx .lx-rowmain:not(.close):hover { border: 0; }
+.lx-id { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
+.lx-id b { font-size: 14px; }
+.lx-sub { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.lx-sub > small { font-size: 10.5px; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; text-transform: none; letter-spacing: 0; }
+.desk-panel .lx .lx-acts button:not(.close), .desk-panel .lx .lx-tabs button:not(.close), .desk-panel .lx .lx-pulse-line:not(.close), .desk-panel .lx .lx-pulse-body button:not(.close), .desk-panel .lx .seed-links button:not(.close), .desk-panel .lx .lx-pane > button.claim:not(.close) { text-transform: none; letter-spacing: 0.03em; }
+.desk-panel .lx .lx-pulse-line:not(.close) { border: 0; border-radius: 12px; padding: 7px 11px; }
+.desk-panel .lx .lx-tabs button:not(.close):not(.on) { border-color: transparent; }

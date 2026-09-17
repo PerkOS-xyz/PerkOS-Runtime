@@ -475,18 +475,21 @@ function LaunchesView({ launches, err, wallet, claimedTokens, onRefresh, onSay }
             <li key={l.tokenAddress} className={`lx-card${isOpen ? " open" : ""}`}>
               <div className="lx-row">
                 <button type="button" className="lx-rowmain" onClick={() => (isOpen ? setOpen("") : show(l.tokenAddress, "trade"))} aria-expanded={isOpen}>
-                  <span className="lx-id"><b title={l.name}>{l.name}</b><i className="sym">{l.symbol}</i><small>paired with {l.pair ?? "WETH"}{by ? ` · ${by}` : ""}</small></span>
+                  <span className="lx-id"><b title={l.name}>{l.name}</b><i className="sym">{l.symbol}</i></span>
                   <span className="lx-mkt">{indexed ? <><b>{money(m!.priceUsd)}</b><small className={m?.change24hPct !== undefined ? (up24 ? "up" : "down") : ""}>{pct(m?.change24hPct) || "24h –"}</small></> : <small>not indexed</small>}</span>
                   <span className="lx-spark" aria-hidden>{indexed && (m?.sparkline?.length ?? 0) > 2 ? <Spark points={m!.sparkline} w={56} h={22} /> : <i>–</i>}</span>
                   <span className="lx-pos">{holds ? <><b>{l.balanceUsd ? money(l.balanceUsd) : `${units(l.balance!)}`}</b><small>{units(l.balance!)} {l.symbol}</small></> : <small>no balance</small>}</span>
                   <em className={`st ${fee ? "active" : ""}`}>{justClaimed ? "claimed" : fee ? "fees to claim" : indexed ? "live" : "not indexed"}</em>
                   <i className="lx-chev" aria-hidden>{isOpen ? "⌃" : "⌄"}</i>
                 </button>
+                <div className="lx-sub">
+                <small>paired with {l.pair ?? "WETH"}{by ? ` · ${by}` : ""}</small>
                 <nav className="lx-acts" aria-label={`${l.symbol} actions`}>
                   <button type="button" className="buy" onClick={() => show(l.tokenAddress, "trade")}>Buy</button>
                   <button type="button" className="sell" disabled={!holds} title={holds ? undefined : "No balance to sell"} onClick={() => show(l.tokenAddress, "trade")}>Sell</button>
                   {l.mine ? <button type="button" className="claim" disabled={!fee} title={fee ? undefined : "Nothing to claim"} onClick={() => onSay(`claim fees for ${l.tokenAddress}`)}>{justClaimed ? "Claimed" : "Claim"}</button> : null}
                 </nav>
+                </div>
               </div>
               {isOpen ? (
                 <div className="lx-detail">
