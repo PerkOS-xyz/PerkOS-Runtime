@@ -453,8 +453,9 @@ function Shell() {
         turnLiveRef.current = true;
         decisionRef.current = { turnId: youId, draftId: heldDraftRef.current?.id ?? [...messagesRef.current].reverse().find((m) => m.role === "draft" && m.tx?.stage === "idle")?.id };
         // Floor abre el hilo como principal: a quien le habla y con que hechos.
-        const held = heldDraftRef.current?.launch;
-        const factBits = [held ? `launch ${held.symbol} paired with ${held.pair.symbol}, ${held.checks.filter((c) => c.ok).length}/${held.checks.length} checks pass` : "", quote ? `Uniswap $${quote.priceUsd.toFixed(2)}` : "", quote?.bankr ? `Bankr $${quote.bankr.priceUsd.toFixed(2)}` : "", facts?.chainlinkUsd ? `Chainlink $${facts.chainlinkUsd.toFixed(2)}` : "", facts?.swaps24h !== undefined ? `${facts.swaps24h} swaps in 24h` : ""].filter(Boolean);
+        const heldId = heldDraftRef.current?.id;
+        const held = (heldId ? messagesRef.current.find((x) => x.id === heldId)?.launch : undefined) ?? heldDraftRef.current?.launch;
+        const factBits = [held ? `launch ${held.symbol} paired with ${held.pair.symbol}${held.checks.length ? `, ${held.checks.filter((c) => c.ok).length}/${held.checks.length} checks pass` : ""}` : "", quote ? `Uniswap $${quote.priceUsd.toFixed(2)}` : "", quote?.bankr ? `Bankr $${quote.bankr.priceUsd.toFixed(2)}` : "", facts?.chainlinkUsd ? `Chainlink $${facts.chainlinkUsd.toFixed(2)}` : "", facts?.swaps24h !== undefined ? `${facts.swaps24h} swaps in 24h` : ""].filter(Boolean);
         const openLine = `@Scout @Risk ${text}${factBits.length ? `. Facts attached: ${factBits.join(", ")}.` : "."}`;
         setMessages((m) => [...m.filter((x) => x.id !== floorId), { id: youId + 90, role: "floor", kind: "open", text: openLine, turnId: youId }, { id: floorId, role: "floor", text: "", streaming: true, turnId: youId }]);
         const fr = await fetch("/api/fleet/desk", {
@@ -989,6 +990,7 @@ function Shell() {
       touch();
       setMessages((m) => [...m.slice(-60), { id: youId, role: "you", text: "Launch a token", turnId: youId }, { id: youId + 1, role: "floor", text: `The desk read the pairs ${mins} minute${mins > 1 ? "s" : ""} ago, so here it is again. ${prev.summary}`, turnId: youId }, { id: youId + 95, role: "floor", kind: "picks", text: "Pick the pair for the new token:", turnId: youId, picks: { kind: "pair", options: prev.options } }]);
       setCaption("Pick the pair. Say \"read the pairs again\" for a fresh desk read.");
+      actEnd();
       return;
     }
     const statusId = youId + 1;
@@ -1063,6 +1065,7 @@ function Shell() {
       const who = replies.filter((x) => x.ok && x.reply).map((x) => `- **${cap(x.role)}**: ${x.reply.replace(/\s+/g, " ")}`).join("\n");
       kbWriteRef.current({ kind: "analysis", ticker: "PAIR", title: `Launch pairing · ${stamp} UTC`, body: `**Asked**: which tokenized stock to pair a new token launch with.\n\n## Desk picks\n${ordered.length ? ordered.map((k, i) => `${i + 1}. ${k}c`).join("\n") : "(none parsed)"}${avoided.size ? `\n\nAvoid: ${[...avoided].map((k) => `${k}c`).join(", ")}` : ""}\n\n## Candidates\n${lines.map((l) => `- ${l}`).join("\n")}\n\n## Desk\n${who}\n\n## Sparky\n${sparkyText}` });
       setCaption("Pick the pair. Then the token gets its name.");
+      actEnd();
     } catch (e) {
       actEnd();
       flog("error", `launch guide: ${(e as Error).message}`);
@@ -1094,7 +1097,8 @@ function Shell() {
     const qid = Date.now();
     setMessages((m) => [...m.slice(-60), { id: qid, role: "floor", text: `Paired with ${pair}. Now the token itself: tell me in one line what it is about (who it is for, what it celebrates or does) and I propose three names, each with a symbol and a short description.` }]);
     setCaption("What is the token about? One line.");
-  }, []);
+    actEnd();
+  }, [actEnd]);
   const suggestNames = useCallback(async (about: string) => {
     const ask = identityAskRef.current;
     if (!ask) return;
@@ -1666,7 +1670,10 @@ function Shell() {
   };
   const run = useCallback((raw: string) => {
     const spoken = raw.trim();
-    const it = parseIntent(raw);
+    let it = parseIntent(raw);
+    // Sparky espera la linea sobre el token: una frase (no un comando corto) es esa descripcion,
+    // aunque nombre "market", "portfolio" o "history". Siguen pasando new chat, chats, cancel y stop.
+    if (identityAskRef.current && Date.now() - identityAskRef.current.at < 15 * 60_000 && it.kind !== "chat" && !["newchat", "chats", "cancel", "stop", "settings", "launch"].includes(it.kind) && !((it.kind === "buy" || it.kind === "sell") && /\d/.test(spoken)) && spoken.split(/\s+/).length >= 5) it = { kind: "chat" };
     const cmd = it.kind;
     flog("info", `intent: ${it.kind}${"asset" in it && it.asset ? ` · ${it.asset}` : ""}`);
     { const label: Partial<Record<string, string>> = { advise: "Understood: the desk advises on the whole market", analyze: "Understood: the desk analyzes one stock", launch: "Understood: launch a token", automate: "Understood: set up an automation on Bankr", fees: "Understood: check your creator fees", quote: "Understood: a quick quote, no agents" }; const l = label[cmd]; if (l) act(l); }
