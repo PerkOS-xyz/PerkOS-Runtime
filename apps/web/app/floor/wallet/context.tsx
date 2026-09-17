@@ -32,6 +32,12 @@ export type Wallet = {
   signWhere: "phone" | "extension" | "embedded" | "";
   /** Nombre de la wallet activa cuando Privy lo sabe ("MetaMask", "Rainbow"). */
   walletName: string;
+  /** Hay una wallet conectada a ESTA ventana para la direccion de la sesion. La sesion
+   *  de Privy puede seguir viva (se ve el nombre) con el enlace de WalletConnect caido:
+   *  en ese caso no se puede firmar nada y hay que reconectar antes de intentarlo. */
+  canSign: boolean;
+  /** Abre el conector de Privy para volver a enlazar la wallet, sin cerrar la sesion. */
+  reconnect: () => void;
 };
 
 export const disabledWallet: Wallet = {
@@ -55,7 +61,9 @@ export const disabledWallet: Wallet = {
   signMessage: async () => { throw new Error("wallet disabled"); },
   sendTransaction: async () => { throw new Error("wallet disabled"); },
   signWhere: "",
-  walletName: ""
+  walletName: "",
+  canSign: false,
+  reconnect: () => undefined
 };
 
 const Ctx = createContext<Wallet>(disabledWallet);

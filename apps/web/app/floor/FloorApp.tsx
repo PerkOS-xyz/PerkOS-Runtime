@@ -36,6 +36,10 @@ function Shell() {
   const signHint = wallet.signWhere === "phone" ? `Open ${wallet.walletName || "your wallet app"} on your phone to confirm. The request only shows while the app is open.` : wallet.signWhere === "embedded" ? "Your PerkOS wallet signs here." : "Confirm in your wallet.";
   const signShort = wallet.signWhere === "phone" ? `in ${wallet.walletName || "your wallet"} on your phone` : "in your wallet";
   useEffect(() => { if (wallet.signWhere) flog("info", `wallet signs: ${wallet.signWhere}${wallet.walletName ? ` · ${wallet.walletName}` : ""}`); }, [wallet.signWhere, wallet.walletName]);
+  // Sesion viva pero sin wallet enlazada a esta ventana: se avisa antes de cualquier firma.
+  const linkLost = wallet.connected && wallet.loaded && !wallet.busy && !wallet.canSign;
+  useEffect(() => { if (linkLost) flog("warn", "wallet: session is alive but no wallet is linked to this window (reconnect needed)"); }, [linkLost]);
+  const LINK_LOST = "Your wallet is signed in but not linked to this window, so nothing can be signed. Reconnect it, then press Retry.";
   const [listening, setListening] = useState(false);
   const [team, setTeam] = useState<Team>("hibernated");
   const [guest, setGuest] = useState(false);
@@ -882,6 +886,7 @@ function Shell() {
     if (!f || (msg?.tx && msg.tx.stage !== "idle" && msg.tx.stage !== "failed")) return;
     const patch = (tx: Partial<DraftTx>) => setMessages((m) => m.map((x) => (x.id === msgId ? { ...x, tx: { ...(x.tx ?? { stage: "idle", hashes: [] }), ...tx } as DraftTx } : x)));
     if (!wallet.address || f.address.toLowerCase() !== wallet.address.toLowerCase()) { patch({ stage: "blocked", note: "These fees belong to a wallet other than the one connected here." }); return; }
+    if (!wallet.canSign) { flog("warn", "fees claim: wallet link lost, nothing sent"); patch({ stage: "failed", note: LINK_LOST }); setCaption("Reconnect your wallet first."); return; }
     const hashes: DraftTx["hashes"] = [];
     try {
       patch({ stage: "signing", note: "" });
@@ -920,7 +925,7 @@ function Shell() {
       const m = (e as Error).message || "signature failed";
       flog("error", `fees claim: ${m}`);
       const timedOut = /timeout|timed out|expired/i.test(m);
-      patch({ stage: "failed", hashes: [...hashes], note: /reject|denied|4001/i.test(m) ? "You declined in the wallet." : timedOut ? `The wallet did not answer in time. ${signHint} Then press Retry.` : m });
+      patch({ stage: "failed", hashes: [...hashes], note: /reject|denied|4001/i.test(m) ? "You declined in the wallet." : /wallet_link_lost|No wallet connected/i.test(m) ? LINK_LOST : timedOut ? `The wallet did not answer in time. ${signHint} Then press Retry.` : m });
       setCaption(/reject|denied|4001/i.test(m) ? "Claim cancelled in the wallet." : timedOut ? "The wallet did not answer. Nothing was claimed." : "Claim failed.");
     }
   }, [wallet, speak, touch, feesCard, signHint, signShort]);
@@ -933,6 +938,7 @@ function Shell() {
     if (!d || (msg?.tx && msg.tx.stage !== "idle" && msg.tx.stage !== "failed")) return;
     const patch = (tx: Partial<DraftTx>) => setMessages((m) => m.map((x) => (x.id === msgId ? { ...x, tx: { ...(x.tx ?? { stage: "idle", hashes: [] }), ...tx } as DraftTx } : x)));
     if (Date.now() / 1000 > d.deadline - 60) { patch({ stage: "failed", note: "Quote expired. Ask for a new draft." }); return; }
+    if (!wallet.canSign) { flog("warn", "trade: wallet link lost, nothing sent"); patch({ stage: "failed", note: LINK_LOST }); setCaption("Reconnect your wallet first."); return; }
     // El swap paga a `recipient`: tiene que ser la wallet conectada en esta ventana.
     if (!d.recipient || !wallet.address || d.recipient.toLowerCase() !== wallet.address.toLowerCase()) {
       flog("error", `trade: recipient ${d.recipient ?? "missing"} is not the connected wallet`);
@@ -974,7 +980,7 @@ function Shell() {
       const m = (e as Error).message || "signature failed";
       flog("error", `trade: ${m}`);
       const timedOut = /timeout|timed out|expired/i.test(m);
-      patch({ stage: "failed", hashes: [...hashes], note: /reject|denied|4001/i.test(m) ? "You declined in the wallet." : timedOut ? `The wallet did not answer in time. ${signHint} Then press Retry.` : m });
+      patch({ stage: "failed", hashes: [...hashes], note: /reject|denied|4001/i.test(m) ? "You declined in the wallet." : /wallet_link_lost|No wallet connected/i.test(m) ? LINK_LOST : timedOut ? `The wallet did not answer in time. ${signHint} Then press Retry.` : m });
       setCaption(/reject|denied|4001/i.test(m) ? "Trade cancelled in the wallet." : timedOut ? "The wallet did not answer. Nothing was traded." : "Trade failed.");
     }
   }, [wallet, speak, touch, signHint, signShort]);
@@ -1724,6 +1730,7 @@ function Shell() {
         <div className="who">
           <span>{who}</span>
           <em className={`pk${perkos.connected ? " on" : ""}`} title={perkos.connected ? "PerkOS session active" : perkos.note || "PerkOS not connected"}>PerkOS</em>
+          {linkLost ? <button type="button" className="relink" onClick={wallet.reconnect} title="You are signed in, but no wallet is linked to this window. Nothing can be signed until you reconnect it.">Wallet not linked · reconnect</button> : null}
           <button type="button" onClick={logout}>
             Log out
           </button>
@@ -1873,11 +1880,11 @@ function Shell() {
               {m.verdict ? <em className={`vchip ${m.verdict.toLowerCase()}`}>{m.verdict}</em> : null}
             </span>
             {m.role === "draft" && m.draft ? (
-              <DraftCard draft={m.draft} tx={m.tx ?? { stage: "idle", hashes: [] }} onApprove={() => void approveDraft(m.id)} signHint={signHint} onPhone={wallet.signWhere === "phone"} onReconnect={logout} />
+              <DraftCard draft={m.draft} tx={m.tx ?? { stage: "idle", hashes: [] }} onApprove={() => void approveDraft(m.id)} signHint={signHint} onPhone={wallet.signWhere === "phone"} onReconnect={wallet.reconnect} linkLost={linkLost} />
             ) : m.role === "draft" && m.launch ? (
               <LaunchCard launch={m.launch} tx={m.tx ?? { stage: "idle", hashes: [] }} onLaunch={() => void deployLaunch(m.id)} onFees={() => void feesCard()} />
             ) : m.role === "draft" && m.fees ? (
-              <FeesCard fees={m.fees} tx={m.tx ?? { stage: "idle", hashes: [] }} onClaim={() => void claimFees(m.id)} onRefresh={() => void feesCard(m.id)} signHint={signHint} onPhone={wallet.signWhere === "phone"} onReconnect={logout} />
+              <FeesCard fees={m.fees} tx={m.tx ?? { stage: "idle", hashes: [] }} onClaim={() => void claimFees(m.id)} onRefresh={() => void feesCard(m.id)} signHint={signHint} onPhone={wallet.signWhere === "phone"} onReconnect={wallet.reconnect} linkLost={linkLost} />
             ) : m.role === "draft" && m.auto ? (
               <AutomationCard auto={m.auto} tx={m.tx ?? { stage: "idle", hashes: [] }} onCreate={() => void createAutomation(m.id)} onOpen={() => setDeskScreen("automations")} />
             ) : m.role === "analysis" && m.analysis ? (
@@ -2193,17 +2200,18 @@ function AnalysisCard({ a, onSay }: {
 
 /** Carta del draft del Trader + orb Approve (se mantiene 2 s para firmar).
  *  Sin llaves aqui: Approve manda las tx a la wallet de la persona. */
-function DraftCard({ draft, tx, onApprove, signHint, onPhone, onReconnect }: {
+function DraftCard({ draft, tx, onApprove, signHint, onPhone, onReconnect, linkLost }: {
   draft: { side: "buy" | "sell"; recipient?: string; stock: { symbol: string; ticker: string; name: string; issuer: string }; tokenIn: { symbol: string; decimals: number }; tokenOut: { symbol: string; decimals: number }; amountInHuman: string; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; pool: string; fee: number; poolUsdcDepth: number; deadline: number; needsApproval: boolean; balanceUsdc: string; balanceToken: string; txs: Array<{ label: string }>; bankr?: { impliedPriceUsd: number; outHuman: string; outSymbol: string; feeBps: number; priceImpactBps?: number } | null; venueLabel?: string; venues?: Array<{ label: string; priceUsd: number; outHuman: string; usdcDepth: number; fee: number }> };
   tx: { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; step?: string; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
   onApprove: () => void;
   signHint?: string;
   onPhone?: boolean;
   onReconnect?: () => void;
+  linkLost?: boolean;
 }) {
   const [holding, setHolding] = useState(false);
   const holdRef = useRef(0);
-  const armed = tx.stage === "idle" || tx.stage === "failed";
+  const armed = (tx.stage === "idle" || tx.stage === "failed") && !linkLost;
   const buy = draft.side === "buy";
   const short = buy ? Number(draft.balanceUsdc) < draft.amountInUsd : Number(draft.balanceToken) < Number(draft.amountInHuman);
   const start = () => {
@@ -2236,6 +2244,7 @@ function DraftCard({ draft, tx, onApprove, signHint, onPhone, onReconnect }: {
         {draft.venues && draft.venues.length > 1 ? <><dt>Venues</dt><dd>{draft.venues.map((v) => `${v.label} $${v.priceUsd.toFixed(2)} ($${Math.round(v.usdcDepth).toLocaleString("en-US")} deep)`).join(" · ")} · the desk took the best price</dd></> : null}
         <dt>Signatures</dt><dd>{draft.txs.map((t) => t.label).join(" + ")}{draft.needsApproval ? "" : ` (${draft.tokenIn.symbol} already approved)`}</dd>
       </dl> : null}
+      {linkLost && (tx.stage === "idle" || tx.stage === "failed") ? <LinkLostNotice onReconnect={onReconnect} /> : null}
       {tx.stage === "signing" ? <SignNotice hint={signHint} onPhone={onPhone} onReconnect={onReconnect} /> : null}
       {short ? <p className="hint-line err">{buy ? `Wallet holds $${Number(draft.balanceUsdc).toFixed(2)} USDC on Base; the draft needs $${draft.amountInUsd.toFixed(2)}.` : `Wallet holds ${draft.balanceToken} ${draft.stock.symbol}; the draft needs ${draft.amountInHuman}.`}</p> : null}
       {tx.note ? <p className="hint-line err">{tx.note}</p> : null}
@@ -2339,6 +2348,20 @@ function LaunchCard({ launch, tx, onLaunch, onFees }: {
   );
 }
 
+// Sesion viva sin wallet enlazada: se dice antes de intentar nada, con el boton para reenlazar.
+function LinkLostNotice({ onReconnect }: { onReconnect?: () => void }) {
+  return (
+    <div className="sign-notice lost" role="alert">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M9 17H7a5 5 0 0 1 0-10h2" /><path d="M15 7h2a5 5 0 0 1 4 8" /><path d="M3 3l18 18" /></svg>
+      <div>
+        <b>Your wallet is not linked to this window</b>
+        <span>You are signed in, but the link to your wallet dropped, so nothing can be signed. Reconnect it and the button comes back.</span>
+        <span className="slow">{onReconnect ? <button type="button" onClick={onReconnect}>Reconnect wallet</button> : null}</span>
+      </div>
+    </div>
+  );
+}
+
 // Aviso de firma: dice DONDE hay que confirmar. Con login por QR (WalletConnect)
 // la peticion llega a la app de la wallet en el celular y solo se ve con esa
 // app abierta; si a los 20 s no paso nada, ofrece reconectar la wallet.
@@ -2359,7 +2382,7 @@ function SignNotice({ hint, onPhone, onReconnect }: { hint?: string; onPhone?: b
 
 // Fees card: lo que ganan los tokens lanzados (lectura publica de Bankr) y
 // el claim, que firma la persona con su wallet. Hold to claim solo con saldo.
-function FeesCard({ fees, tx, onClaim, onRefresh, signHint, onPhone, onReconnect }: {
+function FeesCard({ fees, tx, onClaim, onRefresh, signHint, onPhone, onReconnect, linkLost }: {
   fees: { address: string; tokens: Array<{ tokenAddress: string; name: string; symbol: string; share: string; token0Label: string; token1Label: string; claimable: { token0: string; token1: string }; claimed: { token0: string; token1: string; count: number } }>; totals: { claimableWeth: string; claimedWeth: string; claimCount: number }; lifetimeEarnedWeth: string; at: string };
   tx: { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
   onClaim: () => void;
@@ -2367,13 +2390,14 @@ function FeesCard({ fees, tx, onClaim, onRefresh, signHint, onPhone, onReconnect
   signHint?: string;
   onPhone?: boolean;
   onReconnect?: () => void;
+  linkLost?: boolean;
 }) {
   const [holding, setHolding] = useState(false);
   const holdRef = useRef(0);
   const num = (v: string) => Number(v) || 0;
   const fmt = (v: string) => { const n = num(v); return n === 0 ? "0" : n >= 1000 ? Math.round(n).toLocaleString("en-US") : n >= 1 ? n.toFixed(2) : n.toFixed(4).replace(/0+$/, "").replace(/\.$/, ""); };
   const withFees = fees.tokens.filter((t) => num(t.claimable.token0) > 0 || num(t.claimable.token1) > 0);
-  const armed = (tx.stage === "idle" || tx.stage === "failed") && withFees.length > 0;
+  const armed = (tx.stage === "idle" || tx.stage === "failed") && withFees.length > 0 && !linkLost;
   const start = () => {
     if (!armed) return;
     setHolding(true);
@@ -2406,8 +2430,9 @@ function FeesCard({ fees, tx, onClaim, onRefresh, signHint, onPhone, onReconnect
           })}
         </ul>
       ) : <p className="hint-line">Launch a token paired with a tokenized stock and 95% of its pool fee accrues here.</p>}
+      {linkLost && (tx.stage === "idle" || tx.stage === "failed") ? <LinkLostNotice onReconnect={onReconnect} /> : null}
       {tx.stage === "signing" ? <SignNotice hint={signHint} onPhone={onPhone} onReconnect={onReconnect} /> : null}
-      {tx.note ? <p className="hint-line err">{tx.note}</p> : null}
+      {tx.note && !(linkLost && /not linked to this window/.test(tx.note)) ? <p className="hint-line err">{tx.note}</p> : null}
       {tx.hashes.length ? (
         <ul className="draft-tx">
           {tx.hashes.map((h) => (

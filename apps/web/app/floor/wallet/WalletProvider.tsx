@@ -89,7 +89,7 @@ function humanPrivyError(code: string): string {
 }
 
 function Bridge({ children }: { children: ReactNode }) {
-  const { ready, authenticated, logout, user } = usePrivy();
+  const { ready, authenticated, logout, user, connectWallet } = usePrivy();
   const { wallets, ready: walletsReady } = useWallets();
   const [error, setError] = useState("");
   // Sin onError un login fallido cierra el modal sin decir nada y la app parece colgada.
@@ -116,8 +116,9 @@ function Bridge({ children }: { children: ReactNode }) {
   // cadena pedida y manda eth_sendTransaction por el provider EIP-1193 de
   // Privy. Con MetaMask por WalletConnect la confirmacion sale en el celular.
   const sendTransaction = async (tx: { to: `0x${string}`; data: `0x${string}`; value?: `0x${string}`; chainId: number }): Promise<`0x${string}`> => {
-    const w = wallets.find((x) => x.address.toLowerCase() === address.toLowerCase()) ?? wallets[0];
-    if (!w) throw new Error("No wallet connected");
+    // Solo la wallet de la sesion: firmar con otra que Privy tenga a mano pagaria a otra direccion.
+    const w = wallets.find((x) => x.address.toLowerCase() === address.toLowerCase());
+    if (!w) throw new Error("wallet_link_lost");
     // Con WalletConnect cada peticion viaja al celular: si la wallet ya esta en
     // la cadena, no se pide el cambio (era una primera peticion muda que podia
     // colgarse antes de llegar a la transaccion).
@@ -141,6 +142,9 @@ function Bridge({ children }: { children: ReactNode }) {
   const connector = String((active as { connectorType?: string } | undefined)?.connectorType ?? "");
   const signWhere: Wallet["signWhere"] = !active ? "" : clientType.startsWith("privy") ? "embedded" : /wallet_?connect/i.test(connector) || /wallet_?connect/i.test(clientType) ? "phone" : "extension";
   const walletName = String((active as { meta?: { name?: string } } | undefined)?.meta?.name ?? "").replace(/^WalletConnect$/i, "");
+  // La sesion puede estar viva sin wallet enlazada a esta ventana (WalletConnect caido).
+  const canSign = Boolean(authenticated && address && wallets.some((x) => x.address.toLowerCase() === address.toLowerCase()));
+  const reconnect = () => { setError(""); connectWallet(); };
 
   const value = useMemo<Wallet>(
     () => ({
@@ -177,10 +181,12 @@ function Bridge({ children }: { children: ReactNode }) {
       signMessage,
       sendTransaction,
       signWhere,
-      walletName
+      walletName,
+      canSign,
+      reconnect
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [address, authenticated, error, login, logout, ready, walletsReady, wallets, signWhere, walletName]
+    [address, authenticated, error, login, logout, ready, walletsReady, wallets, signWhere, walletName, canSign]
   );
   return <WalletContext value={value}>{children}</WalletContext>;
 }

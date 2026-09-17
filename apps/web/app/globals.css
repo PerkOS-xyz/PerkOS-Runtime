@@ -2024,3 +2024,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .sign-notice .slow button:hover { border-color: rgba(160, 180, 220, 0.8); }
 @keyframes sign-pulse { 0%, 100% { border-color: rgba(255, 179, 71, 0.35); } 50% { border-color: rgba(255, 179, 71, 0.85); } }
 @media (prefers-reduced-motion: reduce) { .sign-notice { animation: none; } }
+.sign-notice.lost { border-color: rgba(255, 90, 106, 0.5); background: rgba(255, 90, 106, 0.08); color: #ff9aa2; animation: none; }
+.sign-notice.lost b { color: #ffc2c7; }
+.sign-notice.lost span { color: #e7c3c6; }
+.who button.relink { border-color: rgba(255, 179, 71, 0.6); color: #ffd08a; }
