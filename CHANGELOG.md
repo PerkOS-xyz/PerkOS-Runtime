@@ -2,6 +2,16 @@
 
 All notable changes to the PerkOS desktop app. Versions follow [Semantic Versioning](https://semver.org); the version lives in `apps/desktop/package.json` and shows in Settings › About with the git short SHA of the build.
 
+## [0.5.1] - 2026-09-16
+
+### Added
+- Launch options: `fees to @handle` (X), an ENS name, a Farcaster name or a wallet names who earns the creator fees; Bankr resolves the identity in the simulation and the card shows the wallet. The pair can be any quote token in Bankr's registry on Base (tokenized stocks, WETH, BNKR, cbHYPE, TAO). `no vesting` / `with vesting`, `quote only fees` and `degen` are understood; Sparky asks for the name or the pair when they are missing.
+- Launches screen in the desk dock: every token that pays fees to the connected wallet, with pair, deployer, claimable and claimed, links to Bankr and Basescan, and Claim fees per token. `claim fees for OWL` claims one token.
+
+### Fixed
+- The Fees card head sums what is claimable per quote token instead of Bankr's WETH-only total.
+- The desk's Trader restates the launch vesting rule exactly as the facts state it.
+
 ## [0.5.0] - 2026-09-16
 
 ### Added
