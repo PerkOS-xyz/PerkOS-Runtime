@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { shareLaunchUrl } from "./DeskPanel";
 
 // Tarjeta guiada para lanzar un token emparejado con una accion tokenizada (Bankr, Base).
@@ -246,13 +247,17 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
       </div>
     </div>
   );
-  if (!max) return card;
+  if (!max || typeof document === "undefined") return card;
+  // Portal al body: dentro de la escena (backdrop-filter, transforms) un position: fixed queda atrapado.
   return (
     <>
       <div className="lc-max-hold" aria-hidden />
-      <div className="lc-max-layer" role="dialog" aria-label="Launch a token" onClick={(e) => { if (e.target === e.currentTarget) setMax(false); }}>
-        {card}
-      </div>
+      {createPortal(
+        <div className="lc-max-layer" role="dialog" aria-label="Launch a token" onClick={(e) => { if (e.target === e.currentTarget) setMax(false); }}>
+          {card}
+        </div>,
+        document.body
+      )}
     </>
   );
 }
