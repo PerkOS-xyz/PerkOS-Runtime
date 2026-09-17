@@ -357,11 +357,11 @@ function Shell() {
       let f0 = fleetRef.current;
       if (f0 && Date.now() - fleetAtRef.current > 60_000) f0 = (await fleetActionRef.current("status")) ?? f0;
       const asleep = (x: Fleet | null | undefined) => Boolean(x && x.agents.some((a) => a.state === "hibernated" || a.state === "waking"));
-      // Charla simple (modo chat): los agentes no participan, asi que Sparky contesta ya.
-      // El equipo se despierta en segundo plano para que el siguiente pedido lo encuentre listo.
+      // Regla: los agentes solo se despiertan cuando se les asigna una tarea (analyze, advise,
+      // una orden, un launch). En modo chat Sparky contesta cualquier consulta por su cuenta y
+      // el equipo sigue dormido: despertarlo cuesta infra y tiempo, y no aporta a la respuesta.
       if (asleep(f0) && modeRef.current === "chat") {
-        flog("info", "chat: small talk, answering now; waking the team in the background");
-        void fleetActionRef.current("wake");
+        flog("info", "chat: Sparky answers on its own; the team stays asleep (no task assigned)");
       } else if (asleep(f0)) {
         setCaption("Waking the team on PerkOS…");
         setTeam("waking");
