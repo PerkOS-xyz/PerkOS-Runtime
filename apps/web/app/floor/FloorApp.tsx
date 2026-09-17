@@ -154,6 +154,10 @@ function Shell() {
     idleTimer.current = window.setTimeout(() => {
       // En conversacion continua o hablando, la charla sigue viva: no volver a idle.
       if (voiceRef.current?.continuous || voiceRef.current?.listening || busyRef.current) { touchRef.current(); return; }
+      // Con una card esperando a la persona (orden, launch, claim o automatizacion sin aprobar,
+      // o una firma en curso) el chat no se esconde: ahi esta el boton.
+      const waiting = messagesRef.current.some((x) => x.role === "draft" && x.tx && ["idle", "signing", "pending"].includes(x.tx.stage) && (x.draft || x.launch || x.auto || (x.fees && x.fees.tokens.some((t) => Number(t.claimable.token0) > 0 || Number(t.claimable.token1) > 0))));
+      if (waiting) { touchRef.current(); return; }
       setSplit(false);
     }, 120_000);
   }, []);
@@ -1928,6 +1932,15 @@ function Shell() {
         }}
       >
         <div className="ask-top">
+        {!split && messages.length > 0 ? (() => {
+          const pending = messages.filter((x) => x.role === "draft" && x.tx?.stage === "idle" && (x.draft || x.launch || x.auto)).length;
+          return (
+            <button type="button" className={`chat-peek${pending ? " pending" : ""}`} onClick={() => touch()} title="The conversation is still here. Open it to read the desk's turn or approve a draft.">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M21 12a8 8 0 0 1-11.8 7L4 20l1.1-4.6A8 8 0 1 1 21 12z" /></svg>
+              {pending ? `Show chat · ${pending} draft${pending > 1 ? "s" : ""} waiting` : `Show chat · ${messages.filter((x) => x.role !== "floor" || x.text).length}`}
+            </button>
+          );
+        })() : null}
         <select
           className="model-chip"
           value={model}
