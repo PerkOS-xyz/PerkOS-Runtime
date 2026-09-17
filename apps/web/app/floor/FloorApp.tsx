@@ -77,12 +77,15 @@ function Shell() {
   // Launch (Bankr): un token nuevo emparejado con una accion tokenizada; la
   // persona lo despliega con Hold to launch. Las fees (95%) van a su wallet.
   type LaunchDraft = { id: string; name: string; symbol: string; description?: string; pair: { address: string; symbol: string; name: string; illiquid?: boolean }; feeRecipient: string; chain: string; provider: string; deployer: string | null; ownKey: boolean; disableVesting: boolean; checks: Array<{ label: string; ok: boolean; note: string }>; ready: boolean; sim: { tokenAddress: string; poolId: string } | null; simError?: string; wallet: { evm: string; ethBase: number; club: boolean } | null; last24h: number; facts: string[]; draftedAt: string; receipt?: { tokenAddress: string; poolId: string; txHash: string; explorer: string; bankrUrl: string } };
+  // Fees del creador (Bankr): lo que ganan los tokens que la persona lanzo; el claim lo firma ella.
+  type FeeToken = { tokenAddress: string; name: string; symbol: string; share: string; token0Label: string; token1Label: string; claimable: { token0: string; token1: string }; claimed: { token0: string; token1: string; count: number } };
+  type FeesInfo = { address: string; tokens: FeeToken[]; totals: { claimableWeth: string; claimedWeth: string; claimCount: number }; lifetimeEarnedWeth: string; at: string };
   // Automation (Bankr): DCA, stop loss o limit que corre en Bankr desde la wallet Bankr de la persona.
   type AutoRec = { id: string; kind: "dca" | "stop" | "limit" | "schedule"; asset?: string; amountUsd?: number; interval?: string; price?: number; text: string; prompt: string; createdAt: string; status: "active" | "paused" | "cancelled"; reply?: string };
   type Brief = { at: string; stock: { symbol: string; ticker: string; name: string; issuer: string }; priceUsd?: number; change24hPct?: number; range24h?: { low: number; high: number; open: number; last: number }; volume24hUsd?: number; sparkline?: number[]; pool: { fee: number; usdcDepth: number; priceUsd?: number } | null; chainlink?: { priceUsd: number; ageMin: number; stale: boolean }; premiumPct?: number; swaps24h?: { count: number; usdcVolume: number; buys: number; sells: number }; holding?: { balance: string; valueUsd: number }; lines: string[] };
   type News = { text: string; sources: Array<{ url: string; title?: string }>; at: string };
   type Analysis = { brief: Brief; news?: News; scout?: string; risk?: string; verdict?: "GO" | "BLOCK"; prev?: { priceUsd?: number; at: string }; loadingNews?: boolean };
-  type Msg = { id: number; role: "you" | "floor" | "team" | "draft" | "analysis"; who?: string; text: string; streaming?: boolean; draft?: Draft; launch?: LaunchDraft; auto?: AutoRec; tx?: DraftTx; verdict?: "GO" | "BLOCK"; analysis?: Analysis; turnId?: number; kind?: "open" | "side" | "status" };
+  type Msg = { id: number; role: "you" | "floor" | "team" | "draft" | "analysis"; who?: string; text: string; streaming?: boolean; draft?: Draft; launch?: LaunchDraft; auto?: AutoRec; fees?: FeesInfo; tx?: DraftTx; verdict?: "GO" | "BLOCK"; analysis?: Analysis; turnId?: number; kind?: "open" | "side" | "status" };
   // Agent graph del turno en curso (cards bajo las esferas) y turnos plegados.
   const [turn, setTurn] = useState<DeskTurn | null>(null);
   const turnRef = useRef<DeskTurn | null>(null);
@@ -835,6 +838,81 @@ function Shell() {
     }
   }, []);
 
+  // Fees card: lectura publica de Bankr para la wallet conectada; una card por consulta.
+  const feesCard = useCallback(async (msgId?: number): Promise<number | undefined> => {
+    const id = msgId ?? Date.now() + 6;
+    if (!msgId) { setCaption("Reading your creator fees…"); touch(); }
+    try {
+      const res = await fetch("/api/fees");
+      const j = (await res.json().catch(() => ({}))) as FeesInfo & { error?: string; detail?: string };
+      if (!res.ok || !Array.isArray(j.tokens)) {
+        flog("warn", `fees ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`);
+        if (!msgId) setMessages((m) => [...m.slice(-60), { id, role: "draft", who: "trader", text: `Could not read your fees: ${j.detail ?? j.error ?? res.status}` }]);
+        setCaption("");
+        return undefined;
+      }
+      const info: FeesInfo = { ...j, at: new Date().toISOString() };
+      const claimable = info.tokens.filter((t) => Number(t.claimable.token0) > 0 || Number(t.claimable.token1) > 0).length;
+      flog("info", `fees: ${info.tokens.length} tokens · ${claimable} claimable · ${info.totals.claimableWeth} WETH claimable · ${info.totals.claimedWeth} claimed`);
+      if (msgId) setMessages((m) => m.map((x) => (x.id === msgId ? { ...x, fees: info } : x)));
+      else setMessages((m) => [...m.slice(-60), { id, role: "draft", who: "trader", text: "", fees: info, tx: { stage: "idle", hashes: [] } }]);
+      if (!msgId) setCaption(info.tokens.length === 0 ? "No launches paying fees to this wallet yet." : claimable ? `${claimable} token${claimable > 1 ? "s" : ""} with fees to claim. Hold to claim.` : "Fees are accruing. Nothing to claim yet.");
+      return id;
+    } catch (e) {
+      flog("error", `fees: ${(e as Error).message}`);
+      setCaption("");
+      return undefined;
+    }
+  }, [touch]);
+  // Claim: Bankr construye las txs (sin auth), la persona las firma aqui; paga gas en Base.
+  const claimFees = useCallback(async (msgId: number) => {
+    const msg = messagesRef.current.find((x) => x.id === msgId);
+    const f = msg?.fees;
+    if (!f || (msg?.tx && msg.tx.stage !== "idle" && msg.tx.stage !== "failed")) return;
+    const patch = (tx: Partial<DraftTx>) => setMessages((m) => m.map((x) => (x.id === msgId ? { ...x, tx: { ...(x.tx ?? { stage: "idle", hashes: [] }), ...tx } as DraftTx } : x)));
+    if (!wallet.address || f.address.toLowerCase() !== wallet.address.toLowerCase()) { patch({ stage: "blocked", note: "These fees belong to a wallet other than the one connected here." }); return; }
+    const hashes: DraftTx["hashes"] = [];
+    try {
+      patch({ stage: "signing", note: "" });
+      setCaption("Building the claim with Bankr…");
+      const res = await fetch("/api/fees/claim", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+      const j = (await res.json().catch(() => ({}))) as { recipient?: string; txs?: Array<{ tokenSymbol: string; to: `0x${string}`; data: `0x${string}`; chainId: number }>; errors?: Array<{ message?: string; error?: string }>; error?: string; detail?: string };
+      if (!res.ok) throw new Error(j.detail ?? j.error ?? `HTTP ${res.status}`);
+      if (!j.recipient || j.recipient.toLowerCase() !== wallet.address.toLowerCase()) throw new Error("claim built for another wallet");
+      if (!j.txs?.length) { patch({ stage: "failed", note: j.errors?.[0]?.message ?? j.errors?.[0]?.error ?? j.detail ?? "Nothing to claim yet." }); setCaption("Nothing to claim yet."); return; }
+      for (const t of j.txs) {
+        setCaption(`Confirm the ${t.tokenSymbol} fee claim in your wallet…`);
+        flog("info", `fees claim ${t.tokenSymbol}: waiting for signature`);
+        const hash = await wallet.sendTransaction({ to: t.to, data: t.data, value: "0x0", chainId: t.chainId });
+        hashes.push({ label: `claim ${t.tokenSymbol}`, hash, status: "pending", explorer: `https://basescan.org/tx/${hash}` });
+        patch({ stage: "pending", hashes: [...hashes] });
+        setCaption(`${t.tokenSymbol} claim sent · waiting for Base…`);
+        const started = Date.now();
+        for (;;) {
+          await new Promise((r) => setTimeout(r, 4000));
+          const r = await fetch(`/api/trade/receipt?hash=${hash}`);
+          const rj = (await r.json().catch(() => ({}))) as { status?: string };
+          if (rj.status === "success") { hashes[hashes.length - 1].status = "success"; patch({ hashes: [...hashes] }); break; }
+          if (rj.status === "reverted") throw new Error(`claim ${t.tokenSymbol} reverted on Base`);
+          if (Date.now() - started > 3 * 60_000) throw new Error(`claim ${t.tokenSymbol} not confirmed after 3 min`);
+        }
+        flog("info", `fees claim ${t.tokenSymbol}: confirmed ${hash}`);
+      }
+      patch({ stage: "done", hashes: [...hashes] });
+      kbWriteRef.current({ kind: "order", title: `claim fees ${new Date().toISOString().slice(0, 16).replace("T", " ")}`, body: `- Claimed creator fees for ${j.txs.map((t) => t.tokenSymbol).join(", ")} to ${wallet.address}\n- Signed by the human in their wallet.\n${hashes.map((h) => `- ${h.label}: ${h.explorer}`).join("\n")}` });
+      setCaption(`Fees claimed for ${j.txs.map((t) => t.tokenSymbol).join(", ")}. Receipt on Base.`);
+      speak(`Done. Your creator fees are in your wallet, receipt on chain.`);
+      touch();
+      // Bankr cachea 2 min: la card se refresca cuando el saldo baje.
+      window.setTimeout(() => { void feesCard(msgId); }, 130_000);
+    } catch (e) {
+      const m = (e as Error).message || "signature failed";
+      flog("error", `fees claim: ${m}`);
+      patch({ stage: "failed", hashes: [...hashes], note: /reject|denied|4001/i.test(m) ? "You declined in the wallet." : m });
+      setCaption(/reject|denied|4001/i.test(m) ? "Claim cancelled in the wallet." : "Claim failed.");
+    }
+  }, [wallet, speak, touch, feesCard]);
+
   // Approve: la persona firma en su wallet (MetaMask por WalletConnect) cada
   // tx del draft en orden; Floor espera el receipt en Base y muestra el hash.
   const approveDraft = useCallback(async (msgId: number) => {
@@ -1162,6 +1240,7 @@ function Shell() {
     }
     if (cmd === "automate") { quoteRef.current = null; void automationDraft(it.text); return; }
     if (cmd === "automations") { setDeskScreen("automations"); setCaption("Your Bankr automations"); return; }
+    if (cmd === "fees") { quoteRef.current = null; void feesCard(); return; }
     if (cmd === "buy" || cmd === "sell") {
       quoteRef.current = null;
       // Sin activo reconocido no se asume NVDAc: se usa el activo en foco o se pregunta.
@@ -1191,6 +1270,7 @@ function Shell() {
     if (cmd === "approve") {
       const d = [...messagesRef.current].reverse().find((m) => m.role === "draft" && m.tx?.stage === "idle");
       if (d?.launch) { setCaption("Deploying with Bankr…"); void deployLaunch(d.id); }
+      else if (d?.fees) { setCaption("Claiming in your wallet…"); void claimFees(d.id); }
       else if (d?.auto) { setCaption("Creating in Bankr…"); void createAutomation(d.id); }
       else if (d) { setCaption("Approving in your wallet…"); void approveDraft(d.id); } else setCaption("Nothing to approve.");
       return;
@@ -1665,7 +1745,7 @@ function Shell() {
             onExpand={() => setTurn((t) => (t ? { ...t, collapsed: false } : t))}
             onFocus={(r: AgentRole) => { const els = document.querySelectorAll(`.turn.team[data-who="${r}"]`); const el = els[els.length - 1]; if (el) { stickRef.current = false; setShowJump(true); el.scrollIntoView({ behavior: "smooth", block: "center" }); } }}
             canApprove={turn.verdict === "GO" && messages.some((m) => m.role === "draft" && m.tx?.stage === "idle")}
-            onApprove={() => { const d = [...messagesRef.current].reverse().find((m) => m.role === "draft" && m.tx?.stage === "idle"); if (d?.launch) void deployLaunch(d.id); else if (d?.auto) void createAutomation(d.id); else if (d) void approveDraft(d.id); }}
+            onApprove={() => { const d = [...messagesRef.current].reverse().find((m) => m.role === "draft" && m.tx?.stage === "idle"); if (d?.launch) void deployLaunch(d.id); else if (d?.fees) void claimFees(d.id); else if (d?.auto) void createAutomation(d.id); else if (d) void approveDraft(d.id); }}
           />
           {!turn.collapsed && !turn.live ? <button type="button" className="ag-collapse" onClick={() => setTurn((t) => (t ? { ...t, collapsed: true } : t))} aria-label="Collapse">×</button> : null}
         </div>
@@ -1778,7 +1858,9 @@ function Shell() {
             {m.role === "draft" && m.draft ? (
               <DraftCard draft={m.draft} tx={m.tx ?? { stage: "idle", hashes: [] }} onApprove={() => void approveDraft(m.id)} />
             ) : m.role === "draft" && m.launch ? (
-              <LaunchCard launch={m.launch} tx={m.tx ?? { stage: "idle", hashes: [] }} onLaunch={() => void deployLaunch(m.id)} />
+              <LaunchCard launch={m.launch} tx={m.tx ?? { stage: "idle", hashes: [] }} onLaunch={() => void deployLaunch(m.id)} onFees={() => void feesCard()} />
+            ) : m.role === "draft" && m.fees ? (
+              <FeesCard fees={m.fees} tx={m.tx ?? { stage: "idle", hashes: [] }} onClaim={() => void claimFees(m.id)} onRefresh={() => void feesCard(m.id)} />
             ) : m.role === "draft" && m.auto ? (
               <AutomationCard auto={m.auto} tx={m.tx ?? { stage: "idle", hashes: [] }} onCreate={() => void createAutomation(m.id)} onOpen={() => setDeskScreen("automations")} />
             ) : m.role === "analysis" && m.analysis ? (
@@ -2171,10 +2253,11 @@ function DraftCard({ draft, tx, onApprove }: {
 
 // Launch card: el token emparejado en la mesa. Los checks de Bankr se ven
 // siempre; Hold to launch solo cuando todos pasan y la simulacion paso.
-function LaunchCard({ launch, tx, onLaunch }: {
+function LaunchCard({ launch, tx, onLaunch, onFees }: {
   launch: { name: string; symbol: string; pair: { symbol: string; name: string }; feeRecipient: string; deployer: string | null; ownKey: boolean; checks: Array<{ label: string; ok: boolean; note: string }>; ready: boolean; sim: { tokenAddress: string; poolId: string } | null; simError?: string; receipt?: { tokenAddress: string; txHash: string; explorer: string; bankrUrl: string } };
   tx: { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
   onLaunch: () => void;
+  onFees?: () => void;
 }) {
   const [holding, setHolding] = useState(false);
   const holdRef = useRef(0);
@@ -2192,7 +2275,10 @@ function LaunchCard({ launch, tx, onLaunch }: {
     <div className={`draft-card launch st-${tx.stage}${open ? " open" : ""}`}>
       <div className="draft-head">
         <b><span className={`decision ${tx.stage === "blocked" || !launch.ready ? "wait" : tx.stage === "done" ? "done" : "go"}`}>{decision}</span> {launch.name} ({launch.symbol}) <small>paired with {launch.pair.symbol} on Base · fees to your wallet</small></b>
-        <button type="button" className="draft-more" onClick={() => setOpen((o) => !o)} aria-expanded={open}>{open ? "Less" : "Details"}</button>
+        <span className="draft-btns">
+          {tx.stage === "done" && onFees ? <button type="button" className="draft-more" onClick={onFees}>Fees</button> : null}
+          <button type="button" className="draft-more" onClick={() => setOpen((o) => !o)} aria-expanded={open}>{open ? "Less" : "Details"}</button>
+        </span>
       </div>
       <ul className="launch-checks">
         {launch.checks.map((c) => <li key={c.label} className={c.ok ? "ok" : "bad"}><i aria-hidden>{c.ok ? "✓" : "✕"}</i><span>{c.label}</span><small>{c.note}</small></li>)}
@@ -2223,6 +2309,71 @@ function LaunchCard({ launch, tx, onLaunch }: {
           <span className="lbl">{tx.stage === "done" ? "Live" : tx.stage === "blocked" ? "Blocked" : tx.stage === "pending" ? "Deploying on Base…" : tx.stage === "failed" ? "Retry" : launch.ready ? "Hold to launch" : "Checks first"}</span>
         </button>
         <small>{tx.stage === "done" ? "Token live on Base. Fees pay to your wallet." : tx.stage === "blocked" ? "Risk said no. Nothing deployed." : "They draft. You launch. Bankr deploys."}</small>
+      </div>
+    </div>
+  );
+}
+
+// Fees card: lo que ganan los tokens lanzados (lectura publica de Bankr) y
+// el claim, que firma la persona con su wallet. Hold to claim solo con saldo.
+function FeesCard({ fees, tx, onClaim, onRefresh }: {
+  fees: { address: string; tokens: Array<{ tokenAddress: string; name: string; symbol: string; share: string; token0Label: string; token1Label: string; claimable: { token0: string; token1: string }; claimed: { token0: string; token1: string; count: number } }>; totals: { claimableWeth: string; claimedWeth: string; claimCount: number }; lifetimeEarnedWeth: string; at: string };
+  tx: { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
+  onClaim: () => void;
+  onRefresh: () => void;
+}) {
+  const [holding, setHolding] = useState(false);
+  const holdRef = useRef(0);
+  const num = (v: string) => Number(v) || 0;
+  const fmt = (v: string) => { const n = num(v); return n === 0 ? "0" : n >= 1000 ? Math.round(n).toLocaleString("en-US") : n >= 1 ? n.toFixed(2) : n.toFixed(4).replace(/0+$/, "").replace(/\.$/, ""); };
+  const withFees = fees.tokens.filter((t) => num(t.claimable.token0) > 0 || num(t.claimable.token1) > 0);
+  const armed = (tx.stage === "idle" || tx.stage === "failed") && withFees.length > 0;
+  const start = () => {
+    if (!armed) return;
+    setHolding(true);
+    holdRef.current = window.setTimeout(() => { setHolding(false); onClaim(); }, 2000);
+  };
+  const cancel = () => { window.clearTimeout(holdRef.current); setHolding(false); };
+  const decision = tx.stage === "done" ? "Claimed" : tx.stage === "signing" || tx.stage === "pending" ? "Claiming" : tx.stage === "failed" ? "Not claimed" : withFees.length ? "Claim" : "Fees";
+  const head = fees.tokens.length === 0 ? "no launches paying this wallet yet" : `${fees.tokens.length} token${fees.tokens.length > 1 ? "s" : ""} · ${fmt(fees.totals.claimableWeth)} WETH to claim · ${fmt(fees.totals.claimedWeth)} WETH claimed`;
+  return (
+    <div className={`draft-card fees st-${tx.stage}`}>
+      <div className="draft-head">
+        <b><span className={`decision ${tx.stage === "done" ? "done" : withFees.length ? "go" : "wait"}`}>{decision}</span> Creator fees <small>{head}</small></b>
+        <button type="button" className="draft-more" onClick={onRefresh} title="Bankr refreshes this every 2 minutes">Refresh</button>
+      </div>
+      {fees.tokens.length ? (
+        <ul className="fees-rows">
+          {fees.tokens.map((t) => {
+            const zero = num(t.claimable.token0) === 0 && num(t.claimable.token1) === 0;
+            return (
+              <li key={t.tokenAddress} className={zero ? "zero" : ""}>
+                <b>{t.symbol}</b>
+                <span>{zero ? "nothing to claim" : `${fmt(t.claimable.token0)} ${t.token0Label} + ${fmt(t.claimable.token1)} ${t.token1Label}`}</span>
+                <small>{t.share} of the pool fee · claimed {t.claimed.count}×</small>
+              </li>
+            );
+          })}
+        </ul>
+      ) : <p className="hint-line">Launch a token paired with a tokenized stock and 95% of its pool fee accrues here.</p>}
+      {tx.note ? <p className="hint-line err">{tx.note}</p> : null}
+      {tx.hashes.length ? (
+        <ul className="draft-tx">
+          {tx.hashes.map((h) => (
+            <li key={h.hash} className={h.status}>
+              <span>{h.label}</span>
+              <a href={h.explorer} target="_blank" rel="noreferrer">{h.hash.slice(0, 10)}…{h.hash.slice(-6)}</a>
+              <em>{h.status === "success" ? "confirmed" : "pending"}</em>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <div className="draft-actions">
+        <button type="button" className={`approve${holding ? " holding" : ""}${tx.stage === "done" ? " done" : ""}${tx.stage === "signing" || tx.stage === "pending" ? " busy" : ""}`} disabled={!armed} onPointerDown={start} onPointerUp={cancel} onPointerLeave={cancel} onPointerCancel={cancel} aria-label="Hold to claim">
+          <span className="ring" />
+          <span className="lbl">{tx.stage === "done" ? "Claimed" : tx.stage === "signing" ? "Sign in your wallet…" : tx.stage === "pending" ? "Claiming on Base…" : tx.stage === "failed" ? "Retry" : withFees.length ? "Hold to claim" : "Nothing to claim"}</span>
+        </button>
+        <small>{tx.stage === "done" ? "Fees in your wallet. Receipt on Base." : "Bankr builds it. You sign. You pay the gas on Base."}</small>
       </div>
     </div>
   );

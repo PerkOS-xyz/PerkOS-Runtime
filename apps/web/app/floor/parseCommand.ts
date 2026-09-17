@@ -13,7 +13,7 @@ export type Command =
   | "unknown";
 
 export type Intent =
-  | { kind: "listen" | "wake" | "sleep" | "invite" | "stop" | "settings" | "docs" | "market" | "portfolio" | "map" | "history" | "approve" | "cancel" | "summarize" | "advise" | "chat" | "automations" }
+  | { kind: "listen" | "wake" | "sleep" | "invite" | "stop" | "settings" | "docs" | "market" | "portfolio" | "map" | "history" | "approve" | "cancel" | "summarize" | "advise" | "chat" | "automations" | "fees" }
   | { kind: "launch"; name?: string; symbol?: string; pair?: string }
   | { kind: "automate"; text: string }
   | { kind: "analyze" | "quote"; asset?: string }
@@ -105,6 +105,8 @@ export function parseIntent(raw: string): Intent {
   // "buy $5 of nvda every week" es un DCA, no una compra.
   if (/\b(dca|dollar cost|recurring|every (day|week|month|monday|tuesday|wednesday|thursday|friday|hour|\d+)|daily|weekly|monthly|hourly|stop\s*loss|limit order|automate|automatiza|cada (d[ií]a|semana|mes))\b/.test(t) && !/\b(automations|my automations|mis automatizaciones)\b/.test(t)) return { kind: "automate", text: raw.trim() };
   if (/\b(automations|automatizaciones|scheduled orders|my dcas?|my rules)\b/.test(t)) return { kind: "automations" };
+  // Fees del creador (launches): ver y reclamar.
+  if (/\b(claim|collect|cobra(?:r)?|reclama(?:r)?)\b.*\b(fees?|earnings|comisiones)\b|\b(my|mis)\s+(fees?|earnings|creator fees|comisiones)\b|^(fees|earnings)$|\b(what (did|have) i earn(ed)?|cu[aá]nto (gan[eé]|he ganado))\b/.test(t)) return { kind: "fees" };
   const launch = parseLaunchIntent(raw);
   if (launch) return launch;
   const trade = parseTradeIntent(raw);
