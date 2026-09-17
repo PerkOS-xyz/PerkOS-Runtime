@@ -131,7 +131,7 @@ export async function POST(req: Request) {
         const deskRules = mode === "order"
           ? " A draft of that order is already on the table, unsigned; the human signs it or not."
           : mode === "launch"
-          ? " A launch draft is on the table: a new token whose Uniswap V4 pool is paired with a tokenized stock on Base, deployed by Bankr from the human's Bankr wallet, with trading fees paid to the human's wallet. Nothing deploys until the human holds to launch. The launch facts list Bankr's rules and whether each one passes."
+          ? " A launch draft is on the table: a new token whose Uniswap V4 pool is paired with a quote asset on Base (a tokenized stock, WETH or a registry token), deployed by Bankr, with 95% of the pool fee paid to the recipient stated in the facts. Nothing deploys until the human holds to launch. The launch facts list Bankr's rules and whether each one passes."
           : " Desk limits: the human trades small clips (an order is at most 100 USDC); size advice must be in USDC for this human, never in the pool's scale. The horizon is the one in the request; a catalyst after the horizon does not count as the reason.";
         const always = " These tokens trade 24/7 onchain; only the Chainlink reference pauses outside US equity hours, so never say the market is closed: say the reference is frozen and compare with the last close.";
         const head = `Human request to the desk: "${text}". ${quoteLine}${deskRules}${always}${factsLine}${newsLine}${memoryLine}${sharedLine}\nAnswer directly from the facts above in one message. Do not open skills, files or tools for this reply; the desk already fetched the market data. If something is missing, say so in one line and continue.`;
@@ -141,7 +141,7 @@ export async function POST(req: Request) {
         const P = {
           launch: {
             scout: `As Scout: the launch is already decided (name, symbol, paired stock). From the facts, give one line on why this pair can draw attention (the stock's driver and 24 h move, the news) and one line on the trap (a thin or frozen reference, an illiquid pair, a name that overpromises). Open with "@Trader @Auditor". Under 50 words, plain text.`,
-            risk: `As Risk: gate the launch on Bankr's rules in the facts: wallet present, at least 0.002 ETH on Base, fewer than 3 launches in 24 h, a liquid paired stock, a valid name and symbol, and the fee recipient being the human's own wallet. If any check fails or the request is unclear, block. Reply with a first line exactly "VERDICT: GO" or "VERDICT: BLOCK", then a second line starting "@Trader @Auditor" with the reason in under 40 words.`
+            risk: `As Risk: gate the launch on Bankr's rules in the facts: wallet present, at least 0.002 ETH on Base, fewer than 3 launches in 24 h, a liquid pair, a valid name and symbol, and a fee recipient the human named on purpose (their own wallet, or a third party stated in the facts). If any check fails or the request is unclear, block. Reply with a first line exactly "VERDICT: GO" or "VERDICT: BLOCK", then a second line starting "@Trader @Auditor" with the reason in under 40 words.`
           },
           order: {
             scout: `As Scout: the order is already decided, so no market read. Give one line of pros and one line of cons for doing it right now, from the facts (price vs reference, venue depth, off-hours drift, any catalyst). Open with "@Trader @Auditor". Under 45 words, plain text.`,
@@ -165,7 +165,7 @@ export async function POST(req: Request) {
         const verdict = gated ? (risk?.ok ? verdictOf(risk.reply) ?? "BLOCK" : "BLOCK") : undefined;
         const tail = `${head}\nScout said: ${scoutSaid}\nRisk said: ${riskSaid}${verdict ? ` (verdict ${verdict})` : ""}.`;
         const T = mode === "launch"
-          ? `As Trader (open with "@Sparky"): ${verdict === "GO" ? "restate the launch the desk drafted (token name and symbol, the paired stock, the chain, who deploys, who receives the fees, and the vesting rule exactly as the facts state it) and what the human must hold to launch. You never execute." : "Risk blocked it: stand down and say which check must change. You never execute."} Under 60 words.`
+          ? `As Trader (open with "@Sparky"): ${verdict === "GO" ? "restate the launch the desk drafted (token name and symbol, the pair, the chain, who deploys, who receives the fees exactly as the facts state it, and the vesting rule exactly as the facts state it) and what the human must hold to launch. You never execute." : "Risk blocked it: stand down and say which check must change. You never execute."} Under 60 words.`
           : mode === "order"
           ? `As Trader (open with "@Sparky"): ${q ? (verdict === "GO" ? "restate the order the desk drafted (asset, size, venue, min out) and exactly what the human must sign. You never execute." : "Risk blocked it: stand down and say what would need to change. You never execute.") : "no order is on the table: say what you would draft if asked, in one line. You never execute."} Under 60 words.`
           : mode === "analyze"
