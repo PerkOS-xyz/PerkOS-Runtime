@@ -1695,6 +1695,11 @@ function Shell() {
 
   useEffect(() => {
     if (!wallet.loaded) return;
+    if (relinkRef.current) {
+      // Reenlace en curso: la sesion baja y vuelve a subir; la escena se queda como esta.
+      if (wallet.connected) { relinkRef.current = false; flog("info", `wallet: relinked${wallet.canSign ? "" : " (session up, wallet still not linked)"}`); setCaption(wallet.canSign ? "Wallet linked again." : ""); }
+      return;
+    }
     if (wallet.connected) {
       // Privy OK. Si ya hay un LLM conectado en la maquina entramos directo;
       // si no, el wizard sigue en el paso LLM. El logout del wallet no toca el LLM.
@@ -1899,6 +1904,15 @@ function Shell() {
     return () => window.removeEventListener("keydown", onKey);
   }, [listen, submitDraft, draft, splash, settings, wizard, booted, debug, setDebug]);
 
+  // Reenlazar la wallet (link de WalletConnect caido): abre el login de Privy sin salir de la
+  // escena ni tocar la sesion PerkOS. Mientras dura, el arranque no muestra la bienvenida.
+  const relinkRef = useRef(false);
+  function relink() {
+    relinkRef.current = true;
+    setCaption("Sign in again in the Privy window: More options, WalletConnect, scan the QR.");
+    flog("info", "wallet: relink requested, opening Privy over the scene");
+    wallet.reconnect();
+  }
   function logout() {
     flog("info", "logout: privy + wallet + PerkOS session cleared, LLM kept");
     void fetch("/api/perkos/session", { method: "DELETE" });
@@ -2072,7 +2086,7 @@ function Shell() {
           <span title={wallet.signWhere === "phone" ? `${wallet.walletName || "External wallet"} over WalletConnect: approvals show up on your phone` : wallet.signWhere === "embedded" ? "PerkOS wallet (Privy): signs inside this app" : undefined}>{who}</span>
           {wallet.signWhere && !linkLost ? <em className="wk" title={wallet.signWhere === "phone" ? "Approvals show up in your wallet app on your phone" : wallet.signWhere === "embedded" ? "Signs inside this app" : "Signs in your browser wallet"}>{wallet.signWhere === "phone" ? "phone wallet" : wallet.signWhere === "embedded" ? "app wallet" : "browser wallet"}</em> : null}
           <em className={`pk${perkos.connected ? " on" : ""}`} title={perkos.connected ? "PerkOS session active" : perkos.note || "PerkOS not connected"}>PerkOS</em>
-          {linkLost ? <button type="button" className="relink" onClick={logout} title="You are signed in, but no wallet is linked to this window. Nothing can be signed until you sign in again and scan the QR.">Wallet not linked · sign in again</button> : null}
+          {linkLost ? <button type="button" className="relink" onClick={relink} title="You are signed in, but no wallet is linked to this window. Sign in again in Privy and scan the QR; the scene stays.">Wallet not linked · sign in again</button> : null}
           <button type="button" onClick={logout}>
             Log out
           </button>
@@ -2224,11 +2238,11 @@ function Shell() {
               {m.verdict ? <em className={`vchip ${m.verdict.toLowerCase()}`}>{m.verdict}</em> : null}
             </span>
             {m.role === "draft" && m.draft ? (
-              <DraftCard draft={m.draft} tx={m.tx ?? { stage: "idle", hashes: [] }} onApprove={() => void approveDraft(m.id)} signHint={signHint} onPhone={wallet.signWhere === "phone"} onReconnect={logout} linkLost={linkLost} />
+              <DraftCard draft={m.draft} tx={m.tx ?? { stage: "idle", hashes: [] }} onApprove={() => void approveDraft(m.id)} signHint={signHint} onPhone={wallet.signWhere === "phone"} onReconnect={relink} linkLost={linkLost} />
             ) : m.role === "draft" && m.launch ? (
               <LaunchCard launch={m.launch} tx={m.tx ?? { stage: "idle", hashes: [] }} wallet={wallet.address} onLaunch={() => void deployLaunch(m.id)} onFees={() => void feesCard()} onEdit={(patch) => editLaunch(m.id, patch)} onResim={() => { window.clearTimeout(resimTimers.current[m.id]); void resimLaunch(m.id); }} />
             ) : m.role === "draft" && m.fees ? (
-              <FeesCard fees={m.fees} tx={m.tx ?? { stage: "idle", hashes: [] }} onClaim={() => void claimFees(m.id)} onRefresh={() => void feesCard(m.id)} signHint={signHint} onPhone={wallet.signWhere === "phone"} onReconnect={logout} linkLost={linkLost} />
+              <FeesCard fees={m.fees} tx={m.tx ?? { stage: "idle", hashes: [] }} onClaim={() => void claimFees(m.id)} onRefresh={() => void feesCard(m.id)} signHint={signHint} onPhone={wallet.signWhere === "phone"} onReconnect={relink} linkLost={linkLost} />
             ) : m.role === "draft" && m.auto ? (
               <AutomationCard auto={m.auto} tx={m.tx ?? { stage: "idle", hashes: [] }} onCreate={() => void createAutomation(m.id)} onOpen={() => setDeskScreen("automations")} />
             ) : m.role === "analysis" && m.analysis ? (
