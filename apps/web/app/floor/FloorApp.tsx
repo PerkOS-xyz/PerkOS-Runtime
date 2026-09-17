@@ -25,11 +25,12 @@ let perkosDeclined = false;
 type Team = "hibernated" | "waking" | "ready";
 
 // Burbujas de arranque sobre el compositor. En ingles, y cada una cae en un intent real:
-// chat con brief de mercado, chat con la lista de pares de Bankr, analisis de la mesa (despierta al equipo), portafolio.
+// las dos primeras son "advise" (scan de TODOS los activos operables + noticias + turno de mesa,
+// despierta al equipo), la tercera chat con la lista de pares de Bankr, la cuarta el portafolio.
 const STARTERS = [
-  "Which tokenized stock looks best to go long today?",
+  "Which tokenized stock should I buy today?",
+  "Which stock token should I short this month?",
   "Which stock token can I pair a new token launch with?",
-  "Analyze NVDAc",
   "What is in my portfolio?"
 ];
 
