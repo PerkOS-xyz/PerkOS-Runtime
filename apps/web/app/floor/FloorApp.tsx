@@ -140,6 +140,34 @@ function Shell() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const messagesRef = useRef<Msg[]>([]);
   messagesRef.current = messages;
+  // La conversacion sobrevive a cerrar y abrir el app: se guarda por wallet en el perfil
+  // local (localStorage) y vuelve cerrada, detras del boton "Show chat". Los drafts sin
+  // aprobar de una sesion anterior vuelven vencidos: la cotizacion ya no vale.
+  const chatRestored = useRef("");
+  useEffect(() => {
+    const addr = wallet.address.toLowerCase();
+    if (!addr || chatRestored.current === addr) return;
+    chatRestored.current = addr;
+    try {
+      const raw = window.localStorage.getItem(`perkos.chat.${addr}`);
+      if (!raw || messagesRef.current.length) return;
+      const saved = (JSON.parse(raw) as Msg[]).filter((x) => x && typeof x.id === "number" && (x.text || x.draft || x.launch || x.auto || x.fees || x.analysis));
+      const stale = "From an earlier session. Ask for it again to get a fresh draft.";
+      const back = saved.map((x) => ({ ...x, streaming: false, ...(x.role === "draft" && x.tx && ["idle", "signing", "pending"].includes(x.tx.stage) && (x.draft || x.launch || x.auto) ? { tx: { ...x.tx, stage: "failed" as const, note: stale } } : {}) }));
+      if (back.length) { setMessages(back); flog("info", `chat: restored ${back.length} messages from the last session`); }
+    } catch { /* perfil sin almacenamiento: se empieza en blanco */ }
+  }, [wallet.address]);
+  useEffect(() => {
+    const addr = wallet.address.toLowerCase();
+    if (!addr || chatRestored.current !== addr) return;
+    const t = window.setTimeout(() => {
+      try {
+        const keep = messages.filter((x) => !x.streaming && (x.text || x.draft || x.launch || x.auto || x.fees || x.analysis)).slice(-60);
+        if (keep.length) window.localStorage.setItem(`perkos.chat.${addr}`, JSON.stringify(keep)); else window.localStorage.removeItem(`perkos.chat.${addr}`);
+      } catch { /* cuota o perfil sin almacenamiento */ }
+    }, 800);
+    return () => window.clearTimeout(t);
+  }, [messages, wallet.address]);
   const [split, setSplit] = useState(false);
   const idleTimer = useRef<number>(0);
   const voiceRef = useRef<{ continuous: boolean; listening: boolean } | null>(null);
