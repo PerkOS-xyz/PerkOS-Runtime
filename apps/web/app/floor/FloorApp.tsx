@@ -28,10 +28,10 @@ type Team = "hibernated" | "waking" | "ready";
 // las dos primeras son "advise" (scan de TODOS los activos operables + noticias + turno de mesa,
 // despierta al equipo), la tercera chat con la lista de pares de Bankr, la cuarta el portafolio.
 const STARTERS = [
-  "Which tokenized stock should I buy today?",
-  "Which stock token should I short this month?",
-  "Which stock token can I pair a new token launch with?",
-  "What is in my portfolio?"
+  "What should I buy today?",
+  "What to short this month?",
+  "Pairs for a token launch?",
+  "My portfolio"
 ];
 
 export default function FloorApp() {
