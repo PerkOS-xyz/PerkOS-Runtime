@@ -72,6 +72,8 @@ export function parseTradeIntent(text: string): Extract<Intent, { kind: "buy" | 
  *  "lanza un token FLOOR emparejado con nvidia". null si no es un launch. */
 export function parseLaunchIntent(text: string): Extract<Intent, { kind: "launch" }> | null {
   const t = text.trim();
+  // Una pregunta sobre lanzar ("which stock token can I pair a launch with?") es chat, no una orden de lanzar.
+  if (/^\s*(which|what|how|can|could|should|is|are|do|does|que|qué|cu[aá]l|c[oó]mo|puedo|se puede)\b/i.test(t) || /\?\s*$/.test(t)) return null;
   if (!/\b(launch|deploy|create|lanza(?:r)?|crea(?:r)?|despliega)\b/i.test(t)) return null;
   if (!(/\b(token|coin|memecoin)\b/i.test(t) || /\$[A-Za-z]{2,}/.test(t) || /\(\s*\$?[A-Za-z0-9]{2,}\s*\)/.test(t))) return null;
   const pair = t.match(/\b(?:paired?\s+(?:with|to)|pair(?:ed)?\s+against|against|backed by|on top of|quoted in|emparejad[oa]\s+con|contra|con la acci[oó]n(?: de)?)\s+(?:the\s+|el\s+|la\s+)?\$?([A-Za-z][A-Za-z0-9.]{0,24})/i)?.[1];
