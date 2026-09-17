@@ -2152,9 +2152,9 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 /* Marca horizontal (simbolo + nombre) a buen tamano: la marca se lee de lejos. */
 .hero-mark { height: clamp(60px, 8vh, 88px); width: auto; margin-bottom: 26px; filter: drop-shadow(0 6px 24px rgba(236, 27, 105, 0.3)); }
 .hero-title { margin: 0 0 16px; font: 700 clamp(2.25rem, 3.4vw + 1rem, 3.5rem)/1.05 system-ui, -apple-system, "Inter", "Segoe UI", sans-serif; letter-spacing: -0.01em; color: var(--ink); text-shadow: 0 2px 24px rgba(0, 0, 0, 0.55); }
-.hero-title span { color: #ec1b69; background: linear-gradient(90deg, #ec1b69 0%, #f56a57 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.hero-title span { white-space: nowrap; color: #ec1b69; background: linear-gradient(90deg, #ec1b69 0%, #f56a57 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 @media (prefers-contrast: more) { .hero-title span { background: none; -webkit-text-fill-color: #ec1b69; } }
-.hero-sub { margin: 0 0 28px; font: 400 clamp(0.95rem, 1vw + 0.7rem, 1.125rem)/1.5 system-ui, -apple-system, "Inter", "Segoe UI", sans-serif; color: var(--hero-mute); max-width: 46ch; text-shadow: 0 1px 12px rgba(0, 0, 0, 0.5); }
+.hero-sub { margin: 0 0 28px; font: 400 clamp(0.95rem, 1vw + 0.7rem, 1.125rem)/1.5 system-ui, -apple-system, "Inter", "Segoe UI", sans-serif; color: var(--hero-mute); max-width: 52ch; text-shadow: 0 1px 12px rgba(0, 0, 0, 0.5); }
 .hero-cta { display: flex; align-items: center; gap: 20px; margin-bottom: 24px; }
 .hero-primary { display: inline-flex; align-items: center; gap: 10px; padding: 14px 26px; border: 0; border-radius: 999px; background: linear-gradient(90deg, #ec1b69 0%, #f56a57 100%); color: #fff; font: 600 15px/1 system-ui, -apple-system, "Inter", "Segoe UI", sans-serif; letter-spacing: 0; text-transform: none; cursor: pointer; box-shadow: 0 10px 30px rgba(236, 27, 105, 0.35); transition: filter 160ms ease, transform 160ms ease; }
 .hero-primary:hover { filter: brightness(1.06); }

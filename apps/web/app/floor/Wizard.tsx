@@ -55,13 +55,16 @@ export default function Wizard({ onDone, start = 0, team, rail }: { onDone: () =
         <section className="hero ident" aria-label="Welcome">
             <div className="hero-copy">
               <img className="hero-mark" src="/logo-name.png" alt="PerkOS" />
-              <h1 className="hero-title">Your business just hired its <span>first team.</span></h1>
-              <p className="hero-sub">Pick your type of business, and in two minutes you have a small team that handles the busywork, and checks with you first.</p>
+              {/* Copy propio del Floor Desk, el unico desk del app hoy. El eslogan del sitio
+                  ("Your business just hired its first team") volvera a tener sentido cuando
+                  el app ofrezca varios desks para elegir. */}
+              <h1 className="hero-title">They draft.<br /><span>You approve.</span></h1>
+              <p className="hero-sub">PerkOS Floor Desk puts four agents on tokenized stocks on Base. Scout reads the market, Risk says go or block, Trader drafts the order, Auditor checks it. Nothing moves until you sign in your own wallet.</p>
               <div className="hero-cta">
-                <button className="hero-primary" type="button" onClick={() => setStep(1)}>Meet your team <span aria-hidden>&rarr;</span></button>
+                <button className="hero-primary" type="button" onClick={() => setStep(1)}>Meet the Floor Desk <span aria-hidden>&rarr;</span></button>
               </div>
               <ul className="hero-checks">
-                {["You approve everything", "Your keys, your trade", "Ready in two minutes", "Tokenized stocks on Base"].map((t) => (
+                {["Your keys, your trade", "Uniswap, Aerodrome and Bankr", "Launches and automations", "Ready in two minutes"].map((t) => (
                   <li key={t}><svg viewBox="0 0 16 16" aria-hidden><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>{t}</li>
                 ))}
               </ul>
