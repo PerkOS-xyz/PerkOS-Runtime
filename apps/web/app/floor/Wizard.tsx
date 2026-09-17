@@ -54,12 +54,11 @@ export default function Wizard({ onDone, start = 0, team, rail }: { onDone: () =
         <Ambient cine>{null}</Ambient>
         <section className="hero ident" aria-label="Welcome">
             <div className="hero-copy">
-              <img className="hero-mark" src="/logo.png" alt="PerkOS" />
+              <img className="hero-mark" src="/logo-name.png" alt="PerkOS" />
               <h1 className="hero-title">Your business just hired its <span>first team.</span></h1>
               <p className="hero-sub">Pick your type of business, and in two minutes you have a small team that handles the busywork, and checks with you first.</p>
               <div className="hero-cta">
                 <button className="hero-primary" type="button" onClick={() => setStep(1)}>Meet your team <span aria-hidden>&rarr;</span></button>
-                <a className="hero-link" href="https://github.com/PerkOS-xyz/PerkOS-Runtime#readme" target="_blank" rel="noreferrer">How it works</a>
               </div>
               <ul className="hero-checks">
                 {["You approve everything", "Your keys, your trade", "Ready in two minutes", "Tokenized stocks on Base"].map((t) => (
