@@ -48,6 +48,10 @@ function Shell() {
   const LINK_LOST = "Your wallet is signed in but not linked to this window, so nothing can be signed. Sign in again with the QR, then ask for it again.";
   const [listening, setListening] = useState(false);
   const [team, setTeam] = useState<Team>("hibernated");
+  // Los agentes no se muestran hasta que el equipo despierta por primera vez en la sesion:
+  // tras entrar solo esta Sparky. Cuando vuelven a dormir, se quedan (ya se conocen).
+  const [teamSeen, setTeamSeen] = useState(false);
+  useEffect(() => { if (team !== "hibernated") setTeamSeen(true); }, [team]);
   const [guest, setGuest] = useState(false);
   const [docs, setDocs] = useState(false);
   const [market, setMarket] = useState(false);
@@ -174,10 +178,10 @@ function Shell() {
     if (!r) return;
     if (r.status === 428) { setHistoryLocked(true); flog("info", "chat history: locked, waiting for the wallet to unlock it once on this computer"); return; }
     setHistoryLocked(false);
-    const j = (await r.json().catch(() => ({}))) as { chats?: Array<{ id: string }> };
-    const first = (j.chats ?? [])[0];
-    if (first && messagesRef.current.length === 0) await openChat(first.id, false);
-  }, [openChat]);
+    // Tras entrar, la escena arranca limpia: el ultimo hilo no se reabre solo (queda
+    // en Chats, a un clic). Revision del 2026-09-17.
+    await r.json().catch(() => ({}));
+  }, []);
   useEffect(() => {
     const addr = wallet.address.toLowerCase();
     if (!addr || chatsLoadedFor.current === addr) return;
@@ -1805,7 +1809,7 @@ function Shell() {
   }
 
   return (
-    <div className={`stage${split ? " split" : ""}${debug ? " with-debug" : ""}${deskScreen ? " desk-open" : ""}${deskScreen && deskMax ? " desk-max" : ""}${turn && !turn.collapsed ? " turn-live" : ""}${turn?.collapsed ? " turn-chips" : ""}`}>
+    <div className={`stage${teamSeen ? " team-seen" : ""}${split ? " split" : ""}${debug ? " with-debug" : ""}${deskScreen ? " desk-open" : ""}${deskScreen && deskMax ? " desk-max" : ""}${turn && !turn.collapsed ? " turn-live" : ""}${turn?.collapsed ? " turn-chips" : ""}`}>
       <div className="dragbar" />
       {/* Lockup de partnership invertido (brand.base.org/partnerships: el
           partner lidera cuando es su lanzamiento): PerkOS + la cadena del desk.

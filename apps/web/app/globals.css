@@ -2185,3 +2185,6 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 @media (prefers-reduced-motion: reduce) { .ident .hero-stage, .ident .hero-mark, .ident .hero-title, .ident .hero-sub, .ident .hero-cta, .ident .hero-checks li, .hero-sparky { animation: none !important; opacity: 1 !important; transform: none !important; } }
 .hero-primary:disabled { opacity: 0.5; cursor: default; }
 .hero-copy .hint-line { margin: -12px 0 16px; }
+
+/* Tras entrar, la escena es solo Sparky: los agentes dormidos aparecen cuando el equipo despierta por primera vez. */
+.stage:not(.team-seen) .orb:not(.on) { opacity: 0 !important; pointer-events: none; }
