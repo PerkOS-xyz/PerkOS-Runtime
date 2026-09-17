@@ -67,6 +67,35 @@ export async function poolKeyFromDeploy(txHash: Hex, token: Addr): Promise<PoolK
 
 const v3Path = (hops: Array<Addr | number>): Hex => encodePacked(hops.map((h) => (typeof h === "number" ? "uint24" : "address")), hops);
 
+// La liquidez de cada accion tokenizada vive en un tier distinto (NVDAc en 0.3 %, SPCXc en 1 %) y un
+// pool pequeno puede vaciarse con una sola compra. No se asume ninguno: se cotizan todos los tiers,
+// directo contra WETH y pasando por USDC, y gana la ruta que mas entrega.
+const FEE_TIERS = [100, 500, 3000, 10000] as const;
+const tierLabel = (fee: number) => `${fee / 10_000}%`;
+async function bestV3Route(c: ReturnType<typeof client>, side: "toPair" | "fromPair", pair: Addr, pairSymbol: string, amountIn: bigint): Promise<{ label: string; path: Hex; out: bigint } | null> {
+  const routes: Array<{ label: string; path: Hex }> = [];
+  for (const fee of FEE_TIERS) {
+    if (side === "toPair") {
+      routes.push({ label: `ETH → ${pairSymbol} (${tierLabel(fee)})`, path: v3Path([WETH, fee, pair]) });
+      routes.push({ label: `ETH → USDC → ${pairSymbol} (${tierLabel(fee)})`, path: v3Path([WETH, 500, USDC, fee, pair]) });
+    } else {
+      routes.push({ label: `${pairSymbol} → ETH (${tierLabel(fee)})`, path: v3Path([pair, fee, WETH]) });
+      routes.push({ label: `${pairSymbol} → USDC → ETH (${tierLabel(fee)})`, path: v3Path([pair, fee, USDC, 500, WETH]) });
+    }
+  }
+  const quoted = (await Promise.all(routes.map(async (r) => {
+    try { const q = await c.simulateContract({ address: QUOTER_V2, abi: quoterV2, functionName: "quoteExactInput", args: [r.path, amountIn] }); return { ...r, out: q.result[0] }; } catch { return null; }
+  }))).filter((x): x is { label: string; path: Hex; out: bigint } => Boolean(x && x.out > 0n));
+  if (!quoted.length) return null;
+  quoted.sort((x, y) => (y.out > x.out ? 1 : y.out < x.out ? -1 : 0));
+  return quoted[0];
+}
+
+/** Impacto de precio de toda la ruta: se cotiza una vigesima parte y se compara. Un pool casi vacio
+    entrega una fraccion de lo justo aunque la cotizacion "funcione": por encima del tope no hay draft. */
+const MAX_IMPACT = 0.12;
+const impactOf = (outFull: bigint, outSmall: bigint, parts: bigint) => (outSmall > 0n ? Math.max(0, 1 - Number(outFull) / Number(outSmall * parts)) : 1);
+
 export type LaunchBuyArgs = { recipient: Addr; token: Addr; deployTx: Hex; amountUsd: number; slippageBps?: number };
 
 /** Draft de compra con ETH: cotiza los dos tramos, arma la llamada al router y la simula. */
@@ -96,22 +125,21 @@ export async function draftLaunchBuy(a: LaunchBuyArgs): Promise<TradeDraft> {
   // Tramo V3 hasta el token del par: se cotizan las rutas y gana la que mas entrega.
   let pairIn = amountIn, path: Hex | null = null, routeLabel = "ETH";
   if (pair.toLowerCase() !== WETH.toLowerCase()) {
-    const routes: Array<{ label: string; path: Hex }> = [
-      { label: `ETH → ${pairSymbol}`, path: v3Path([WETH, 3000, pair]) },
-      { label: `ETH → USDC → ${pairSymbol}`, path: v3Path([WETH, 500, USDC, 3000, pair]) }
-    ];
-    const quoted = (await Promise.all(routes.map(async (r) => {
-      try { const q = await c.simulateContract({ address: QUOTER_V2, abi: quoterV2, functionName: "quoteExactInput", args: [r.path, amountIn] }); return { ...r, out: q.result[0] }; } catch { return null; }
-    }))).filter((x): x is { label: string; path: Hex; out: bigint } => Boolean(x && x.out > 0n));
-    if (!quoted.length) throw new TradeError("NO_POOL", `No Uniswap V3 route from ETH to ${pairSymbol} on Base`);
-    quoted.sort((x, y) => (y.out > x.out ? 1 : y.out < x.out ? -1 : 0));
-    pairIn = quoted[0].out; path = quoted[0].path; routeLabel = quoted[0].label;
+    const best = await bestV3Route(c, "toPair", pair, pairSymbol, amountIn);
+    if (!best) throw new TradeError("NO_POOL", `No Uniswap V3 route from ETH to ${pairSymbol} on Base`);
+    pairIn = best.out; path = best.path; routeLabel = best.label;
   }
 
   // Tramo V4 contra el pool del launch (hook de Doppler, fee dinamico).
   const q4 = await c.simulateContract({ address: V4_QUOTER, abi: v4Quoter, functionName: "quoteExactInputSingle", args: [{ poolKey: key, zeroForOne, exactAmount: pairIn, hookData: "0x" }] }).catch(() => null);
   if (!q4 || q4.result[0] <= 0n) throw new TradeError("NO_POOL", `The ${symbol} pool did not return a quote`);
   const out = q4.result[0];
+  // La misma ruta con una vigesima parte del monto: si el monto completo rinde mucho menos, el camino es demasiado fino.
+  const smallIn = amountIn / 20n;
+  const smallPair = path ? await c.simulateContract({ address: QUOTER_V2, abi: quoterV2, functionName: "quoteExactInput", args: [path, smallIn] }).then((r) => r.result[0]).catch(() => 0n) : smallIn;
+  const smallOut = smallPair > 0n ? await c.simulateContract({ address: V4_QUOTER, abi: v4Quoter, functionName: "quoteExactInputSingle", args: [{ poolKey: key, zeroForOne, exactAmount: smallPair, hookData: "0x" }] }).then((r) => r.result[0]).catch(() => 0n) : 0n;
+  const impact = impactOf(out, smallOut, 20n);
+  if (impact > MAX_IMPACT) throw new TradeError("THIN_POOL", `This buy would move the price about ${Math.round(impact * 100)}%: the route to ${pairSymbol} is too thin for $${usd}. Try a smaller amount.`);
   const minOut = (out * BigInt(10_000 - slippageBps)) / 10_000n;
   const deadline = Math.floor(Date.now() / 1000) + 20 * 60;
 
@@ -135,6 +163,9 @@ export async function draftLaunchBuy(a: LaunchBuyArgs): Promise<TradeDraft> {
   // Lo que sobre en el router (polvo de WETH o del par) vuelve a quien firma.
   commands.push(CMD.SWEEP); inputs.push(encodeAbiParameters([{ type: "address" }, { type: "address" }, { type: "uint256" }], [WETH, MSG_SENDER, 0n]));
   if (path) { commands.push(CMD.SWEEP); inputs.push(encodeAbiParameters([{ type: "address" }, { type: "address" }, { type: "uint256" }], [pair, MSG_SENDER, 0n])); }
+  // Tambien el USDC intermedio: si un pool se queda sin liquidez a mitad del swap, el salto consume
+  // solo una parte y el resto queda en el router, donde cualquiera puede llevarselo. Paso una vez.
+  if (path) { commands.push(CMD.SWEEP); inputs.push(encodeAbiParameters([{ type: "address" }, { type: "address" }, { type: "uint256" }], [USDC, MSG_SENDER, 0n])); }
   const data = encodeFunctionData({ abi: routerAbi, functionName: "execute", args: [`0x${commands.join("")}`, inputs, BigInt(deadline)] });
 
   // La transaccion exacta, simulada desde la wallet de la persona (con saldo de sobra para que un
@@ -178,7 +209,7 @@ export async function draftLaunchBuy(a: LaunchBuyArgs): Promise<TradeDraft> {
     venues: [],
     bankr: null,
     payWith: { symbol: "ETH", amountHuman: ethHuman.toFixed(6), balanceHuman: Number(formatUnits(ethBal, 18)).toFixed(6), priceUsd: ethUsd },
-    route: `${routeLabel} → ${symbol} · one transaction through Uniswap's Universal Router · simulated on Base`
+    route: `${routeLabel} → ${symbol} · price impact about ${(impact * 100).toFixed(1)}% · one transaction through Uniswap's Universal Router · simulated on Base`
   };
 }
 
@@ -219,17 +250,15 @@ export async function draftLaunchSell(a: LaunchSellArgs): Promise<TradeDraft> {
   // Tramo V3: par -> WETH, la ruta que mas entregue.
   let ethOut = pairOut, path: Hex | null = null, routeLabel = "ETH";
   if (!isWeth) {
-    const routes: Array<{ label: string; path: Hex }> = [
-      { label: `${pairSymbol} → ETH`, path: v3Path([pair, 3000, WETH]) },
-      { label: `${pairSymbol} → USDC → ETH`, path: v3Path([pair, 3000, USDC, 500, WETH]) }
-    ];
-    const quoted = (await Promise.all(routes.map(async (r) => {
-      try { const q = await c.simulateContract({ address: QUOTER_V2, abi: quoterV2, functionName: "quoteExactInput", args: [r.path, pairOut] }); return { ...r, out: q.result[0] }; } catch { return null; }
-    }))).filter((x): x is { label: string; path: Hex; out: bigint } => Boolean(x && x.out > 0n));
-    if (!quoted.length) throw new TradeError("NO_POOL", `No Uniswap V3 route from ${pairSymbol} to ETH on Base`);
-    quoted.sort((x, y) => (y.out > x.out ? 1 : y.out < x.out ? -1 : 0));
-    ethOut = quoted[0].out; path = quoted[0].path; routeLabel = quoted[0].label;
+    const best = await bestV3Route(c, "fromPair", pair, pairSymbol, pairOut);
+    if (!best) throw new TradeError("NO_POOL", `No Uniswap V3 route from ${pairSymbol} to ETH on Base`);
+    ethOut = best.out; path = best.path; routeLabel = best.label;
   }
+  const smallTok = amountIn / 20n;
+  const smallPairOut = smallTok > 0n ? await c.simulateContract({ address: V4_QUOTER, abi: v4Quoter, functionName: "quoteExactInputSingle", args: [{ poolKey: key, zeroForOne, exactAmount: smallTok, hookData: "0x" }] }).then((r) => r.result[0]).catch(() => 0n) : 0n;
+  const smallEth = path && smallPairOut > 0n ? await c.simulateContract({ address: QUOTER_V2, abi: quoterV2, functionName: "quoteExactInput", args: [path, smallPairOut] }).then((r) => r.result[0]).catch(() => 0n) : smallPairOut;
+  const impact = impactOf(ethOut, smallEth, 20n);
+  if (impact > MAX_IMPACT) throw new TradeError("THIN_POOL", `This sale would move the price about ${Math.round(impact * 100)}%: the route is too thin for that amount. Try a smaller share.`);
   const minEth = (ethOut * BigInt(10_000 - slippageBps)) / 10_000n;
   const oneEth = await c.simulateContract({ address: QUOTER_V2, abi: quoterV2, functionName: "quoteExactInputSingle", args: [{ tokenIn: WETH, tokenOut: USDC, amountIn: parseEther("1"), fee: 500, sqrtPriceLimitX96: 0n }] });
   const ethUsd = Number(formatUnits(oneEth.result[0], USDC_DECIMALS));
@@ -248,6 +277,7 @@ export async function draftLaunchSell(a: LaunchSellArgs): Promise<TradeDraft> {
   if (path) { commands.push(CMD.V3_SWAP_EXACT_IN); inputs.push(encodeAbiParameters([{ type: "address" }, { type: "uint256" }, { type: "uint256" }, { type: "bytes" }, { type: "bool" }], [UNIVERSAL_ROUTER, CONTRACT_BALANCE, 0n, path, false])); }
   commands.push(CMD.UNWRAP_WETH); inputs.push(encodeAbiParameters([{ type: "address" }, { type: "uint256" }], [MSG_SENDER, minEth])); // el minimo en ETH protege toda la ruta
   if (path) { commands.push(CMD.SWEEP); inputs.push(encodeAbiParameters([{ type: "address" }, { type: "address" }, { type: "uint256" }], [pair, MSG_SENDER, 0n])); }
+  if (path) { commands.push(CMD.SWEEP); inputs.push(encodeAbiParameters([{ type: "address" }, { type: "address" }, { type: "uint256" }], [USDC, MSG_SENDER, 0n])); } // nada se queda en el router
   const data = encodeFunctionData({ abi: routerAbi, functionName: "execute", args: [`0x${commands.join("")}`, inputs, BigInt(deadline)] });
 
   const txs: TradeDraft["txs"] = [];
@@ -287,6 +317,6 @@ export async function draftLaunchSell(a: LaunchSellArgs): Promise<TradeDraft> {
     txs,
     venue: "uniswap", venueLabel: "Uniswap V4", venues: [], bankr: null,
     receive: { symbol: "ETH", amountHuman: ethHuman.toFixed(6), minHuman: Number(formatUnits(minEth, 18)).toFixed(6), usd: Number(usd.toFixed(2)) },
-    route: `${symbol} → ${isWeth ? "" : `${routeLabel.replace(" → ETH", "")} → `}ETH · through Uniswap's Universal Router · wallet ETH ${Number(formatUnits(ethBal, 18)).toFixed(4)} for gas`
+    route: `${symbol} → ${isWeth ? "" : `${routeLabel.replace(" → ETH", "")} → `}ETH · price impact about ${(impact * 100).toFixed(1)}% · through Uniswap's Universal Router · wallet ETH ${Number(formatUnits(ethBal, 18)).toFixed(4)} for gas`
   };
 }
