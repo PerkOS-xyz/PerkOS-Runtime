@@ -182,7 +182,14 @@ function Shell() {
   const savedSigRef = useRef("");
   const keepable = (list: Msg[]) => list.filter((x) => !x.streaming && (x.text || x.draft || x.launch || x.auto || x.fees || x.analysis)).slice(-200);
   // Los drafts sin aprobar de otra sesion vuelven vencidos: su cotizacion ya no vale.
-  const restoreMsgs = (saved: Msg[]): Msg[] => saved.filter((x) => x && typeof x.id === "number").map((x) => ({ ...x, streaming: false, ...(x.role === "draft" && x.tx && ["idle", "signing", "pending"].includes(x.tx.stage) && (x.draft || x.launch || x.auto) ? { tx: { ...x.tx, stage: "failed" as const, note: "From an earlier session. Ask for it again to get a fresh draft." } } : {}) }));
+  // Una orden de compra/venta vence con su cotizacion. Una tarjeta de launch no: nombre, par, About y
+  // logo siguen valiendo; vuelve editable y pide simular de nuevo.
+  const restoreMsgs = (saved: Msg[]): Msg[] => saved.filter((x) => x && typeof x.id === "number").map((x) => {
+    const open = x.role === "draft" && x.tx && ["idle", "signing", "pending", "failed"].includes(x.tx.stage);
+    if (open && x.launch && !x.launch.receipt) return { ...x, streaming: false, turnId: undefined, launch: { ...x.launch, stale: true, busy: false }, tx: { ...x.tx!, stage: "idle" as const, note: undefined } };
+    if (open && x.tx!.stage !== "failed" && (x.draft || x.auto)) return { ...x, streaming: false, tx: { ...x.tx!, stage: "failed" as const, note: "From an earlier session. Ask for it again to get a fresh draft." } };
+    return { ...x, streaming: false };
+  });
   const openChat = useCallback(async (id: string, show = true) => {
     const r = await fetch(`/api/chats?id=${encodeURIComponent(id)}`).catch(() => null);
     if (!r) return;
@@ -357,6 +364,16 @@ function Shell() {
 
   // Conversacion: POST /api/chat (Responses API via suscripcion de Grok),
   // SSE de deltas -> caption en vivo + se habla oracion por oracion.
+  // Contexto de Sparky: las ultimas lineas del hilo (para que un hilo reabierto o un app reiniciado
+  // no lo dejen sin memoria) y la tarjeta de launch que esta sobre la mesa.
+  const threadSeed = (skipId: number) => messagesRef.current
+    .filter((x) => x.id !== skipId && x.id !== skipId + 1 && !x.streaming && x.text && !x.kind && (x.role === "you" || x.role === "floor"))
+    .slice(-14).map((x) => ({ role: x.role === "you" ? "user" : "assistant", content: x.text.slice(0, 1200) }));
+  const cardFacts = (): string[] => {
+    const c = [...messagesRef.current].reverse().find((x) => x.launch && !x.launch.receipt && x.tx?.stage !== "done")?.launch;
+    if (!c) return [];
+    return [`Launch card on the table (unsigned draft, nothing deployed): ${c.name || "unnamed"} (${c.symbol || "no symbol"}) paired with ${c.pair.symbol || "no pair yet"}; about: "${(c.options.description ?? c.description ?? "").slice(0, 240) || "empty"}"; logo ${c.options.image ? "set" : "missing"}; fees pay to ${c.recipientRaw?.trim() || "the connected wallet"}; Bankr simulation ${c.stale ? "pending" : c.sim ? "passed" : c.simError ? "failed" : "not run"}. The person can change name, symbol or description by asking in the chat, or edit the card.`];
+  };
   const chat = useCallback(async (text: string, opts: { youId?: number } = {}) => {
     abortChat();
     beginTurn();
@@ -544,7 +561,7 @@ function Shell() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, fleet: fleetReplies, desk: deskRef.current ? { name: deskRef.current.name, roles: deskRef.current.agents.map((a) => a.name) } : undefined, brief: briefRef.current?.lines ?? null, news: briefRef.current?.news ?? null, focus: focusRef.current || null, mode: modeRef.current }),
+        body: JSON.stringify({ text, fleet: fleetReplies, desk: deskRef.current ? { name: deskRef.current.name, roles: deskRef.current.agents.map((a) => a.name) } : undefined, brief: [...(briefRef.current?.lines ?? []), ...cardFacts()].length ? [...(briefRef.current?.lines ?? []), ...cardFacts()] : null, news: briefRef.current?.news ?? null, focus: focusRef.current || null, mode: modeRef.current, thread: threadRef.current || "new", seed: threadSeed(youId) }),
         signal: ac.signal
       });
       if (!res.ok || !res.body) {
@@ -850,7 +867,7 @@ function Shell() {
     const msg = { ...d, turnId };
     setMessages((m) => {
       // La tarjeta de launch ya esta en el chat desde el primer segundo: solo se le anota el turno.
-      if (m.some((x) => x.id === d.id)) return m.map((x) => (x.id === d.id ? { ...x, turnId, tx: x.tx?.stage === "idle" && d.tx?.stage === "blocked" ? d.tx : x.tx } : x));
+      if (m.some((x) => x.id === d.id)) return m.map((x) => (x.id === d.id ? { ...x, tx: x.tx?.stage === "idle" && d.tx?.stage === "blocked" ? d.tx : x.tx } : x));
       const rest = floorId ? m.filter((x) => x.id !== floorId) : m;
       const floor = floorId ? m.find((x) => x.id === floorId) : undefined;
       return floor ? [...rest, msg, floor] : [...rest, msg];
@@ -2308,7 +2325,8 @@ function Shell() {
             // Con la actividad en vivo a la vista, los puntos de "escribiendo" y las lineas de estado sobran.
             if (activity?.live && m.role === "floor" && ((m.streaming && !m.text) || m.kind === "status")) continue;
             const tid = m.turnId;
-            if (tid && tid !== latestTurn && !openTurns.includes(tid)) {
+            const pendingCard = Boolean(m.launch && !m.launch.receipt && m.tx?.stage !== "done");
+            if (tid && tid !== latestTurn && !openTurns.includes(tid) && !pendingCard) {
               if (folded.has(tid)) continue;
               folded.add(tid);
               const ask = messages.find((x) => x.turnId === tid && x.role === "you")?.text ?? "turn";
