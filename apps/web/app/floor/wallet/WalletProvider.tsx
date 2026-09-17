@@ -55,9 +55,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           accentColor: "#ec1b69",
           logo: "/logo.png",
           landingHeader: "PerkOS",
-          showWalletLoginFirst: false,
-          // La misma lista para cualquier modal de wallets de Privy (login y reconexion).
-          walletList: ["wallet_connect_qr", "coinbase_wallet", "detected_ethereum_wallets"]
+          showWalletLoginFirst: false
         }
       }}
     >
@@ -91,7 +89,7 @@ function humanPrivyError(code: string): string {
 }
 
 function Bridge({ children }: { children: ReactNode }) {
-  const { ready, authenticated, logout, user, connectWallet } = usePrivy();
+  const { ready, authenticated, logout, user } = usePrivy();
   const { wallets, ready: walletsReady } = useWallets();
   const [error, setError] = useState("");
   // Sin onError un login fallido cierra el modal sin decir nada y la app parece colgada.
@@ -146,9 +144,11 @@ function Bridge({ children }: { children: ReactNode }) {
   const walletName = String((active as { meta?: { name?: string } } | undefined)?.meta?.name ?? "").replace(/^WalletConnect$/i, "");
   // La sesion puede estar viva sin wallet enlazada a esta ventana (WalletConnect caido).
   const canSign = Boolean(authenticated && address && wallets.some((x) => x.address.toLowerCase() === address.toLowerCase()));
-  // El modal de "connect wallet" no usa loginMethodsAndOrder: sin lista propia, en
-  // Electron solo ofrecia Coinbase Wallet. MetaMask Mobile entra por el QR de WalletConnect.
-  const reconnect = () => { setError(""); connectWallet({ walletList: ["wallet_connect_qr", "coinbase_wallet", "detected_ethereum_wallets"], suggestedAddress: address || undefined }); };
+  // Reenlazar = volver a entrar. El modal "connect wallet" de Privy no ofrece el QR
+  // de WalletConnect dentro de Electron (solo Coinbase Wallet), y forzar una lista de
+  // wallets en la config le quito WalletConnect tambien al login. El camino que si
+  // funciona es el login normal: More options > WalletConnect.
+  const reconnect = () => { setError(""); void logout().then(() => login()).catch(() => login()); };
 
   const value = useMemo<Wallet>(
     () => ({

@@ -39,7 +39,7 @@ function Shell() {
   // Sesion viva pero sin wallet enlazada a esta ventana: se avisa antes de cualquier firma.
   const linkLost = wallet.connected && wallet.loaded && !wallet.busy && !wallet.canSign;
   useEffect(() => { if (linkLost) flog("warn", "wallet: session is alive but no wallet is linked to this window (reconnect needed)"); }, [linkLost]);
-  const LINK_LOST = "Your wallet is signed in but not linked to this window, so nothing can be signed. Reconnect it, then press Retry.";
+  const LINK_LOST = "Your wallet is signed in but not linked to this window, so nothing can be signed. Sign in again with the QR, then ask for it again.";
   const [listening, setListening] = useState(false);
   const [team, setTeam] = useState<Team>("hibernated");
   const [guest, setGuest] = useState(false);
@@ -1731,7 +1731,7 @@ function Shell() {
           <span title={wallet.signWhere === "phone" ? `${wallet.walletName || "External wallet"} over WalletConnect: approvals show up on your phone` : wallet.signWhere === "embedded" ? "PerkOS wallet (Privy): signs inside this app" : undefined}>{who}</span>
           {wallet.signWhere && !linkLost ? <em className="wk" title={wallet.signWhere === "phone" ? "Approvals show up in your wallet app on your phone" : wallet.signWhere === "embedded" ? "Signs inside this app" : "Signs in your browser wallet"}>{wallet.signWhere === "phone" ? "phone wallet" : wallet.signWhere === "embedded" ? "app wallet" : "browser wallet"}</em> : null}
           <em className={`pk${perkos.connected ? " on" : ""}`} title={perkos.connected ? "PerkOS session active" : perkos.note || "PerkOS not connected"}>PerkOS</em>
-          {linkLost ? <button type="button" className="relink" onClick={wallet.reconnect} title="You are signed in, but no wallet is linked to this window. Nothing can be signed until you reconnect it.">Wallet not linked · reconnect</button> : null}
+          {linkLost ? <button type="button" className="relink" onClick={logout} title="You are signed in, but no wallet is linked to this window. Nothing can be signed until you sign in again and scan the QR.">Wallet not linked · sign in again</button> : null}
           <button type="button" onClick={logout}>
             Log out
           </button>
@@ -1881,11 +1881,11 @@ function Shell() {
               {m.verdict ? <em className={`vchip ${m.verdict.toLowerCase()}`}>{m.verdict}</em> : null}
             </span>
             {m.role === "draft" && m.draft ? (
-              <DraftCard draft={m.draft} tx={m.tx ?? { stage: "idle", hashes: [] }} onApprove={() => void approveDraft(m.id)} signHint={signHint} onPhone={wallet.signWhere === "phone"} onReconnect={wallet.reconnect} linkLost={linkLost} />
+              <DraftCard draft={m.draft} tx={m.tx ?? { stage: "idle", hashes: [] }} onApprove={() => void approveDraft(m.id)} signHint={signHint} onPhone={wallet.signWhere === "phone"} onReconnect={logout} linkLost={linkLost} />
             ) : m.role === "draft" && m.launch ? (
               <LaunchCard launch={m.launch} tx={m.tx ?? { stage: "idle", hashes: [] }} onLaunch={() => void deployLaunch(m.id)} onFees={() => void feesCard()} />
             ) : m.role === "draft" && m.fees ? (
-              <FeesCard fees={m.fees} tx={m.tx ?? { stage: "idle", hashes: [] }} onClaim={() => void claimFees(m.id)} onRefresh={() => void feesCard(m.id)} signHint={signHint} onPhone={wallet.signWhere === "phone"} onReconnect={wallet.reconnect} linkLost={linkLost} />
+              <FeesCard fees={m.fees} tx={m.tx ?? { stage: "idle", hashes: [] }} onClaim={() => void claimFees(m.id)} onRefresh={() => void feesCard(m.id)} signHint={signHint} onPhone={wallet.signWhere === "phone"} onReconnect={logout} linkLost={linkLost} />
             ) : m.role === "draft" && m.auto ? (
               <AutomationCard auto={m.auto} tx={m.tx ?? { stage: "idle", hashes: [] }} onCreate={() => void createAutomation(m.id)} onOpen={() => setDeskScreen("automations")} />
             ) : m.role === "analysis" && m.analysis ? (
@@ -2356,8 +2356,8 @@ function LinkLostNotice({ onReconnect }: { onReconnect?: () => void }) {
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M9 17H7a5 5 0 0 1 0-10h2" /><path d="M15 7h2a5 5 0 0 1 4 8" /><path d="M3 3l18 18" /></svg>
       <div>
         <b>Your wallet is not linked to this window</b>
-        <span>You are signed in, but the link to your wallet dropped, so nothing can be signed. Reconnect it and the button comes back.</span>
-        <span className="slow">{onReconnect ? <button type="button" onClick={onReconnect}>Reconnect wallet</button> : null}</span>
+        <span>You are signed in, but the link to your wallet dropped, so nothing can be signed. Sign in again: More options, WalletConnect, scan the QR.</span>
+        <span className="slow">{onReconnect ? <button type="button" onClick={onReconnect}>Sign in again</button> : null}</span>
       </div>
     </div>
   );
@@ -2375,7 +2375,7 @@ function SignNotice({ hint, onPhone, onReconnect }: { hint?: string; onPhone?: b
       <div>
         <b>{onPhone ? "Open your wallet app on your phone" : "Waiting for your wallet"}</b>
         <span>{hint ?? "Confirm in your wallet."}</span>
-        {slow ? <span className="slow">{onPhone ? "Nothing on your phone? Keep the wallet app open and unlocked on this request. If it never arrives, the link with your phone is stale: reconnect the wallet and scan the QR again." : "Still waiting. Check the wallet window."}{onPhone && onReconnect ? <button type="button" onClick={onReconnect}>Reconnect wallet</button> : null}</span> : null}
+        {slow ? <span className="slow">{onPhone ? "Nothing on your phone? Keep the wallet app open and unlocked on this request. If it never arrives, the link with your phone is stale: sign in again and scan the QR." : "Still waiting. Check the wallet window."}{onPhone && onReconnect ? <button type="button" onClick={onReconnect}>Sign in again</button> : null}</span> : null}
       </div>
     </div>
   );

@@ -119,10 +119,10 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
               <span>Wallet</span>
               <span className="v">
                 {linkLost ? "Signed in, not linked to this window" : walletKind || "Connected"} · {wallet.address.slice(0, 6)}…{wallet.address.slice(-4)}
-                {linkLost ? <button type="button" onClick={wallet.reconnect}>Reconnect wallet</button> : <em className={`linkdot${wallet.canSign ? " on" : ""}`}>{wallet.canSign ? "linked" : "…"}</em>}
+                {linkLost ? <button type="button" onClick={onLogout ?? wallet.reconnect}>Sign in again</button> : <em className={`linkdot${wallet.canSign ? " on" : ""}`}>{wallet.canSign ? "linked" : "…"}</em>}
               </span>
             </div>
-            <p className="hint-line">{linkLost ? "Your session is alive but the link to your wallet dropped. Nothing can be signed until you reconnect; you stay signed in."
+            <p className="hint-line">{linkLost ? "Your session is alive but the link to your wallet dropped. Nothing can be signed until you sign in again (More options, WalletConnect, scan the QR)."
               : wallet.signWhere === "phone" ? `Approvals and claims show up in ${wallet.walletName || "your wallet app"} on your phone. Keep the app open and unlocked when you hold to approve.`
               : wallet.signWhere === "embedded" ? "This wallet was created for you at sign in. It signs here, with no phone. Fund it with USDC and a little ETH on Base to trade."
               : "Approvals open in your wallet."}</p>
