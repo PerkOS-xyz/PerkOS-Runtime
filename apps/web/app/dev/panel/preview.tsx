@@ -3,8 +3,10 @@
 import { useState } from "react";
 import DeskPanel, { type DeskScreen } from "../../floor/DeskPanel";
 
-export default function LaunchesPreview() {
-  const [screen, setScreen] = useState<DeskScreen>("launches");
+const SCREENS: DeskScreen[] = ["market", "portfolio", "launches", "automations", "notes", "map", "history"];
+
+export default function PanelPreview({ initial }: { initial: string }) {
+  const [screen, setScreen] = useState<DeskScreen>((SCREENS as string[]).includes(initial) ? (initial as DeskScreen) : "launches");
   const [max, setMax] = useState(true);
   return (
     <main className="stage desk-open desk-max" style={{ minHeight: "100vh" }}>
