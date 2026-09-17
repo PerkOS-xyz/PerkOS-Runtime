@@ -2032,3 +2032,18 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .who .wk { font-style: normal; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); color: var(--mute); }
 .settings-dock .linkdot { font-style: normal; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); color: var(--mute); margin-left: 8px; }
 .settings-dock .linkdot.on { color: #7fe0a8; border-color: rgba(61, 200, 120, 0.6); }
+
+/* Tanda 2026-09-17 (revision en vivo tras el claim). */
+/* Sparky mini nunca pisa el lockup PerkOS + Base con el panel abierto: minimo a la derecha del lockup. */
+.stage.split.desk-open .core-wrap { left: max(calc(40px + clamp(280px, 46%, 620px) / 2), 272px); }
+@container stage (max-width: 900px) { .stage.split.desk-open .core-wrap { left: max(calc(46% - 40px), 272px); } }
+@container stage (max-width: 700px) { .stage.split.desk-open .core-wrap { left: calc(100% - 92px); } }
+/* Cabecera de Launches / Automations: en panel estrecho los botones bajan bajo el texto. */
+@container panel (max-width: 620px) {
+  .desk-panel .auto-head { flex-wrap: wrap; row-gap: 8px; }
+  .desk-panel .auto-head small { flex: 1 1 100%; }
+  .desk-panel .auto-head .acts { margin-left: auto; }
+}
+/* Fees card: el monto en su linea, el reparto debajo en pequeno; nada de tres columnas apretadas. */
+.fees-rows li { grid-template-columns: auto 1fr; row-gap: 2px; }
+.fees-rows li small { grid-column: 2; }

@@ -75,7 +75,11 @@ type Hit = { id: string; kind: string; title: string; ticker?: string; updatedAt
 const usd = (n?: number, d = 2) => (n === undefined || !Number.isFinite(n) ? "–" : `$${n.toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d })}`);
 const issuerLabel = (i: string) => (i === "coinbase" ? "Coinbase" : i === "dinari" ? "Dinari" : i === "anchored" ? "Anchored" : i === "st0x" ? "ST0x" : i);
 
-export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onSummarize, map, max, onMax }: {
+export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onSummarize, map, max, onMax, refreshKey, claimedTokens }: {
+  /** Cambia cuando algo fuera del panel movio los datos (un claim, una orden firmada): recarga la pantalla. */
+  refreshKey?: number;
+  /** Tokens cuyo claim se acaba de confirmar: Bankr cachea 2 min, asi que aqui se muestran ya sin saldo. */
+  claimedTokens?: string[];
   /** Maximizado: ocupa todo el stage y oculta el chat. */
   max?: boolean;
   onMax?: (v: boolean) => void;
@@ -151,7 +155,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
       fetch("/api/market/portfolio").then((r) => r.json()).then((j) => { if (!live) return; if (j.error) { setErr(j.detail ?? j.error); setPositions([]); } else { setPositions(j.positions ?? []); setTotal(j.totalUsd ?? 0); setUsdc(typeof j.usdc === "number" ? j.usdc : undefined); setChg24(typeof j.change24hPct === "number" ? j.change24hPct : undefined); } }).catch((e) => live && setErr(String(e)));
     }
     return () => { live = false; };
-  }, [screen]);
+  }, [screen, refreshKey]);
 
   const f = focus.toLowerCase();
   const list = (rows ?? []).filter((r) => !q || [r.symbol, r.ticker, r.name].some((v) => v.toLowerCase().includes(q.toLowerCase())));
@@ -228,7 +232,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
       ) : screen === "launches" ? (
         <div className="automations launches">
           <div className="auto-head">
-            <small>{launchWallet ? `Tokens that pay their creator fees to ${launchWallet.slice(0, 6)}…${launchWallet.slice(-4)}, the wallet connected here. Say: launch Night Owl (OWL) paired with NVDA.` : "Connect a wallet to see your tokens."}</small>
+            <small>{err ? `Could not read your tokens: ${err}` : launchWallet ? `Tokens that pay their creator fees to ${launchWallet.slice(0, 6)}…${launchWallet.slice(-4)}, the wallet connected here. Say: launch Night Owl (OWL) paired with NVDA.` : "Connect a wallet to see your tokens."}</small>
             <div className="acts">
               <button type="button" onClick={() => void loadLaunches()}>Refresh</button>
               <button type="button" onClick={() => onSay("claim my fees")}>Claim all</button>
@@ -236,7 +240,8 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
           </div>
           <ul className="launch-cards">
             {(launches ?? []).map((l) => {
-              const fee = l.claimable && (Number(l.claimable.token0) > 0 || Number(l.claimable.token1) > 0);
+              const justClaimed = (claimedTokens ?? []).includes(l.tokenAddress.toLowerCase());
+              const fee = !justClaimed && l.claimable && (Number(l.claimable.token0) > 0 || Number(l.claimable.token1) > 0);
               const fmt = (v: string) => { const n = Number(v) || 0; return n >= 1000 ? Math.round(n).toLocaleString("en-US") : n >= 1 ? n.toFixed(2) : n.toFixed(4).replace(/0+$/, "").replace(/\.$/, ""); };
               const m = l.market; const pool = m?.pool; const indexed = Boolean(m?.priceUsd !== undefined);
               const up24 = (m?.change24hPct ?? 0) >= 0; const up1 = (m?.change1hPct ?? 0) >= 0;
@@ -250,7 +255,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
                       <i className="sym">{l.symbol}</i>
                       <small>paired with {l.pair ?? "WETH"} · {l.deployerX ? `deployed by @${l.deployerX}` : l.deployedHere ? "deployed from this install" : `deployed by ${l.deployer ? `${l.deployer.slice(0, 6)}…${l.deployer.slice(-4)}` : "?"}`}{when ? ` · ${when}` : ""}</small>
                     </div>
-                    <span className="lc-right"><em className={`st ${fee ? "active" : ""}`}>{fee ? "fees to claim" : l.status ?? "live"}</em><CopyAddr address={l.tokenAddress} label={`${l.symbol} token`} /></span>
+                    <span className="lc-right"><em className={`st ${fee ? "active" : ""}`}>{justClaimed ? "claimed" : fee ? "fees to claim" : l.status ?? "live"}</em><CopyAddr address={l.tokenAddress} label={`${l.symbol} token`} /></span>
                   </div>
                   {indexed ? <PriceChart points={m?.sparkline} label="24h · 15m closes" /> : (
                     <div className="pc empty"><span>Not indexed yet</span><small>DexScreener usually picks up a new pool within a few minutes</small></div>
@@ -279,10 +284,10 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
                     </nav>
                     <div className="launch-fees">
                       <small className="k">Creator fees{l.share ? ` · ${l.share} of the pool fee` : ""}</small>
-                      <span>{l.claimable ? (fee ? `${fmt(l.claimable.token0)} ${l.claimable.token0Label} + ${fmt(l.claimable.token1)} ${l.claimable.token1Label} to claim` : "Fees accrue to the recipient. Nothing to claim yet.") : "Fees accrue to the recipient."}</span>
+                      <span>{justClaimed ? "Claimed just now. New fees keep accruing." : l.claimable ? (fee ? `${fmt(l.claimable.token0)} ${l.claimable.token0Label} + ${fmt(l.claimable.token1)} ${l.claimable.token1Label} to claim` : "Fees accrue to the recipient. Nothing to claim yet.") : "Fees accrue to the recipient."}</span>
                       <small>{l.claimed && l.claimed.count > 0 ? `claimed ${l.claimed.count}× · ${fmt(l.claimed.token0)} ${l.claimable?.token0Label ?? ""} + ${fmt(l.claimed.token1)} ${l.claimable?.token1Label ?? ""}` : "no claims yet"}{m?.lifetimeEarnedWeth && Number(m.lifetimeEarnedWeth) > 0 ? ` · ${fmt(m.lifetimeEarnedWeth)} WETH lifetime` : ""}</small>
                       {earn.some((v) => v > 0) ? <Bars points={earn} w={160} h={26} /> : null}
-                      {l.mine ? <button type="button" className="claim" disabled={!fee} onClick={() => onSay(`claim fees for ${l.tokenAddress}`)}>{fee ? "Claim fees" : "Nothing to claim"}</button> : null}
+                      {l.mine ? <button type="button" className="claim" disabled={!fee} onClick={() => onSay(`claim fees for ${l.tokenAddress}`)}>{justClaimed ? "Claimed" : fee ? "Claim fees" : "Nothing to claim"}</button> : null}
                     </div>
                   </div>
                 </li>

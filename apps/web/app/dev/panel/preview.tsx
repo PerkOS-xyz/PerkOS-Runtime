@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import "../../floor/apiToken";
 import DeskPanel, { type DeskScreen } from "../../floor/DeskPanel";
 
 const SCREENS: DeskScreen[] = ["market", "portfolio", "launches", "automations", "notes", "map", "history"];

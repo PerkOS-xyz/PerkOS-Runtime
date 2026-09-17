@@ -51,6 +51,9 @@ function Shell() {
   const [market, setMarket] = useState(false);
   // Pantallas propias del desk (Market / Portfolio) y el activo enfocado.
   const [deskScreen, setDeskScreen] = useState<DeskScreen | "">("");
+  // El panel del desk recarga cuando algo fuera de el movio los datos (claim, orden firmada).
+  const [deskRefresh, setDeskRefresh] = useState(0);
+  const [claimedTokens, setClaimedTokens] = useState<string[]>([]);
   const [deskMax, setDeskMax] = useState(false);
   const [focusAsset, setFocusAsset] = useState("");
   // El prompt "Hey PerkOS" vive bajo el microfono (.whisper). Esta linea es solo
@@ -919,6 +922,13 @@ function Shell() {
         flog("info", `fees claim ${t.tokenSymbol}: confirmed ${hash}`);
       }
       patch({ stage: "done", hashes: [...hashes] });
+      // Bankr cachea lo reclamable 2 min: la card y la pantalla Launches lo muestran ya en cero.
+      const claimedNow = j.txs.map((t) => (t as { tokenAddress?: string }).tokenAddress ?? "").filter(Boolean).map((a) => a.toLowerCase());
+      const zero = f.tokens.map((t) => (claimedNow.length === 0 || claimedNow.includes(t.tokenAddress.toLowerCase()) ? { ...t, claimable: { token0: "0", token1: "0" }, claimed: { ...t.claimed, count: (t.claimed?.count ?? 0) + 1 } } : t));
+      setMessages((m) => m.map((x) => (x.id === msgId && x.fees ? { ...x, fees: { ...x.fees, tokens: zero } } : x)));
+      setClaimedTokens((c) => [...new Set([...c, ...(claimedNow.length ? claimedNow : f.tokens.map((t) => t.tokenAddress.toLowerCase()))])]);
+      setDeskRefresh((n) => n + 1);
+      window.setTimeout(() => { setClaimedTokens([]); setDeskRefresh((n) => n + 1); }, 135_000);
       kbWriteRef.current({ kind: "order", title: `claim fees ${new Date().toISOString().slice(0, 16).replace("T", " ")}`, body: `- Claimed creator fees for ${j.txs.map((t) => t.tokenSymbol).join(", ")} to ${wallet.address}\n- Signed by the human in their wallet.\n${hashes.map((h) => `- ${h.label}: ${h.explorer}`).join("\n")}` });
       setCaption(`Fees claimed for ${j.txs.map((t) => t.tokenSymbol).join(", ")}. Receipt on Base.`);
       speak(`Done. Your creator fees are in your wallet, receipt on chain.`);
@@ -972,6 +982,7 @@ function Shell() {
         flog("info", `trade ${t.label}: confirmed`);
       }
       patch({ stage: "done", step: undefined, hashes: [...hashes] });
+      setDeskRefresh((n) => n + 1);
       {
         const last = hashes[hashes.length - 1];
         setTurn((t) => (t ? { ...t, receipt: { hash: last?.hash, explorer: last?.explorer, status: "signed" } } : t));
@@ -1822,6 +1833,8 @@ function Shell() {
           onClose={() => { setDeskScreen(""); setDeskMax(false); }}
           onSay={(t) => runRef.current(t)}
           onSummarize={() => void summarizeDay()}
+          refreshKey={deskRefresh}
+          claimedTokens={claimedTokens}
           max={deskMax}
           onMax={setDeskMax}
           map={(
@@ -2414,7 +2427,8 @@ function FeesCard({ fees, tx, onClaim, onRefresh, signHint, onPhone, onReconnect
   const byQuote = new Map<string, number>();
   for (const t of fees.tokens) byQuote.set(t.token0Label, (byQuote.get(t.token0Label) ?? 0) + num(t.claimable.token0));
   const quoteLine = [...byQuote.entries()].filter(([, v]) => v > 0).map(([k, v]) => `${fmt(String(v))} ${k}`).join(" + ");
-  const head = fees.tokens.length === 0 ? "no launches paying this wallet yet" : `${fees.tokens.length} token${fees.tokens.length > 1 ? "s" : ""} · ${quoteLine ? `${quoteLine} to claim` : "nothing to claim yet"} · claimed ${fees.totals.claimCount}×`;
+  const claimedTimes = fees.tokens.reduce((n, t) => n + (t.claimed?.count ?? 0), 0);
+  const head = fees.tokens.length === 0 ? "no launches paying this wallet yet" : `${fees.tokens.length} token${fees.tokens.length > 1 ? "s" : ""} · ${tx.stage === "done" ? "claimed just now" : quoteLine ? `${quoteLine} to claim` : "nothing to claim yet"} · claimed ${claimedTimes}×`;
   return (
     <div className={`draft-card fees st-${tx.stage}`}>
       <div className="draft-head">
@@ -2428,7 +2442,7 @@ function FeesCard({ fees, tx, onClaim, onRefresh, signHint, onPhone, onReconnect
             return (
               <li key={t.tokenAddress} className={zero ? "zero" : ""}>
                 <b>{t.symbol}</b>
-                <span>{zero ? "nothing to claim" : `${fmt(t.claimable.token0)} ${t.token0Label} + ${fmt(t.claimable.token1)} ${t.token1Label}`}</span>
+                <span>{zero ? (tx.stage === "done" ? "claimed, in your wallet" : "nothing to claim") : `${fmt(t.claimable.token0)} ${t.token0Label} + ${fmt(t.claimable.token1)} ${t.token1Label}`}</span>
                 <small>{t.share} of the pool fee · claimed {t.claimed.count}×</small>
               </li>
             );
