@@ -1873,11 +1873,11 @@ function Shell() {
               {m.verdict ? <em className={`vchip ${m.verdict.toLowerCase()}`}>{m.verdict}</em> : null}
             </span>
             {m.role === "draft" && m.draft ? (
-              <DraftCard draft={m.draft} tx={m.tx ?? { stage: "idle", hashes: [] }} onApprove={() => void approveDraft(m.id)} signHint={signHint} />
+              <DraftCard draft={m.draft} tx={m.tx ?? { stage: "idle", hashes: [] }} onApprove={() => void approveDraft(m.id)} signHint={signHint} onPhone={wallet.signWhere === "phone"} onReconnect={logout} />
             ) : m.role === "draft" && m.launch ? (
               <LaunchCard launch={m.launch} tx={m.tx ?? { stage: "idle", hashes: [] }} onLaunch={() => void deployLaunch(m.id)} onFees={() => void feesCard()} />
             ) : m.role === "draft" && m.fees ? (
-              <FeesCard fees={m.fees} tx={m.tx ?? { stage: "idle", hashes: [] }} onClaim={() => void claimFees(m.id)} onRefresh={() => void feesCard(m.id)} signHint={signHint} />
+              <FeesCard fees={m.fees} tx={m.tx ?? { stage: "idle", hashes: [] }} onClaim={() => void claimFees(m.id)} onRefresh={() => void feesCard(m.id)} signHint={signHint} onPhone={wallet.signWhere === "phone"} onReconnect={logout} />
             ) : m.role === "draft" && m.auto ? (
               <AutomationCard auto={m.auto} tx={m.tx ?? { stage: "idle", hashes: [] }} onCreate={() => void createAutomation(m.id)} onOpen={() => setDeskScreen("automations")} />
             ) : m.role === "analysis" && m.analysis ? (
@@ -2193,11 +2193,13 @@ function AnalysisCard({ a, onSay }: {
 
 /** Carta del draft del Trader + orb Approve (se mantiene 2 s para firmar).
  *  Sin llaves aqui: Approve manda las tx a la wallet de la persona. */
-function DraftCard({ draft, tx, onApprove, signHint }: {
+function DraftCard({ draft, tx, onApprove, signHint, onPhone, onReconnect }: {
   draft: { side: "buy" | "sell"; recipient?: string; stock: { symbol: string; ticker: string; name: string; issuer: string }; tokenIn: { symbol: string; decimals: number }; tokenOut: { symbol: string; decimals: number }; amountInHuman: string; amountInUsd: number; quoteOutHuman: string; minOut: string; slippageBps: number; impliedPriceUsd: number; pool: string; fee: number; poolUsdcDepth: number; deadline: number; needsApproval: boolean; balanceUsdc: string; balanceToken: string; txs: Array<{ label: string }>; bankr?: { impliedPriceUsd: number; outHuman: string; outSymbol: string; feeBps: number; priceImpactBps?: number } | null; venueLabel?: string; venues?: Array<{ label: string; priceUsd: number; outHuman: string; usdcDepth: number; fee: number }> };
   tx: { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; step?: string; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
   onApprove: () => void;
   signHint?: string;
+  onPhone?: boolean;
+  onReconnect?: () => void;
 }) {
   const [holding, setHolding] = useState(false);
   const holdRef = useRef(0);
@@ -2234,6 +2236,7 @@ function DraftCard({ draft, tx, onApprove, signHint }: {
         {draft.venues && draft.venues.length > 1 ? <><dt>Venues</dt><dd>{draft.venues.map((v) => `${v.label} $${v.priceUsd.toFixed(2)} ($${Math.round(v.usdcDepth).toLocaleString("en-US")} deep)`).join(" · ")} · the desk took the best price</dd></> : null}
         <dt>Signatures</dt><dd>{draft.txs.map((t) => t.label).join(" + ")}{draft.needsApproval ? "" : ` (${draft.tokenIn.symbol} already approved)`}</dd>
       </dl> : null}
+      {tx.stage === "signing" ? <SignNotice hint={signHint} onPhone={onPhone} onReconnect={onReconnect} /> : null}
       {short ? <p className="hint-line err">{buy ? `Wallet holds $${Number(draft.balanceUsdc).toFixed(2)} USDC on Base; the draft needs $${draft.amountInUsd.toFixed(2)}.` : `Wallet holds ${draft.balanceToken} ${draft.stock.symbol}; the draft needs ${draft.amountInHuman}.`}</p> : null}
       {tx.note ? <p className="hint-line err">{tx.note}</p> : null}
       {tx.hashes.length ? (
@@ -2336,14 +2339,34 @@ function LaunchCard({ launch, tx, onLaunch, onFees }: {
   );
 }
 
+// Aviso de firma: dice DONDE hay que confirmar. Con login por QR (WalletConnect)
+// la peticion llega a la app de la wallet en el celular y solo se ve con esa
+// app abierta; si a los 20 s no paso nada, ofrece reconectar la wallet.
+function SignNotice({ hint, onPhone, onReconnect }: { hint?: string; onPhone?: boolean; onReconnect?: () => void }) {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => { const t = window.setTimeout(() => setSlow(true), 20_000); return () => window.clearTimeout(t); }, []);
+  return (
+    <div className={`sign-notice${onPhone ? " phone" : ""}`} role="status">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>{onPhone ? <><rect x="7" y="2" width="10" height="20" rx="2.5" /><path d="M11 18h2" /></> : <><rect x="3" y="6" width="18" height="13" rx="2.5" /><path d="M16 12.5h2" /></>}</svg>
+      <div>
+        <b>{onPhone ? "Open your wallet app on your phone" : "Waiting for your wallet"}</b>
+        <span>{hint ?? "Confirm in your wallet."}</span>
+        {slow ? <span className="slow">{onPhone ? "Nothing on your phone? Keep the wallet app open and unlocked on this request. If it never arrives, the link with your phone is stale: reconnect the wallet and scan the QR again." : "Still waiting. Check the wallet window."}{onPhone && onReconnect ? <button type="button" onClick={onReconnect}>Reconnect wallet</button> : null}</span> : null}
+      </div>
+    </div>
+  );
+}
+
 // Fees card: lo que ganan los tokens lanzados (lectura publica de Bankr) y
 // el claim, que firma la persona con su wallet. Hold to claim solo con saldo.
-function FeesCard({ fees, tx, onClaim, onRefresh, signHint }: {
+function FeesCard({ fees, tx, onClaim, onRefresh, signHint, onPhone, onReconnect }: {
   fees: { address: string; tokens: Array<{ tokenAddress: string; name: string; symbol: string; share: string; token0Label: string; token1Label: string; claimable: { token0: string; token1: string }; claimed: { token0: string; token1: string; count: number } }>; totals: { claimableWeth: string; claimedWeth: string; claimCount: number }; lifetimeEarnedWeth: string; at: string };
   tx: { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
   onClaim: () => void;
   onRefresh: () => void;
   signHint?: string;
+  onPhone?: boolean;
+  onReconnect?: () => void;
 }) {
   const [holding, setHolding] = useState(false);
   const holdRef = useRef(0);
@@ -2383,6 +2406,7 @@ function FeesCard({ fees, tx, onClaim, onRefresh, signHint }: {
           })}
         </ul>
       ) : <p className="hint-line">Launch a token paired with a tokenized stock and 95% of its pool fee accrues here.</p>}
+      {tx.stage === "signing" ? <SignNotice hint={signHint} onPhone={onPhone} onReconnect={onReconnect} /> : null}
       {tx.note ? <p className="hint-line err">{tx.note}</p> : null}
       {tx.hashes.length ? (
         <ul className="draft-tx">

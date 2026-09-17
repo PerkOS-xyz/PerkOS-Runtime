@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
+import { flog } from "../log";
 import { PrivyProvider, useLogin, usePrivy, useSignMessage, useWallets } from "@privy-io/react-auth";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider, createConfig, http } from "wagmi";
@@ -117,8 +118,14 @@ function Bridge({ children }: { children: ReactNode }) {
   const sendTransaction = async (tx: { to: `0x${string}`; data: `0x${string}`; value?: `0x${string}`; chainId: number }): Promise<`0x${string}`> => {
     const w = wallets.find((x) => x.address.toLowerCase() === address.toLowerCase()) ?? wallets[0];
     if (!w) throw new Error("No wallet connected");
-    await w.switchChain(tx.chainId);
+    // Con WalletConnect cada peticion viaja al celular: si la wallet ya esta en
+    // la cadena, no se pide el cambio (era una primera peticion muda que podia
+    // colgarse antes de llegar a la transaccion).
+    const onChain = String((w as { chainId?: string }).chainId ?? "").endsWith(`:${tx.chainId}`);
+    flog("info", `wallet tx: ${String(w.walletClientType ?? "?")} via ${String((w as { connectorType?: string }).connectorType ?? "?")} · chain ${String((w as { chainId?: string }).chainId ?? "?")}${onChain ? "" : ` -> switching to ${tx.chainId}`}`);
+    if (!onChain) { await w.switchChain(tx.chainId); flog("info", "wallet tx: chain switched"); }
     const provider = await w.getEthereumProvider();
+    flog("info", "wallet tx: request sent to the wallet, waiting for confirmation");
     const hash = await provider.request({
       method: "eth_sendTransaction",
       params: [{ from: w.address, to: tx.to, data: tx.data, value: tx.value ?? "0x0" }]
