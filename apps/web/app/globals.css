@@ -2437,5 +2437,5 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .desk-panel .lx .lx-tabs button.on:not(.close) { color: #ffd3e1; border-color: rgba(236, 27, 105, 0.55); background: rgba(236, 27, 105, 0.1); }
 .desk-panel .lx .lx-tabs button:not(.close):not(.on) { background: transparent; }
 .lx-hold { font-size: 11.5px; line-height: 1.4; color: #cdd7ee; }
-.lx-pane .pc.empty { height: 76px; }
+.lx-pane .pc.empty { height: 76px !important; } /* el alto viene en linea desde PriceChart */
 .lx-pane .pc.empty.seed { height: auto; min-height: 76px; }
