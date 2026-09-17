@@ -1886,3 +1886,8 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .fees-rows li small { color: var(--mute); }
 .fees-rows li.zero { opacity: 0.6; }
 .draft-card .draft-btns { display: flex; gap: 6px; flex-shrink: 0; }
+
+/* Launches screen: filas con enlaces a Bankr y Basescan y el claim por token. */
+.desk-panel .rows.autos .acts a.pill { font-size: 11px; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); color: #9fc2ff; text-decoration: none; }
+.desk-panel .rows.autos .acts a.pill:hover { border-color: rgba(160, 180, 220, 0.6); }
+.desk-panel .launches .cell.name b small { color: var(--mute); font-weight: 400; }

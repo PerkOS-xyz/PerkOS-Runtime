@@ -13,7 +13,8 @@ export type Command =
   | "unknown";
 
 export type Intent =
-  | { kind: "listen" | "wake" | "sleep" | "invite" | "stop" | "settings" | "docs" | "market" | "portfolio" | "map" | "history" | "approve" | "cancel" | "summarize" | "advise" | "chat" | "automations" | "fees" }
+  | { kind: "listen" | "wake" | "sleep" | "invite" | "stop" | "settings" | "docs" | "market" | "portfolio" | "map" | "history" | "approve" | "cancel" | "summarize" | "advise" | "chat" | "automations" | "launches" }
+  | { kind: "fees"; token?: string }
   | { kind: "launch"; name?: string; symbol?: string; pair?: string; recipient?: string; vesting?: "on" | "off"; feesIn?: "quote"; degen?: boolean }
   | { kind: "automate"; text: string }
   | { kind: "analyze" | "quote"; asset?: string }
@@ -111,7 +112,12 @@ export function parseIntent(raw: string): Intent {
   if (/\b(dca|dollar cost|recurring|every (day|week|month|monday|tuesday|wednesday|thursday|friday|hour|\d+)|daily|weekly|monthly|hourly|stop\s*loss|limit order|automate|automatiza|cada (d[ií]a|semana|mes))\b/.test(t) && !/\b(automations|my automations|mis automatizaciones)\b/.test(t)) return { kind: "automate", text: raw.trim() };
   if (/\b(automations|automatizaciones|scheduled orders|my dcas?|my rules)\b/.test(t)) return { kind: "automations" };
   // Fees del creador (launches): ver y reclamar.
-  if (/\b(claim|collect|cobra(?:r)?|reclama(?:r)?)\b.*\b(fees?|earnings|comisiones)\b|\b(my|mis)\s+(fees?|earnings|creator fees|comisiones)\b|^(fees|earnings)$|\b(what (did|have) i earn(ed)?|cu[aá]nto (gan[eé]|he ganado))\b/.test(t)) return { kind: "fees" };
+  if (/\b(claim|collect|cobra(?:r)?|reclama(?:r)?)\b.*\b(fees?|earnings|comisiones)\b|\b(my|mis)\s+(fees?|earnings|creator fees|comisiones)\b|^(fees|earnings)$|\b(what (did|have) i earn(ed)?|cu[aá]nto (gan[eé]|he ganado))\b/.test(t)) {
+    // "claim fees for OWL" / "claim OWL fees" / "fees for 0x…": una sola card para ese token.
+    const token = raw.match(/\b(?:for|of|de|on)\s+\$?([A-Za-z0-9]{2,20}|0x[0-9a-fA-F]{40})\b/)?.[1] ?? raw.match(/\bclaim\s+\$?([A-Z][A-Z0-9]{1,19})\s+fees?\b/)?.[1];
+    return { kind: "fees", token: token && !/^(my|the|all|fees?|earnings|token|tokens)$/i.test(token) ? token : undefined };
+  }
+  if (/\b(my (launches|tokens|launched tokens)|launches|mis (tokens|launches|lanzamientos)|show (the )?launches|tokens i launched)\b/.test(t)) return { kind: "launches" };
   const launch = parseLaunchIntent(raw);
   if (launch) return launch;
   const trade = parseTradeIntent(raw);

@@ -46,7 +46,10 @@ function Spark({ points, w = 96, h = 28, big = false }: { points?: number[]; w?:
   );
 }
 
-export type DeskScreen = "market" | "portfolio" | "automations" | "notes" | "map" | "history";
+export type DeskScreen = "market" | "portfolio" | "launches" | "automations" | "notes" | "map" | "history";
+// Launches: los tokens que pagan fees a la wallet conectada (o que desplego la
+// wallet Bankr del install), con Bankr, Basescan y Claim.
+type LaunchRow = { tokenAddress: string; name: string; symbol: string; chain: string; timestamp?: number; status?: string; pair?: string; deployer?: string; deployerX?: string; feeRecipient?: string; mine: boolean; deployedHere: boolean; claimable?: { token0: string; token1: string; token0Label: string; token1Label: string }; claimed?: { token0: string; token1: string; count: number }; share?: string; bankrUrl: string; explorer: string };
 // Automations (Bankr): DCA, stop loss y limit que corren en Bankr desde la
 // wallet Bankr de la persona. Floor guarda lo que pidio y lo que Bankr contesto.
 type AutoRec = { id: string; kind: string; asset?: string; amountUsd?: number; interval?: string; price?: number; text: string; prompt: string; createdAt: string; status: "active" | "paused" | "cancelled"; reply?: string };
@@ -86,6 +89,9 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
   const [draftBody, setDraftBody] = useState("");
   const [saving, setSaving] = useState(false);
   const [autos, setAutos] = useState<AutoRec[] | null>(null);
+  const [launches, setLaunches] = useState<LaunchRow[] | null>(null);
+  const [launchWallet, setLaunchWallet] = useState<string>("");
+  const loadLaunches = () => fetch("/api/launches").then((r) => r.json()).then((j) => { if (j.error) { setErr(j.detail ?? j.error); setLaunches([]); } else { setLaunches(j.tokens ?? []); setLaunchWallet(j.wallet ?? ""); } }).catch((e) => setErr(String(e)));
   const [autoRemote, setAutoRemote] = useState<string>("");
   const [autoBusy, setAutoBusy] = useState<string>("");
   const [autoConfigured, setAutoConfigured] = useState(true);
@@ -116,6 +122,8 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
     setErr("");
     if (screen === "market") {
       fetch("/api/market/stocks?depth=1&limit=24").then((r) => r.json()).then((j) => { if (live) setRows(j.stocks ?? []); }).catch((e) => live && setErr(String(e)));
+    } else if (screen === "launches") {
+      void loadLaunches();
     } else if (screen === "automations") {
       setAutoRemote("");
       void loadAutos();
@@ -179,6 +187,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
         <div className="tabs" role="tablist">
           <button type="button" role="tab" aria-selected={screen === "market"} className={screen === "market" ? "on" : ""} onClick={() => onScreen("market")}>Market</button>
           <button type="button" role="tab" aria-selected={screen === "portfolio"} className={screen === "portfolio" ? "on" : ""} onClick={() => onScreen("portfolio")}>Portfolio</button>
+          <button type="button" role="tab" aria-selected={screen === "launches"} className={screen === "launches" ? "on" : ""} onClick={() => onScreen("launches")}>Launches</button>
           <button type="button" role="tab" aria-selected={screen === "automations"} className={screen === "automations" ? "on" : ""} onClick={() => onScreen("automations")}>Automations</button>
           <button type="button" role="tab" aria-selected={screen === "notes"} className={screen === "notes" ? "on" : ""} onClick={() => onScreen("notes")}>Notes</button>
           <button type="button" role="tab" aria-selected={screen === "map"} className={screen === "map" ? "on" : ""} onClick={() => onScreen("map")}>Map</button>
@@ -199,6 +208,40 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
 
       {screen === "history" ? (
         <History />
+      ) : screen === "launches" ? (
+        <div className="automations launches">
+          <div className="auto-head">
+            <small>{launchWallet ? `Tokens that pay their creator fees to ${launchWallet.slice(0, 6)}…${launchWallet.slice(-4)}, the wallet connected here. Say: launch Night Owl (OWL) paired with NVDA.` : "Connect a wallet to see your tokens."}</small>
+            <div className="acts">
+              <button type="button" onClick={() => void loadLaunches()}>Refresh</button>
+              <button type="button" onClick={() => onSay("claim my fees")}>Claim all</button>
+            </div>
+          </div>
+          <ul className="rows autos">
+            {(launches ?? []).map((l) => {
+              const fee = l.claimable && (Number(l.claimable.token0) > 0 || Number(l.claimable.token1) > 0);
+              const fmt = (v: string) => { const n = Number(v) || 0; return n >= 1000 ? Math.round(n).toLocaleString("en-US") : n >= 1 ? n.toFixed(2) : n.toFixed(4).replace(/0+$/, "").replace(/\.$/, ""); };
+              return (
+                <li key={l.tokenAddress} className={l.status === "deployed" || !l.status ? "active" : "paused"}>
+                  <div className="cell name">
+                    <b>{l.name} <small>({l.symbol})</small></b>
+                    <small>paired with {l.pair ?? "WETH"} · {l.deployerX ? `deployed by @${l.deployerX}` : l.deployedHere ? "deployed from this install" : "deployed by " + (l.deployer ? `${l.deployer.slice(0, 6)}…${l.deployer.slice(-4)}` : "?")}{l.mine ? " · fees to you" : ""}{l.share ? ` · ${l.share} of the pool fee` : ""}</small>
+                    {l.claimable ? <small className="snip">{fee ? `to claim: ${fmt(l.claimable.token0)} ${l.claimable.token0Label} + ${fmt(l.claimable.token1)} ${l.claimable.token1Label}` : "nothing to claim yet"}{l.claimed ? ` · claimed ${l.claimed.count}×` : ""}</small> : null}
+                  </div>
+                  <em className={`st ${fee ? "active" : ""}`}>{fee ? "fees" : l.status ?? "live"}</em>
+                  <small>{l.timestamp ? new Date(l.timestamp).toISOString().slice(0, 16).replace("T", " ") : ""}</small>
+                  <div className="acts">
+                    <a className="pill" href={l.bankrUrl} target="_blank" rel="noreferrer">Bankr ↗</a>
+                    <a className="pill" href={l.explorer} target="_blank" rel="noreferrer">Basescan ↗</a>
+                    {l.mine ? <button type="button" disabled={!fee} onClick={() => onSay(`claim fees for ${l.tokenAddress}`)}>Claim fees</button> : null}
+                  </div>
+                </li>
+              );
+            })}
+            {launches && launches.length === 0 ? <li><div className="cell name"><small>No tokens yet. Launch one paired with a tokenized stock and it will be listed here with its fees.</small></div></li> : null}
+            {!launches ? <li><div className="cell name"><small>Reading Bankr…</small></div></li> : null}
+          </ul>
+        </div>
       ) : screen === "automations" ? (
         <div className="automations">
           <div className="auto-head">
