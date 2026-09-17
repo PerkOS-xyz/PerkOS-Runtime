@@ -2,6 +2,18 @@
 
 All notable changes to the PerkOS desktop app. Versions follow [Semantic Versioning](https://semver.org); the version lives in `apps/desktop/package.json` and shows in Settings › About with the git short SHA of the build.
 
+## [0.5.0] - 2026-09-16
+
+### Added
+- Launch a token paired with a tokenized stock on Base through Bankr: `launch Night Owl (OWL) paired with NVDA` drafts it, runs Bankr's simulation, lists Bankr's rules as checks and sends the facts to the desk in a new launch mode where Risk says GO or BLOCK. The Launch card deploys only after Hold to launch. 95% of the pool fee pays the wallet connected in Settings; when the Bankr wallet on the install is not that wallet, creator vesting is disabled so the deployer keeps nothing.
+- Automations in Bankr: `dca $5 into NVDA every week`, `stop loss on TSLA at 380` and limit buys become an Automation card; Hold to create sends the prompt to Bankr's agent. New Automations screen in the desk dock with pause, resume, cancel and Ask Bankr.
+- Fees card: `claim my fees` or `what did I earn` lists every launched token where the connected wallet is the creator beneficiary, with claimable and claimed amounts. Hold to claim builds the claim with Bankr's public endpoint; the person signs it in their wallet and pays the gas on Base.
+- Settings › Desk shows the Bankr wallet, its ETH on Base, Bankr Club, launches used today and a link to the keys page.
+- README: what you can do, with the user workflow diagram.
+
+### Changed
+- The desk's Trader restates the vesting rule exactly as the launch facts state it.
+
 ## [0.4.0] - 2026-09-16
 
 ### Security
