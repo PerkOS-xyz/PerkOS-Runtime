@@ -1178,8 +1178,8 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 
 /* Dock del desk (abajo a la izquierda): pantallas propias del desk activo. */
 .desk-dock {
-  /* Alineado a la derecha: al abrir un panel, el dock (mitad derecha) lo cubre. */
-  position: absolute; right: 28px; bottom: 28px; z-index: 6;
+  /* Centrado abajo; la linea de venues va centrada debajo de los botones (revision 2026-09-17). */
+  position: absolute; right: 50%; transform: translateX(50%); bottom: 34px; z-index: 6;
   display: flex; gap: 8px;
 }
 .desk-dock button {
@@ -1598,7 +1598,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 /* En reposo la linea de estado ("Team is up") va debajo de la fila que describe. */
 .stage:not(.split):not(.desk-open):not(.turn-live) .caption { left: 50%; top: calc(21% + 150px); bottom: auto; transform: translateX(-50%); text-align: center; max-width: 560px; }
 /* Linea de venues abajo a la izquierda, solo en reposo. */
-.venue-line { position: absolute; left: 28px; bottom: 34px; z-index: 5; font-size: 11px; color: var(--mute); letter-spacing: 0.02em; }
+.venue-line { position: absolute; left: 50%; transform: translateX(-50%); bottom: 11px; z-index: 5; font-size: 11px; color: var(--mute); letter-spacing: 0.02em; white-space: nowrap; text-align: center; max-width: calc(100% - 48px); overflow: hidden; text-overflow: ellipsis; }
 .stage.split .venue-line, .stage.desk-open .venue-line, .stage.turn-live .venue-line { display: none; }
 /* Dock: minimo legible. */
 .desk-dock button { font-size: 11px; }
@@ -1724,6 +1724,8 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
    linea de promesa no toque el compositor; en split, debajo de la fila 2 de
    la cabecera para no pegarse al lockup. */
 .stage:not(.split):not(.desk-open):not(.turn-live) .core-wrap { top: calc(54% + 18px); }
+/* Fila de agentes 15 px mas arriba en reposo (revision 2026-09-17). */
+.stage:not(.split):not(.desk-open):not(.turn-live) .orbit .orb { margin-top: -15px; }
 /* La promesa sube 15 px: Sparky bajo, la linea no. */
 .stage:not(.split):not(.desk-open):not(.turn-live) .mic-dock { margin-top: -15px; }
 /* En split, Sparky mini nunca pisa el lockup: como minimo 320 px desde la izquierda. */
