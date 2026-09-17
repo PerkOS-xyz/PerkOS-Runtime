@@ -2226,7 +2226,7 @@ function Shell() {
             {m.role === "draft" && m.draft ? (
               <DraftCard draft={m.draft} tx={m.tx ?? { stage: "idle", hashes: [] }} onApprove={() => void approveDraft(m.id)} signHint={signHint} onPhone={wallet.signWhere === "phone"} onReconnect={logout} linkLost={linkLost} />
             ) : m.role === "draft" && m.launch ? (
-              <LaunchCard launch={m.launch} tx={m.tx ?? { stage: "idle", hashes: [] }} onLaunch={() => void deployLaunch(m.id)} onFees={() => void feesCard()} onEdit={(patch) => editLaunch(m.id, patch)} onResim={() => { window.clearTimeout(resimTimers.current[m.id]); void resimLaunch(m.id); }} />
+              <LaunchCard launch={m.launch} tx={m.tx ?? { stage: "idle", hashes: [] }} wallet={wallet.address} onLaunch={() => void deployLaunch(m.id)} onFees={() => void feesCard()} onEdit={(patch) => editLaunch(m.id, patch)} onResim={() => { window.clearTimeout(resimTimers.current[m.id]); void resimLaunch(m.id); }} />
             ) : m.role === "draft" && m.fees ? (
               <FeesCard fees={m.fees} tx={m.tx ?? { stage: "idle", hashes: [] }} onClaim={() => void claimFees(m.id)} onRefresh={() => void feesCard(m.id)} signHint={signHint} onPhone={wallet.signWhere === "phone"} onReconnect={logout} linkLost={linkLost} />
             ) : m.role === "draft" && m.auto ? (

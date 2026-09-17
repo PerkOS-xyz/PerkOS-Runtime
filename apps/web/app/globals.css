@@ -2288,3 +2288,11 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 /* Campos de texto mas altos en la tarjeta normal: escribir el About o el prompt sin expandir. */
 .lc-fields textarea, .lc-gen textarea { min-height: 92px; line-height: 1.45; font-size: 12.5px; }
 .lc-basics input, .lc-fields input, .lc-search, .lc-adv-body .lc-field input { padding: 8px 10px; font-size: 12.5px; }
+
+/* Linea "Fees pay to" siempre visible en la tarjeta de launch. */
+.lc-fees { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 8px; margin: 8px 0 0; padding: 7px 10px; border-radius: 10px; background: rgba(61, 200, 120, 0.08); border: 1px solid rgba(61, 200, 120, 0.3); font-size: 12px; color: #e6ecff; }
+.lc-fees > span { font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: #7fe0a8; }
+.lc-fees b { font-weight: 600; }
+.lc-fees b small { font-weight: 400; color: var(--mute); font-family: ui-monospace, Menlo, monospace; }
+.lc-fees > small { color: var(--mute); font-size: 10.5px; }
+.lc-link { margin-left: auto; font: inherit; font-size: 10.5px; letter-spacing: 0.02em; text-transform: none; color: #9fc2ff; background: transparent; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }

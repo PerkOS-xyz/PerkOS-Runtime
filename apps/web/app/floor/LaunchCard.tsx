@@ -50,9 +50,11 @@ async function squareDataUrl(file: File, size = 512): Promise<string> {
 }
 const httpsOk = (v?: string) => !v || /^https:\/\/[^\s]+$/i.test(v);
 
-export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onResim }: {
+export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onResim, wallet }: {
   launch: LaunchView;
   tx: LaunchTx;
+  /** Wallet conectada: es quien cobra las fees salvo que la persona nombre a otro. */
+  wallet?: string;
   onLaunch: () => void;
   onFees?: () => void;
   /** Cualquier edicion; el padre decide si hay que volver a simular. */
@@ -140,6 +142,17 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
         </span>
       </div>
 
+      {/* Quien cobra: siempre visible, no solo en Basics o en Details. */}
+      <p className="lc-fees">
+        <span>Fees pay to</span>
+        {launch.recipientRaw?.trim() && !launch.ownRecipient
+          ? <b>{launch.recipientLabel || launch.recipientRaw}{launch.resolvedRecipient ? <small> · {short(launch.resolvedRecipient)}</small> : null}</b>
+          : launch.recipientRaw?.trim()
+            ? <b>{launch.recipientRaw}</b>
+            : <b>your connected wallet{wallet || launch.feeRecipient ? <small> · {short(launch.feeRecipient || wallet || "")}</small> : null}</b>}
+        <small>95% of the pool fee, 5% to Bankr</small>
+        {editable && !showBasics ? <button type="button" className="lc-link" onClick={() => setShowBasics(true)}>Change</button> : null}
+      </p>
       {editable && showBasics ? (
         <div className="lc-basics">
           <div className="lc-two">
