@@ -1873,6 +1873,11 @@ function Shell() {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const inInput = e.target === askRef.current;
       if (inInput) return; // el input maneja su propio tecleo
+      // Cualquier campo editable (tarjeta de launch, buscador de Chats, renombrar un hilo) y la
+      // tarjeta maximizada se quedan con el teclado: el compositor no roba las teclas.
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      if (document.querySelector(".lc-max-layer")) return;
       if (e.key === " " && !draft) {
         e.preventDefault();
         listen();
