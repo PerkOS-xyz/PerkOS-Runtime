@@ -1977,7 +1977,7 @@ function Shell() {
       <div className="core-wrap">
         <button className={`core ${coreClass}`} type="button" onClick={listen} aria-label="Talk to Sparky" />
         <div className="mic-dock">
-          <div className="whisper">{speaking ? "Speaking" : thinking ? "Thinking" : listening ? "Listening" : awake ? "They draft. You approve." : "Hey Sparky"}</div>
+          <div className="whisper">{speaking ? "Speaking" : thinking ? "Thinking" : listening ? "Listening" : "They draft. You approve."}</div>
         </div>
       </div>
 

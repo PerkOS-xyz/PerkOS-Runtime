@@ -1726,7 +1726,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .stage:not(.split):not(.desk-open):not(.turn-live) .core-wrap { top: calc(54% + 18px); }
 /* Sparky solo (aun sin equipo en escena): mas al centro vertical. */
 .stage:not(.team-seen):not(.split):not(.desk-open):not(.turn-live) .core-wrap { top: 44%; }
-/* Con el hilo vacio las burbujas de arranque ya invitan a hablar: la linea "Hey Sparky" sobra. */
+/* Con el hilo vacio las burbujas de arranque ya invitan a hablar: la linea de promesa sobra ahi. */
 .stage.fresh:not(.split):not(.desk-open) .whisper { display: none; }
 /* Fila de agentes 15 px mas arriba en reposo (revision 2026-09-17). */
 .stage:not(.split):not(.desk-open):not(.turn-live) .orbit .orb { margin-top: -15px; }
