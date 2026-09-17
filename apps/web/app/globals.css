@@ -2354,3 +2354,5 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .launch-trade .seed-links { justify-content: flex-start; margin: 0; }
 .seed-links.sell button { font: inherit; font-size: 11px; letter-spacing: 0.04em; padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(255, 179, 71, 0.6); background: rgba(255, 179, 71, 0.12); color: #ffe0b0; cursor: pointer; }
 .seed-links.sell button:hover { background: rgba(255, 179, 71, 0.24); }
+/* Pulso de launches en el chat: una nota de contexto, mas sobria que un mensaje de Sparky. */
+.turn.floor.pulse > :not(.turn-k) { font-size: 12px; line-height: 1.5; color: #b9c4dd; border-left: 2px solid rgba(62, 224, 143, 0.5); padding-left: 10px; }
