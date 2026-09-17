@@ -182,7 +182,14 @@ function Shell() {
   const savedSigRef = useRef("");
   const keepable = (list: Msg[]) => list.filter((x) => !x.streaming && (x.text || x.draft || x.launch || x.auto || x.fees || x.analysis)).slice(-200);
   // Los drafts sin aprobar de otra sesion vuelven vencidos: su cotizacion ya no vale.
-  const restoreMsgs = (saved: Msg[]): Msg[] => saved.filter((x) => x && typeof x.id === "number").map((x) => ({ ...x, streaming: false, ...(x.role === "draft" && x.tx && ["idle", "signing", "pending"].includes(x.tx.stage) && (x.draft || x.launch || x.auto) ? { tx: { ...x.tx, stage: "failed" as const, note: "From an earlier session. Ask for it again to get a fresh draft." } } : {}) }));
+  // Una orden de compra/venta vence con su cotizacion. Una tarjeta de launch no: nombre, par, About y
+  // logo siguen valiendo; vuelve editable y pide simular de nuevo.
+  const restoreMsgs = (saved: Msg[]): Msg[] => saved.filter((x) => x && typeof x.id === "number").map((x) => {
+    const open = x.role === "draft" && x.tx && ["idle", "signing", "pending", "failed"].includes(x.tx.stage);
+    if (open && x.launch && !x.launch.receipt) return { ...x, streaming: false, turnId: undefined, launch: { ...x.launch, stale: true, busy: false }, tx: { ...x.tx!, stage: "idle" as const, note: undefined } };
+    if (open && x.tx!.stage !== "failed" && (x.draft || x.auto)) return { ...x, streaming: false, tx: { ...x.tx!, stage: "failed" as const, note: "From an earlier session. Ask for it again to get a fresh draft." } };
+    return { ...x, streaming: false };
+  });
   const openChat = useCallback(async (id: string, show = true) => {
     const r = await fetch(`/api/chats?id=${encodeURIComponent(id)}`).catch(() => null);
     if (!r) return;
@@ -357,6 +364,16 @@ function Shell() {
 
   // Conversacion: POST /api/chat (Responses API via suscripcion de Grok),
   // SSE de deltas -> caption en vivo + se habla oracion por oracion.
+  // Contexto de Sparky: las ultimas lineas del hilo (para que un hilo reabierto o un app reiniciado
+  // no lo dejen sin memoria) y la tarjeta de launch que esta sobre la mesa.
+  const threadSeed = (skipId: number) => messagesRef.current
+    .filter((x) => x.id !== skipId && x.id !== skipId + 1 && !x.streaming && x.text && !x.kind && (x.role === "you" || x.role === "floor"))
+    .slice(-14).map((x) => ({ role: x.role === "you" ? "user" : "assistant", content: x.text.slice(0, 1200) }));
+  const cardFacts = (): string[] => {
+    const c = [...messagesRef.current].reverse().find((x) => x.launch && !x.launch.receipt && x.tx?.stage !== "done")?.launch;
+    if (!c) return [];
+    return [`Launch card on the table (unsigned draft, nothing deployed): ${c.name || "unnamed"} (${c.symbol || "no symbol"}) paired with ${c.pair.symbol || "no pair yet"}; about: "${(c.options.description ?? c.description ?? "").slice(0, 240) || "empty"}"; logo ${c.options.image ? "set" : "missing"}; fees pay to ${c.recipientRaw?.trim() || "the connected wallet"}; Bankr simulation ${c.stale ? "pending" : c.sim ? "passed" : c.simError ? "failed" : "not run"}. The person can change name, symbol or description by asking in the chat, or edit the card.`];
+  };
   const chat = useCallback(async (text: string, opts: { youId?: number } = {}) => {
     abortChat();
     beginTurn();
@@ -544,7 +561,7 @@ function Shell() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, fleet: fleetReplies, desk: deskRef.current ? { name: deskRef.current.name, roles: deskRef.current.agents.map((a) => a.name) } : undefined, brief: briefRef.current?.lines ?? null, news: briefRef.current?.news ?? null, focus: focusRef.current || null, mode: modeRef.current }),
+        body: JSON.stringify({ text, fleet: fleetReplies, desk: deskRef.current ? { name: deskRef.current.name, roles: deskRef.current.agents.map((a) => a.name) } : undefined, brief: [...(briefRef.current?.lines ?? []), ...cardFacts()].length ? [...(briefRef.current?.lines ?? []), ...cardFacts()] : null, news: briefRef.current?.news ?? null, focus: focusRef.current || null, mode: modeRef.current, thread: threadRef.current || "new", seed: threadSeed(youId) }),
         signal: ac.signal
       });
       if (!res.ok || !res.body) {
@@ -850,7 +867,7 @@ function Shell() {
     const msg = { ...d, turnId };
     setMessages((m) => {
       // La tarjeta de launch ya esta en el chat desde el primer segundo: solo se le anota el turno.
-      if (m.some((x) => x.id === d.id)) return m.map((x) => (x.id === d.id ? { ...x, turnId, tx: x.tx?.stage === "idle" && d.tx?.stage === "blocked" ? d.tx : x.tx } : x));
+      if (m.some((x) => x.id === d.id)) return m.map((x) => (x.id === d.id ? { ...x, tx: x.tx?.stage === "idle" && d.tx?.stage === "blocked" ? d.tx : x.tx } : x));
       const rest = floorId ? m.filter((x) => x.id !== floorId) : m;
       const floor = floorId ? m.find((x) => x.id === floorId) : undefined;
       return floor ? [...rest, msg, floor] : [...rest, msg];
@@ -889,8 +906,10 @@ function Shell() {
   // Launch guiado: la tarjeta aparece al instante (vacia si faltan datos) y la simulacion de
   // Bankr la completa. No se retiene hasta el turno de mesa: el turno llega despues.
   const resimTimers = useRef<Record<number, number>>({});
-  const resimLaunch = useCallback(async (msgId: number): Promise<boolean> => {
-    const cur = messagesRef.current.find((x) => x.id === msgId)?.launch;
+  const resimLaunch = useCallback(async (msgId: number, seed?: LaunchDraft): Promise<boolean> => {
+    // `seed`: recien creada la tarjeta, el mensaje aun no esta en messagesRef (el estado no se ha
+    // vaciado) y sin esto la primera simulacion no corria: habia que pulsar Simulate now.
+    const cur = messagesRef.current.find((x) => x.id === msgId)?.launch ?? seed;
     if (!cur) return false;
     const name = cur.name.trim(), symbol = cur.symbol.trim().toUpperCase(), pair = cur.pair.symbol.trim();
     if (!name || !symbol || !pair) return false;
@@ -1094,6 +1113,30 @@ function Shell() {
       setMessages((m) => m.map((x) => (x.id === statusId ? { ...x, kind: undefined, text: "I could not come up with names. Type them on the card." } : x)));
     }
   }, [touch]);
+  // Con una tarjeta de launch pendiente, pedir en el chat otra descripcion, nombre o simbolo
+  // cambia la tarjeta (Grok lo reescribe), en vez de quedarse en una respuesta suelta de Sparky.
+  const refineLaunch = useCallback(async (cardId: number, say: string) => {
+    const l = messagesRef.current.find((x) => x.id === cardId)?.launch;
+    if (!l) return;
+    const youId = Date.now();
+    touch();
+    setMessages((m) => [...m.slice(-60), { id: youId, role: "you", text: say }]);
+    act(`Rewriting ${l.symbol || "the token"}'s card with Grok, in your words`);
+    try {
+      const r = await fetch("/api/launch/names", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ about: say, pair: l.pair.symbol, current: { name: l.name, symbol: l.symbol, about: l.options.description ?? l.description ?? "" } }) });
+      const j = (await r.json().catch(() => ({}))) as { options?: Array<{ name: string; symbol: string; about: string }>; detail?: string };
+      const o = j.options?.[0];
+      actEnd();
+      if (!r.ok || !o) { setMessages((m) => [...m.slice(-60), { id: youId + 1, role: "floor", text: j.detail ?? "I could not rewrite it. Edit the card directly." }]); return; }
+      const changed = [o.name !== l.name ? `name ${o.name}` : "", o.symbol !== l.symbol ? `symbol ${o.symbol}` : "", "description"].filter(Boolean).join(", ");
+      editLaunch(cardId, { ...(o.name !== l.name ? { name: o.name } : {}), ...(o.symbol !== l.symbol ? { symbol: o.symbol } : {}), description: o.about });
+      setMessages((m) => [...m.slice(-60), { id: youId + 1, role: "floor", text: `Updated on the card (${changed}): "${o.about}" Say it differently and I rewrite it again, or edit the card yourself.` }]);
+      setCaption("Card updated. Simulate, then hold to launch when you are ready.");
+    } catch (e) {
+      actEnd();
+      flog("warn", `launch refine: ${(e as Error).message}`);
+    }
+  }, [touch, act, actEnd, editLaunch]);
   const pickIdentity = useCallback(async (msgId: number, o: { name?: string; symbol?: string; about?: string }) => {
     const ask = identityAskRef.current;
     setMessages((m) => m.filter((x) => x.id !== msgId));
@@ -1124,7 +1167,7 @@ function Shell() {
     touch();
     if (!complete) { setCaption("Name the token, pick a pair and the desk simulates it with Bankr."); return { ok: false, id }; }
     setCaption(`Trader is drafting the launch: ${name} (${symbol}) paired with ${it.pair}${it.recipient ? `, fees to ${it.recipient}` : ""}…`);
-    const ok = await resimLaunch(id);
+    const ok = await resimLaunch(id, skeleton);
     heldDraftRef.current = messagesRef.current.find((x) => x.id === id) ?? null;
     return { ok, id };
   }, [touch, resimLaunch]);
@@ -1626,6 +1669,10 @@ function Shell() {
       // "read the pairs again": lectura fresca de la mesa, saltando la cache de 30 min.
       if (/\b(read|scan|check|rank) the pairs? again\b|\bpairs? again\b/i.test(spoken)) { pairReadRef.current = null; identityAskRef.current = null; void launchGuide(); return; }
       if (identityAskRef.current) { void suggestNames(spoken); return; }
+      { // tarjeta de launch pendiente + la frase habla de su descripcion, nombre o simbolo
+        const card = [...messagesRef.current].reverse().find((x) => x.launch && (!x.tx || x.tx.stage === "idle" || x.tx.stage === "failed" || x.tx.stage === "blocked"));
+        if (card && /\b(description|describe|about|name|rename|call it|symbol|ticker|descripci[oó]n|nombre|s[ií]mbolo|ll[aá]ma(lo|r))\b/i.test(spoken)) { void refineLaunch(card.id, spoken); return; }
+      }
       if (turnLiveRef.current) { void sideChat(spoken); return; }
       quoteRef.current = null;
       briefRef.current = null;
@@ -2278,7 +2325,8 @@ function Shell() {
             // Con la actividad en vivo a la vista, los puntos de "escribiendo" y las lineas de estado sobran.
             if (activity?.live && m.role === "floor" && ((m.streaming && !m.text) || m.kind === "status")) continue;
             const tid = m.turnId;
-            if (tid && tid !== latestTurn && !openTurns.includes(tid)) {
+            const pendingCard = Boolean(m.launch && !m.launch.receipt && m.tx?.stage !== "done");
+            if (tid && tid !== latestTurn && !openTurns.includes(tid) && !pendingCard) {
               if (folded.has(tid)) continue;
               folded.add(tid);
               const ask = messages.find((x) => x.turnId === tid && x.role === "you")?.text ?? "turn";

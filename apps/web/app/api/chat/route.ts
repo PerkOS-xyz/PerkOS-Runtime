@@ -20,6 +20,9 @@ import { launchQuotes } from "../../lib/bankrLaunch";
 type Msg = { role: "user" | "assistant"; content: string };
 const history: Msg[] = [];
 const MAX_TURNS = 40;
+// La memoria de conversacion es de UN hilo. Si la ventana abre otro hilo (o el app se reinicio y
+// esta memoria esta vacia), el cliente manda las ultimas lineas del hilo y se reconstruye.
+let historyThread = "";
 
 // Contexto hibrido: estas reglas + brief estatico (knowledge/perkos.md) +
 // contexto vivo de PerkOS Knowledge por turno (lib/knowledge.ts).
@@ -66,6 +69,7 @@ async function callResponses(token: string, model: string, effort: string, instr
 
 export async function DELETE() {
   history.length = 0;
+  historyThread = "";
   return Response.json({ ok: true });
 }
 
@@ -73,7 +77,7 @@ export async function POST(req: Request) {
   const denied = guard(req);
   if (denied) return denied;
   kbBusy(true, 3 * 60_000);
-  const body = (await req.json().catch(() => ({}))) as { text?: string; fleet?: Array<{ role: string; ok: boolean; reply: string; detail?: string }>; desk?: { name?: string; roles?: string[] }; brief?: string[] | null; news?: string | null; focus?: string | null; side?: boolean; mode?: string };
+  const body = (await req.json().catch(() => ({}))) as { text?: string; fleet?: Array<{ role: string; ok: boolean; reply: string; detail?: string }>; desk?: { name?: string; roles?: string[] }; brief?: string[] | null; news?: string | null; focus?: string | null; side?: boolean; mode?: string; thread?: string; seed?: Array<{ role?: string; content?: string }> };
   const text = body.text?.trim() ?? "";
   // Respuestas de la flota (Hermes en PerkOS infra) para este turno: Grok es
   // la voz del Floor y las resume; no inventa lo que un agente no dijo.
@@ -85,6 +89,16 @@ export async function POST(req: Request) {
   let token = await getXaiAccessToken().catch(() => null);
   if (!token) return Response.json({ error: "llm_not_connected" }, { status: 401 });
 
+  const thread = typeof body.thread === "string" ? body.thread.slice(0, 64) : "";
+  if (thread !== historyThread || (history.length === 0 && Array.isArray(body.seed) && body.seed.length)) {
+    history.length = 0;
+    for (const m of (Array.isArray(body.seed) ? body.seed : []).slice(-24)) {
+      const role = m?.role === "assistant" ? "assistant" : m?.role === "user" ? "user" : null;
+      const content = typeof m?.content === "string" ? m.content.trim().slice(0, 1200) : "";
+      if (role && content) history.push({ role, content });
+    }
+    historyThread = thread;
+  }
   history.push({ role: "user", content: text });
   while (history.length > MAX_TURNS) history.shift();
 
