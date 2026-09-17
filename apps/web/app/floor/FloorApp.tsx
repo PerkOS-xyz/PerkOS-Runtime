@@ -117,7 +117,7 @@ function Shell() {
   type Brief = { at: string; stock: { symbol: string; ticker: string; name: string; issuer: string }; priceUsd?: number; change24hPct?: number; range24h?: { low: number; high: number; open: number; last: number }; volume24hUsd?: number; sparkline?: number[]; pool: { fee: number; usdcDepth: number; priceUsd?: number } | null; chainlink?: { priceUsd: number; ageMin: number; stale: boolean }; premiumPct?: number; swaps24h?: { count: number; usdcVolume: number; buys: number; sells: number }; holding?: { balance: string; valueUsd: number }; lines: string[] };
   type News = { text: string; sources: Array<{ url: string; title?: string }>; at: string };
   type Analysis = { brief: Brief; news?: News; scout?: string; risk?: string; verdict?: "GO" | "BLOCK"; prev?: { priceUsd?: number; at: string }; loadingNews?: boolean };
-  type Msg = { id: number; role: "you" | "floor" | "team" | "draft" | "analysis"; who?: string; text: string; streaming?: boolean; draft?: Draft; launch?: LaunchDraft; auto?: AutoRec; fees?: FeesInfo; tx?: DraftTx; verdict?: "GO" | "BLOCK"; analysis?: Analysis; turnId?: number; kind?: "open" | "side" | "status" | "picks"; trace?: Array<{ at: number; text: string }>; traceMs?: number; picks?: { kind: "pair" | "identity"; options: Array<{ value: string; label: string; note?: string; rec?: number; avoid?: boolean; name?: string; symbol?: string; about?: string }> } };
+  type Msg = { id: number; role: "you" | "floor" | "team" | "draft" | "analysis"; who?: string; text: string; streaming?: boolean; draft?: Draft; launch?: LaunchDraft; auto?: AutoRec; fees?: FeesInfo; tx?: DraftTx; verdict?: "GO" | "BLOCK"; analysis?: Analysis; turnId?: number; kind?: "open" | "side" | "status" | "picks" | "pulse"; trace?: Array<{ at: number; text: string }>; traceMs?: number; picks?: { kind: "pair" | "identity"; options: Array<{ value: string; label: string; note?: string; rec?: number; avoid?: boolean; name?: string; symbol?: string; about?: string }> } };
   // Agent graph del turno en curso (cards bajo las esferas) y turnos plegados.
   const [turn, setTurn] = useState<DeskTurn | null>(null);
   const turnRef = useRef<DeskTurn | null>(null);
@@ -993,6 +993,11 @@ function Shell() {
   // La lectura de pairing vale un rato: si la mesa ya la hizo hace menos de 30 min, se reutiliza
   // (mismos chips, mismo resumen) en vez de despertar al equipo otra vez. Ademas queda en el
   // conocimiento local del desk (Notes) como analisis fechado.
+  // El pulso de launches (narrativa del momento) como nota en el chat: informacion, no consejo.
+  const pulseNote = useCallback(async (turnId: number) => {
+    const p = (await fetch("/api/launch/pulse").then((r) => (r.ok ? r.json() : null)).catch(() => null)) as { lines?: string[] } | null;
+    if (p?.lines?.length) setMessages((m) => (m.some((x) => x.id === turnId + 2) ? m : [...m.slice(-60), { id: turnId + 2, role: "floor", kind: "pulse", text: p.lines!.join(" ") }]));
+  }, []);
   const pairReadRef = useRef<{ at: number; options: NonNullable<Msg["picks"]>["options"]; summary: string } | null>(null);
   const launchGuide = useCallback(async () => {
     const youId = Date.now();
@@ -1003,6 +1008,7 @@ function Shell() {
       setMessages((m) => [...m.slice(-60), { id: youId, role: "you", text: "Launch a token", turnId: youId }, { id: youId + 1, role: "floor", text: `The desk read the pairs ${mins} minute${mins > 1 ? "s" : ""} ago, so here it is again. ${prev.summary}`, turnId: youId }, { id: youId + 95, role: "floor", kind: "picks", text: "Pick the pair for the new token:", turnId: youId, picks: { kind: "pair", options: prev.options } }]);
       setCaption("Pick the pair. Say \"read the pairs again\" for a fresh desk read.");
       actEnd();
+      void pulseNote(youId);
       return;
     }
     const statusId = youId + 1;
@@ -1012,7 +1018,7 @@ function Shell() {
     setCaption("Scanning the pairs…");
     act("Reading Bankr's registry: which tokenized stocks a launch can pair with");
     try {
-      const [qr, sr] = await Promise.all([fetch("/api/launch/quotes"), fetch("/api/market/scan")]);
+      const [qr, sr, pulse] = await Promise.all([fetch("/api/launch/quotes"), fetch("/api/market/scan"), fetch("/api/launch/pulse").then((r) => (r.ok ? r.json() : null)).catch(() => null) as Promise<{ lines?: string[] } | null>]);
       const quotes = (await qr.json().catch(() => ({}))) as { configured?: boolean; stocks?: Array<{ symbol: string; name: string; illiquid?: boolean }>; detail?: string };
       const scan = (await sr.json().catch(() => ({}))) as { lines?: string[]; rows?: Array<{ symbol: string; ticker: string; name: string; change24hPct?: number }> };
       if (!qr.ok || !quotes.stocks?.length) { status(quotes.detail ?? "Bankr's launch registry is not available. Add a Bankr key with Token Launch in Settings."); setCaption(""); return; }
@@ -1027,7 +1033,9 @@ function Shell() {
       act(`${rows.length} stocks can be the pair. Reading the news on the ${movers.length} that moved most (Grok web and X search)`);
       const newsBy = new Map<string, string>();
       await Promise.race([Promise.all(movers.map((t) => fetch("/api/market/news", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker: t.ticker, name: t.name }) }).then((x) => x.json()).then((j) => { if (j.text) newsBy.set(t.symbol, `${t.symbol}: ${String(j.text).replace(/\s+/g, " ").slice(0, 420)}`); }).catch(() => undefined))), new Promise<void>((res) => setTimeout(res, 25_000))]);
-      briefRef.current = { lines: [`Pairs Bankr accepts on Base: ${quotes.stocks.map((q) => q.symbol).join(", ")}, plus WETH (the default quote) and BNKR.`, ...lines], news: [...newsBy.values()].join(" ") || undefined };
+      const pulseLines = pulse?.lines ?? [];
+      if (pulseLines.length) { act("Reading the launch pulse: what is trading on Bankr right now"); setMessages((m) => [...m.slice(-60), { id: youId + 2, role: "floor", kind: "pulse", text: pulseLines.join(" "), turnId: youId }]); }
+      briefRef.current = { lines: [`Pairs Bankr accepts on Base: ${quotes.stocks.map((q) => q.symbol).join(", ")}, plus WETH (the default quote) and BNKR.`, ...pulseLines.slice(0, 4), ...lines], news: [...newsBy.values()].join(" ") || undefined };
       quoteRef.current = null;
       setFocusAsset("");
       modeRef.current = "pair";
@@ -2462,7 +2470,7 @@ function Shell() {
             out.push(
           <div key={m.id} className={`turn ${m.role}${m.kind ? ` ${m.kind}` : ""}`} data-who={m.who ?? (m.role === "floor" ? "floor" : undefined)}>
             <span className="turn-k">
-              {m.role === "you" ? "You" : m.role === "team" ? `${cap(m.who ?? "team")} · PerkOS` : m.role === "draft" ? "Desk · decision" : m.role === "analysis" ? `Desk · ${m.who ?? "analysis"}` : m.kind === "open" ? "Sparky · principal" : m.kind === "side" ? "Sparky · to you" : "Sparky"}
+              {m.role === "you" ? "You" : m.role === "team" ? `${cap(m.who ?? "team")} · PerkOS` : m.role === "draft" ? "Desk · decision" : m.role === "analysis" ? `Desk · ${m.who ?? "analysis"}` : m.kind === "pulse" ? "Launch pulse · Bankr" : m.kind === "open" ? "Sparky · principal" : m.kind === "side" ? "Sparky · to you" : "Sparky"}
               {m.verdict ? <em className={`vchip ${m.verdict.toLowerCase()}`}>{m.verdict}</em> : null}
             </span>
             {m.role === "draft" && m.draft ? (

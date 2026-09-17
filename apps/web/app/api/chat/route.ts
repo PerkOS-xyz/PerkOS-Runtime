@@ -12,6 +12,7 @@ import { contextFor, kbBusy } from "../../lib/kb";
 import { loadSettings } from "../../lib/settingsStore";
 import { buildInstructions, loadBrief, queryLive, shouldQueryLive } from "../../lib/knowledge";
 import { launchQuotes } from "../../lib/bankrLaunch";
+import { launchPulse } from "../../lib/launchPulse";
 
 // Conversacion con Grok por suscripcion. Transporte: Responses API
 // (Hermes: transport="codex_responses" para "xai-oauth").
@@ -122,6 +123,10 @@ export async function POST(req: Request) {
     : "";
   // Lanzamientos: cuando la pregunta va de lanzar o emparejar un token, Sparky conoce la
   // lista real de pares que Bankr acepta en Base (cache de 1 h en launchQuotes).
+  // El pulso de launches (que se esta operando en Bankr ahora): para "what is the narrative today?".
+  const pulseCtx = /launch|pair|paired|token|narrative|trend|trending|hot|meta\b/i.test(text)
+    ? await launchPulse().then((p) => (p?.lines.length ? `\n\n## Launch pulse (public Bankr registry + DexScreener, ${p.at.slice(0, 16).replace("T", " ")} UTC)\n${p.lines.join("\n")}\nUse it as context when the person asks what is moving or how to pair a launch. Report it as what happened, never as advice to chase it.` : "")).catch(() => "")
+    : "";
   const launchCtx = /launch|pair|paired|token/i.test(text)
     ? await launchQuotes().then((q) => {
         const stocks = q.filter((x) => x.kind === "stock").map((x) => `${x.symbol} (${x.name})`);
@@ -138,7 +143,7 @@ export async function POST(req: Request) {
   const sideCtx = body.side === true
     ? "\n\n## A desk turn is running right now\nThe person asked something while Scout, Risk, Trader and Auditor are still working. You are the principal: answer only this question, in one or two sentences, from the facts you already have. Do not speak for agents that have not answered yet; say they are still working if asked.\n"
     : "";
-  const instructions = buildInstructions(base, brief, live?.context ?? "") + factsCtx + localCtx + launchCtx + pairCtx + styleCtx + sideCtx + (fleetCtx
+  const instructions = buildInstructions(base, brief, live?.context ?? "") + factsCtx + localCtx + launchCtx + pulseCtx + pairCtx + styleCtx + sideCtx + (fleetCtx
     ? "\n\n## Your teammates just answered this turn (Hermes agents on PerkOS infra). Speak for the desk: summarize what they found, name who said what when it matters, flag disagreements and what needs the human's approval. Do not invent what they did not say.\n" + fleetCtx
     : body.mode !== "pair" && body.side !== true
       ? "\n\n## You are answering alone\nNo agent was woken and no card was created by this message. Never say you are drafting, sizing, simulating or launching anything, and never address @Scout, @Risk, @Trader or @Auditor: they are not in this turn. If the person wants an order, an analysis or a launch, tell them the exact sentence that starts it (for a launch: launch NAME (SYMBOL) paired with NVDAc, or the Launch a token button) and that the draft card appears then."
