@@ -15,7 +15,7 @@ export type Command =
 export type Intent =
   | { kind: "listen" | "wake" | "sleep" | "invite" | "stop" | "settings" | "docs" | "market" | "portfolio" | "map" | "history" | "approve" | "cancel" | "summarize" | "advise" | "chat" | "automations" | "launches" | "chats" | "newchat" }
   | { kind: "fees"; token?: string }
-  | { kind: "launch"; name?: string; symbol?: string; pair?: string; recipient?: string; vesting?: "on" | "off"; feesIn?: "quote"; degen?: boolean }
+  | { kind: "launch"; name?: string; symbol?: string; description?: string; pair?: string; recipient?: string; vesting?: "on" | "off"; feesIn?: "quote"; degen?: boolean }
   | { kind: "automate"; text: string }
   | { kind: "analyze" | "quote"; asset?: string }
   | { kind: "buy"; asset?: string; amountUsd: number }
@@ -75,7 +75,9 @@ export function parseLaunchIntent(text: string): Extract<Intent, { kind: "launch
   // Una pregunta sobre lanzar ("which stock token can I pair a launch with?") es chat, no una orden de lanzar.
   if (/^\s*(which|what|how|can|could|should|is|are|do|does|que|qué|cu[aá]l|c[oó]mo|puedo|se puede)\b/i.test(t) || /\?\s*$/.test(t)) return null;
   if (!/\b(launch|deploy|create|lanza(?:r)?|crea(?:r)?|despliega)\b/i.test(t)) return null;
-  if (!(/\b(token|coin|memecoin)\b/i.test(t) || /\$[A-Za-z]{2,}/.test(t) || /\(\s*\$?[A-Za-z0-9]{2,}\s*\)/.test(t))) return null;
+  // "launch Clarity paired with NVDAc": el verbo al inicio + un par nombrado tambien es una orden de launch.
+  const verbFirst = /^\s*(?:please\s+|por favor\s+)?(?:launch|deploy|lanza(?:r)?|despliega)\b/i.test(t) && /\b(?:paired?\s+(?:with|to)|pair(?:ed)?\s+against|emparejad[oa]\s+con)\s+\$?[A-Za-z]/i.test(t);
+  if (!(verbFirst || /\b(token|coin|memecoin)\b/i.test(t) || /\$[A-Za-z]{2,}/.test(t) || /\(\s*\$?[A-Za-z0-9]{2,}\s*\)/.test(t))) return null;
   const pair = t.match(/\b(?:paired?\s+(?:with|to)|pair(?:ed)?\s+against|against|backed by|on top of|quoted in|emparejad[oa]\s+con|contra|con la acci[oó]n(?: de)?)\s+(?:the\s+|el\s+|la\s+)?\$?([A-Za-z][A-Za-z0-9.]{0,24})/i)?.[1];
   // A quien pagan las fees: "fees to @handle", "fees to alice.eth", "fees to 0x…", "fees to farcaster:dwr", "paid to".
   const recipient = t.match(/\b(?:fees?|earnings|comisiones)\s+(?:go(?:ing)?\s+|paid\s+|pay\s+|payable\s+)?(?:to|for|a|para)\s+((?:x|twitter|farcaster|fc|ens|wallet):\s*@?[A-Za-z0-9_.-]+|@[A-Za-z0-9_]{1,15}|0x[0-9a-fA-F]{40}|[a-z0-9-]+(?:\.[a-z0-9-]+)*\.eth)\b/i)?.[1];
@@ -86,12 +88,16 @@ export function parseLaunchIntent(text: string): Extract<Intent, { kind: "launch
   const paren = t.match(/\(\s*\$?([A-Za-z][A-Za-z0-9]{0,19})\s*\)/)?.[1];
   const dollar = t.match(/\$([A-Za-z][A-Za-z0-9]{1,19})\b/)?.[1];
   const caps = t.match(/\b([A-Z][A-Z0-9]{1,9})\b/g)?.filter((w) => !/^(DCA|USD|USDC|ETH|NVDA|TSLA|META|AAPL|AMZN|GOOGL|MSFT|COIN|HOOD|MSTR|PLTR|SPY|QQQ|GME)$/.test(w) && w.toLowerCase() !== (pair ?? "").toLowerCase())?.[0];
-  const symbol = (paren ?? dollar ?? caps)?.toUpperCase();
+  // "symbol CLARITY", "change the symbol to CLARITY", "ticker: CLTY", "simbolo CLTY"
+  const said = t.match(/\b(?:symbol|ticker|s[ií]mbolo)\b\s*(?:to|is|as|=|:|a|sea|es)?\s*\$?([A-Za-z][A-Za-z0-9]{1,19})\b/i)?.[1];
+  const symbol = (paren ?? dollar ?? said ?? caps)?.toUpperCase();
+  // "description: ...", "use this description: ...", "about: ..." hasta el final (o hasta otro "description:").
+  const description = t.match(/\b(?:description|about|descripci[oó]n)\s*(?:is|:|=)\s*([\s\S]+?)(?=\s*\b(?:description|about|descripci[oó]n)\s*(?:is|:|=)|$)/i)?.[1]?.trim().slice(0, 500) || undefined;
   // El nombre: lo entrecomillado, o las palabras entre el verbo y "(SYM)" / "paired".
   const between = t.match(/\b(?:launch|deploy|create|lanza(?:r)?|crea(?:r)?|despliega)\b\s+(?:a\s+|an\s+|the\s+|un\s+|una\s+)?(?:new\s+|nuevo\s+)?(?:degen\s+)?(?:token\s+|coin\s+|memecoin\s+)?(?:called\s+|named\s+|llamad[oa]\s+)?([^()"“”,]+?)\s*(?:\(|\$[A-Za-z]|paired?\b|pair\b|against\b|backed\b|on top\b|quoted\b|emparejad|contra\b|con la acci|,|\bfees?\b|\bwith\b|\bno vesting\b|$)/i)?.[1]?.trim();
   const cleaned = between?.replace(/\$[A-Za-z0-9]+/g, "").replace(/\s+(token|coin)$/i, "").trim();
   const name = quoted ?? (cleaned && !/^(token|coin|a token|new token)$/i.test(cleaned) && !/^(paired?|pair|against|backed|on top|emparejad|contra|con la)\b/i.test(cleaned) && cleaned.length >= 2 ? cleaned : undefined);
-  return { kind: "launch", name: name?.slice(0, 60), symbol: symbol?.slice(0, 20), pair, recipient, vesting, feesIn, degen: degen || undefined };
+  return { kind: "launch", name: name?.slice(0, 60), symbol: symbol?.slice(0, 20), description, pair, recipient, vesting, feesIn, degen: degen || undefined };
 }
 
 export function parseIntent(raw: string): Intent {
