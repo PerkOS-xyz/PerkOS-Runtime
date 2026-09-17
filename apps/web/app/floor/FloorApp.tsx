@@ -357,7 +357,12 @@ function Shell() {
       let f0 = fleetRef.current;
       if (f0 && Date.now() - fleetAtRef.current > 60_000) f0 = (await fleetActionRef.current("status")) ?? f0;
       const asleep = (x: Fleet | null | undefined) => Boolean(x && x.agents.some((a) => a.state === "hibernated" || a.state === "waking"));
-      if (asleep(f0)) {
+      // Charla simple (modo chat): los agentes no participan, asi que Sparky contesta ya.
+      // El equipo se despierta en segundo plano para que el siguiente pedido lo encuentre listo.
+      if (asleep(f0) && modeRef.current === "chat") {
+        flog("info", "chat: small talk, answering now; waking the team in the background");
+        void fleetActionRef.current("wake");
+      } else if (asleep(f0)) {
         setCaption("Waking the team on PerkOS…");
         setTeam("waking");
         f0 = (await fleetActionRef.current("wake")) ?? f0;
