@@ -136,6 +136,21 @@ export async function walletLaunches(wallet: string, deployer?: string | null): 
   return list.filter((l) => (l.feeRecipient?.walletAddress ?? "").toLowerCase() === w || (d && (l.deployer?.walletAddress ?? "").toLowerCase() === d));
 }
 
+const recordCache = new DiskCache<BankrLaunch>("bankr-launch-record", 24 * 60 * 60_000);
+/** El registro de un launch por direccion. La lista publica solo trae los 50 mas recientes; en un
+    dia movido un token propio sale de ella en horas y su fila quedaba sin par, deployer ni pool. */
+export async function launchRecord(token: string): Promise<BankrLaunch | null> {
+  const k = token.toLowerCase();
+  const hit = await recordCache.get(k); if (hit) return hit;
+  const r = await fetch(`${BASE}/token-launches/${token}`, { signal: AbortSignal.timeout(15_000) }).catch(() => null);
+  if (!r || !r.ok) return null;
+  const j = (await r.json().catch(() => null)) as { launch?: BankrLaunch } & Partial<BankrLaunch> | null;
+  const rec = (j?.launch ?? j) as BankrLaunch | null;
+  if (!rec?.tokenAddress) return null;
+  await recordCache.set(k, rec);
+  return rec;
+}
+
 /** Las reglas de Bankr que Risk mira antes de un GO (docs 2026-09-16). */
 export function launchChecks(w: BankrWallet | null, last24h: number, name: string, symbol: string, pair: QuoteToken | null, recipient?: Recipient | null): LaunchCheck[] {
   return [
