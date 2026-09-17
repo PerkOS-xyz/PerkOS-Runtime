@@ -119,6 +119,11 @@ function Bridge({ children }: { children: ReactNode }) {
     onComplete: () => setError(""),
     onError: (code) => setError(humanPrivyError(String(code)))
   });
+  // login() de Privy decide con el `user` de su propio closure: una referencia tomada antes del
+  // logout sigue viendo a la persona logueada y no abre nada ("already logged in"). Se llama
+  // siempre a la ultima.
+  const loginRef = useRef(login);
+  loginRef.current = login;
   // Valor vivo de `authenticated`: el closure de openLogin lo leeria viejo.
   const authRef = useRef(authenticated);
   authRef.current = authenticated;
@@ -145,13 +150,13 @@ function Bridge({ children }: { children: ReactNode }) {
     // Se comprueba que el modal abrio; si Privy ignoro la llamada se reintenta (hasta 3 veces).
     for (let attempt = 1; attempt <= 3; attempt++) {
       flog("info", `privy: login modal${attempt > 1 ? ` (attempt ${attempt})` : ""}`);
-      login();
+      loginRef.current();
       for (let i = 0; i < 12 && !modalRef.current; i++) await new Promise((r) => setTimeout(r, 100));
       if (modalRef.current) return;
       flog("warn", "privy: the login modal did not open");
     }
     setError("The sign in window did not open. Try again.");
-  }, [login, logout]);
+  }, [logout]);
 
   // user.wallet es la wallet primaria (embebida o enlazada); wallets[0] cubre
   // las externas que Privy conecta sin enlazar todavia.
