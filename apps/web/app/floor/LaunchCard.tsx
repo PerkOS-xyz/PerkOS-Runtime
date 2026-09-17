@@ -164,7 +164,7 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
               <button type="button" className={`lc-opt${launch.options.degen ? " on" : ""}`} onClick={() => onEdit?.({ degen: !launch.options.degen })}><b>Degen mode</b><small>{launch.options.degen ? "$2,500 starting cap, faster curve" : "standard curve"}</small></button>
               <div className="lc-two">
                 <label className="lc-field"><span>Website (optional)</span><input type="url" placeholder="https://…" value={website} onChange={(e) => onEdit?.({ websiteUrl: e.target.value.trim() })} className={httpsOk(website) ? "" : "bad"} /></label>
-                <label className="lc-field"><span>X post (optional)</span><input type="url" placeholder="https://x.com/…/status/…" value={tweet} onChange={(e) => onEdit?.({ tweetUrl: e.target.value.trim() })} className={httpsOk(tweet) ? "" : "bad"} /></label>
+                <label className="lc-field"><span>Announcement post on X (optional)</span><input type="url" placeholder="https://x.com/…/status/… (Bankr shows it as the launch announcement)" value={tweet} onChange={(e) => onEdit?.({ tweetUrl: e.target.value.trim() })} className={httpsOk(tweet) ? "" : "bad"} /></label>
               </div>
             </div>
           ) : null}

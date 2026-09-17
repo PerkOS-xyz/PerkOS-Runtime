@@ -117,14 +117,14 @@ function Shell() {
   type Brief = { at: string; stock: { symbol: string; ticker: string; name: string; issuer: string }; priceUsd?: number; change24hPct?: number; range24h?: { low: number; high: number; open: number; last: number }; volume24hUsd?: number; sparkline?: number[]; pool: { fee: number; usdcDepth: number; priceUsd?: number } | null; chainlink?: { priceUsd: number; ageMin: number; stale: boolean }; premiumPct?: number; swaps24h?: { count: number; usdcVolume: number; buys: number; sells: number }; holding?: { balance: string; valueUsd: number }; lines: string[] };
   type News = { text: string; sources: Array<{ url: string; title?: string }>; at: string };
   type Analysis = { brief: Brief; news?: News; scout?: string; risk?: string; verdict?: "GO" | "BLOCK"; prev?: { priceUsd?: number; at: string }; loadingNews?: boolean };
-  type Msg = { id: number; role: "you" | "floor" | "team" | "draft" | "analysis"; who?: string; text: string; streaming?: boolean; draft?: Draft; launch?: LaunchDraft; auto?: AutoRec; fees?: FeesInfo; tx?: DraftTx; verdict?: "GO" | "BLOCK"; analysis?: Analysis; turnId?: number; kind?: "open" | "side" | "status" };
+  type Msg = { id: number; role: "you" | "floor" | "team" | "draft" | "analysis"; who?: string; text: string; streaming?: boolean; draft?: Draft; launch?: LaunchDraft; auto?: AutoRec; fees?: FeesInfo; tx?: DraftTx; verdict?: "GO" | "BLOCK"; analysis?: Analysis; turnId?: number; kind?: "open" | "side" | "status" | "picks"; picks?: { kind: "pair"; options: Array<{ value: string; label: string; note?: string }> } };
   // Agent graph del turno en curso (cards bajo las esferas) y turnos plegados.
   const [turn, setTurn] = useState<DeskTurn | null>(null);
   const turnRef = useRef<DeskTurn | null>(null);
   turnRef.current = turn;
   const turnLiveRef = useRef(false);
   // Modo del turno: orden / analisis de un activo / asesoria abierta / charla (sin mesa).
-  const modeRef = useRef<"order" | "analyze" | "advise" | "launch" | "chat">("chat");
+  const modeRef = useRef<"order" | "analyze" | "advise" | "launch" | "pair" | "chat">("chat");
   const lastRepliesRef = useRef<Array<{ role: string; ok: boolean; reply: string }>>([]);
   const [openTurns, setOpenTurns] = useState<number[]>([]);
   const decisionRef = useRef<{ turnId: number; noteId?: string; draftId?: number } | null>(null);
@@ -523,7 +523,7 @@ function Shell() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, fleet: fleetReplies, desk: deskRef.current ? { name: deskRef.current.name, roles: deskRef.current.agents.map((a) => a.name) } : undefined, brief: briefRef.current?.lines ?? null, news: briefRef.current?.news ?? null, focus: focusRef.current || null }),
+        body: JSON.stringify({ text, fleet: fleetReplies, desk: deskRef.current ? { name: deskRef.current.name, roles: deskRef.current.agents.map((a) => a.name) } : undefined, brief: briefRef.current?.lines ?? null, news: briefRef.current?.news ?? null, focus: focusRef.current || null, mode: modeRef.current }),
         signal: ac.signal
       });
       if (!res.ok || !res.body) {
@@ -916,6 +916,54 @@ function Shell() {
       resimTimers.current[msgId] = window.setTimeout(() => void resimLaunch(msgId), 1500);
     }
   }, [resimLaunch]);
+  // Launch guiado, paso 1: elegir el par conversando. El desk compara las acciones tokenizadas
+  // que Bankr acepta como par (liquidez, movimiento, noticias), Sparky resume y la persona elige
+  // entre chips. Recien entonces existe una tarjeta de launch (con el par puesto).
+  const launchGuide = useCallback(async () => {
+    const youId = Date.now();
+    const statusId = youId + 1;
+    const status = (t: string) => setMessages((m) => m.map((x) => (x.id === statusId ? { ...x, text: t } : x)));
+    touch();
+    setMessages((m) => [...m.slice(-60), { id: youId, role: "you", text: "Launch a token", turnId: youId }, { id: statusId, role: "floor", kind: "status", text: "Reading the tokenized stocks Bankr can pair a launch with…", turnId: youId }]);
+    setCaption("Scanning the pairs…");
+    try {
+      const [qr, sr] = await Promise.all([fetch("/api/launch/quotes"), fetch("/api/market/scan")]);
+      const quotes = (await qr.json().catch(() => ({}))) as { configured?: boolean; stocks?: Array<{ symbol: string; name: string; illiquid?: boolean }>; detail?: string };
+      const scan = (await sr.json().catch(() => ({}))) as { lines?: string[]; rows?: Array<{ symbol: string; ticker: string; name: string; change24hPct?: number }> };
+      if (!qr.ok || !quotes.stocks?.length) { status(quotes.detail ?? "Bankr's launch registry is not available. Add a Bankr key with Token Launch in Settings."); setCaption(""); return; }
+      const registry = new Map(quotes.stocks.map((q) => [q.symbol.toUpperCase(), q]));
+      const rows = (scan.rows ?? []).filter((r) => registry.has(r.symbol.toUpperCase()));
+      const lines = (scan.lines ?? []).filter((l) => { const sym = l.match(/^([A-Z]{2,6}c)\b/)?.[1]; return sym ? registry.has(sym.toUpperCase()) : false; }).map((l) => { const sym = l.match(/^([A-Z]{2,6}c)\b/)?.[1]; const q = sym ? registry.get(sym.toUpperCase()) : undefined; return q?.illiquid ? `${l} · Bankr flags it illiquid` : l; });
+      // Noticias solo de los 6 que mas se movieron (cache del warm): rapido y suficiente para elegir.
+      const movers = [...rows].sort((a, b) => Math.abs(b.change24hPct ?? 0) - Math.abs(a.change24hPct ?? 0)).slice(0, 6);
+      status(`${rows.length} tokenized stocks can be the pair. Reading the news on the ${movers.length} that moved most…`);
+      const newsBy = new Map<string, string>();
+      await Promise.race([Promise.all(movers.map((t) => fetch("/api/market/news", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker: t.ticker, name: t.name }) }).then((x) => x.json()).then((j) => { if (j.text) newsBy.set(t.symbol, `${t.symbol}: ${String(j.text).replace(/\s+/g, " ").slice(0, 420)}`); }).catch(() => undefined))), new Promise<void>((res) => setTimeout(res, 25_000))]);
+      briefRef.current = { lines: [`Pairs Bankr accepts on Base: ${quotes.stocks.map((q) => q.symbol).join(", ")}, plus WETH (the default quote) and BNKR.`, ...lines], news: [...newsBy.values()].join(" ") || undefined };
+      quoteRef.current = null;
+      setFocusAsset("");
+      modeRef.current = "pair";
+      status("Handing to the desk: which pair draws attention and has depth.");
+      await chat("Which tokenized stock should a new token launch be paired with?", { youId });
+      const ranked = movers.map((m) => m.symbol).concat(rows.map((r) => r.symbol)).filter((v, i, a) => a.indexOf(v) === i).slice(0, 8);
+      const options = ranked.map((sym) => { const r = rows.find((x) => x.symbol === sym); const q = registry.get(sym.toUpperCase()); return { value: sym, label: sym, note: `${r?.name ?? q?.name ?? ""}${typeof r?.change24hPct === "number" ? ` · ${r.change24hPct >= 0 ? "+" : ""}${r.change24hPct.toFixed(1)}% 24h` : ""}${q?.illiquid ? " · thin" : ""}` }; });
+      options.push({ value: "WETH", label: "WETH", note: "the default quote" });
+      setMessages((m) => [...m.slice(-60), { id: youId + 95, role: "floor", kind: "picks", text: "Pick the pair for the new token:", turnId: youId, picks: { kind: "pair", options } }]);
+      setCaption("Pick the pair. Then the token gets its name.");
+    } catch (e) {
+      flog("error", `launch guide: ${(e as Error).message}`);
+      status("Could not read the pairs. Say the pair yourself: launch Night Owl (OWL) paired with NVDAc.");
+      setCaption("");
+    }
+  }, [chat, touch]);
+  const pickPair = useCallback((msgId: number, pair: string) => {
+    setMessages((m) => m.filter((x) => x.id !== msgId));
+    modeRef.current = "launch";
+    setFocusAsset(pair);
+    void launchDraftRef.current({ pair });
+    setCaption(`Paired with ${pair}. Now name the token on the card, or tell me what it is for and I suggest names.`);
+  }, []);
+  const launchDraftRef = useRef<(it: { name?: string; symbol?: string; pair?: string; recipient?: string; vesting?: "on" | "off"; feesIn?: "quote"; degen?: boolean }) => Promise<boolean>>(async () => false);
   const launchDraft = useCallback(async (it: { name?: string; symbol?: string; pair?: string; recipient?: string; vesting?: "on" | "off"; feesIn?: "quote"; degen?: boolean }): Promise<boolean> => {
     const id = Date.now() + 4;
     const symbol = (it.symbol ?? (it.name ?? "").replace(/[^A-Za-z0-9]/g, "").slice(0, 8)).toUpperCase();
@@ -938,6 +986,7 @@ function Shell() {
     heldDraftRef.current = messagesRef.current.find((x) => x.id === id) ?? null;
     return ok;
   }, [touch, resimLaunch]);
+  launchDraftRef.current = launchDraft;
   const deployLaunch = useCallback(async (msgId: number) => {
     const msg = messagesRef.current.find((x) => x.id === msgId);
     const d = msg?.launch;
@@ -1438,6 +1487,7 @@ function Shell() {
     if (cmd === "history") { setDeskScreen("history"); setCaption("Every decision the desk made"); return; }
     if (cmd === "launch") {
       quoteRef.current = null;
+      if (!it.pair && !it.name && !it.symbol) { void launchGuide(); return; }
       modeRef.current = "launch";
       if (it.pair) setFocusAsset(it.pair);
       // Primero el draft simulado en Bankr (el launch en la mesa), despues el turno de mesa.
@@ -2085,6 +2135,11 @@ function Shell() {
               <AutomationCard auto={m.auto} tx={m.tx ?? { stage: "idle", hashes: [] }} onCreate={() => void createAutomation(m.id)} onOpen={() => setDeskScreen("automations")} />
             ) : m.role === "analysis" && m.analysis ? (
               <AnalysisCard a={m.analysis} onSay={(t) => runRef.current(t)} />
+            ) : m.kind === "picks" && m.picks ? (
+              <div className="bubble picks">
+                <p>{m.text}</p>
+                <div className="pick-chips">{m.picks.options.map((o) => <button type="button" key={o.value} onClick={() => pickPair(m.id, o.value)}><b>{o.label}</b>{o.note ? <small>{o.note}</small> : null}</button>)}</div>
+              </div>
             ) : (
               <div className="bubble">
                 {m.streaming && !m.text ? <span className="typing" aria-label="typing"><i /><i /><i /></span> : mentions(m.text)}

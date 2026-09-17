@@ -73,7 +73,7 @@ export async function POST(req: Request) {
   const denied = guard(req);
   if (denied) return denied;
   kbBusy(true, 3 * 60_000);
-  const body = (await req.json().catch(() => ({}))) as { text?: string; fleet?: Array<{ role: string; ok: boolean; reply: string; detail?: string }>; desk?: { name?: string; roles?: string[] }; brief?: string[] | null; news?: string | null; focus?: string | null; side?: boolean };
+  const body = (await req.json().catch(() => ({}))) as { text?: string; fleet?: Array<{ role: string; ok: boolean; reply: string; detail?: string }>; desk?: { name?: string; roles?: string[] }; brief?: string[] | null; news?: string | null; focus?: string | null; side?: boolean; mode?: string };
   const text = body.text?.trim() ?? "";
   // Respuestas de la flota (Hermes en PerkOS infra) para este turno: Grok es
   // la voz del Floor y las resume; no inventa lo que un agente no dijo.
@@ -117,10 +117,13 @@ export async function POST(req: Request) {
           : "";
       }).catch(() => "")
     : "";
+  const pairCtx = body.mode === "pair"
+    ? "\n\n## Pairing a new token launch\nThe human is choosing which asset a new token's pool is paired with. Summarize the desk's ranking in two or three sentences, say which one you would pick and why, and end by asking them to pick one: the app shows the candidates as buttons under your message. Do not launch or draft anything."
+    : "";
   const sideCtx = body.side === true
     ? "\n\n## A desk turn is running right now\nThe person asked something while Scout, Risk, Trader and Auditor are still working. You are the principal: answer only this question, in one or two sentences, from the facts you already have. Do not speak for agents that have not answered yet; say they are still working if asked.\n"
     : "";
-  const instructions = buildInstructions(base, brief, live?.context ?? "") + factsCtx + localCtx + launchCtx + sideCtx + (fleetCtx
+  const instructions = buildInstructions(base, brief, live?.context ?? "") + factsCtx + localCtx + launchCtx + pairCtx + sideCtx + (fleetCtx
     ? "\n\n## Your teammates just answered this turn (Hermes agents on PerkOS infra). Speak for the desk: summarize what they found, name who said what when it matters, flag disagreements and what needs the human's approval. Do not invent what they did not say.\n" + fleetCtx
     : "");
   const knowledgeInfo = live

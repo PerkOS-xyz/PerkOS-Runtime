@@ -72,7 +72,7 @@ export async function POST(req: Request) {
   // "analyze" (un activo: lectura, riesgo, plan si quisiera exposicion, registro),
   // "advise" (pregunta abierta: ranking sobre el scan del mercado con horizonte).
   // "launch" (un token nuevo emparejado con una accion tokenizada via Bankr: gate + Hold to launch).
-  const mode: "order" | "analyze" | "advise" | "launch" = body.mode === "launch" ? "launch" : body.mode === "advise" ? "advise" : body.mode === "analyze" ? "analyze" : body.quote ? "order" : "analyze";
+  const mode: "order" | "analyze" | "advise" | "launch" | "pair" = body.mode === "launch" ? "launch" : body.mode === "pair" ? "pair" : body.mode === "advise" ? "advise" : body.mode === "analyze" ? "analyze" : body.quote ? "order" : "analyze";
   const gated = mode === "order" || mode === "launch";
   const text = body.text?.trim() ?? "";
   if (!text) return Response.json({ error: "text" }, { status: 400 });
@@ -130,6 +130,8 @@ export async function POST(req: Request) {
         // la mesa ya trae precio, Chainlink, pool, noticias y memoria.
         const deskRules = mode === "order"
           ? " A draft of that order is already on the table, unsigned; the human signs it or not."
+          : mode === "pair"
+          ? " The human wants to launch a new token on Base through Bankr and must choose which asset its Uniswap V4 pool is paired with: one of the tokenized stocks in the market lines, or WETH. Nothing is drafted yet; the human picks the pair after the desk speaks. A good pair draws attention (a stock people talk about, a driver, news) and has a deep pool; a bad pair is thin, frozen off hours or dull."
           : mode === "launch"
           ? " A launch draft is on the table: a new token whose Uniswap V4 pool is paired with a quote asset on Base (a tokenized stock, WETH or a registry token), deployed by Bankr, with 95% of the pool fee paid to the recipient stated in the facts. Nothing deploys until the human holds to launch. The launch facts list Bankr's rules and whether each one passes."
           : " Desk limits: the human trades small clips (an order is at most 100 USDC); size advice must be in USDC for this human, never in the pool's scale. The horizon is the one in the request; a catalyst after the horizon does not count as the reason.";
@@ -151,6 +153,10 @@ export async function POST(req: Request) {
             scout: `As Scout: read the verified facts and the news, then give the desk your read: the underlying driver first (what moved the stock, next catalyst), then the onchain layer (pool price vs Chainlink, depth, 30-day range, off-hours drift). Percentages must be computed correctly from the numbers given. Do not repeat the numbers back; interpret them, and tag each claim with the fact it rests on, like [F3] or [N]. Open with "@Trader @Auditor". Under 70 words, plain text.`,
             risk: `As Risk: there is no order on the table, so no GO or BLOCK. Reply with a first line exactly "RISK: low", "RISK: medium" or "RISK: high", then "@Trader @Auditor" and: what size is safe (as a share of the pool depth), what would make you block an order, and what to check at the next market open if the Chainlink feed is frozen. Under 50 words.`
           },
+          pair: {
+            scout: `As Scout: rank the tokenized stocks in the market lines as the pair for a new token launch. Name the top three, each with the reason in one line (the driver and 24 h move, the news, the pool depth from the fact line), and name one to avoid and why. Open with "@Trader @Auditor". Under 120 words.`,
+            risk: `As Risk: for the three pairs Scout is likely to name, give the trap of each in one line (thin pool, off hours drift, a catalyst that can turn, a name that overpromises) and which one you would still accept. Reply with a first line exactly "RISK: low", "RISK: medium" or "RISK: high" for the desk's favorite, then "@Trader @Auditor". Under 100 words.`
+          },
           advise: {
             scout: `As Scout: the human asks what to buy for the horizon in the request. Using the market lines (price, 30-day range, valuation, next earnings) and the news, rank the candidates: name the top two with the reason for each (a catalyst inside the horizon, or a setup versus the 30-day range and the reference price, at a valuation you can defend), and name one to avoid and why. Tag each claim with the fact it rests on, like [F3] or [N]. Open with "@Trader @Auditor". Under 100 words, plain text.`,
             risk: `As Risk: for the two candidates the desk will likely pick, give the size each pool can absorb without impact (a share of the pool depth), an exit rule (take profit level or time), and what would flip each to avoid. Reply with a first line exactly "RISK: low", "RISK: medium" or "RISK: high", then "@Trader @Auditor" and the rules. Under 70 words.`
@@ -164,14 +170,18 @@ export async function POST(req: Request) {
         const riskSaid = risk?.ok ? clip(risk.reply) : "(Risk did not answer)";
         const verdict = gated ? (risk?.ok ? verdictOf(risk.reply) ?? "BLOCK" : "BLOCK") : undefined;
         const tail = `${head}\nScout said: ${scoutSaid}\nRisk said: ${riskSaid}${verdict ? ` (verdict ${verdict})` : ""}.`;
-        const T = mode === "launch"
+        const T = mode === "pair"
+          ? `As Trader (open with "@Sparky"): recommend one pair for the launch and a second choice, each with the reason in one line, and say the human picks. You never launch anything yourself. Under 60 words.`
+          : mode === "launch"
           ? `As Trader (open with "@Sparky"): ${verdict === "GO" ? "restate the launch the desk drafted (token name and symbol, the pair, the chain, who deploys, who receives the fees exactly as the facts state it, and the vesting rule exactly as the facts state it) and what the human must hold to launch. You never execute." : "Risk blocked it: stand down and say which check must change. You never execute."} Under 60 words.`
           : mode === "order"
           ? `As Trader (open with "@Sparky"): ${q ? (verdict === "GO" ? "restate the order the desk drafted (asset, size, venue, min out) and exactly what the human must sign. You never execute." : "Risk blocked it: stand down and say what would need to change. You never execute.") : "no order is on the table: say what you would draft if asked, in one line. You never execute."} Under 60 words.`
           : mode === "analyze"
             ? `As Trader (open with "@Sparky"): if the human wanted exposure to this stock, give the entry plan: venue, size in USDC as a share of the pool, take profit level, and a stop or a time exit; or say why you would wait and for what. You never execute. Under 60 words.`
             : `As Trader (open with "@Sparky"): entry plan for the top pick the desk is converging on: the venue named in that stock's fact line (Aerodrome or Uniswap, never assume), size in USDC, take profit level, stop or time exit, and when you would add the second pick. You never execute. Under 70 words.`;
-        const A = mode === "launch"
+        const A = mode === "pair"
+          ? `As Auditor (open with "@Sparky"): write the pairing record: the candidates the desk ranked with the fact tags like [F2], the one to avoid, and what the human still has to decide (the pair, the token's name and symbol, the logo). Under 70 words.`
+          : mode === "launch"
           ? `As Auditor (open with "@Sparky"): write the launch record for this turn: what was asked, the pair and why, Risk's verdict with the checks that passed or failed, the draft on the table, and what to watch after deployment (fees, pool depth, the stock's next event). Under 80 words.`
           : mode === "order"
           ? `As Auditor (open with "@Sparky"): write the decision record for this turn: what was asked, what Scout found, Risk's verdict, the draft on the table (or none) and what evidence is missing. Under 80 words.`
