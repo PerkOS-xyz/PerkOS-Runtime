@@ -2202,7 +2202,7 @@ function Shell() {
           <span title={wallet.signWhere === "phone" ? `${wallet.walletName || "External wallet"} over WalletConnect: approvals show up on your phone` : wallet.signWhere === "embedded" ? "PerkOS wallet (Privy): signs inside this app" : undefined}>{who}</span>
           {wallet.signWhere && !linkLost ? <em className="wk" title={wallet.signWhere === "phone" ? "Approvals show up in your wallet app on your phone" : wallet.signWhere === "embedded" ? "Signs inside this app" : "Signs in your browser wallet"}>{wallet.signWhere === "phone" ? "phone wallet" : wallet.signWhere === "embedded" ? "app wallet" : "browser wallet"}</em> : null}
           <em className={`pk${perkos.connected ? " on" : ""}`} title={perkos.connected ? "PerkOS session active" : perkos.note || "PerkOS not connected"}>PerkOS</em>
-          {linkLost ? <button type="button" className="relink" onClick={relink} title="You are signed in, but no wallet is linked to this window. Sign in again in Privy and scan the QR; the scene stays.">Wallet not linked · sign in again</button> : null}
+          {linkLost || (wallet.loaded && !wallet.connected && !wallet.busy) ? <button type="button" className="relink" onClick={relink} title="You are signed in, but no wallet is linked to this window. Sign in again in Privy and scan the QR; the scene stays.">Wallet not linked · sign in again</button> : null}
           <button type="button" onClick={logout}>
             Log out
           </button>

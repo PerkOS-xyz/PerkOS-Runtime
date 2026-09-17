@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { flog } from "../log";
-import { PrivyProvider, useLogin, usePrivy, useSignMessage, useWallets } from "@privy-io/react-auth";
+import { PrivyProvider, useLogin, useModalStatus, usePrivy, useSignMessage, useWallets } from "@privy-io/react-auth";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider, createConfig, http } from "wagmi";
 import { base } from "wagmi/chains";
@@ -122,20 +122,35 @@ function Bridge({ children }: { children: ReactNode }) {
   // Valor vivo de `authenticated`: el closure de openLogin lo leeria viejo.
   const authRef = useRef(authenticated);
   authRef.current = authenticated;
+  // El modal de Privy, en vivo: login() justo despues de un logout a veces no abre nada (Privy
+  // termina su limpieza un instante despues de resolver) y la app quedaba sin modal y sin salida.
+  const { isOpen: modalOpen } = useModalStatus();
+  const modalRef = useRef(modalOpen);
+  modalRef.current = modalOpen;
   const openLogin = useCallback(async () => {
     setError("");
-    if (logoutRef.current) await logoutRef.current;
+    let closed = false;
+    if (logoutRef.current) { await logoutRef.current; closed = true; }
     if (authRef.current && !logoutRef.current) {
       // Sesion vieja todavia viva: cerrarla primero, si no login() no abre nada.
       flog("info", "privy: stale session before login, closing it first");
       await logout();
+      closed = true;
     }
     // Privy resuelve logout() antes de que `authenticated` baje; si login() entra en ese hueco
     // abre el modal de "enlazar cuenta" (sin WalletConnect). Esperar a que baje, hasta 4 s.
     for (let i = 0; i < 40 && authRef.current; i++) await new Promise((r) => setTimeout(r, 100));
     if (authRef.current) flog("warn", "privy: still authenticated after logout, the login modal may miss the wallet options");
-    flog("info", "privy: login modal");
-    login();
+    if (closed) await new Promise((r) => setTimeout(r, 400));
+    // Se comprueba que el modal abrio; si Privy ignoro la llamada se reintenta (hasta 3 veces).
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      flog("info", `privy: login modal${attempt > 1 ? ` (attempt ${attempt})` : ""}`);
+      login();
+      for (let i = 0; i < 12 && !modalRef.current; i++) await new Promise((r) => setTimeout(r, 100));
+      if (modalRef.current) return;
+      flog("warn", "privy: the login modal did not open");
+    }
+    setError("The sign in window did not open. Try again.");
   }, [login, logout]);
 
   // user.wallet es la wallet primaria (embebida o enlazada); wallets[0] cubre
