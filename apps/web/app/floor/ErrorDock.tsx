@@ -29,6 +29,9 @@ export default function ErrorDock({ open, onOpen }: { open: boolean; onOpen: (v:
     const onErr = (e: ErrorEvent) => add("error", e.message || String(e.error ?? "error"));
     const onRej = (e: PromiseRejectionEvent) => {
       const x = e.reason;
+      // WalletConnect: un QR de login que nadie escaneo caduca a los 5 minutos y el
+      // SignClient lo rechaza sin que nadie lo espere. No es un fallo del app.
+      if (/proposal expired/i.test(x instanceof Error ? x.message : String(x))) { e.preventDefault(); add("info", "walletconnect: an unscanned QR from an earlier login expired"); return; }
       add("error", x instanceof Error ? `${x.name}: ${x.message}` : String(x));
     };
     window.addEventListener("floor:log", onLog);
