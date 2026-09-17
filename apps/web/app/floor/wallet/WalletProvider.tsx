@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { flog } from "../log";
 import { PrivyProvider, useLogin, usePrivy, useSignMessage, useWallets } from "@privy-io/react-auth";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -94,14 +94,42 @@ function humanPrivyError(code: string): string {
 }
 
 function Bridge({ children }: { children: ReactNode }) {
-  const { ready, authenticated, logout, user } = usePrivy();
+  const { ready, authenticated, logout: privyLogout, user } = usePrivy();
   const { wallets, ready: walletsReady } = useWallets();
   const [error, setError] = useState("");
+  // Privy tarda segundos en cerrar la sesion y mientras tanto sigue `authenticated`.
+  // En ese lapso la app ya muestra la bienvenida: `connected` debe leer false y un
+  // login() no debe dispararse hasta que el cierre termine (si no, Privy lo ignora y
+  // el usuario tenia que ir atras y adelante para que el modal saliera bien).
+  const [loggingOut, setLoggingOut] = useState(false);
+  const logoutRef = useRef<Promise<void> | null>(null);
+  const logout = useCallback(() => {
+    if (logoutRef.current) return logoutRef.current;
+    setLoggingOut(true);
+    flog("info", "privy: logout started");
+    const p = privyLogout()
+      .then(() => flog("info", "privy: session closed"))
+      .catch((e: unknown) => flog("warn", `privy: logout failed: ${(e as Error).message}`))
+      .finally(() => { logoutRef.current = null; setLoggingOut(false); });
+    logoutRef.current = p;
+    return p;
+  }, [privyLogout]);
   // Sin onError un login fallido cierra el modal sin decir nada y la app parece colgada.
   const { login } = useLogin({
     onComplete: () => setError(""),
     onError: (code) => setError(humanPrivyError(String(code)))
   });
+  const openLogin = useCallback(async () => {
+    setError("");
+    if (logoutRef.current) await logoutRef.current;
+    if (authenticated && !logoutRef.current) {
+      // Sesion vieja todavia viva: cerrarla primero, si no login() no abre nada.
+      flog("info", "privy: stale session before login, closing it first");
+      await logout();
+    }
+    flog("info", "privy: login modal");
+    login();
+  }, [authenticated, login, logout]);
 
   // user.wallet es la wallet primaria (embebida o enlazada); wallets[0] cubre
   // las externas que Privy conecta sin enlazar todavia.
@@ -148,7 +176,7 @@ function Bridge({ children }: { children: ReactNode }) {
   const signWhere: Wallet["signWhere"] = !active ? "" : clientType.startsWith("privy") ? "embedded" : /wallet_?connect/i.test(connector) || /wallet_?connect/i.test(clientType) ? "phone" : "extension";
   const walletName = String((active as { meta?: { name?: string } } | undefined)?.meta?.name ?? "").replace(/^WalletConnect$/i, "");
   // La sesion puede estar viva sin wallet enlazada a esta ventana (WalletConnect caido).
-  const canSign = Boolean(authenticated && address && wallets.some((x) => x.address.toLowerCase() === address.toLowerCase()));
+  const canSign = Boolean(authenticated && !loggingOut && address && wallets.some((x) => x.address.toLowerCase() === address.toLowerCase()));
   // Reenlazar = volver a entrar. El modal "connect wallet" de Privy no ofrece el QR
   // de WalletConnect dentro de Electron (solo Coinbase Wallet), y forzar una lista de
   // wallets en la config le quito WalletConnect tambien al login. El camino que si
@@ -159,34 +187,21 @@ function Bridge({ children }: { children: ReactNode }) {
     () => ({
       enabled: true,
       loaded: ready,
-      connected: Boolean(authenticated && address),
-      proven: Boolean(authenticated && address),
-      address,
+      connected: Boolean(authenticated && address && !loggingOut),
+      proven: Boolean(authenticated && address && !loggingOut),
+      address: loggingOut ? "" : address,
       providers: [],
       awaitingOtp: false,
-      busy: !ready || (authenticated && !walletsReady),
+      busy: !ready || (authenticated && !walletsReady) || loggingOut,
       error,
       qr: "",
-      open: () => {
-        setError("");
-        login();
-      },
-      sendEmail: () => {
-        setError("");
-        login();
-      },
+      open: () => { void openLogin(); },
+      sendEmail: () => { void openLogin(); },
       verifyOtp: () => undefined,
-      startQr: () => {
-        setError("");
-        login();
-      },
+      startQr: () => { void openLogin(); },
       prove: () => undefined,
-      forget: () => {
-        void logout();
-      },
-      logout: () => {
-        void logout();
-      },
+      forget: () => { void logout(); },
+      logout,
       signMessage,
       sendTransaction,
       signWhere,
@@ -195,7 +210,7 @@ function Bridge({ children }: { children: ReactNode }) {
       reconnect
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [address, authenticated, error, login, logout, ready, walletsReady, wallets, signWhere, walletName, canSign]
+    [address, authenticated, error, login, logout, openLogin, loggingOut, ready, walletsReady, wallets, signWhere, walletName, canSign]
   );
   return <WalletContext value={value}>{children}</WalletContext>;
 }

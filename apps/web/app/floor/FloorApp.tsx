@@ -1696,8 +1696,9 @@ function Shell() {
     stopPayPoll();
     hush();
     // Privy tarda varios segundos en cerrar la sesion; no esperarlo: la
-    // bienvenida con el logo aparece ya, y el wizard se remonta en el paso 0.
-    wallet.logout();
+    // bienvenida aparece ya. Mientras cierra, el provider reporta connected=false
+    // y busy=true, y el boton del hero espera a que termine antes de abrir el login.
+    void wallet.logout();
     setWizardStart(0);
     setWizardEpoch((e) => e + 1);
     setWizard(true);
