@@ -1877,3 +1877,12 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .desk-panel .rows.autos .st { font-style: normal; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); color: var(--mute); }
 .desk-panel .rows.autos .st.active { color: #7fe0a8; border-color: rgba(61, 200, 120, 0.6); }
 .desk-panel .rows.autos .st.paused { color: #ffd08a; border-color: rgba(255, 179, 71, 0.6); }
+
+/* Fees card: lo que ganan los launches y el claim firmado por la persona. */
+.fees-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 12px; }
+.fees-rows li { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: baseline; }
+.fees-rows li b { font-weight: 600; color: #e6ecff; }
+.fees-rows li span { color: #cdd7ee; }
+.fees-rows li small { color: var(--mute); }
+.fees-rows li.zero { opacity: 0.6; }
+.draft-card .draft-btns { display: flex; gap: 6px; flex-shrink: 0; }
