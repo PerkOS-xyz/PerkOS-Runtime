@@ -931,9 +931,11 @@ function Shell() {
       const quotes = (await qr.json().catch(() => ({}))) as { configured?: boolean; stocks?: Array<{ symbol: string; name: string; illiquid?: boolean }>; detail?: string };
       const scan = (await sr.json().catch(() => ({}))) as { lines?: string[]; rows?: Array<{ symbol: string; ticker: string; name: string; change24hPct?: number }> };
       if (!qr.ok || !quotes.stocks?.length) { status(quotes.detail ?? "Bankr's launch registry is not available. Add a Bankr key with Token Launch in Settings."); setCaption(""); return; }
-      const registry = new Map(quotes.stocks.map((q) => [q.symbol.toUpperCase(), q]));
-      const rows = (scan.rows ?? []).filter((r) => registry.has(r.symbol.toUpperCase()));
-      const lines = (scan.lines ?? []).filter((l) => { const sym = l.match(/^([A-Z]{2,6}c)\b/)?.[1]; return sym ? registry.has(sym.toUpperCase()) : false; }).map((l) => { const sym = l.match(/^([A-Z]{2,6}c)\b/)?.[1]; const q = sym ? registry.get(sym.toUpperCase()) : undefined; return q?.illiquid ? `${l} · Bankr flags it illiquid` : l; });
+      // Bankr registra "NVDA"; el scan del desk habla de "NVDAc" (el token de Coinbase). Misma accion.
+      const key = (sym: string) => sym.toUpperCase().replace(/C$/, "");
+      const registry = new Map(quotes.stocks.map((q) => [key(q.symbol), q]));
+      const rows = (scan.rows ?? []).filter((r) => registry.has(key(r.symbol)));
+      const lines = (scan.lines ?? []).filter((l) => { const sym = l.match(/^([A-Z]{2,6}c)\b/)?.[1]; return sym ? registry.has(key(sym)) : false; }).map((l) => { const sym = l.match(/^([A-Z]{2,6}c)\b/)?.[1]; const q = sym ? registry.get(key(sym)) : undefined; return q?.illiquid ? `${l} · Bankr flags it illiquid` : l; });
       // Noticias solo de los 6 que mas se movieron (cache del warm): rapido y suficiente para elegir.
       const movers = [...rows].sort((a, b) => Math.abs(b.change24hPct ?? 0) - Math.abs(a.change24hPct ?? 0)).slice(0, 6);
       status(`${rows.length} tokenized stocks can be the pair. Reading the news on the ${movers.length} that moved most…`);
@@ -945,8 +947,8 @@ function Shell() {
       modeRef.current = "pair";
       status("Handing to the desk: which pair draws attention and has depth.");
       await chat("Which tokenized stock should a new token launch be paired with?", { youId });
-      const ranked = movers.map((m) => m.symbol).concat(rows.map((r) => r.symbol)).filter((v, i, a) => a.indexOf(v) === i).slice(0, 8);
-      const options = ranked.map((sym) => { const r = rows.find((x) => x.symbol === sym); const q = registry.get(sym.toUpperCase()); return { value: sym, label: sym, note: `${r?.name ?? q?.name ?? ""}${typeof r?.change24hPct === "number" ? ` · ${r.change24hPct >= 0 ? "+" : ""}${r.change24hPct.toFixed(1)}% 24h` : ""}${q?.illiquid ? " · thin" : ""}` }; });
+      const ranked = movers.map((m) => m.symbol).concat(rows.map((r) => r.symbol)).concat(quotes.stocks.filter((q) => !q.illiquid).map((q) => `${q.symbol}c`)).filter((v, i, a) => a.findIndex((x) => key(x) === key(v)) === i).slice(0, 8);
+      const options = ranked.map((sym) => { const r = rows.find((x) => x.symbol === sym); const q = registry.get(key(sym)); return { value: sym, label: sym, note: `${r?.name ?? q?.name ?? ""}${typeof r?.change24hPct === "number" ? ` · ${r.change24hPct >= 0 ? "+" : ""}${r.change24hPct.toFixed(1)}% 24h` : ""}${q?.illiquid ? " · thin" : ""}` }; });
       options.push({ value: "WETH", label: "WETH", note: "the default quote" });
       setMessages((m) => [...m.slice(-60), { id: youId + 95, role: "floor", kind: "picks", text: "Pick the pair for the new token:", turnId: youId, picks: { kind: "pair", options } }]);
       setCaption("Pick the pair. Then the token gets its name.");
