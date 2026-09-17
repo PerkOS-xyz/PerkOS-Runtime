@@ -993,15 +993,16 @@ function Shell() {
   }, [chat, touch]);
   // Paso 2: con el par elegido, Sparky pregunta de que va el token; la siguiente frase de la
   // persona se toma como esa descripcion y Sparky propone tres nombre + simbolo + About.
-  const identityAskRef = useRef<{ cardId: number; pair: string } | null>(null);
-  const pickPair = useCallback(async (msgId: number, pair: string) => {
+  // La tarjeta no existe todavia: primero el par, luego nombre y descripcion con Sparky, y
+  // recien con las tres cosas aparece la tarjeta llena (fees a la wallet conectada) y se simula.
+  const identityAskRef = useRef<{ pair: string; about?: string } | null>(null);
+  const pickPair = useCallback((msgId: number, pair: string) => {
     setMessages((m) => m.filter((x) => x.id !== msgId));
     modeRef.current = "launch";
     setFocusAsset(pair);
-    const r = await launchDraftRef.current({ pair });
-    identityAskRef.current = { cardId: r.id, pair };
+    identityAskRef.current = { pair };
     const qid = Date.now();
-    setMessages((m) => [...m.slice(-60), { id: qid, role: "floor", text: `Paired with ${pair}. Now the token: tell me in one line what it is about, and I suggest three names with a symbol and a description. Or type them on the card.` }]);
+    setMessages((m) => [...m.slice(-60), { id: qid, role: "floor", text: `Paired with ${pair}. Now the token itself: tell me in one line what it is about (who it is for, what it celebrates or does) and I propose three names, each with a symbol and a short description.` }]);
     setCaption("What is the token about? One line.");
   }, []);
   const suggestNames = useCallback(async (about: string) => {
@@ -1016,24 +1017,27 @@ function Shell() {
       const j = (await r.json().catch(() => ({}))) as { options?: Array<{ name: string; symbol: string; about: string }>; detail?: string; error?: string };
       if (!r.ok || !j.options?.length) { setMessages((m) => m.map((x) => (x.id === statusId ? { ...x, kind: undefined, text: j.detail ?? "I could not come up with names. Type them on the card." } : x))); return; }
       const options = j.options.map((o) => ({ value: o.symbol, label: `${o.name} (${o.symbol})`, note: o.about, name: o.name, symbol: o.symbol, about: o.about }));
-      setMessages((m) => [...m.filter((x) => x.id !== statusId), { id: youId + 95, role: "floor", kind: "picks", text: "Three ways to call it. Pick one and the desk simulates the launch:", picks: { kind: "identity", options } }]);
-      editLaunch(ask.cardId, { description: about });
-      setCaption("Pick a name, or edit on the card.");
+      identityAskRef.current = { ...ask, about };
+      setMessages((m) => [...m.filter((x) => x.id !== statusId), { id: youId + 95, role: "floor", kind: "picks", text: "Three ways to call it. Pick one and the desk drafts the launch; you can still edit everything on the card:", picks: { kind: "identity", options } }]);
+      setCaption("Pick a name. Or describe it differently and I try again.");
     } catch (e) {
       flog("warn", `launch names: ${(e as Error).message}`);
       setMessages((m) => m.map((x) => (x.id === statusId ? { ...x, kind: undefined, text: "I could not come up with names. Type them on the card." } : x)));
     }
-  }, [touch, editLaunch]);
-  const pickIdentity = useCallback((msgId: number, o: { name?: string; symbol?: string; about?: string }) => {
+  }, [touch]);
+  const pickIdentity = useCallback(async (msgId: number, o: { name?: string; symbol?: string; about?: string }) => {
     const ask = identityAskRef.current;
     setMessages((m) => m.filter((x) => x.id !== msgId));
-    if (!ask) return;
+    if (!ask || !o.name || !o.symbol) return;
     identityAskRef.current = null;
-    editLaunch(ask.cardId, { name: o.name, symbol: o.symbol, description: o.about });
+    modeRef.current = "launch";
     setCaption(`${o.name} (${o.symbol}) paired with ${ask.pair}. Simulating with Bankr…`);
-  }, [editLaunch]);
-  const launchDraftRef = useRef<(it: { name?: string; symbol?: string; pair?: string; recipient?: string; vesting?: "on" | "off"; feesIn?: "quote"; degen?: boolean }) => Promise<{ ok: boolean; id: number }>>(async () => ({ ok: false, id: 0 }));
-  const launchDraft = useCallback(async (it: { name?: string; symbol?: string; pair?: string; recipient?: string; vesting?: "on" | "off"; feesIn?: "quote"; degen?: boolean }): Promise<{ ok: boolean; id: number }> => {
+    const r = await launchDraftRef.current({ name: o.name, symbol: o.symbol, pair: ask.pair, description: o.about });
+    if (r.ok) void chat(`launch ${o.name} (${o.symbol}) paired with ${ask.pair}`);
+  }, [chat]);
+  type LaunchIt = { name?: string; symbol?: string; pair?: string; recipient?: string; vesting?: "on" | "off"; feesIn?: "quote"; degen?: boolean; description?: string };
+  const launchDraftRef = useRef<(it: LaunchIt) => Promise<{ ok: boolean; id: number }>>(async () => ({ ok: false, id: 0 }));
+  const launchDraft = useCallback(async (it: LaunchIt): Promise<{ ok: boolean; id: number }> => {
     const id = Date.now() + 4;
     const symbol = (it.symbol ?? (it.name ?? "").replace(/[^A-Za-z0-9]/g, "").slice(0, 8)).toUpperCase();
     const name = it.name ?? (it.symbol ?? "");
@@ -1042,7 +1046,7 @@ function Shell() {
     const skeleton: LaunchDraft = {
       id: String(id), name, symbol, pair: { address: "", symbol: it.pair ?? "", name: it.pair ?? "" },
       recipient: { type: "wallet", value: "" }, recipientLabel: "your wallet", feeRecipient: "", ownRecipient: !it.recipient,
-      options: { vesting: it.vesting ?? "off", feesIn: it.feesIn === "quote" ? "quote" : "both", degen: it.degen === true },
+      description: it.description, options: { vesting: it.vesting ?? "off", feesIn: it.feesIn === "quote" ? "quote" : "both", degen: it.degen === true, description: it.description },
       chain: "base", provider: "doppler", deployer: null, ownKey: false, disableVesting: it.vesting !== "on",
       checks: [], ready: false, sim: null, wallet: null, last24h: 0, facts: [], draftedAt: new Date().toISOString(),
       recipientRaw: it.recipient ?? "", stale: true, fromStarter: !complete, turnDone: complete
@@ -1545,7 +1549,7 @@ function Shell() {
     const cmd = it.kind;
     flog("info", `intent: ${it.kind}${"asset" in it && it.asset ? ` · ${it.asset}` : ""}`);
     if (cmd === "chat" && spoken) {
-      if (identityAskRef.current && messagesRef.current.some((x) => x.id === identityAskRef.current?.cardId && x.launch && !x.launch.name)) { void suggestNames(spoken); return; }
+      if (identityAskRef.current) { void suggestNames(spoken); return; }
       if (turnLiveRef.current) { void sideChat(spoken); return; }
       quoteRef.current = null;
       briefRef.current = null;
@@ -2208,7 +2212,7 @@ function Shell() {
             ) : m.kind === "picks" && m.picks ? (
               <div className="bubble picks">
                 <p>{m.text}</p>
-                <div className="pick-chips">{m.picks.options.map((o) => <button type="button" key={o.value} className={`${o.rec ? ` rec rec-${o.rec}` : ""}${o.avoid ? " avoid" : ""}`} onClick={() => (m.picks?.kind === "identity" ? pickIdentity(m.id, o) : void pickPair(m.id, o.value))}>{o.rec ? <em>Desk pick {o.rec}</em> : o.avoid ? <em className="no">Desk says avoid</em> : null}<b>{o.label}</b>{o.note ? <small>{o.note}</small> : null}</button>)}</div>
+                <div className="pick-chips">{m.picks.options.map((o) => <button type="button" key={o.value} className={`${o.rec ? ` rec rec-${o.rec}` : ""}${o.avoid ? " avoid" : ""}`} onClick={() => (m.picks?.kind === "identity" ? void pickIdentity(m.id, o) : pickPair(m.id, o.value))}>{o.rec ? <em>Desk pick {o.rec}</em> : o.avoid ? <em className="no">Desk says avoid</em> : null}<b>{o.label}</b>{o.note ? <small>{o.note}</small> : null}</button>)}</div>
               </div>
             ) : (
               <div className="bubble">
