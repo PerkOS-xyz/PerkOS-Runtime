@@ -67,6 +67,7 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
   const editable = Boolean(onEdit) && (tx.stage === "idle" || tx.stage === "failed" || tx.stage === "blocked");
   const basicsOk = Boolean(launch.name.trim() && launch.symbol.trim() && launch.pair.symbol);
   const armed = (tx.stage === "idle" || tx.stage === "failed") && launch.ready && basicsOk && !launch.stale && !launch.busy;
+  const canResim = Boolean(onResim) && (tx.stage === "idle" || tx.stage === "failed" || tx.stage === "blocked") && basicsOk && !launch.busy && (launch.stale || (!launch.ready && !launch.sim));
   const [showBasics, setShowBasics] = useState(!basicsOk);
   const [showAdv, setShowAdv] = useState(false);
   const [open, setOpen] = useState(false);
@@ -93,7 +94,7 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
   const recipientRaw = launch.recipientRaw ?? (launch.ownRecipient ? "" : launch.recipient.value);
   const decision = tx.stage === "blocked" ? "Wait" : tx.stage === "done" ? "Live" : tx.stage === "pending" ? "Deploying" : tx.stage === "failed" ? "Not deployed" : !basicsOk ? "Draft" : launch.busy ? "Checking" : launch.stale ? "Recheck" : launch.ready ? "Launch" : "Fix";
   const tone = tx.stage === "blocked" || (!launch.ready && basicsOk && !launch.busy && !launch.stale) ? "wait" : tx.stage === "done" ? "done" : basicsOk && launch.ready && !launch.stale && !launch.busy ? "go" : "wait";
-  const label = tx.stage === "done" ? "Live" : tx.stage === "blocked" ? "Blocked" : tx.stage === "pending" ? "Deploying on Base…" : tx.stage === "failed" ? "Retry" : !basicsOk ? "Add a name, a symbol and a pair" : launch.busy ? "Simulating…" : launch.stale ? "Needs re-simulation" : launch.ready ? (holding ? "Keep holding…" : "Hold to launch") : "Fix the checks first";
+  const label = tx.stage === "done" ? "Live" : tx.stage === "blocked" ? "Blocked" : tx.stage === "pending" ? "Deploying on Base…" : tx.stage === "failed" ? "Retry" : !basicsOk ? "Add a name, a symbol and a pair" : launch.busy ? "Simulating…" : launch.stale ? "Simulate now" : launch.ready ? (holding ? "Keep holding…" : "Hold to launch") : launch.sim ? "Fix the checks first" : "Simulate now";
   const [uploading, setUploading] = useState<"" | "busy" | string>("");
   const fileRef = useRef<HTMLInputElement | null>(null);
   const uploadLogo = async (file: File) => {
@@ -252,8 +253,9 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
         </ul>
       ) : null}
       <div className="draft-actions">
-        <button type="button" className={`approve${holding ? " holding" : ""}${tx.stage === "done" ? " done" : ""}${tx.stage === "pending" || launch.busy ? " busy" : ""}`} disabled={!armed} onPointerDown={start} onPointerUp={cancel} onPointerLeave={cancel} onPointerCancel={cancel}
-          onClick={editable && launch.stale && basicsOk && !launch.busy && onResim ? onResim : undefined}>
+        {/* Con la simulacion pendiente el boton queda activo como "simular ahora" (clic); solo con todo en verde pasa a hold. */}
+        <button type="button" className={`approve${holding ? " holding" : ""}${tx.stage === "done" ? " done" : ""}${tx.stage === "pending" || launch.busy ? " busy" : ""}${canResim ? " resim" : ""}`} disabled={!armed && !canResim} onPointerDown={start} onPointerUp={cancel} onPointerLeave={cancel} onPointerCancel={cancel}
+          onClick={canResim ? onResim : undefined}>
           <span className="ring" />
           <span className="lbl">{label}</span>
         </button>
