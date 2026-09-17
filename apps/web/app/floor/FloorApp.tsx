@@ -117,7 +117,7 @@ function Shell() {
   type Brief = { at: string; stock: { symbol: string; ticker: string; name: string; issuer: string }; priceUsd?: number; change24hPct?: number; range24h?: { low: number; high: number; open: number; last: number }; volume24hUsd?: number; sparkline?: number[]; pool: { fee: number; usdcDepth: number; priceUsd?: number } | null; chainlink?: { priceUsd: number; ageMin: number; stale: boolean }; premiumPct?: number; swaps24h?: { count: number; usdcVolume: number; buys: number; sells: number }; holding?: { balance: string; valueUsd: number }; lines: string[] };
   type News = { text: string; sources: Array<{ url: string; title?: string }>; at: string };
   type Analysis = { brief: Brief; news?: News; scout?: string; risk?: string; verdict?: "GO" | "BLOCK"; prev?: { priceUsd?: number; at: string }; loadingNews?: boolean };
-  type Msg = { id: number; role: "you" | "floor" | "team" | "draft" | "analysis"; who?: string; text: string; streaming?: boolean; draft?: Draft; launch?: LaunchDraft; auto?: AutoRec; fees?: FeesInfo; tx?: DraftTx; verdict?: "GO" | "BLOCK"; analysis?: Analysis; turnId?: number; kind?: "open" | "side" | "status" | "picks"; picks?: { kind: "pair"; options: Array<{ value: string; label: string; note?: string; rec?: number; avoid?: boolean }> } };
+  type Msg = { id: number; role: "you" | "floor" | "team" | "draft" | "analysis"; who?: string; text: string; streaming?: boolean; draft?: Draft; launch?: LaunchDraft; auto?: AutoRec; fees?: FeesInfo; tx?: DraftTx; verdict?: "GO" | "BLOCK"; analysis?: Analysis; turnId?: number; kind?: "open" | "side" | "status" | "picks"; picks?: { kind: "pair" | "identity"; options: Array<{ value: string; label: string; note?: string; rec?: number; avoid?: boolean; name?: string; symbol?: string; about?: string }> } };
   // Agent graph del turno en curso (cards bajo las esferas) y turnos plegados.
   const [turn, setTurn] = useState<DeskTurn | null>(null);
   const turnRef = useRef<DeskTurn | null>(null);
@@ -991,15 +991,49 @@ function Shell() {
       setCaption("");
     }
   }, [chat, touch]);
-  const pickPair = useCallback((msgId: number, pair: string) => {
+  // Paso 2: con el par elegido, Sparky pregunta de que va el token; la siguiente frase de la
+  // persona se toma como esa descripcion y Sparky propone tres nombre + simbolo + About.
+  const identityAskRef = useRef<{ cardId: number; pair: string } | null>(null);
+  const pickPair = useCallback(async (msgId: number, pair: string) => {
     setMessages((m) => m.filter((x) => x.id !== msgId));
     modeRef.current = "launch";
     setFocusAsset(pair);
-    void launchDraftRef.current({ pair });
-    setCaption(`Paired with ${pair}. Now name the token on the card, or tell me what it is for and I suggest names.`);
+    const r = await launchDraftRef.current({ pair });
+    identityAskRef.current = { cardId: r.id, pair };
+    const qid = Date.now();
+    setMessages((m) => [...m.slice(-60), { id: qid, role: "floor", text: `Paired with ${pair}. Now the token: tell me in one line what it is about, and I suggest three names with a symbol and a description. Or type them on the card.` }]);
+    setCaption("What is the token about? One line.");
   }, []);
-  const launchDraftRef = useRef<(it: { name?: string; symbol?: string; pair?: string; recipient?: string; vesting?: "on" | "off"; feesIn?: "quote"; degen?: boolean }) => Promise<boolean>>(async () => false);
-  const launchDraft = useCallback(async (it: { name?: string; symbol?: string; pair?: string; recipient?: string; vesting?: "on" | "off"; feesIn?: "quote"; degen?: boolean }): Promise<boolean> => {
+  const suggestNames = useCallback(async (about: string) => {
+    const ask = identityAskRef.current;
+    if (!ask) return;
+    const youId = Date.now();
+    const statusId = youId + 1;
+    touch();
+    setMessages((m) => [...m.slice(-60), { id: youId, role: "you", text: about }, { id: statusId, role: "floor", kind: "status", text: "Thinking of names…" }]);
+    try {
+      const r = await fetch("/api/launch/names", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ about, pair: ask.pair }) });
+      const j = (await r.json().catch(() => ({}))) as { options?: Array<{ name: string; symbol: string; about: string }>; detail?: string; error?: string };
+      if (!r.ok || !j.options?.length) { setMessages((m) => m.map((x) => (x.id === statusId ? { ...x, kind: undefined, text: j.detail ?? "I could not come up with names. Type them on the card." } : x))); return; }
+      const options = j.options.map((o) => ({ value: o.symbol, label: `${o.name} (${o.symbol})`, note: o.about, name: o.name, symbol: o.symbol, about: o.about }));
+      setMessages((m) => [...m.filter((x) => x.id !== statusId), { id: youId + 95, role: "floor", kind: "picks", text: "Three ways to call it. Pick one and the desk simulates the launch:", picks: { kind: "identity", options } }]);
+      editLaunch(ask.cardId, { description: about });
+      setCaption("Pick a name, or edit on the card.");
+    } catch (e) {
+      flog("warn", `launch names: ${(e as Error).message}`);
+      setMessages((m) => m.map((x) => (x.id === statusId ? { ...x, kind: undefined, text: "I could not come up with names. Type them on the card." } : x)));
+    }
+  }, [touch, editLaunch]);
+  const pickIdentity = useCallback((msgId: number, o: { name?: string; symbol?: string; about?: string }) => {
+    const ask = identityAskRef.current;
+    setMessages((m) => m.filter((x) => x.id !== msgId));
+    if (!ask) return;
+    identityAskRef.current = null;
+    editLaunch(ask.cardId, { name: o.name, symbol: o.symbol, description: o.about });
+    setCaption(`${o.name} (${o.symbol}) paired with ${ask.pair}. Simulating with Bankr…`);
+  }, [editLaunch]);
+  const launchDraftRef = useRef<(it: { name?: string; symbol?: string; pair?: string; recipient?: string; vesting?: "on" | "off"; feesIn?: "quote"; degen?: boolean }) => Promise<{ ok: boolean; id: number }>>(async () => ({ ok: false, id: 0 }));
+  const launchDraft = useCallback(async (it: { name?: string; symbol?: string; pair?: string; recipient?: string; vesting?: "on" | "off"; feesIn?: "quote"; degen?: boolean }): Promise<{ ok: boolean; id: number }> => {
     const id = Date.now() + 4;
     const symbol = (it.symbol ?? (it.name ?? "").replace(/[^A-Za-z0-9]/g, "").slice(0, 8)).toUpperCase();
     const name = it.name ?? (it.symbol ?? "");
@@ -1015,11 +1049,11 @@ function Shell() {
     };
     setMessages((m) => [...m.slice(-60), { id, role: "draft", who: "trader", text: "", launch: skeleton, tx: { stage: "idle", hashes: [] } }]);
     touch();
-    if (!complete) { setCaption("Name the token, pick a pair and the desk simulates it with Bankr."); return false; }
+    if (!complete) { setCaption("Name the token, pick a pair and the desk simulates it with Bankr."); return { ok: false, id }; }
     setCaption(`Trader is drafting the launch: ${name} (${symbol}) paired with ${it.pair}${it.recipient ? `, fees to ${it.recipient}` : ""}…`);
     const ok = await resimLaunch(id);
     heldDraftRef.current = messagesRef.current.find((x) => x.id === id) ?? null;
-    return ok;
+    return { ok, id };
   }, [touch, resimLaunch]);
   launchDraftRef.current = launchDraft;
   const deployLaunch = useCallback(async (msgId: number) => {
@@ -1511,6 +1545,7 @@ function Shell() {
     const cmd = it.kind;
     flog("info", `intent: ${it.kind}${"asset" in it && it.asset ? ` · ${it.asset}` : ""}`);
     if (cmd === "chat" && spoken) {
+      if (identityAskRef.current && messagesRef.current.some((x) => x.id === identityAskRef.current?.cardId && x.launch && !x.launch.name)) { void suggestNames(spoken); return; }
       if (turnLiveRef.current) { void sideChat(spoken); return; }
       quoteRef.current = null;
       briefRef.current = null;
@@ -1526,7 +1561,7 @@ function Shell() {
       modeRef.current = "launch";
       if (it.pair) setFocusAsset(it.pair);
       // Primero el draft simulado en Bankr (el launch en la mesa), despues el turno de mesa.
-      void launchDraft(it).then((ok) => (ok ? chat(spoken) : undefined));
+      void launchDraft(it).then((r) => (r.ok ? chat(spoken) : undefined));
       return;
     }
     if (cmd === "automate") { quoteRef.current = null; void automationDraft(it.text); return; }
@@ -2173,7 +2208,7 @@ function Shell() {
             ) : m.kind === "picks" && m.picks ? (
               <div className="bubble picks">
                 <p>{m.text}</p>
-                <div className="pick-chips">{m.picks.options.map((o) => <button type="button" key={o.value} className={`${o.rec ? ` rec rec-${o.rec}` : ""}${o.avoid ? " avoid" : ""}`} onClick={() => pickPair(m.id, o.value)}>{o.rec ? <em>Desk pick {o.rec}</em> : o.avoid ? <em className="no">Desk says avoid</em> : null}<b>{o.label}</b>{o.note ? <small>{o.note}</small> : null}</button>)}</div>
+                <div className="pick-chips">{m.picks.options.map((o) => <button type="button" key={o.value} className={`${o.rec ? ` rec rec-${o.rec}` : ""}${o.avoid ? " avoid" : ""}`} onClick={() => (m.picks?.kind === "identity" ? pickIdentity(m.id, o) : void pickPair(m.id, o.value))}>{o.rec ? <em>Desk pick {o.rec}</em> : o.avoid ? <em className="no">Desk says avoid</em> : null}<b>{o.label}</b>{o.note ? <small>{o.note}</small> : null}</button>)}</div>
               </div>
             ) : (
               <div className="bubble">
