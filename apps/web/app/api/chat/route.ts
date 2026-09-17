@@ -11,6 +11,7 @@ import {
 import { contextFor, kbBusy } from "../../lib/kb";
 import { loadSettings } from "../../lib/settingsStore";
 import { buildInstructions, loadBrief, queryLive, shouldQueryLive } from "../../lib/knowledge";
+import { launchQuotes } from "../../lib/bankrLaunch";
 
 // Conversacion con Grok por suscripcion. Transporte: Responses API
 // (Hermes: transport="codex_responses" para "xai-oauth").
@@ -72,7 +73,7 @@ export async function POST(req: Request) {
   const denied = guard(req);
   if (denied) return denied;
   kbBusy(true, 3 * 60_000);
-  const body = (await req.json().catch(() => ({}))) as { text?: string; fleet?: Array<{ role: string; ok: boolean; reply: string; detail?: string }>; desk?: { name?: string; roles?: string[] }; brief?: string[] | null; news?: string | null; focus?: string | null; side?: boolean };
+  const body = (await req.json().catch(() => ({}))) as { text?: string; fleet?: Array<{ role: string; ok: boolean; reply: string; detail?: string }>; desk?: { name?: string; roles?: string[] }; brief?: string[] | null; news?: string | null; focus?: string | null; side?: boolean; mode?: string };
   const text = body.text?.trim() ?? "";
   // Respuestas de la flota (Hermes en PerkOS infra) para este turno: Grok es
   // la voz del Floor y las resume; no inventa lo que un agente no dijo.
@@ -105,10 +106,25 @@ export async function POST(req: Request) {
   const localCtx = local.text
     ? "\n\n## What this desk already knows (local notes on this Mac; cite the date when you use them, prefer today's verified facts if they conflict):\n" + local.text
     : "";
+  // Lanzamientos: cuando la pregunta va de lanzar o emparejar un token, Sparky conoce la
+  // lista real de pares que Bankr acepta en Base (cache de 1 h en launchQuotes).
+  const launchCtx = /launch|pair|paired|token/i.test(text)
+    ? await launchQuotes().then((q) => {
+        const stocks = q.filter((x) => x.kind === "stock").map((x) => `${x.symbol} (${x.name})`);
+        const others = q.filter((x) => x.kind !== "stock").map((x) => x.symbol);
+        return q.length
+          ? `\n\n## Launching tokens from this desk (Bankr, Base)\nA new token launches paired with one of these. Tokenized stocks: ${stocks.join(", ") || "none"}. Other quote tokens: ${others.join(", ") || "none"}. The person picks the pair, the fee recipient (wallet, X handle, Farcaster or ENS) and the options; the desk drafts and simulates, they approve. Limits: 3 launches per 24 h per wallet, 20 simulations per 24 h. Say "launch NAME (SYMBOL) paired with NVDAc" to get a draft card.`
+          : "";
+      }).catch(() => "")
+    : "";
+  const styleCtx = "\n\n## Style\nNo em dashes in your replies: use commas, colons or full stops. No emojis.";
+  const pairCtx = body.mode === "pair"
+    ? "\n\n## Pairing a new token launch\nThe human is choosing which asset a new token's pool is paired with. Summarize the desk's ranking in two or three sentences, say which one you would pick and why, and end by asking them to pick one: the app shows the candidates as buttons under your message. Do not launch or draft anything."
+    : "";
   const sideCtx = body.side === true
     ? "\n\n## A desk turn is running right now\nThe person asked something while Scout, Risk, Trader and Auditor are still working. You are the principal: answer only this question, in one or two sentences, from the facts you already have. Do not speak for agents that have not answered yet; say they are still working if asked.\n"
     : "";
-  const instructions = buildInstructions(base, brief, live?.context ?? "") + factsCtx + localCtx + sideCtx + (fleetCtx
+  const instructions = buildInstructions(base, brief, live?.context ?? "") + factsCtx + localCtx + launchCtx + pairCtx + styleCtx + sideCtx + (fleetCtx
     ? "\n\n## Your teammates just answered this turn (Hermes agents on PerkOS infra). Speak for the desk: summarize what they found, name who said what when it matters, flag disagreements and what needs the human's approval. Do not invent what they did not say.\n" + fleetCtx
     : "");
   const knowledgeInfo = live

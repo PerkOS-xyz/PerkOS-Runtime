@@ -24,7 +24,7 @@ body {
   backdrop-filter: blur(22px) saturate(1.35);
   -webkit-backdrop-filter: blur(22px) saturate(1.35);
 }
-.gate { position: absolute; inset: 0; }
+.gate { position: absolute; inset: 0; container-type: inline-size; container-name: stage; }
 .dragbar {
   position: absolute;
   top: 0;
@@ -1178,8 +1178,8 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 
 /* Dock del desk (abajo a la izquierda): pantallas propias del desk activo. */
 .desk-dock {
-  /* Alineado a la derecha: al abrir un panel, el dock (mitad derecha) lo cubre. */
-  position: absolute; right: 28px; bottom: 28px; z-index: 6;
+  /* Centrado abajo; la linea de venues va centrada debajo de los botones (revision 2026-09-17). */
+  position: absolute; right: 50%; transform: translateX(50%); bottom: 34px; z-index: 6;
   display: flex; gap: 8px;
 }
 .desk-dock button {
@@ -1598,7 +1598,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 /* En reposo la linea de estado ("Team is up") va debajo de la fila que describe. */
 .stage:not(.split):not(.desk-open):not(.turn-live) .caption { left: 50%; top: calc(21% + 150px); bottom: auto; transform: translateX(-50%); text-align: center; max-width: 560px; }
 /* Linea de venues abajo a la izquierda, solo en reposo. */
-.venue-line { position: absolute; left: 28px; bottom: 34px; z-index: 5; font-size: 11px; color: var(--mute); letter-spacing: 0.02em; }
+.venue-line { position: absolute; left: 50%; transform: translateX(-50%); bottom: 11px; z-index: 5; font-size: 11px; color: var(--mute); letter-spacing: 0.02em; white-space: nowrap; text-align: center; max-width: calc(100% - 48px); overflow: hidden; text-overflow: ellipsis; }
 .stage.split .venue-line, .stage.desk-open .venue-line, .stage.turn-live .venue-line { display: none; }
 /* Dock: minimo legible. */
 .desk-dock button { font-size: 11px; }
@@ -1724,6 +1724,12 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
    linea de promesa no toque el compositor; en split, debajo de la fila 2 de
    la cabecera para no pegarse al lockup. */
 .stage:not(.split):not(.desk-open):not(.turn-live) .core-wrap { top: calc(54% + 18px); }
+/* Sparky solo (aun sin equipo en escena): mas al centro vertical. */
+.stage:not(.team-seen):not(.split):not(.desk-open):not(.turn-live) .core-wrap { top: 44%; }
+/* Con el hilo vacio las burbujas de arranque ya invitan a hablar: la linea de promesa sobra ahi. */
+.stage.fresh:not(.split):not(.desk-open) .whisper { display: none; }
+/* Fila de agentes 15 px mas arriba en reposo (revision 2026-09-17). */
+.stage:not(.split):not(.desk-open):not(.turn-live) .orbit .orb { margin-top: -15px; }
 /* La promesa sube 15 px: Sparky bajo, la linea no. */
 .stage:not(.split):not(.desk-open):not(.turn-live) .mic-dock { margin-top: -15px; }
 /* En split, Sparky mini nunca pisa el lockup: como minimo 320 px desde la izquierda. */
@@ -2142,3 +2148,154 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .ag-who { display: inline-flex; align-items: center; gap: 6px; }
 .ag-who .agent-avatar { margin: -3px 0; }
 .qlog-h .agent-avatar { margin: -4px 0; }
+
+/* ==== Hero de bienvenida (2026-09-17): inspirado en el hero de perkos.xyz, no una copia ====
+   Texto y Sparky forman un solo grupo centrado en la ventana; Sparky queda pegado al texto, no al borde. */
+.hero { position: absolute; inset: 56px 0 0 0; z-index: 3; display: flex; align-items: center; justify-content: center; gap: clamp(24px, 4vw, 72px); padding: 0 40px 0 48px; overflow: hidden; --hero-mute: #b9c2d8; }
+.hero-copy { position: relative; z-index: 2; flex: 0 1 560px; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; text-align: left; }
+/* Marca horizontal (simbolo + nombre) a buen tamano: la marca se lee de lejos. */
+.hero-mark { height: clamp(60px, 8vh, 88px); width: auto; margin-bottom: 26px; filter: drop-shadow(0 6px 24px rgba(236, 27, 105, 0.3)); }
+.hero-title { margin: 0 0 16px; font: 700 clamp(2.25rem, 3.4vw + 1rem, 3.5rem)/1.05 system-ui, -apple-system, "Inter", "Segoe UI", sans-serif; letter-spacing: -0.01em; color: var(--ink); text-shadow: 0 2px 24px rgba(0, 0, 0, 0.55); }
+.hero-title span { white-space: nowrap; color: #ec1b69; background: linear-gradient(90deg, #ec1b69 0%, #f56a57 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+@media (prefers-contrast: more) { .hero-title span { background: none; -webkit-text-fill-color: #ec1b69; } }
+.hero-sub { margin: 0 0 28px; font: 400 clamp(0.95rem, 1vw + 0.7rem, 1.125rem)/1.5 system-ui, -apple-system, "Inter", "Segoe UI", sans-serif; color: var(--hero-mute); max-width: 52ch; text-shadow: 0 1px 12px rgba(0, 0, 0, 0.5); }
+.hero-cta { display: flex; align-items: center; gap: 20px; margin-bottom: 24px; }
+.hero-primary { display: inline-flex; align-items: center; gap: 10px; padding: 14px 26px; border: 0; border-radius: 999px; background: linear-gradient(90deg, #ec1b69 0%, #f56a57 100%); color: #fff; font: 600 15px/1 system-ui, -apple-system, "Inter", "Segoe UI", sans-serif; letter-spacing: 0; text-transform: none; cursor: pointer; box-shadow: 0 10px 30px rgba(236, 27, 105, 0.35); transition: filter 160ms ease, transform 160ms ease; }
+.hero-primary:hover { filter: brightness(1.06); }
+.hero-primary:active { filter: brightness(0.94); transform: translateY(1px); }
+.hero-primary:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
+.hero-checks { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px 22px; }
+.hero-checks li { display: inline-flex; align-items: center; gap: 7px; font: 500 13px/1.2 system-ui, -apple-system, "Inter", "Segoe UI", sans-serif; color: var(--hero-mute); white-space: nowrap; }
+.hero-checks svg { width: 14px; height: 14px; color: #f56a57; flex: none; }
+/* Sparky en flujo, al lado del texto: su alto manda (78 % de la altura util, tope 640 px). */
+.hero-stage { position: relative; z-index: 1; flex: 0 0 auto; align-self: flex-end; height: min(78%, 640px); aspect-ratio: 900 / 1364; pointer-events: none; }
+.hero-glow { position: absolute; left: 50%; top: 55%; width: 110%; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; background: radial-gradient(circle, rgba(245, 106, 87, 0.3), rgba(236, 27, 105, 0.12) 45%, transparent 70%); filter: blur(30px); mix-blend-mode: screen; }
+.hero-sparky { position: relative; display: block; height: 100%; width: auto; animation: heroFloat 6s ease-in-out infinite; filter: drop-shadow(0 30px 50px rgba(0, 0, 0, 0.5)); }
+@keyframes heroFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+/* Intro: fondo, Sparky, marca, titular, subtitulo, CTA, checks. Menos de 2,5 s en total. */
+.ident .hero-stage { opacity: 0; animation: heroIn 250ms ease both 150ms; }
+.ident .hero-mark { opacity: 0; animation: heroIn 250ms ease both 350ms; }
+.ident .hero-title { opacity: 0; animation: heroUp 350ms ease both 500ms; }
+.ident .hero-sub { opacity: 0; animation: heroUp 250ms ease both 750ms; }
+.ident .hero-cta { opacity: 0; animation: heroPop 200ms ease both 950ms; }
+.ident .hero-checks li { opacity: 0; animation: heroUp 200ms ease both; }
+.ident .hero-checks li:nth-child(1) { animation-delay: 1150ms; } .ident .hero-checks li:nth-child(2) { animation-delay: 1210ms; } .ident .hero-checks li:nth-child(3) { animation-delay: 1270ms; } .ident .hero-checks li:nth-child(4) { animation-delay: 1330ms; }
+@keyframes heroIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes heroUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes heroPop { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: none; } }
+@container stage (max-width: 1100px) { .hero-copy { flex-basis: 480px; } .hero-stage { height: min(70%, 520px); } }
+@container stage (max-width: 940px) { .hero { padding-left: 40px; } .hero-copy { flex-basis: 420px; } .hero-mark { margin-bottom: 16px; } .hero-sub { margin-bottom: 20px; } .hero-cta { margin-bottom: 18px; } .hero-stage { height: min(58%, 420px); } }
+@container stage (max-width: 860px) { .hero { justify-content: flex-start; } .hero-stage { position: absolute; right: 0; bottom: 0; height: 45%; opacity: 0.35 !important; z-index: 0; } .hero-glow { display: none; } }
+@media (prefers-reduced-motion: reduce) { .ident .hero-stage, .ident .hero-mark, .ident .hero-title, .ident .hero-sub, .ident .hero-cta, .ident .hero-checks li, .hero-sparky { animation: none !important; opacity: 1 !important; transform: none !important; } }
+.hero-primary:disabled { opacity: 0.5; cursor: default; }
+.hero-copy .hint-line { margin: -12px 0 16px; }
+
+/* Tras entrar, la escena es solo Sparky: los agentes dormidos aparecen cuando el equipo despierta por primera vez. */
+.stage:not(.team-seen) .orb:not(.on) { opacity: 0 !important; pointer-events: none; }
+
+/* Burbujas de arranque sobre el compositor (hilo vacio, escena en reposo). */
+.starters { position: absolute; left: 0; right: 0; bottom: calc(100% + 10px); display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding: 0 6px; pointer-events: auto; animation: turnIn 260ms var(--split-ease) both; }
+.starters button { font: inherit; font-size: 11.5px; letter-spacing: 0.01em; text-transform: none; padding: 7px 13px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.28); background: rgba(6, 10, 22, 0.5); color: #cdd7ee; cursor: pointer; backdrop-filter: blur(12px); transition: border-color 160ms ease, color 160ms ease, background 160ms ease; }
+.starters button:hover { border-color: rgba(236, 27, 105, 0.6); color: #fff; background: rgba(236, 27, 105, 0.12); }
+@container stage (max-width: 700px) { .starters { display: none; } }
+
+/* Launch card: perfil del token (logo, descripcion, web, post en X), editable hasta lanzar. */
+.lc-profile { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: start; margin: 10px 0 2px; padding: 10px; border-radius: 12px; border: 1px dashed rgba(160, 180, 220, 0.22); background: rgba(6, 10, 22, 0.35); }
+.lc-logo { width: 64px; height: 64px; border-radius: 16px; overflow: hidden; background: rgba(120, 160, 255, 0.08); border: 1px solid rgba(160, 180, 220, 0.2); display: flex; align-items: center; justify-content: center; }
+.lc-logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.lc-logo-empty { font-size: 13px; letter-spacing: 0.08em; color: var(--mute); }
+.lc-fields { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.lc-fields label { display: flex; flex-direction: column; gap: 3px; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--mute); }
+.lc-fields input, .lc-fields textarea { font: inherit; font-size: 12px; letter-spacing: 0; text-transform: none; padding: 6px 9px; border-radius: 8px; border: 1px solid rgba(160, 180, 220, 0.25); background: rgba(6, 10, 22, 0.55); color: #e6ecff; outline: none; resize: vertical; min-width: 0; }
+.lc-fields input:focus, .lc-fields textarea:focus { border-color: rgba(236, 27, 105, 0.6); }
+.lc-fields input.bad { border-color: rgba(255, 90, 106, 0.7); }
+.lc-two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@container stage (max-width: 700px) { .lc-two { grid-template-columns: 1fr; } }
+
+/* Launch card guiada: basics (nombre, simbolo, par, destinatario), opciones avanzadas. */
+.lc-basics { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 2px; padding: 10px; border-radius: 12px; border: 1px dashed rgba(160, 180, 220, 0.22); background: rgba(6, 10, 22, 0.35); }
+.lc-basics label, .lc-recipient { display: flex; flex-direction: column; gap: 3px; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--mute); min-width: 0; }
+.lc-basics input, .lc-search { font: inherit; font-size: 12px; letter-spacing: 0; text-transform: none; padding: 6px 9px; border-radius: 8px; border: 1px solid rgba(160, 180, 220, 0.25); background: rgba(6, 10, 22, 0.55); color: #e6ecff; outline: none; min-width: 0; width: 100%; }
+.lc-basics input:focus, .lc-search:focus { border-color: rgba(236, 27, 105, 0.6); }
+.lc-pairs { display: flex; flex-direction: column; gap: 6px; }
+.lc-pairs-head { display: flex; flex-direction: column; gap: 2px; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--mute); }
+.lc-pairs-head small { font-size: 10px; letter-spacing: 0; text-transform: none; }
+.lc-chips { display: flex; flex-wrap: wrap; gap: 6px; max-height: 128px; overflow: auto; padding: 2px; }
+.lc-chip { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 5px 10px; border-radius: 10px; border: 1px solid rgba(160, 180, 220, 0.25); background: rgba(6, 10, 22, 0.45); color: #cdd7ee; cursor: pointer; font: inherit; text-transform: none; letter-spacing: 0; text-align: left; }
+.lc-chip b { font-size: 12px; font-weight: 600; color: #e6ecff; }
+.lc-chip small { font-size: 9.5px; color: var(--mute); }
+.lc-chip:hover { border-color: rgba(160, 180, 220, 0.55); }
+.lc-chip.on { border-color: rgba(236, 27, 105, 0.75); background: rgba(236, 27, 105, 0.12); box-shadow: 0 0 10px rgba(236, 27, 105, 0.25); }
+.lc-chip.thin small { color: #ffb347; }
+.lc-none { font-size: 11px; color: var(--mute); padding: 4px 2px; }
+.lc-adv { margin: 8px 0 4px; }
+.lc-adv-toggle { font: inherit; font-size: 10px; letter-spacing: 0.06em; text-transform: none; color: var(--mute); background: transparent; border: 0; padding: 0; cursor: pointer; }
+.lc-adv-toggle:hover { color: #e6ecff; }
+.lc-adv-body { display: grid; gap: 6px; margin-top: 8px; }
+.lc-opt { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 7px 10px; border-radius: 10px; border: 1px solid rgba(160, 180, 220, 0.22); background: rgba(6, 10, 22, 0.4); color: #cdd7ee; cursor: pointer; font: inherit; text-transform: none; letter-spacing: 0; text-align: left; }
+.lc-opt b { font-size: 12px; font-weight: 600; }
+.lc-opt small { font-size: 10.5px; color: var(--mute); }
+.lc-opt.on { border-color: rgba(236, 27, 105, 0.7); background: rgba(236, 27, 105, 0.1); }
+.lc-opt.on b { color: #ffd3e1; }
+.draft-card.launch .approve.busy .lbl { opacity: 0.7; }
+
+/* Launch card: logo desde archivo */
+button.lc-logo { cursor: pointer; padding: 0; }
+button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
+.lc-logo-row { display: flex; gap: 6px; align-items: center; }
+.lc-pick { flex: none; font: inherit; font-size: 11px; letter-spacing: 0.02em; text-transform: none; padding: 6px 11px; border-radius: 999px; border: 1px solid rgba(236, 27, 105, 0.6); background: rgba(236, 27, 105, 0.14); color: #ffd3e1; cursor: pointer; }
+.lc-pick:disabled { opacity: 0.6; cursor: default; }
+.lc-err { font-size: 10.5px; letter-spacing: 0; text-transform: none; color: #ff9aa2; font-style: normal; }
+.lc-adv-body .lc-field { display: flex; flex-direction: column; gap: 3px; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--mute); }
+.lc-adv-body .lc-field input { font: inherit; font-size: 12px; letter-spacing: 0; text-transform: none; padding: 6px 9px; border-radius: 8px; border: 1px solid rgba(160, 180, 220, 0.25); background: rgba(6, 10, 22, 0.55); color: #e6ecff; outline: none; min-width: 0; }
+
+/* Chips de eleccion bajo un mensaje de Sparky (par del launch). */
+.bubble.picks p { margin: 0 0 8px; }
+.pick-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pick-chips button { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 6px 11px; border-radius: 10px; border: 1px solid rgba(160, 180, 220, 0.3); background: rgba(6, 10, 22, 0.5); color: #cdd7ee; cursor: pointer; font: inherit; text-transform: none; letter-spacing: 0; text-align: left; }
+.pick-chips button b { font-size: 12px; font-weight: 600; color: #e6ecff; }
+.pick-chips button small { font-size: 9.5px; color: var(--mute); }
+.pick-chips button:hover { border-color: rgba(236, 27, 105, 0.7); background: rgba(236, 27, 105, 0.12); }
+
+/* Chips recomendados por la mesa: los tres primeros con brillo; los que dice evitar, apagados. */
+.pick-chips button em { font-style: normal; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: #ffd3e1; }
+.pick-chips button em.no { color: #ff9aa2; }
+.pick-chips button.rec { border-color: rgba(236, 27, 105, 0.75); background: rgba(236, 27, 105, 0.12); box-shadow: 0 0 14px rgba(236, 27, 105, 0.35); }
+.pick-chips button.rec-1 { border-color: rgba(245, 106, 87, 0.95); box-shadow: 0 0 18px rgba(245, 106, 87, 0.55), 0 0 0 1px rgba(245, 106, 87, 0.5); }
+.pick-chips button.rec-1 b { color: #fff; }
+.pick-chips button.avoid { opacity: 0.55; }
+.pick-chips button.avoid:hover { opacity: 0.85; }
+
+/* Logo generado con Grok */
+.lc-pick.ai { border-color: rgba(61, 126, 255, 0.6); background: rgba(61, 126, 255, 0.14); color: #cfe0ff; }
+.lc-gen { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.lc-gen textarea { font: inherit; font-size: 12px; letter-spacing: 0; text-transform: none; padding: 6px 9px; border-radius: 8px; border: 1px solid rgba(160, 180, 220, 0.25); background: rgba(6, 10, 22, 0.55); color: #e6ecff; outline: none; resize: vertical; }
+.lc-gen textarea:focus { border-color: rgba(61, 126, 255, 0.6); }
+.lc-gen-acts { display: flex; align-items: center; gap: 8px; }
+.lc-gen-acts small { font-size: 10px; letter-spacing: 0; text-transform: none; color: var(--mute); }
+
+/* Launch card maximizada: capa amplia sobre la escena para escribir comodo; Esc o clic fuera para volver. */
+.lc-max-hold { min-height: 72px; border-radius: 14px; border: 1px dashed rgba(160, 180, 220, 0.18); }
+.lc-max-layer { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 56px 24px 24px; background: rgba(3, 4, 10, 0.55); backdrop-filter: blur(6px); animation: turnIn 180ms var(--split-ease) both; }
+.lc-max-layer .draft-card.launch.max { width: min(860px, 100%); max-height: 100%; overflow: auto; font-size: 13px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6); }
+.draft-card.launch.max .lc-basics input, .draft-card.launch.max .lc-search, .draft-card.launch.max .lc-fields input, .draft-card.launch.max .lc-fields textarea, .draft-card.launch.max .lc-gen textarea, .draft-card.launch.max .lc-adv-body .lc-field input { font-size: 14px; padding: 9px 12px; }
+.draft-card.launch.max .lc-gen textarea, .draft-card.launch.max .lc-fields textarea { min-height: 84px; }
+.draft-card.launch.max .lc-profile { grid-template-columns: 112px 1fr; }
+.draft-card.launch.max .lc-logo { width: 112px; height: 112px; border-radius: 24px; }
+.draft-card.launch.max .lc-chips { max-height: 220px; }
+.draft-card.launch.max .launch-checks { font-size: 13px; }
+
+/* Campos de texto mas altos en la tarjeta normal: escribir el About o el prompt sin expandir. */
+.lc-fields textarea, .lc-gen textarea { min-height: 92px; line-height: 1.45; font-size: 12.5px; }
+.lc-basics input, .lc-fields input, .lc-search, .lc-adv-body .lc-field input { padding: 8px 10px; font-size: 12.5px; }
+
+/* Linea "Fees pay to" siempre visible en la tarjeta de launch. */
+.lc-fees { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 8px; margin: 8px 0 0; padding: 7px 10px; border-radius: 10px; background: rgba(61, 200, 120, 0.08); border: 1px solid rgba(61, 200, 120, 0.3); font-size: 12px; color: #e6ecff; }
+.lc-fees > span { font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: #7fe0a8; }
+.lc-fees b { font-weight: 600; }
+.lc-fees b small { font-weight: 400; color: var(--mute); font-family: ui-monospace, Menlo, monospace; }
+.lc-fees > small { color: var(--mute); font-size: 10.5px; }
+.lc-link { margin-left: auto; font: inherit; font-size: 10.5px; letter-spacing: 0.02em; text-transform: none; color: #9fc2ff; background: transparent; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
+
+/* Boton de la tarjeta en modo "simular ahora": un clic, sin hold. */
+.draft-card.launch .approve.resim { cursor: pointer; opacity: 1; border-color: rgba(61, 126, 255, 0.7); box-shadow: 0 0 14px rgba(61, 126, 255, 0.35); }

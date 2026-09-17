@@ -21,7 +21,8 @@ export type Wallet = {
   prove: () => void;
   proven: boolean;
   forget: () => void;
-  logout: () => void;
+  /** Cierra la sesion de Privy; resuelve cuando la sesion realmente se fue. */
+  logout: () => Promise<void>;
   // personal_sign con la wallet activa (embebida o externa). Para la sesion PerkOS.
   signMessage: (message: string) => Promise<string>;
   // eth_sendTransaction con la wallet activa en la cadena pedida (Base para el
@@ -57,7 +58,7 @@ export const disabledWallet: Wallet = {
   prove: () => undefined,
   proven: false,
   forget: () => undefined,
-  logout: () => undefined,
+  logout: async () => undefined,
   signMessage: async () => { throw new Error("wallet disabled"); },
   sendTransaction: async () => { throw new Error("wallet disabled"); },
   signWhere: "",

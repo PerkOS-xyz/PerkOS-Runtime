@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Ambient from "./Ambient";
 import XaiConnect from "./XaiConnect";
 import { useWallet } from "./wallet/context";
+import { flog } from "./log";
 
 // Pasos: 0 ident cinematografico -> 1 Privy (wallet) -> 2 LLM -> 3 equipo ->
 // 4 rail de gasto (1Claw, opcional). FloorApp decide donde arranca: 2 si falta
@@ -45,19 +46,55 @@ export type RailStep = {
 
 export default function Wizard({ onDone, start = 0, team, rail }: { onDone: () => void; start?: number; team?: TeamStep; rail?: RailStep }) {
   const [step, setStep] = useState(start);
+  const wallet = useWallet();
+  // "Meet the Floor Desk" abre Privy directamente; la pagina de sign in (paso 1) queda solo
+  // para quien llega por "sign in again". Al conectar, sigue al paso del LLM.
+  const [wantsIn, setWantsIn] = useState(false);
+  useEffect(() => {
+    if (step !== 0 || !wallet.connected || wallet.busy) return;
+    if (wantsIn) { setWantsIn(false); setStep(2); return; }
+    // En la bienvenida el usuario esta desconectado por definicion (FloorApp arranca
+    // en el paso 2 o 3 cuando hay sesion). Si Privy reporta sesion aqui es una sesion
+    // vieja que el logout no llego a cerrar: se cierra ahora, sin que el usuario haga nada.
+    flog("warn", "welcome: a stale wallet session survived the logout, closing it");
+    void wallet.logout();
+  }, [step, wantsIn, wallet.connected, wallet.busy, wallet]);
+  const meet = () => {
+    setWantsIn(true);
+    wallet.open();
+  };
   if (step === 0) {
     return (
       <div className="wizard">
-        <Ambient cine>
-          <div className="wizard-card ident">
-            <img className="cine-mark" src="/logo.png" alt="PerkOS" />
-            <p className="cine-line">Your business just hired its first team.</p>
-            <small className="cine-sub">They draft. You approve.</small>
-            <button className="cine-cta" type="button" onClick={() => setStep(1)}>
-              Continue
-            </button>
-          </div>
-        </Ambient>
+        {/* El fondo ambiental va solo (su hijo .logo-3d mide 0 x 0); el hero es hermano, a pantalla completa.
+            Hero como el del sitio perkos.xyz: titular grande con "first team." en degradado,
+            Sparky de cuerpo entero a la derecha, CTA en pill. Nada hace scroll. */}
+        <Ambient cine>{null}</Ambient>
+        <section className="hero ident" aria-label="Welcome">
+            <div className="hero-copy">
+              <img className="hero-mark" src="/logo-name.png" alt="PerkOS" />
+              {/* Copy propio del Floor Desk, el unico desk del app hoy. El eslogan del sitio
+                  ("Your business just hired its first team") volvera a tener sentido cuando
+                  el app ofrezca varios desks para elegir. */}
+              <h1 className="hero-title">They draft.<br /><span>You approve.</span></h1>
+              <p className="hero-sub">PerkOS Floor Desk puts four agents on tokenized stocks on Base. Scout reads the market, Risk says go or block, Trader drafts the order, Auditor checks it. Nothing moves until you sign in your own wallet.</p>
+              <div className="hero-cta">
+                <button className="hero-primary" type="button" disabled={!wallet.enabled || wallet.busy} onClick={meet}>{wallet.busy ? "Opening…" : "Meet the Floor Desk"} <span aria-hidden>&rarr;</span></button>
+              </div>
+              {!wallet.enabled ? <p className="hint-line err">Set NEXT_PUBLIC_PRIVY_APP_ID in apps/web/.env.local</p> : null}
+              {wallet.error ? <p className="hint-line err">{wallet.error}</p> : null}
+              <ul className="hero-checks">
+                {["Your keys, your trade", "Uniswap, Aerodrome and Bankr", "Launches and automations", "Ready in two minutes"].map((t) => (
+                  <li key={t}><svg viewBox="0 0 16 16" aria-hidden><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>{t}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="hero-stage" aria-hidden>
+              <div className="hero-glow" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img className="hero-sparky" src="/sparky-full.png" alt="" />
+            </div>
+        </section>
       </div>
     );
   }

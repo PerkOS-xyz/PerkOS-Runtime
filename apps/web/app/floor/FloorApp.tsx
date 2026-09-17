@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import "./apiToken";
 import { parseIntent } from "./parseCommand";
 import DeskPanel, { shareLaunchUrl, type DeskScreen } from "./DeskPanel";
+import LaunchCard, { type LaunchEdit } from "./LaunchCard";
 import ChatsDrawer from "./ChatsDrawer";
 import KnowledgeMap, { type GraphNode } from "./KnowledgeMap";
 import { CHAINS, chainOf, ChainMark, deskManifest } from "./ChainMark";
@@ -23,6 +24,16 @@ import { useVoice } from "./useVoice";
 let perkosDeclined = false;
 
 type Team = "hibernated" | "waking" | "ready";
+
+// Burbujas de arranque sobre el compositor. En ingles, y cada una cae en un intent real:
+// las dos primeras son "advise" (scan de TODOS los activos operables + noticias + turno de mesa,
+// despierta al equipo), la tercera chat con la lista de pares de Bankr, la cuarta el portafolio.
+const STARTERS = [
+  "What should I buy today?",
+  "What to short this month?",
+  "Launch a token",
+  "My portfolio"
+];
 
 export default function FloorApp() {
   return (
@@ -48,6 +59,10 @@ function Shell() {
   const LINK_LOST = "Your wallet is signed in but not linked to this window, so nothing can be signed. Sign in again with the QR, then ask for it again.";
   const [listening, setListening] = useState(false);
   const [team, setTeam] = useState<Team>("hibernated");
+  // Los agentes no se muestran hasta que el equipo despierta por primera vez en la sesion:
+  // tras entrar solo esta Sparky. Cuando vuelven a dormir, se quedan (ya se conocen).
+  const [teamSeen, setTeamSeen] = useState(false);
+  useEffect(() => { if (team !== "hibernated") setTeamSeen(true); }, [team]);
   const [guest, setGuest] = useState(false);
   const [docs, setDocs] = useState(false);
   const [market, setMarket] = useState(false);
@@ -93,7 +108,7 @@ function Shell() {
   type DraftTx = { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; step?: "approve" | "swap"; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
   // Launch (Bankr): un token nuevo emparejado con una accion tokenizada; la
   // persona lo despliega con Hold to launch. Las fees (95%) van a su wallet.
-  type LaunchDraft = { id: string; name: string; symbol: string; description?: string; pair: { address: string; symbol: string; name: string; kind?: string; illiquid?: boolean }; recipient: { type: "wallet" | "x" | "farcaster" | "ens"; value: string }; recipientLabel: string; resolvedRecipient?: string; feeRecipient: string; ownRecipient: boolean; options: { vesting: "on" | "off"; feesIn: "both" | "quote"; degen: boolean; description?: string; image?: string; websiteUrl?: string; tweetUrl?: string }; chain: string; provider: string; deployer: string | null; ownKey: boolean; disableVesting: boolean; checks: Array<{ label: string; ok: boolean; note: string }>; ready: boolean; sim: { tokenAddress: string; poolId: string } | null; simError?: string; wallet: { evm: string; ethBase: number; club: boolean } | null; last24h: number; facts: string[]; draftedAt: string; receipt?: { tokenAddress: string; poolId: string; txHash: string; explorer: string; bankrUrl: string } };
+  type LaunchDraft = { id: string; name: string; symbol: string; description?: string; pair: { address: string; symbol: string; name: string; kind?: string; illiquid?: boolean }; recipient: { type: "wallet" | "x" | "farcaster" | "ens"; value: string }; recipientLabel: string; resolvedRecipient?: string; feeRecipient: string; ownRecipient: boolean; options: { vesting: "on" | "off"; feesIn: "both" | "quote"; degen: boolean; description?: string; image?: string; websiteUrl?: string; tweetUrl?: string }; chain: string; provider: string; deployer: string | null; ownKey: boolean; disableVesting: boolean; checks: Array<{ label: string; ok: boolean; note: string }>; ready: boolean; sim: { tokenAddress: string; poolId: string } | null; simError?: string; wallet: { evm: string; ethBase: number; club: boolean } | null; last24h: number; facts: string[]; draftedAt: string; receipt?: { tokenAddress: string; poolId: string; txHash: string; explorer: string; bankrUrl: string }; recipientRaw?: string; stale?: boolean; busy?: boolean; fromStarter?: boolean; turnDone?: boolean };
   // Fees del creador (Bankr): lo que ganan los tokens que la persona lanzo; el claim lo firma ella.
   type FeeToken = { tokenAddress: string; name: string; symbol: string; share: string; token0Label: string; token1Label: string; claimable: { token0: string; token1: string }; claimed: { token0: string; token1: string; count: number } };
   type FeesInfo = { address: string; tokens: FeeToken[]; totals: { claimableWeth: string; claimedWeth: string; claimCount: number }; lifetimeEarnedWeth: string; at: string; only?: string };
@@ -102,14 +117,14 @@ function Shell() {
   type Brief = { at: string; stock: { symbol: string; ticker: string; name: string; issuer: string }; priceUsd?: number; change24hPct?: number; range24h?: { low: number; high: number; open: number; last: number }; volume24hUsd?: number; sparkline?: number[]; pool: { fee: number; usdcDepth: number; priceUsd?: number } | null; chainlink?: { priceUsd: number; ageMin: number; stale: boolean }; premiumPct?: number; swaps24h?: { count: number; usdcVolume: number; buys: number; sells: number }; holding?: { balance: string; valueUsd: number }; lines: string[] };
   type News = { text: string; sources: Array<{ url: string; title?: string }>; at: string };
   type Analysis = { brief: Brief; news?: News; scout?: string; risk?: string; verdict?: "GO" | "BLOCK"; prev?: { priceUsd?: number; at: string }; loadingNews?: boolean };
-  type Msg = { id: number; role: "you" | "floor" | "team" | "draft" | "analysis"; who?: string; text: string; streaming?: boolean; draft?: Draft; launch?: LaunchDraft; auto?: AutoRec; fees?: FeesInfo; tx?: DraftTx; verdict?: "GO" | "BLOCK"; analysis?: Analysis; turnId?: number; kind?: "open" | "side" | "status" };
+  type Msg = { id: number; role: "you" | "floor" | "team" | "draft" | "analysis"; who?: string; text: string; streaming?: boolean; draft?: Draft; launch?: LaunchDraft; auto?: AutoRec; fees?: FeesInfo; tx?: DraftTx; verdict?: "GO" | "BLOCK"; analysis?: Analysis; turnId?: number; kind?: "open" | "side" | "status" | "picks"; picks?: { kind: "pair" | "identity"; options: Array<{ value: string; label: string; note?: string; rec?: number; avoid?: boolean; name?: string; symbol?: string; about?: string }> } };
   // Agent graph del turno en curso (cards bajo las esferas) y turnos plegados.
   const [turn, setTurn] = useState<DeskTurn | null>(null);
   const turnRef = useRef<DeskTurn | null>(null);
   turnRef.current = turn;
   const turnLiveRef = useRef(false);
   // Modo del turno: orden / analisis de un activo / asesoria abierta / charla (sin mesa).
-  const modeRef = useRef<"order" | "analyze" | "advise" | "launch" | "chat">("chat");
+  const modeRef = useRef<"order" | "analyze" | "advise" | "launch" | "pair" | "chat">("chat");
   const lastRepliesRef = useRef<Array<{ role: string; ok: boolean; reply: string }>>([]);
   const [openTurns, setOpenTurns] = useState<number[]>([]);
   const decisionRef = useRef<{ turnId: number; noteId?: string; draftId?: number } | null>(null);
@@ -174,10 +189,10 @@ function Shell() {
     if (!r) return;
     if (r.status === 428) { setHistoryLocked(true); flog("info", "chat history: locked, waiting for the wallet to unlock it once on this computer"); return; }
     setHistoryLocked(false);
-    const j = (await r.json().catch(() => ({}))) as { chats?: Array<{ id: string }> };
-    const first = (j.chats ?? [])[0];
-    if (first && messagesRef.current.length === 0) await openChat(first.id, false);
-  }, [openChat]);
+    // Tras entrar, la escena arranca limpia: el ultimo hilo no se reabre solo (queda
+    // en Chats, a un clic). Revision del 2026-09-17.
+    await r.json().catch(() => ({}));
+  }, []);
   useEffect(() => {
     const addr = wallet.address.toLowerCase();
     if (!addr || chatsLoadedFor.current === addr) return;
@@ -508,7 +523,7 @@ function Shell() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, fleet: fleetReplies, desk: deskRef.current ? { name: deskRef.current.name, roles: deskRef.current.agents.map((a) => a.name) } : undefined, brief: briefRef.current?.lines ?? null, news: briefRef.current?.news ?? null, focus: focusRef.current || null }),
+        body: JSON.stringify({ text, fleet: fleetReplies, desk: deskRef.current ? { name: deskRef.current.name, roles: deskRef.current.agents.map((a) => a.name) } : undefined, brief: briefRef.current?.lines ?? null, news: briefRef.current?.news ?? null, focus: focusRef.current || null, mode: modeRef.current }),
         signal: ac.signal
       });
       if (!res.ok || !res.body) {
@@ -802,6 +817,8 @@ function Shell() {
     heldDraftRef.current = null;
     const msg = { ...d, turnId };
     setMessages((m) => {
+      // La tarjeta de launch ya esta en el chat desde el primer segundo: solo se le anota el turno.
+      if (m.some((x) => x.id === d.id)) return m.map((x) => (x.id === d.id ? { ...x, turnId, tx: x.tx?.stage === "idle" && d.tx?.stage === "blocked" ? d.tx : x.tx } : x));
       const rest = floorId ? m.filter((x) => x.id !== floorId) : m;
       const floor = floorId ? m.find((x) => x.id === floorId) : undefined;
       return floor ? [...rest, msg, floor] : [...rest, msg];
@@ -837,34 +854,229 @@ function Shell() {
 
   // Launch: Bankr simula el token emparejado (nombre, simbolo, accion) y la
   // mesa lo revisa; la card se libera cuando Trader entrega, como una orden.
-  const launchDraft = useCallback(async (it: { name?: string; symbol?: string; pair?: string; recipient?: string; vesting?: "on" | "off"; feesIn?: "quote"; degen?: boolean }): Promise<boolean> => {
-    const id = Date.now() + 4;
-    const symbol = (it.symbol ?? (it.name ?? "").replace(/[^A-Za-z0-9]/g, "").slice(0, 8)).toUpperCase();
-    const name = it.name ?? symbol;
-    heldDraftRef.current = null;
-    setCaption(`Trader is drafting the launch: ${name} (${symbol}) paired with ${it.pair}${it.recipient ? `, fees to ${it.recipient}` : ""}…`);
-    touch();
+  // Launch guiado: la tarjeta aparece al instante (vacia si faltan datos) y la simulacion de
+  // Bankr la completa. No se retiene hasta el turno de mesa: el turno llega despues.
+  const resimTimers = useRef<Record<number, number>>({});
+  const resimLaunch = useCallback(async (msgId: number): Promise<boolean> => {
+    const cur = messagesRef.current.find((x) => x.id === msgId)?.launch;
+    if (!cur) return false;
+    const name = cur.name.trim(), symbol = cur.symbol.trim().toUpperCase(), pair = cur.pair.symbol.trim();
+    if (!name || !symbol || !pair) return false;
+    const setL = (fn: (l: LaunchDraft) => LaunchDraft) => setMessages((m) => m.map((x) => (x.id === msgId && x.launch ? { ...x, launch: fn(x.launch) } : x)));
+    setL((l) => ({ ...l, busy: true }));
     try {
-      const res = await fetch("/api/launch/draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, symbol, pair: it.pair, recipient: it.recipient, vesting: it.vesting, feesIn: it.feesIn, degen: it.degen === true }) });
+      const res = await fetch("/api/launch/draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, symbol, pair, recipient: cur.recipientRaw?.trim() || undefined, vesting: cur.options.vesting, feesIn: cur.options.feesIn === "quote" ? "quote" : undefined, degen: cur.options.degen === true, description: cur.options.description ?? cur.description, image: cur.options.image, website: cur.options.websiteUrl, tweet: cur.options.tweetUrl }) });
       const j = (await res.json().catch(() => ({}))) as LaunchDraft & { error?: string; detail?: string };
       if (!res.ok || !j.checks) {
-        flog("error", `launch draft ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`);
-        setMessages((m) => [...m.slice(-60), { id, role: "draft", who: "trader", text: `Could not draft the launch: ${j.detail ?? j.error ?? res.status}` }]);
-        setCaption("");
+        flog("warn", `launch draft ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`);
+        setL((l) => ({ ...l, busy: false, stale: false, ready: false, sim: null, simError: j.detail ?? j.error ?? `Bankr answered ${res.status}` }));
+        setCaption(j.detail ?? "Bankr could not simulate the launch.");
         return false;
       }
-      flog("info", `launch draft: ${j.symbol} paired with ${j.pair.symbol} · fees to ${j.recipientLabel}${j.resolvedRecipient ? ` (${j.resolvedRecipient.slice(0, 8)})` : ""} · vesting ${j.options.vesting} · fees in ${j.options.feesIn}${j.options.degen ? " · degen" : ""} · checks ${j.checks.filter((c) => c.ok).length}/${j.checks.length} · sim ${j.sim ? j.sim.tokenAddress : j.simError ?? "skipped"} · ${j.ownKey ? "own key" : "operator key"}`);
-      heldDraftRef.current = { id, role: "draft", who: "trader", text: "", launch: j, tx: { stage: "idle", hashes: [] } };
-      quoteRef.current = null;
+      flog("info", `launch draft: ${j.symbol} paired with ${j.pair.symbol} · fees to ${j.recipientLabel}${j.resolvedRecipient ? ` (${j.resolvedRecipient.slice(0, 8)})` : ""} · vesting ${j.options.vesting} · fees in ${j.options.feesIn}${j.options.degen ? " · degen" : ""} · checks ${j.checks.filter((c) => c.ok).length}/${j.checks.length}${j.sim ? ` · sim ${j.sim.tokenAddress}` : j.simError ? ` · sim failed: ${j.simError}` : ""} · ${j.ownKey ? "own key" : "operator key"}`);
+      let first = false;
+      setL((l) => {
+        first = Boolean(l.fromStarter) && !l.turnDone && j.ready;
+        return { ...l, ...j, id: l.id, options: { ...j.options, description: l.options.description ?? j.options.description, image: l.options.image ?? j.options.image, websiteUrl: l.options.websiteUrl ?? j.options.websiteUrl, tweetUrl: l.options.tweetUrl ?? j.options.tweetUrl }, recipientRaw: l.recipientRaw, fromStarter: l.fromStarter, turnDone: l.turnDone || first, busy: false, stale: false };
+      });
       briefRef.current = { lines: j.facts };
-      setCaption(j.ready ? `Launch on the table, fees to ${j.ownRecipient ? "your wallet" : j.recipientLabel}. The desk is reviewing it…` : "Launch drafted, a check failed. The desk is reviewing it…");
-      return true;
+      setCaption(j.ready ? `Launch on the table, fees to ${j.ownRecipient ? "your wallet" : j.recipientLabel}. Hold to launch when you are ready.` : "Launch drafted, a check failed. Fix it on the card.");
+      if (first) {
+        // Primer draft completo desde la tarjeta guiada: ahora si, el turno de mesa lo revisa.
+        modeRef.current = "launch";
+        heldDraftRef.current = messagesRef.current.find((x) => x.id === msgId) ?? null;
+        void chat(`launch ${name} (${symbol}) paired with ${j.pair.symbol}`);
+      }
+      return j.ready;
     } catch (e) {
-      flog("error", `launch draft: ${(e as Error).message}`);
-      setMessages((m) => [...m.slice(-60), { id, role: "draft", who: "trader", text: "Could not draft the launch." }]);
+      flog("warn", `launch draft: ${(e as Error).message}`);
+      setL((l) => ({ ...l, busy: false, stale: false, ready: false, simError: "Bankr did not answer." }));
       return false;
     }
+  }, [chat]);
+  const editLaunch = useCallback((msgId: number, patch: LaunchEdit) => {
+    const structural = patch.name !== undefined || patch.symbol !== undefined || patch.pair !== undefined || patch.recipient !== undefined || patch.vesting !== undefined || patch.feesIn !== undefined || patch.degen !== undefined;
+    setMessages((m) => m.map((x) => {
+      if (x.id !== msgId || !x.launch) return x;
+      const l = x.launch;
+      return { ...x, launch: {
+        ...l,
+        name: patch.name ?? l.name,
+        symbol: patch.symbol ?? l.symbol,
+        pair: patch.pair !== undefined ? { address: "", symbol: patch.pair, name: patch.pair } : l.pair,
+        recipientRaw: patch.recipient ?? l.recipientRaw,
+        description: patch.description ?? l.description,
+        options: { ...l.options, vesting: patch.vesting ?? l.options.vesting, feesIn: patch.feesIn ?? l.options.feesIn, degen: patch.degen ?? l.options.degen, ...(patch.description !== undefined ? { description: patch.description } : {}), ...(patch.image !== undefined ? { image: patch.image || undefined } : {}), ...(patch.websiteUrl !== undefined ? { websiteUrl: patch.websiteUrl || undefined } : {}), ...(patch.tweetUrl !== undefined ? { tweetUrl: patch.tweetUrl || undefined } : {}) },
+        stale: structural ? true : l.stale
+      } };
+    }));
+    if (structural) {
+      // Cada simulacion cuenta contra el limite diario de Bankr: se espera a que la persona termine de escribir.
+      window.clearTimeout(resimTimers.current[msgId]);
+      resimTimers.current[msgId] = window.setTimeout(() => void resimLaunch(msgId), 1500);
+    }
+  }, [resimLaunch]);
+  // Launch guiado, paso 1: elegir el par conversando. El desk compara las acciones tokenizadas
+  // que Bankr acepta como par (liquidez, movimiento, noticias), Sparky resume y la persona elige
+  // entre chips. Recien entonces existe una tarjeta de launch (con el par puesto).
+  // La lectura de pairing vale un rato: si la mesa ya la hizo hace menos de 30 min, se reutiliza
+  // (mismos chips, mismo resumen) en vez de despertar al equipo otra vez. Ademas queda en el
+  // conocimiento local del desk (Notes) como analisis fechado.
+  const pairReadRef = useRef<{ at: number; options: NonNullable<Msg["picks"]>["options"]; summary: string } | null>(null);
+  const launchGuide = useCallback(async () => {
+    const youId = Date.now();
+    const prev = pairReadRef.current;
+    if (prev && Date.now() - prev.at < 30 * 60_000) {
+      const mins = Math.max(1, Math.round((Date.now() - prev.at) / 60_000));
+      touch();
+      setMessages((m) => [...m.slice(-60), { id: youId, role: "you", text: "Launch a token", turnId: youId }, { id: youId + 1, role: "floor", text: `The desk read the pairs ${mins} minute${mins > 1 ? "s" : ""} ago, so here it is again. ${prev.summary}`, turnId: youId }, { id: youId + 95, role: "floor", kind: "picks", text: "Pick the pair for the new token:", turnId: youId, picks: { kind: "pair", options: prev.options } }]);
+      setCaption("Pick the pair. Say \"read the pairs again\" for a fresh desk read.");
+      return;
+    }
+    const statusId = youId + 1;
+    const status = (t: string) => setMessages((m) => m.map((x) => (x.id === statusId ? { ...x, text: t } : x)));
+    touch();
+    setMessages((m) => [...m.slice(-60), { id: youId, role: "you", text: "Launch a token", turnId: youId }, { id: statusId, role: "floor", kind: "status", text: "Reading the tokenized stocks Bankr can pair a launch with…", turnId: youId }]);
+    setCaption("Scanning the pairs…");
+    try {
+      const [qr, sr] = await Promise.all([fetch("/api/launch/quotes"), fetch("/api/market/scan")]);
+      const quotes = (await qr.json().catch(() => ({}))) as { configured?: boolean; stocks?: Array<{ symbol: string; name: string; illiquid?: boolean }>; detail?: string };
+      const scan = (await sr.json().catch(() => ({}))) as { lines?: string[]; rows?: Array<{ symbol: string; ticker: string; name: string; change24hPct?: number }> };
+      if (!qr.ok || !quotes.stocks?.length) { status(quotes.detail ?? "Bankr's launch registry is not available. Add a Bankr key with Token Launch in Settings."); setCaption(""); return; }
+      // Bankr registra "NVDA"; el scan del desk habla de "NVDAc" (el token de Coinbase). Misma accion.
+      const key = (sym: string) => sym.toUpperCase().replace(/C$/, "");
+      const registry = new Map(quotes.stocks.map((q) => [key(q.symbol), q]));
+      const rows = (scan.rows ?? []).filter((r) => registry.has(key(r.symbol)));
+      const lines = (scan.lines ?? []).filter((l) => { const sym = l.match(/^([A-Z]{2,6}c)\b/)?.[1]; return sym ? registry.has(key(sym)) : false; }).map((l) => { const sym = l.match(/^([A-Z]{2,6}c)\b/)?.[1]; const q = sym ? registry.get(key(sym)) : undefined; return q?.illiquid ? `${l} · Bankr flags it illiquid` : l; });
+      // Noticias solo de los 6 que mas se movieron (cache del warm): rapido y suficiente para elegir.
+      const movers = [...rows].sort((a, b) => Math.abs(b.change24hPct ?? 0) - Math.abs(a.change24hPct ?? 0)).slice(0, 6);
+      status(`${rows.length} tokenized stocks can be the pair. Reading the news on the ${movers.length} that moved most…`);
+      const newsBy = new Map<string, string>();
+      await Promise.race([Promise.all(movers.map((t) => fetch("/api/market/news", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker: t.ticker, name: t.name }) }).then((x) => x.json()).then((j) => { if (j.text) newsBy.set(t.symbol, `${t.symbol}: ${String(j.text).replace(/\s+/g, " ").slice(0, 420)}`); }).catch(() => undefined))), new Promise<void>((res) => setTimeout(res, 25_000))]);
+      briefRef.current = { lines: [`Pairs Bankr accepts on Base: ${quotes.stocks.map((q) => q.symbol).join(", ")}, plus WETH (the default quote) and BNKR.`, ...lines], news: [...newsBy.values()].join(" ") || undefined };
+      quoteRef.current = null;
+      setFocusAsset("");
+      modeRef.current = "pair";
+      const ranked = movers.map((m) => m.symbol).concat(rows.map((r) => r.symbol)).concat(quotes.stocks.filter((q) => !q.illiquid).map((q) => `${q.symbol}c`)).filter((v, i, a) => a.findIndex((x) => key(x) === key(v)) === i).slice(0, 8);
+      const options = ranked.map((sym) => { const r = rows.find((x) => x.symbol === sym); const q = registry.get(key(sym)); return { value: sym, label: sym, note: `${r?.name ?? q?.name ?? ""}${typeof r?.change24hPct === "number" ? ` · ${r.change24hPct >= 0 ? "+" : ""}${r.change24hPct.toFixed(1)}% 24h` : ""}${q?.illiquid ? " · thin" : ""}` }; });
+      options.push({ value: "WETH", label: "WETH", note: "the default quote" });
+      // Los chips salen ya, con los datos: la persona puede elegir sin esperar a la mesa.
+      // Cuando el desk termina, los mismos chips vuelven a quedar al final, bajo Sparky.
+      const picks = { id: youId + 95, role: "floor" as const, kind: "picks" as const, text: "Pick the pair now from the data, or wait for the desk's read (about a minute if the team is waking up):", turnId: youId, picks: { kind: "pair" as const, options } };
+      setMessages((m) => [...m.slice(-60), picks]);
+      status("Handing to the desk: which pair draws attention and has depth.");
+      await chat("Which tokenized stock should a new token launch be paired with?", { youId });
+      // Recomendaciones de la mesa, por frases: una frase que dice avoid/skip (y no accept/recommend)
+      // marca sus pares como "evitar"; el orden de preferencia sale de las frases de Trader, Sparky y
+      // Scout que recomiendan, y si no, del orden en que los nombran. Los tres primeros se resaltan.
+      const norm = (x: string) => x.toUpperCase().replace(/C$/, "");
+      const cands = options.map((o) => norm(o.value));
+      const findAll = (t: string) => { const out: string[] = []; const re = /\b([A-Z]{2,6})c?\b/g; let mm: RegExpExecArray | null; while ((mm = re.exec(t))) { const k = norm(mm[1]); if (cands.includes(k) && !out.includes(k)) out.push(k); } return out; };
+      const sentences = (t: string) => t.split(/(?<=[.;!?])\s+|\n+/).map((x) => x.trim()).filter(Boolean);
+      const NEG = /\b(avoid|skip|stay away|pass on|thinnest|dull|would not|wouldn't|do not|don't)\b/i, POS = /\b(accept|recommend|pair it with|pair with|first choice|second choice|top pick|would pick|would draft|draft against|best|deepest)\b/i, RANK = /\b(ranks?|first|then|top)\b/i;
+      const replies = lastRepliesRef.current;
+      const say = (role: string) => replies.find((r) => r.role.toLowerCase() === role && r.ok)?.reply ?? "";
+      const sparkyText = [...messagesRef.current].reverse().find((x) => x.role === "floor" && x.turnId === youId && !x.kind && x.text)?.text ?? "";
+      const texts = [say("trader"), sparkyText, say("scout"), say("risk")];
+      const avoided = new Set<string>();
+      const liked: string[] = [];
+      for (const t of texts) for (const sent of sentences(t)) {
+        const syms = findAll(sent);
+        if (!syms.length) continue;
+        const neg = sent.match(NEG);
+        if (neg && neg.index !== undefined) {
+          // "ranks METAc first, then NVDAc, and would skip SPCXc": lo de antes del verbo negativo se
+          // recomienda, lo de despues se evita.
+          const head = sent.slice(0, neg.index), tail = sent.slice(neg.index);
+          findAll(tail).forEach((k) => avoided.add(k));
+          if (POS.test(head) || RANK.test(head)) findAll(head).forEach((k) => { if (!liked.includes(k)) liked.push(k); });
+        } else if (POS.test(sent) || RANK.test(sent)) syms.forEach((k) => { if (!liked.includes(k)) liked.push(k); });
+      }
+      const mentioned = texts.flatMap(findAll).filter((k, i, a) => a.indexOf(k) === i);
+      const ordered = [...liked, ...mentioned].filter((k, i, a) => a.indexOf(k) === i && !avoided.has(k)).slice(0, 3);
+      ordered.forEach((k) => avoided.delete(k));
+      const rated = options.map((o) => ({ ...o, rec: ordered.indexOf(norm(o.value)) >= 0 ? ordered.indexOf(norm(o.value)) + 1 : undefined, avoid: avoided.has(norm(o.value)) || undefined })).sort((a, b) => (a.rec ?? 9) - (b.rec ?? 9));
+      setMessages((m) => (m.some((x) => x.id === picks.id) ? [...m.filter((x) => x.id !== picks.id), { ...picks, text: ordered.length ? "The desk's picks first. Pick the pair for the new token:" : "Pick the pair for the new token:", picks: { kind: "pair", options: rated } }] : m));
+      pairReadRef.current = { at: Date.now(), options: rated, summary: sparkyText };
+      const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+      const who = replies.filter((x) => x.ok && x.reply).map((x) => `- **${cap(x.role)}**: ${x.reply.replace(/\s+/g, " ")}`).join("\n");
+      kbWriteRef.current({ kind: "analysis", ticker: "PAIR", title: `Launch pairing · ${stamp} UTC`, body: `**Asked**: which tokenized stock to pair a new token launch with.\n\n## Desk picks\n${ordered.length ? ordered.map((k, i) => `${i + 1}. ${k}c`).join("\n") : "(none parsed)"}${avoided.size ? `\n\nAvoid: ${[...avoided].map((k) => `${k}c`).join(", ")}` : ""}\n\n## Candidates\n${lines.map((l) => `- ${l}`).join("\n")}\n\n## Desk\n${who}\n\n## Sparky\n${sparkyText}` });
+      setCaption("Pick the pair. Then the token gets its name.");
+    } catch (e) {
+      flog("error", `launch guide: ${(e as Error).message}`);
+      status("Could not read the pairs. Say the pair yourself: launch Night Owl (OWL) paired with NVDAc.");
+      setCaption("");
+    }
+  }, [chat, touch]);
+  // Paso 2: con el par elegido, Sparky pregunta de que va el token; la siguiente frase de la
+  // persona se toma como esa descripcion y Sparky propone tres nombre + simbolo + About.
+  // La tarjeta no existe todavia: primero el par, luego nombre y descripcion con Sparky, y
+  // recien con las tres cosas aparece la tarjeta llena (fees a la wallet conectada) y se simula.
+  const identityAskRef = useRef<{ pair: string; about?: string } | null>(null);
+  const pickPair = useCallback((msgId: number, pair: string) => {
+    setMessages((m) => m.filter((x) => x.id !== msgId));
+    modeRef.current = "launch";
+    setFocusAsset(pair);
+    identityAskRef.current = { pair };
+    const qid = Date.now();
+    setMessages((m) => [...m.slice(-60), { id: qid, role: "floor", text: `Paired with ${pair}. Now the token itself: tell me in one line what it is about (who it is for, what it celebrates or does) and I propose three names, each with a symbol and a short description.` }]);
+    setCaption("What is the token about? One line.");
+  }, []);
+  const suggestNames = useCallback(async (about: string) => {
+    const ask = identityAskRef.current;
+    if (!ask) return;
+    const youId = Date.now();
+    const statusId = youId + 1;
+    touch();
+    setMessages((m) => [...m.slice(-60), { id: youId, role: "you", text: about }, { id: statusId, role: "floor", kind: "status", text: "Thinking of names…" }]);
+    try {
+      const r = await fetch("/api/launch/names", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ about, pair: ask.pair }) });
+      const j = (await r.json().catch(() => ({}))) as { options?: Array<{ name: string; symbol: string; about: string }>; detail?: string; error?: string };
+      if (!r.ok || !j.options?.length) { setMessages((m) => m.map((x) => (x.id === statusId ? { ...x, kind: undefined, text: j.detail ?? "I could not come up with names. Type them on the card." } : x))); return; }
+      const options = j.options.map((o) => ({ value: o.symbol, label: `${o.name} (${o.symbol})`, note: o.about, name: o.name, symbol: o.symbol, about: o.about }));
+      identityAskRef.current = { ...ask, about };
+      setMessages((m) => [...m.filter((x) => x.id !== statusId), { id: youId + 95, role: "floor", kind: "picks", text: "Three ways to call it. Pick one and the desk drafts the launch; you can still edit everything on the card:", picks: { kind: "identity", options } }]);
+      setCaption("Pick a name. Or describe it differently and I try again.");
+    } catch (e) {
+      flog("warn", `launch names: ${(e as Error).message}`);
+      setMessages((m) => m.map((x) => (x.id === statusId ? { ...x, kind: undefined, text: "I could not come up with names. Type them on the card." } : x)));
+    }
   }, [touch]);
+  const pickIdentity = useCallback(async (msgId: number, o: { name?: string; symbol?: string; about?: string }) => {
+    const ask = identityAskRef.current;
+    setMessages((m) => m.filter((x) => x.id !== msgId));
+    if (!ask || !o.name || !o.symbol) return;
+    identityAskRef.current = null;
+    modeRef.current = "launch";
+    setCaption(`${o.name} (${o.symbol}) paired with ${ask.pair}. Simulating with Bankr…`);
+    const r = await launchDraftRef.current({ name: o.name, symbol: o.symbol, pair: ask.pair, description: o.about });
+    if (r.ok) void chat(`launch ${o.name} (${o.symbol}) paired with ${ask.pair}`);
+  }, [chat]);
+  type LaunchIt = { name?: string; symbol?: string; pair?: string; recipient?: string; vesting?: "on" | "off"; feesIn?: "quote"; degen?: boolean; description?: string };
+  const launchDraftRef = useRef<(it: LaunchIt) => Promise<{ ok: boolean; id: number }>>(async () => ({ ok: false, id: 0 }));
+  const launchDraft = useCallback(async (it: LaunchIt): Promise<{ ok: boolean; id: number }> => {
+    const id = Date.now() + 4;
+    const symbol = (it.symbol ?? (it.name ?? "").replace(/[^A-Za-z0-9]/g, "").slice(0, 8)).toUpperCase();
+    const name = it.name ?? (it.symbol ?? "");
+    const complete = Boolean(name && symbol && it.pair);
+    heldDraftRef.current = null;
+    const skeleton: LaunchDraft = {
+      id: String(id), name, symbol, pair: { address: "", symbol: it.pair ?? "", name: it.pair ?? "" },
+      recipient: { type: "wallet", value: "" }, recipientLabel: "your wallet", feeRecipient: "", ownRecipient: !it.recipient,
+      description: it.description, options: { vesting: it.vesting ?? "off", feesIn: it.feesIn === "quote" ? "quote" : "both", degen: it.degen === true, description: it.description },
+      chain: "base", provider: "doppler", deployer: null, ownKey: false, disableVesting: it.vesting !== "on",
+      checks: [], ready: false, sim: null, wallet: null, last24h: 0, facts: [], draftedAt: new Date().toISOString(),
+      recipientRaw: it.recipient ?? "", stale: true, fromStarter: !complete, turnDone: complete
+    };
+    setMessages((m) => [...m.slice(-60), { id, role: "draft", who: "trader", text: "", launch: skeleton, tx: { stage: "idle", hashes: [] } }]);
+    touch();
+    if (!complete) { setCaption("Name the token, pick a pair and the desk simulates it with Bankr."); return { ok: false, id }; }
+    setCaption(`Trader is drafting the launch: ${name} (${symbol}) paired with ${it.pair}${it.recipient ? `, fees to ${it.recipient}` : ""}…`);
+    const ok = await resimLaunch(id);
+    heldDraftRef.current = messagesRef.current.find((x) => x.id === id) ?? null;
+    return { ok, id };
+  }, [touch, resimLaunch]);
+  launchDraftRef.current = launchDraft;
   const deployLaunch = useCallback(async (msgId: number) => {
     const msg = messagesRef.current.find((x) => x.id === msgId);
     const d = msg?.launch;
@@ -1354,6 +1566,9 @@ function Shell() {
     const cmd = it.kind;
     flog("info", `intent: ${it.kind}${"asset" in it && it.asset ? ` · ${it.asset}` : ""}`);
     if (cmd === "chat" && spoken) {
+      // "read the pairs again": lectura fresca de la mesa, saltando la cache de 30 min.
+      if (/\b(read|scan|check|rank) the pairs? again\b|\bpairs? again\b/i.test(spoken)) { pairReadRef.current = null; identityAskRef.current = null; void launchGuide(); return; }
+      if (identityAskRef.current) { void suggestNames(spoken); return; }
       if (turnLiveRef.current) { void sideChat(spoken); return; }
       quoteRef.current = null;
       briefRef.current = null;
@@ -1365,12 +1580,11 @@ function Shell() {
     if (cmd === "history") { setDeskScreen("history"); setCaption("Every decision the desk made"); return; }
     if (cmd === "launch") {
       quoteRef.current = null;
-      if (!it.symbol && !it.name) { setCaption("What is the token called? Say: launch Night Owl (OWL) paired with NVDA."); return; }
-      if (!it.pair) { setCaption(`Pair ${it.name ?? it.symbol} with what? A tokenized stock like NVDA or TSLA, or WETH. Add fees to @handle if someone else should earn.`); return; }
+      if (!it.pair && !it.name && !it.symbol) { void launchGuide(); return; }
       modeRef.current = "launch";
-      setFocusAsset(it.pair);
+      if (it.pair) setFocusAsset(it.pair);
       // Primero el draft simulado en Bankr (el launch en la mesa), despues el turno de mesa.
-      void launchDraft(it).then((ok) => (ok ? chat(spoken) : undefined));
+      void launchDraft(it).then((r) => (r.ok ? chat(spoken) : undefined));
       return;
     }
     if (cmd === "automate") { quoteRef.current = null; void automationDraft(it.text); return; }
@@ -1661,6 +1875,11 @@ function Shell() {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const inInput = e.target === askRef.current;
       if (inInput) return; // el input maneja su propio tecleo
+      // Cualquier campo editable (tarjeta de launch, buscador de Chats, renombrar un hilo) y la
+      // tarjeta maximizada se quedan con el teclado: el compositor no roba las teclas.
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      if (document.querySelector(".lc-max-layer")) return;
       if (e.key === " " && !draft) {
         e.preventDefault();
         listen();
@@ -1696,8 +1915,9 @@ function Shell() {
     stopPayPoll();
     hush();
     // Privy tarda varios segundos en cerrar la sesion; no esperarlo: la
-    // bienvenida con el logo aparece ya, y el wizard se remonta en el paso 0.
-    wallet.logout();
+    // bienvenida aparece ya. Mientras cierra, el provider reporta connected=false
+    // y busy=true, y el boton del hero espera a que termine antes de abrir el login.
+    void wallet.logout();
     setWizardStart(0);
     setWizardEpoch((e) => e + 1);
     setWizard(true);
@@ -1804,7 +2024,7 @@ function Shell() {
   }
 
   return (
-    <div className={`stage${split ? " split" : ""}${debug ? " with-debug" : ""}${deskScreen ? " desk-open" : ""}${deskScreen && deskMax ? " desk-max" : ""}${turn && !turn.collapsed ? " turn-live" : ""}${turn?.collapsed ? " turn-chips" : ""}`}>
+    <div className={`stage${teamSeen ? " team-seen" : ""}${messages.length === 0 && !turn ? " fresh" : ""}${split ? " split" : ""}${debug ? " with-debug" : ""}${deskScreen ? " desk-open" : ""}${deskScreen && deskMax ? " desk-max" : ""}${turn && !turn.collapsed ? " turn-live" : ""}${turn?.collapsed ? " turn-chips" : ""}`}>
       <div className="dragbar" />
       {/* Lockup de partnership invertido (brand.base.org/partnerships: el
           partner lidera cuando es su lanzamiento): PerkOS + la cadena del desk.
@@ -1963,7 +2183,7 @@ function Shell() {
       <div className="core-wrap">
         <button className={`core ${coreClass}`} type="button" onClick={listen} aria-label="Talk to Sparky" />
         <div className="mic-dock">
-          <div className="whisper">{speaking ? "Speaking" : thinking ? "Thinking" : listening ? "Listening" : awake ? "They draft. You approve." : "Hey Sparky"}</div>
+          <div className="whisper">{speaking ? "Speaking" : thinking ? "Thinking" : listening ? "Listening" : "They draft. You approve."}</div>
         </div>
       </div>
 
@@ -2006,13 +2226,18 @@ function Shell() {
             {m.role === "draft" && m.draft ? (
               <DraftCard draft={m.draft} tx={m.tx ?? { stage: "idle", hashes: [] }} onApprove={() => void approveDraft(m.id)} signHint={signHint} onPhone={wallet.signWhere === "phone"} onReconnect={logout} linkLost={linkLost} />
             ) : m.role === "draft" && m.launch ? (
-              <LaunchCard launch={m.launch} tx={m.tx ?? { stage: "idle", hashes: [] }} onLaunch={() => void deployLaunch(m.id)} onFees={() => void feesCard()} />
+              <LaunchCard launch={m.launch} tx={m.tx ?? { stage: "idle", hashes: [] }} wallet={wallet.address} onLaunch={() => void deployLaunch(m.id)} onFees={() => void feesCard()} onEdit={(patch) => editLaunch(m.id, patch)} onResim={() => { window.clearTimeout(resimTimers.current[m.id]); void resimLaunch(m.id); }} />
             ) : m.role === "draft" && m.fees ? (
               <FeesCard fees={m.fees} tx={m.tx ?? { stage: "idle", hashes: [] }} onClaim={() => void claimFees(m.id)} onRefresh={() => void feesCard(m.id)} signHint={signHint} onPhone={wallet.signWhere === "phone"} onReconnect={logout} linkLost={linkLost} />
             ) : m.role === "draft" && m.auto ? (
               <AutomationCard auto={m.auto} tx={m.tx ?? { stage: "idle", hashes: [] }} onCreate={() => void createAutomation(m.id)} onOpen={() => setDeskScreen("automations")} />
             ) : m.role === "analysis" && m.analysis ? (
               <AnalysisCard a={m.analysis} onSay={(t) => runRef.current(t)} />
+            ) : m.kind === "picks" && m.picks ? (
+              <div className="bubble picks">
+                <p>{m.text}</p>
+                <div className="pick-chips">{m.picks.options.map((o) => <button type="button" key={o.value} className={`${o.rec ? ` rec rec-${o.rec}` : ""}${o.avoid ? " avoid" : ""}`} onClick={() => (m.picks?.kind === "identity" ? void pickIdentity(m.id, o) : pickPair(m.id, o.value))}>{o.rec ? <em>Desk pick {o.rec}</em> : o.avoid ? <em className="no">Desk says avoid</em> : null}<b>{o.label}</b>{o.note ? <small>{o.note}</small> : null}</button>)}</div>
+              </div>
             ) : (
               <div className="bubble">
                 {m.streaming && !m.text ? <span className="typing" aria-label="typing"><i /><i /><i /></span> : mentions(m.text)}
@@ -2026,6 +2251,13 @@ function Shell() {
         })()}
       </div>
 
+      {/* Arranques de conversacion (como en cualquier chat): solo con el hilo vacio y la escena en reposo.
+          Cada burbuja envia el texto tal cual, con lo que recorre los intents reales del desk. */}
+      {messages.length === 0 && !split && !turn ? (
+        <div className="starters" aria-label="Suggested questions">
+          {STARTERS.map((t) => <button key={t} type="button" onClick={() => { touch(); run(t); }}>{t}</button>)}
+        </div>
+      ) : null}
       <form
         className="ask"
         onSubmit={(e) => {
@@ -2440,71 +2672,6 @@ function DraftCard({ draft, tx, onApprove, signHint, onPhone, onReconnect, linkL
 
 // Launch card: el token emparejado en la mesa. Los checks de Bankr se ven
 // siempre; Hold to launch solo cuando todos pasan y la simulacion paso.
-function LaunchCard({ launch, tx, onLaunch, onFees }: {
-  launch: { name: string; symbol: string; pair: { symbol: string; name: string; kind?: string }; recipient: { type: string; value: string }; recipientLabel: string; resolvedRecipient?: string; feeRecipient: string; ownRecipient: boolean; options: { vesting: "on" | "off"; feesIn: "both" | "quote"; degen: boolean; description?: string; websiteUrl?: string; tweetUrl?: string }; deployer: string | null; ownKey: boolean; checks: Array<{ label: string; ok: boolean; note: string }>; ready: boolean; sim: { tokenAddress: string; poolId: string } | null; simError?: string; receipt?: { tokenAddress: string; txHash: string; explorer: string; bankrUrl: string } };
-  tx: { stage: "idle" | "signing" | "pending" | "done" | "failed" | "blocked"; hashes: Array<{ label: string; hash: string; status: string; explorer: string }>; note?: string };
-  onLaunch: () => void;
-  onFees?: () => void;
-}) {
-  const [holding, setHolding] = useState(false);
-  const holdRef = useRef(0);
-  const armed = (tx.stage === "idle" || tx.stage === "failed") && launch.ready;
-  const start = () => {
-    if (!armed) return;
-    setHolding(true);
-    holdRef.current = window.setTimeout(() => { setHolding(false); onLaunch(); }, 2000);
-  };
-  const cancel = () => { window.clearTimeout(holdRef.current); setHolding(false); };
-  const [open, setOpen] = useState(false);
-  const decision = tx.stage === "blocked" ? "Wait" : tx.stage === "done" ? "Live" : tx.stage === "pending" ? "Deploying" : tx.stage === "failed" ? "Not deployed" : launch.ready ? "Launch" : "Fix";
-  const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
-  return (
-    <div className={`draft-card launch st-${tx.stage}${open ? " open" : ""}`}>
-      <div className="draft-head">
-        <b><span className={`decision ${tx.stage === "blocked" || !launch.ready ? "wait" : tx.stage === "done" ? "done" : "go"}`}>{decision}</span> {launch.name} ({launch.symbol}) <small>paired with {launch.pair.symbol} on Base · fees to {launch.ownRecipient ? "your wallet" : launch.recipientLabel}{launch.options.degen ? " · degen" : ""}</small></b>
-        <span className="draft-btns">
-          {tx.stage === "done" && launch.receipt ? <a className="draft-more share" href={shareLaunchUrl({ name: launch.name, symbol: launch.symbol, pair: launch.pair.symbol, tokenAddress: launch.receipt.tokenAddress })} target="_blank" rel="noreferrer" title="Opens X in your browser with a post about this launch. Nothing is posted until you press Post.">Share on X</a> : null}
-          {tx.stage === "done" && onFees ? <button type="button" className="draft-more" onClick={onFees}>Fees</button> : null}
-          <button type="button" className="draft-more" onClick={() => setOpen((o) => !o)} aria-expanded={open}>{open ? "Less" : "Details"}</button>
-        </span>
-      </div>
-      <ul className="launch-checks">
-        {launch.checks.map((c) => <li key={c.label} className={c.ok ? "ok" : "bad"}><i aria-hidden>{c.ok ? "✓" : "✕"}</i><span>{c.label}</span><small>{c.note}</small></li>)}
-        <li className={launch.sim ? "ok" : launch.simError ? "bad" : "skip"}><i aria-hidden>{launch.sim ? "✓" : launch.simError ? "✕" : "·"}</i><span>Bankr simulation</span><small>{launch.sim ? `token ${short(launch.sim.tokenAddress)}` : launch.simError ?? "skipped until every check passes"}</small></li>
-      </ul>
-      {open ? <dl className="draft-rows">
-        <dt>Pair</dt><dd>{launch.pair.name} <small>({launch.pair.symbol}{launch.pair.kind === "stock" ? " · Coinbase B20 on Base" : launch.pair.kind === "major" ? " · the default quote" : ""})</small></dd>
-        <dt>Pool</dt><dd>Uniswap V4 via Doppler, deployed by Bankr <small>(gas sponsored on Base{launch.options.degen ? " · degen mode, $2,500 starting cap" : ""})</small></dd>
-        <dt>Fees pay to</dt><dd>{launch.ownRecipient ? `${short(launch.feeRecipient)}` : launch.recipientLabel}{launch.resolvedRecipient && !launch.ownRecipient ? <small> (Bankr resolved it to {short(launch.resolvedRecipient)})</small> : null} <small>{launch.ownRecipient ? "(the wallet connected here)" : "(someone else: say fees to @handle, name.eth or 0x… to change)"}</small></dd>
-        <dt>Split</dt><dd>95% of the pool fee to the recipient · 5% to Bankr · fees in {launch.options.feesIn === "quote" ? "the quote token only" : "the token and the quote"}</dd>
-        <dt>Vesting</dt><dd>{launch.options.vesting === "on" ? "15% of supply to the fee recipient over one year, 30 day cliff" : "off: 100% of supply goes to the pool"}</dd>
-        <dt>Deployer</dt><dd>{launch.deployer ? short(launch.deployer) : "no Bankr wallet"} <small>{launch.ownKey ? "(your Bankr wallet)" : "(Bankr wallet on this install: it keeps nothing)"}</small></dd>
-        {launch.options.description ? <><dt>About</dt><dd>{launch.options.description}</dd></> : null}
-        {launch.receipt ? <><dt>Token</dt><dd><a href={`https://basescan.org/token/${launch.receipt.tokenAddress}`} target="_blank" rel="noreferrer">{short(launch.receipt.tokenAddress)}</a> · <a href={launch.receipt.bankrUrl} target="_blank" rel="noreferrer">Bankr ↗</a></dd></> : null}
-      </dl> : null}
-      {tx.note ? <p className="hint-line err">{tx.note}</p> : null}
-      {tx.hashes.length ? (
-        <ul className="draft-tx">
-          {tx.hashes.map((h) => (
-            <li key={h.hash} className={h.status}>
-              <span>{h.label}</span>
-              <a href={h.explorer} target="_blank" rel="noreferrer">{h.hash.slice(0, 10)}…{h.hash.slice(-6)}</a>
-              <em>{h.status === "success" ? "confirmed" : "pending"}</em>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      <div className="draft-actions">
-        <button type="button" className={`approve${holding ? " holding" : ""}${tx.stage === "done" ? " done" : ""}${tx.stage === "pending" ? " busy" : ""}`} disabled={!armed} onPointerDown={start} onPointerUp={cancel} onPointerLeave={cancel} onPointerCancel={cancel} aria-label="Hold to launch">
-          <span className="ring" />
-          <span className="lbl">{tx.stage === "done" ? "Live" : tx.stage === "blocked" ? "Blocked" : tx.stage === "pending" ? "Deploying on Base…" : tx.stage === "failed" ? "Retry" : launch.ready ? "Hold to launch" : "Checks first"}</span>
-        </button>
-        <small>{tx.stage === "done" ? `Token live on Base. Fees pay to ${launch.ownRecipient ? "your wallet" : launch.recipientLabel}.` : tx.stage === "blocked" ? "Risk said no. Nothing deployed." : "They draft. You launch. Bankr deploys."}</small>
-      </div>
-    </div>
-  );
-}
-
 // Sesion viva sin wallet enlazada: se dice antes de intentar nada, con el boton para reenlazar.
 function LinkLostNotice({ onReconnect }: { onReconnect?: () => void }) {
   return (
