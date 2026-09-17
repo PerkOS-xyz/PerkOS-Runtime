@@ -1723,7 +1723,9 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 /* Sparky es mas alto que la esfera: en reposo un poco mas arriba para que la
    linea de promesa no toque el compositor; en split, debajo de la fila 2 de
    la cabecera para no pegarse al lockup. */
-.stage:not(.split):not(.desk-open):not(.turn-live) .core-wrap { top: 54%; }
+.stage:not(.split):not(.desk-open):not(.turn-live) .core-wrap { top: calc(54% + 18px); }
+/* La promesa sube 15 px: Sparky bajo, la linea no. */
+.stage:not(.split):not(.desk-open):not(.turn-live) .mic-dock { margin-top: -15px; }
 /* En split, Sparky mini nunca pisa el lockup: como minimo 320 px desde la izquierda. */
 .stage.split .core-wrap, .stage.split.turn-live .core-wrap { top: 11%; left: max(23%, 320px); }
 /* Split con panel abierto: Sparky mini un poco mas arriba para no pisar la card de analisis. */
@@ -2082,7 +2084,8 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .ask-top .chat-peek svg { flex: 0 0 auto; }
 
 /* Cajon de hilos: sobre la columna del chat, a la izquierda, como la barra lateral de un app de chat. */
-.chat-drawer { position: absolute; left: 16px; top: 150px; bottom: 150px; z-index: 9; width: min(380px, calc(100% - 32px)); display: flex; flex-direction: column; gap: 10px; padding: 14px 14px 12px; border-radius: 16px; background: linear-gradient(180deg, rgba(18, 32, 64, 0.94), rgba(6, 10, 22, 0.94)); border: 1px solid rgba(120, 160, 255, 0.24); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); backdrop-filter: blur(14px); animation: drawerIn 200ms ease-out both; }
+/* Mismo material que .desk-panel.dock (casi negro, borde tenue): el drawer es un panel mas del app, no un popup azul aparte. */
+.chat-drawer { position: absolute; left: 24px; top: 96px; bottom: 132px; z-index: 9; width: min(380px, calc(100% - 48px)); display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: 18px; background: linear-gradient(180deg, rgba(10, 12, 22, 0.97), rgba(3, 4, 10, 0.985)); border: 1px solid rgba(120, 160, 255, 0.14); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45); backdrop-filter: blur(16px); animation: drawerIn 200ms ease-out both; }
 @keyframes drawerIn { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .chat-drawer { animation: none; } }
 .chat-drawer header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -2095,7 +2098,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .chat-drawer .launch-empty { border: 1px dashed rgba(160, 180, 220, 0.2); border-radius: 14px; padding: 22px 16px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; color: var(--mute); font-size: 12px; }
 .chat-drawer .launch-empty b { color: #e6ecff; font-size: 13px; }
 .chat-drawer .launch-empty button { margin-top: 6px; font: inherit; font-size: 11px; padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(236, 27, 105, 0.7); background: rgba(236, 27, 105, 0.16); color: #ffd3e1; cursor: pointer; }
-@container stage (max-width: 700px) { .chat-drawer { top: 110px; bottom: 120px; } }
+@container stage (max-width: 700px) { .chat-drawer { top: 80px; bottom: 120px; left: 16px; width: min(380px, calc(100% - 32px)); } }
 
 /* Con un panel del desk abierto, el caption se queda en la mitad izquierda. */
 .stage.desk-open .caption { max-width: calc(50% - 56px); }
