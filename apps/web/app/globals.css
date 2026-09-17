@@ -2465,5 +2465,6 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .pf-launches li b { font-size: 12.5px; font-weight: 600; color: #e6ecff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pf-l-n b { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 500; }
 .pf-launches > button { align-self: flex-start; }
-.rows.positions li.pf-li { display: block; padding: 0; border: 0; background: transparent; }
-.rows.positions li.pf-li li { display: grid; }
+/* El bloque vive dentro de la lista de posiciones (para desplazarse con ella): se aisla de su rejilla. */
+.desk-panel .rows li.pf-li, .desk-panel .rows li.pf-li:hover { display: block; padding: 0; border: 0; background: transparent; cursor: default; }
+.desk-panel .rows li.pf-li .pf-launches li, .desk-panel .rows li.pf-li .pf-launches li:hover { display: grid; grid-template-columns: minmax(84px, 0.9fr) repeat(3, minmax(0, 1.25fr)); gap: 10px; align-items: start; padding: 8px 0 0; border: 0; border-top: 1px solid rgba(120, 160, 255, 0.1); border-radius: 0; background: transparent; cursor: default; }
