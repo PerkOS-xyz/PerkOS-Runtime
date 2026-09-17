@@ -2101,9 +2101,12 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .stage.desk-open .caption { max-width: calc(50% - 56px); }
 
 /* Avatares de agentes (PerkOS-Avatars): el movimiento comunica estado, nunca compite con el trabajo. */
-.agent-avatar { display: inline-block; line-height: 0; position: relative; }
+/* Identidad = geometria (nunca cambia). Estado = anillo, brillo, filtro y animacion. Hibernar no es offline:
+   gris, ojos sleepy, sin anillo, acento al 20%, quieto; la identidad sigue reconocible (Asset Kit, secciones 12 a 18, 28). */
+.agent-avatar { display: inline-block; line-height: 0; position: relative; transition: filter 600ms ease, opacity 600ms ease; }
 .agent-avatar svg { display: block; overflow: visible; }
-.agent-avatar .aa-ring { transform-origin: 64px 64px; transform-box: view-box; opacity: 0.9; }
+.agent-avatar .aa-ring { transform-origin: 500px 500px; transform-box: view-box; opacity: 0.9; }
+.agent-avatar .aa-accent, .agent-avatar .aa-eyes, .agent-avatar .aa-eyes-glow { transition: opacity 500ms ease; }
 .agent-avatar[data-state="idle"] svg { animation: aaBreathe 3.6s ease-in-out infinite; transform-origin: 50% 60%; }
 .agent-avatar[data-state="idle"] .aa-ring { opacity: 0.45; }
 .agent-avatar[data-state="working"] .aa-ring { animation: aaSpin 5s linear infinite; }
@@ -2111,11 +2114,20 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .agent-avatar[data-state="thinking"] .aa-eyes { animation: aaScan 2.6s ease-in-out infinite; }
 .agent-avatar[data-state="listening"] .aa-module, .agent-avatar[data-state="listening"] .aa-ring { animation: aaPulse 1.5s ease-in-out infinite; }
 .agent-avatar[data-state="waiting"] .aa-ring, .agent-avatar[data-state="waiting"] .aa-accent { animation: aaPulse 2.4s ease-in-out infinite; }
-.agent-avatar[data-state="offline"] svg { filter: saturate(0.25) brightness(0.62); }
-.agent-avatar[data-state="offline"] .aa-eyes-glow { opacity: 0; }
-.agent-avatar[data-state="error"] .aa-eyes { color: #ff4a4a; }
+.agent-avatar[data-state="error"] svg { animation: aaShake 420ms ease-in-out 2; }
+.agent-avatar[data-mode="offline"] { filter: saturate(0.35) brightness(0.62); }
+.agent-avatar[data-mode="offline"] .aa-eyes-glow { opacity: 0; }
+.agent-avatar[data-mode="hibernating"] { filter: grayscale(0.8) saturate(0.3) brightness(0.75); opacity: 0.9; }
+.agent-avatar[data-mode="hibernating"] .aa-accent { opacity: 0.2; }
+.agent-avatar[data-mode="hibernating"] .aa-eyes-glow { opacity: 0; }
+.agent-avatar[data-mode="hibernating"] .aa-eyes { opacity: 0.7; }
+.agent-avatar[data-mode="hibernating"] svg { animation: aaBreathe 9s ease-in-out infinite; transform-origin: 50% 60%; }
 @keyframes aaBreathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.015); } }
 @keyframes aaSpin { to { transform: rotate(360deg); } }
 @keyframes aaPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 @keyframes aaScan { 0%, 100% { transform: translateX(-2.2px); } 50% { transform: translateX(2.2px); } }
+@keyframes aaShake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-2px); } 75% { transform: translateX(2px); } }
 @media (prefers-reduced-motion: reduce) { .agent-avatar svg, .agent-avatar .aa-ring, .agent-avatar .aa-eyes, .agent-avatar .aa-module, .agent-avatar .aa-accent { animation: none !important; } }
+.agent-avatar .aa-accent-glow, .agent-avatar .aa-module-glow { transition: opacity 500ms ease; }
+.agent-avatar[data-mode="hibernating"] .aa-accent-glow, .agent-avatar[data-mode="hibernating"] .aa-module-glow, .agent-avatar[data-mode="offline"] .aa-accent-glow { opacity: 0; }
+.agent-avatar[data-state="working"] .aa-accent-glow, .agent-avatar[data-state="listening"] .aa-module-glow { animation: aaPulse 2.2s ease-in-out infinite; }
