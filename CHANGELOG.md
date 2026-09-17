@@ -2,6 +2,14 @@
 
 All notable changes to the PerkOS desktop app. Versions follow [Semantic Versioning](https://semver.org); the version lives in `apps/desktop/package.json` and shows in Settings › About with the git short SHA of the build.
 
+## [0.5.2] - 2026-09-17
+
+### Changed
+- Launches screen redesigned: each token is a card with a full width price curve (24 hour area chart with the day's high and low), six KPIs (price, 1h, 24h, volume, liquidity, FDV), where the pool is (Uniswap V4 on Base, pair, pool id, fee split), links to Uniswap, DexScreener, Bankr and Basescan stacked in their own column, and creator fees with daily earnings and the claim button. Stacks under 700 px.
+
+### Added
+- Market data for launched tokens from DexScreener, GeckoTerminal and Bankr's public fee endpoint, no keys, 60 second cache.
+
 ## [0.5.1] - 2026-09-16
 
 ### Added
