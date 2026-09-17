@@ -257,7 +257,7 @@ export default function LaunchCard({ launch, tx, onLaunch, onFees, onEdit, onRes
           <small>Screeners list the pool after its first swap. A small buy is enough. The desk drafts it here, paid with ETH on Base: one signature in your wallet.</small>
           {onBuy ? <nav className="seed-links buy" aria-label="Buy from the desk">{[1, 5, 10].map((usd) => <button type="button" key={usd} onClick={() => onBuy(usd)}>Buy ${usd}</button>)}</nav> : null}
           <nav className="seed-links" aria-label="Other places to buy">
-            <a href={`https://app.uniswap.org/swap?chain=base${launch.pair.address ? `&inputCurrency=${launch.pair.address}` : ""}&outputCurrency=${launch.receipt.tokenAddress}`} target="_blank" rel="noreferrer">Buy {launch.symbol} on Uniswap ↗</a>
+            <a href={`https://app.uniswap.org/explore/tokens/base/${launch.receipt.tokenAddress}`} target="_blank" rel="noreferrer">Buy {launch.symbol} on Uniswap ↗</a>
             <a href={launch.receipt.bankrUrl} target="_blank" rel="noreferrer">on Bankr ↗</a>
           </nav>
         </div>
