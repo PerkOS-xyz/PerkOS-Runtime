@@ -250,7 +250,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
                       <i className="sym">{l.symbol}</i>
                       <small>paired with {l.pair ?? "WETH"} · {l.deployerX ? `deployed by @${l.deployerX}` : l.deployedHere ? "deployed from this install" : `deployed by ${l.deployer ? `${l.deployer.slice(0, 6)}…${l.deployer.slice(-4)}` : "?"}`}{when ? ` · ${when}` : ""}</small>
                     </div>
-                    <em className={`st ${fee ? "active" : ""}`}>{fee ? "fees to claim" : l.status ?? "live"}</em>
+                    <span className="lc-right"><em className={`st ${fee ? "active" : ""}`}>{fee ? "fees to claim" : l.status ?? "live"}</em><CopyAddr address={l.tokenAddress} label={`${l.symbol} token`} /></span>
                   </div>
                   {indexed ? <PriceChart points={m?.sparkline} label="24h · 15m closes" /> : (
                     <div className="pc empty"><span>Not indexed yet</span><small>DexScreener usually picks up a new pool within a few minutes</small></div>
@@ -440,6 +440,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
                   <div className="cell name">
                     <b>{p.symbol}</b>
                     <small>{p.name} · {issuerLabel(p.issuer)}{p.sharePct !== undefined && (positions?.length ?? 0) > 1 ? ` · ${p.sharePct.toFixed(0)}% of portfolio` : ""}</small>
+                    <CopyAddr address={p.address} label={`${p.symbol} token`} />
                   </div>
                   <div className="cell venue">
                     {p.venue ? (
@@ -451,11 +452,11 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
                     ) : <small>no USDC pool found</small>}
                   </div>
                   <div className="cell chart"><Spark points={p.sparkline} /></div>
-                  <div className="cell num">
+                  <div className="cell num shares">
                     <b>{p.balance}</b>
                     <small>shares</small>
                   </div>
-                  <div className="cell num">
+                  <div className="cell num value">
                     <b>{usd(p.valueUsd)}</b>
                     <small>@ {usd(p.priceUsd)}{p.priceChange24hPct !== undefined ? <em className={p.priceChange24hPct >= 0 ? "up" : "down"}> {p.priceChange24hPct > 0 ? "+" : ""}{p.priceChange24hPct.toFixed(2)}%</em> : null}</small>
                   </div>
@@ -474,6 +475,36 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
   );
 }
 
+
+/** Direccion corta con boton de copiar (contrato del token, pool). Si el
+ *  portapapeles no esta disponible, muestra la direccion completa y seleccionable. */
+function CopyAddr({ address, label = "contract" }: { address?: string; label?: string }) {
+  const [state, setState] = useState<"idle" | "done" | "manual">("idle");
+  if (!address) return null;
+  const copy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const ok = () => { setState("done"); window.setTimeout(() => setState("idle"), 1500); };
+    const manual = () => { setState("manual"); window.setTimeout(() => setState("idle"), 8000); };
+    const fallback = () => {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = address; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+        document.body.appendChild(ta); ta.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(ta);
+        if (copied) ok(); else manual();
+      } catch { manual(); }
+    };
+    if (navigator.clipboard?.writeText) void navigator.clipboard.writeText(address).then(ok).catch(fallback); else fallback();
+  };
+  if (state === "manual") return <code className="copy-addr manual" style={{ textTransform: "none", letterSpacing: 0 }} title="Select and copy">{address}</code>;
+  return (
+    <button type="button" className={`copy-addr${state === "done" ? " done" : ""}`} style={{ textTransform: "none", letterSpacing: 0, whiteSpace: "nowrap" }} onClick={copy} title={`Copy the ${label} address: ${address}`} aria-label={`Copy the ${label} address`}>
+      {state === "done" ? "Copied" : `${address.slice(0, 6)}…${address.slice(-4)}`}
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>{state === "done" ? <path d="M5 12l5 5L20 7" /> : <><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></>}</svg>
+    </button>
+  );
+}
 
 function PencilIcon() {
   return <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>;
