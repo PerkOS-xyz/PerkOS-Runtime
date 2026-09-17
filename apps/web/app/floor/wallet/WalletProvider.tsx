@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
+import { flog } from "../log";
 import { PrivyProvider, useLogin, usePrivy, useSignMessage, useWallets } from "@privy-io/react-auth";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider, createConfig, http } from "wagmi";
@@ -14,7 +15,7 @@ const wcProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID?.trim() ?? 
 
 const wagmi = createConfig({
   chains: [base],
-  transports: { [base.id]: http() }
+  transports: { [base.id]: http(typeof window !== "undefined" ? `${window.location.origin}/api/rpc` : undefined) }
 });
 
 export function WalletProvider({ children }: { children: ReactNode }) {
@@ -22,6 +23,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   if (!appId) {
     return <WalletContext value={disabledWallet}>{children}</WalletContext>;
   }
+  // URL absoluta (viem la exige); el parche de fetch de apiToken.ts le pone el token.
+  const rpcUrl = typeof window !== "undefined" ? `${window.location.origin}/api/rpc` : "";
+  const floorBase = rpcUrl ? { ...base, rpcUrls: { ...base.rpcUrls, default: { http: [rpcUrl] }, privyWalletOverride: { http: [rpcUrl] } } } : base;
   return (
     <PrivyProvider
       appId={appId}
@@ -43,8 +47,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           ? { walletConnectCloudProjectId: wcProjectId }
           : {}),
         externalWallets: { walletConnect: { enabled: true } },
-        supportedChains: [base],
-        defaultChain: base,
+        // Base por el RPC del install (proxy local a Alchemy): el RPC publico
+        // rechazaba las lecturas del proveedor de la wallet y la firma no salia.
+        supportedChains: [floorBase],
+        defaultChain: floorBase,
         // Con "off", quien entra por email o Google se autentica pero no recibe
         // ninguna wallet: user.wallet queda vacio, connected nunca pasa a true y
         // el wizard se queda pegado en el paso de login. Base es la unica cadena.
@@ -115,10 +121,17 @@ function Bridge({ children }: { children: ReactNode }) {
   // cadena pedida y manda eth_sendTransaction por el provider EIP-1193 de
   // Privy. Con MetaMask por WalletConnect la confirmacion sale en el celular.
   const sendTransaction = async (tx: { to: `0x${string}`; data: `0x${string}`; value?: `0x${string}`; chainId: number }): Promise<`0x${string}`> => {
-    const w = wallets.find((x) => x.address.toLowerCase() === address.toLowerCase()) ?? wallets[0];
-    if (!w) throw new Error("No wallet connected");
-    await w.switchChain(tx.chainId);
+    // Solo la wallet de la sesion: firmar con otra que Privy tenga a mano pagaria a otra direccion.
+    const w = wallets.find((x) => x.address.toLowerCase() === address.toLowerCase());
+    if (!w) throw new Error("wallet_link_lost");
+    // Con WalletConnect cada peticion viaja al celular: si la wallet ya esta en
+    // la cadena, no se pide el cambio (era una primera peticion muda que podia
+    // colgarse antes de llegar a la transaccion).
+    const onChain = String((w as { chainId?: string }).chainId ?? "").endsWith(`:${tx.chainId}`);
+    flog("info", `wallet tx: ${String(w.walletClientType ?? "?")} via ${String((w as { connectorType?: string }).connectorType ?? "?")} · chain ${String((w as { chainId?: string }).chainId ?? "?")}${onChain ? "" : ` -> switching to ${tx.chainId}`}`);
+    if (!onChain) { await w.switchChain(tx.chainId); flog("info", "wallet tx: chain switched"); }
     const provider = await w.getEthereumProvider();
+    flog("info", "wallet tx: request sent to the wallet, waiting for confirmation");
     const hash = await provider.request({
       method: "eth_sendTransaction",
       params: [{ from: w.address, to: tx.to, data: tx.data, value: tx.value ?? "0x0" }]
@@ -126,6 +139,21 @@ function Bridge({ children }: { children: ReactNode }) {
     if (typeof hash !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(hash)) throw new Error("Wallet returned no transaction hash");
     return hash as `0x${string}`;
   };
+
+  // Donde firma la persona: con WalletConnect (login por QR) la peticion llega a la
+  // app de la wallet en el celular y solo se ve si esa app esta abierta.
+  const active = wallets.find((x) => x.address.toLowerCase() === address.toLowerCase()) ?? wallets[0];
+  const clientType = String(active?.walletClientType ?? "");
+  const connector = String((active as { connectorType?: string } | undefined)?.connectorType ?? "");
+  const signWhere: Wallet["signWhere"] = !active ? "" : clientType.startsWith("privy") ? "embedded" : /wallet_?connect/i.test(connector) || /wallet_?connect/i.test(clientType) ? "phone" : "extension";
+  const walletName = String((active as { meta?: { name?: string } } | undefined)?.meta?.name ?? "").replace(/^WalletConnect$/i, "");
+  // La sesion puede estar viva sin wallet enlazada a esta ventana (WalletConnect caido).
+  const canSign = Boolean(authenticated && address && wallets.some((x) => x.address.toLowerCase() === address.toLowerCase()));
+  // Reenlazar = volver a entrar. El modal "connect wallet" de Privy no ofrece el QR
+  // de WalletConnect dentro de Electron (solo Coinbase Wallet), y forzar una lista de
+  // wallets en la config le quito WalletConnect tambien al login. El camino que si
+  // funciona es el login normal: More options > WalletConnect.
+  const reconnect = () => { setError(""); void logout().then(() => login()).catch(() => login()); };
 
   const value = useMemo<Wallet>(
     () => ({
@@ -160,10 +188,14 @@ function Bridge({ children }: { children: ReactNode }) {
         void logout();
       },
       signMessage,
-      sendTransaction
+      sendTransaction,
+      signWhere,
+      walletName,
+      canSign,
+      reconnect
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [address, authenticated, error, login, logout, ready, walletsReady, wallets]
+    [address, authenticated, error, login, logout, ready, walletsReady, wallets, signWhere, walletName, canSign]
   );
   return <WalletContext value={value}>{children}</WalletContext>;
 }

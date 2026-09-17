@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import XaiConnect from "./XaiConnect";
 import { VOICES, VOICE_LABEL, type Voice } from "../lib/voices";
+import { useWallet } from "./wallet/context";
 
 type Llm = { provider: string; model: string; connected: boolean };
 
@@ -34,6 +35,10 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
   rail?: RailState;
   onLinkRail?: () => void;
 }) {
+  const wallet = useWallet();
+  // Que wallet es y donde firma: con login por QR las firmas salen en el celular.
+  const walletKind = wallet.signWhere === "phone" ? `${wallet.walletName || "External wallet"} · on your phone (WalletConnect)` : wallet.signWhere === "embedded" ? "PerkOS wallet (Privy) · signs inside this app" : wallet.signWhere === "extension" ? `${wallet.walletName || "External wallet"} · browser wallet` : "";
+  const linkLost = wallet.connected && wallet.loaded && !wallet.busy && !wallet.canSign;
   const [llm, setLlm] = useState<Llm | null>(null);
   const [model, setModel] = useState("");
   const [saved, setSaved] = useState(false);
@@ -108,6 +113,21 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
             {onLogout ? <button type="button" onClick={onLogout}>Log out</button> : null}
           </span>
         </div>
+        {wallet.address ? (
+          <>
+            <div className="srow rail-row">
+              <span>Wallet</span>
+              <span className="v">
+                {linkLost ? "Signed in, not linked to this window" : walletKind || "Connected"} · {wallet.address.slice(0, 6)}…{wallet.address.slice(-4)}
+                {linkLost ? <button type="button" onClick={onLogout ?? wallet.reconnect}>Sign in again</button> : <em className={`linkdot${wallet.canSign ? " on" : ""}`}>{wallet.canSign ? "linked" : "…"}</em>}
+              </span>
+            </div>
+            <p className="hint-line">{linkLost ? "Your session is alive but the link to your wallet dropped. Nothing can be signed until you sign in again (More options, WalletConnect, scan the QR)."
+              : wallet.signWhere === "phone" ? `Approvals and claims show up in ${wallet.walletName || "your wallet app"} on your phone. Keep the app open and unlocked when you hold to approve.`
+              : wallet.signWhere === "embedded" ? "This wallet was created for you at sign in. It signs here, with no phone. Fund it with USDC and a little ETH on Base to trade."
+              : "Approvals open in your wallet."}</p>
+          </>
+        ) : null}
         {perkos.fundingUrl ? (
           <div className="srow"><span>Infrastructure</span><span className="v"><a href={perkos.fundingUrl} target="_blank" rel="noreferrer">Activate PerkOS infrastructure ↗</a></span></div>
         ) : null}
