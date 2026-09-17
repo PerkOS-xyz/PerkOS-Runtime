@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import AgentCards, { type DeskTurn } from "./AgentCards";
+import PriceChart from "./PriceChart";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 
@@ -234,52 +235,57 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
             {(launches ?? []).map((l) => {
               const fee = l.claimable && (Number(l.claimable.token0) > 0 || Number(l.claimable.token1) > 0);
               const fmt = (v: string) => { const n = Number(v) || 0; return n >= 1000 ? Math.round(n).toLocaleString("en-US") : n >= 1 ? n.toFixed(2) : n.toFixed(4).replace(/0+$/, "").replace(/\.$/, ""); };
-              const m = l.market; const pool = m?.pool; const up = (m?.change24hPct ?? 0) >= 0;
+              const m = l.market; const pool = m?.pool; const indexed = Boolean(m?.priceUsd !== undefined);
+              const up24 = (m?.change24hPct ?? 0) >= 0; const up1 = (m?.change1hPct ?? 0) >= 0;
               const earn = (m?.earnings ?? []).slice(-14).map((e) => Number(e.weth) || 0);
+              const when = l.timestamp ? new Date(l.timestamp).toISOString().slice(0, 16).replace("T", " ") : "";
               return (
                 <li key={l.tokenAddress} className="launch-card">
-                  <header>
-                    <div>
-                      <b>{l.name} <small>{l.symbol}</small></b>
-                      <small>paired with {l.pair ?? "WETH"} · {l.deployerX ? `deployed by @${l.deployerX}` : l.deployedHere ? "deployed from this install" : `deployed by ${l.deployer ? `${l.deployer.slice(0, 6)}…${l.deployer.slice(-4)}` : "?"}`}{l.mine ? " · fees to you" : ""}{l.timestamp ? ` · ${new Date(l.timestamp).toISOString().slice(0, 16).replace("T", " ")}` : ""}</small>
+                  <div className="lc-head">
+                    <div className="lc-id">
+                      <b title={l.name}>{l.name}</b>
+                      <i className="sym">{l.symbol}</i>
+                      <small>paired with {l.pair ?? "WETH"} · {l.deployerX ? `deployed by @${l.deployerX}` : l.deployedHere ? "deployed from this install" : `deployed by ${l.deployer ? `${l.deployer.slice(0, 6)}…${l.deployer.slice(-4)}` : "?"}`}{when ? ` · ${when}` : ""}</small>
                     </div>
                     <em className={`st ${fee ? "active" : ""}`}>{fee ? "fees to claim" : l.status ?? "live"}</em>
-                  </header>
+                  </div>
+                  {indexed ? <PriceChart points={m?.sparkline} label="24h · 15m closes" /> : (
+                    <div className="pc empty"><span>Not indexed yet</span><small>DexScreener usually picks up a new pool within a few minutes</small></div>
+                  )}
+                  <div className="kpis6">
+                    <span><b>{indexed ? money(m!.priceUsd) : "–"}</b><small>price</small></span>
+                    <span><b className={indexed && m?.change1hPct !== undefined ? (up1 ? "up" : "down") : ""}>{indexed ? pct(m?.change1hPct) || "–" : "–"}</b><small>1h</small></span>
+                    <span><b className={indexed && m?.change24hPct !== undefined ? (up24 ? "up" : "down") : ""}>{indexed ? pct(m?.change24hPct) || "–" : "–"}</b><small>24h</small></span>
+                    <span><b>{indexed ? money(m?.volume24hUsd) : "–"}</b><small>volume 24h</small></span>
+                    <span><b>{indexed ? money(m?.liquidityUsd) : "–"}</b><small>liquidity</small></span>
+                    <span><b>{indexed ? money(m?.fdvUsd) : "–"}</b><small>FDV</small></span>
+                  </div>
                   <div className="launch-body">
-                    <div className="launch-price">
-                      <Spark points={m?.sparkline} w={220} h={56} big />
-                      <div className="kpis">
-                        <span><b>{m?.priceUsd !== undefined ? money(m.priceUsd) : "–"}</b><small>price</small></span>
-                        <span><b className={up ? "up" : "down"}>{pct(m?.change24hPct) || "–"}</b><small>24h</small></span>
-                        <span><b>{money(m?.volume24hUsd)}</b><small>volume 24h</small></span>
-                        <span><b>{money(m?.liquidityUsd)}</b><small>liquidity</small></span>
-                        <span><b>{money(m?.fdvUsd)}</b><small>FDV</small></span>
-                      </div>
-                    </div>
                     <div className="launch-pool">
                       <small className="k">Pool</small>
-                      <span>{pool ? `${pool.label} on Base · ${l.symbol} / ${pool.quote || l.pair || "WETH"}` : "not indexed yet"}</span>
-                      {pool ? <small className="mono">{pool.id.slice(0, 10)}…{pool.id.slice(-6)} · Doppler, deployed by Bankr · 0.7% pool fee, 95% to the creator</small> : null}
-                      <div className="acts">
-                        {pool ? <a className="pill" href={pool.venueUrl} target="_blank" rel="noreferrer">Uniswap ↗</a> : null}
-                        {pool ? <a className="pill" href={pool.dexscreenerUrl} target="_blank" rel="noreferrer">DexScreener ↗</a> : null}
-                        <a className="pill" href={l.bankrUrl} target="_blank" rel="noreferrer">Bankr ↗</a>
-                        <a className="pill" href={l.explorer} target="_blank" rel="noreferrer">Basescan ↗</a>
-                      </div>
+                      <span>{pool ? `${pool.label} on Base · ${l.symbol} / ${pool.quote || l.pair || "WETH"}` : `Uniswap V4 on Base · ${l.symbol} / ${l.pair ?? "WETH"}`}</span>
+                      <small className="mono">{(pool?.id ?? l.poolId) ? `${(pool?.id ?? l.poolId)!.slice(0, 12)}…${(pool?.id ?? l.poolId)!.slice(-6)}` : "pool id pending"}</small>
+                      <small>Doppler, deployed by Bankr · 0.7% pool fee, 95% to the creator{pool ? "" : " · not indexed yet"}</small>
                     </div>
+                    <nav className="launch-links" aria-label="Open in">
+                      {pool ? <a href={pool.venueUrl} target="_blank" rel="noreferrer">Uniswap ↗</a> : null}
+                      {pool ? <a href={pool.dexscreenerUrl} target="_blank" rel="noreferrer">DexScreener ↗</a> : null}
+                      <a href={l.bankrUrl} target="_blank" rel="noreferrer">Bankr ↗</a>
+                      <a href={l.explorer} target="_blank" rel="noreferrer">Basescan ↗</a>
+                    </nav>
                     <div className="launch-fees">
                       <small className="k">Creator fees{l.share ? ` · ${l.share} of the pool fee` : ""}</small>
-                      <span>{l.claimable ? (fee ? `${fmt(l.claimable.token0)} ${l.claimable.token0Label} + ${fmt(l.claimable.token1)} ${l.claimable.token1Label} to claim` : "nothing to claim yet") : "fees accrue to the recipient"}</span>
-                      <small>{l.claimed ? `claimed ${l.claimed.count}× · ${fmt(l.claimed.token0)} ${l.claimable?.token0Label ?? ""} + ${fmt(l.claimed.token1)} ${l.claimable?.token1Label ?? ""}` : ""}{m?.lifetimeEarnedWeth && Number(m.lifetimeEarnedWeth) > 0 ? ` · ${fmt(m.lifetimeEarnedWeth)} WETH lifetime` : ""}</small>
-                      {earn.some((v) => v > 0) ? <Bars points={earn} w={140} h={26} /> : null}
+                      <span>{l.claimable ? (fee ? `${fmt(l.claimable.token0)} ${l.claimable.token0Label} + ${fmt(l.claimable.token1)} ${l.claimable.token1Label} to claim` : "Fees accrue to the recipient. Nothing to claim yet.") : "Fees accrue to the recipient."}</span>
+                      <small>{l.claimed && l.claimed.count > 0 ? `claimed ${l.claimed.count}× · ${fmt(l.claimed.token0)} ${l.claimable?.token0Label ?? ""} + ${fmt(l.claimed.token1)} ${l.claimable?.token1Label ?? ""}` : "no claims yet"}{m?.lifetimeEarnedWeth && Number(m.lifetimeEarnedWeth) > 0 ? ` · ${fmt(m.lifetimeEarnedWeth)} WETH lifetime` : ""}</small>
+                      {earn.some((v) => v > 0) ? <Bars points={earn} w={160} h={26} /> : null}
                       {l.mine ? <button type="button" className="claim" disabled={!fee} onClick={() => onSay(`claim fees for ${l.tokenAddress}`)}>{fee ? "Claim fees" : "Nothing to claim"}</button> : null}
                     </div>
                   </div>
                 </li>
               );
             })}
-            {launches && launches.length === 0 ? <li><div className="cell name"><small>No tokens yet. Launch one paired with a tokenized stock and it will be listed here with its fees.</small></div></li> : null}
-            {!launches ? <li><div className="cell name"><small>Reading Bankr…</small></div></li> : null}
+            {launches && launches.length === 0 ? <li className="launch-empty"><b>No tokens yet.</b><span>Launch one paired with a tokenized stock and it shows up here with its chart and fees.</span><button type="button" onClick={() => onSay("launch Night Owl (OWL) paired with NVDA")}>Launch a token</button></li> : null}
+            {!launches ? <li className="launch-empty"><span>Reading Bankr…</span></li> : null}
           </ul>
         </div>
       ) : screen === "automations" ? (
