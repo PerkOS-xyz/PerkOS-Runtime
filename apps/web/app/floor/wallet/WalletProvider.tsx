@@ -15,7 +15,7 @@ const wcProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID?.trim() ?? 
 
 const wagmi = createConfig({
   chains: [base],
-  transports: { [base.id]: http() }
+  transports: { [base.id]: http(typeof window !== "undefined" ? `${window.location.origin}/api/rpc` : undefined) }
 });
 
 export function WalletProvider({ children }: { children: ReactNode }) {
@@ -23,6 +23,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   if (!appId) {
     return <WalletContext value={disabledWallet}>{children}</WalletContext>;
   }
+  // URL absoluta (viem la exige); el parche de fetch de apiToken.ts le pone el token.
+  const rpcUrl = typeof window !== "undefined" ? `${window.location.origin}/api/rpc` : "";
+  const floorBase = rpcUrl ? { ...base, rpcUrls: { ...base.rpcUrls, default: { http: [rpcUrl] }, privyWalletOverride: { http: [rpcUrl] } } } : base;
   return (
     <PrivyProvider
       appId={appId}
@@ -44,8 +47,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           ? { walletConnectCloudProjectId: wcProjectId }
           : {}),
         externalWallets: { walletConnect: { enabled: true } },
-        supportedChains: [base],
-        defaultChain: base,
+        // Base por el RPC del install (proxy local a Alchemy): el RPC publico
+        // rechazaba las lecturas del proveedor de la wallet y la firma no salia.
+        supportedChains: [floorBase],
+        defaultChain: floorBase,
         // Con "off", quien entra por email o Google se autentica pero no recibe
         // ninguna wallet: user.wallet queda vacio, connected nunca pasa a true y
         // el wizard se queda pegado en el paso de login. Base es la unica cadena.
