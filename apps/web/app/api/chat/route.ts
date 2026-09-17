@@ -117,13 +117,14 @@ export async function POST(req: Request) {
           : "";
       }).catch(() => "")
     : "";
+  const styleCtx = "\n\n## Style\nNo em dashes in your replies: use commas, colons or full stops. No emojis.";
   const pairCtx = body.mode === "pair"
     ? "\n\n## Pairing a new token launch\nThe human is choosing which asset a new token's pool is paired with. Summarize the desk's ranking in two or three sentences, say which one you would pick and why, and end by asking them to pick one: the app shows the candidates as buttons under your message. Do not launch or draft anything."
     : "";
   const sideCtx = body.side === true
     ? "\n\n## A desk turn is running right now\nThe person asked something while Scout, Risk, Trader and Auditor are still working. You are the principal: answer only this question, in one or two sentences, from the facts you already have. Do not speak for agents that have not answered yet; say they are still working if asked.\n"
     : "";
-  const instructions = buildInstructions(base, brief, live?.context ?? "") + factsCtx + localCtx + launchCtx + pairCtx + sideCtx + (fleetCtx
+  const instructions = buildInstructions(base, brief, live?.context ?? "") + factsCtx + localCtx + launchCtx + pairCtx + styleCtx + sideCtx + (fleetCtx
     ? "\n\n## Your teammates just answered this turn (Hermes agents on PerkOS infra). Speak for the desk: summarize what they found, name who said what when it matters, flag disagreements and what needs the human's approval. Do not invent what they did not say.\n" + fleetCtx
     : "");
   const knowledgeInfo = live

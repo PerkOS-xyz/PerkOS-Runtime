@@ -966,18 +966,29 @@ function Shell() {
       setMessages((m) => [...m.slice(-60), picks]);
       status("Handing to the desk: which pair draws attention and has depth.");
       await chat("Which tokenized stock should a new token launch be paired with?", { youId });
-      // Recomendaciones de la mesa: el orden en que Trader, Sparky y Scout nombran los pares; lo
-      // que va despues de "avoid" queda marcado. Los tres primeros se resaltan.
+      // Recomendaciones de la mesa, por frases: una frase que dice avoid/skip (y no accept/recommend)
+      // marca sus pares como "evitar"; el orden de preferencia sale de las frases de Trader, Sparky y
+      // Scout que recomiendan, y si no, del orden en que los nombran. Los tres primeros se resaltan.
       const norm = (x: string) => x.toUpperCase().replace(/C$/, "");
       const cands = options.map((o) => norm(o.value));
       const findAll = (t: string) => { const out: string[] = []; const re = /\b([A-Z]{2,6})c?\b/g; let mm: RegExpExecArray | null; while ((mm = re.exec(t))) { const k = norm(mm[1]); if (cands.includes(k) && !out.includes(k)) out.push(k); } return out; };
-      const before = (t: string) => t.split(/\bavoid\b/i)[0] ?? "";
-      const after = (t: string) => t.split(/\bavoid\b/i).slice(1).join(" ");
+      const sentences = (t: string) => t.split(/(?<=[.;!?])\s+|\n+/).map((x) => x.trim()).filter(Boolean);
+      const NEG = /\b(avoid|skip|stay away|pass on|thinnest|dull|would not|wouldn't|do not|don't)\b/i, POS = /\b(accept|recommend|pair it with|pair with|first choice|second choice|top pick|would pick|would draft|draft against|best|deepest)\b/i;
       const replies = lastRepliesRef.current;
-      const say = (role: string) => replies.find((r) => r.role === role && r.ok)?.reply ?? "";
+      const say = (role: string) => replies.find((r) => r.role.toLowerCase() === role && r.ok)?.reply ?? "";
       const sparkyText = [...messagesRef.current].reverse().find((x) => x.role === "floor" && x.turnId === youId && !x.kind && x.text)?.text ?? "";
-      const avoided = new Set([...findAll(after(say("trader"))), ...findAll(after(say("scout"))), ...findAll(after(sparkyText))]);
-      const ordered = [...findAll(before(say("trader"))), ...findAll(before(sparkyText)), ...findAll(before(say("scout")))].filter((k, i, a) => a.indexOf(k) === i && !avoided.has(k)).slice(0, 3);
+      const texts = [say("trader"), sparkyText, say("scout"), say("risk")];
+      const avoided = new Set<string>();
+      const liked: string[] = [];
+      for (const t of texts) for (const sent of sentences(t)) {
+        const syms = findAll(sent);
+        if (!syms.length) continue;
+        if (NEG.test(sent) && !POS.test(sent)) syms.forEach((k) => avoided.add(k));
+        else if (POS.test(sent)) syms.forEach((k) => { if (!liked.includes(k)) liked.push(k); });
+      }
+      const mentioned = texts.flatMap(findAll).filter((k, i, a) => a.indexOf(k) === i);
+      const ordered = [...liked, ...mentioned].filter((k, i, a) => a.indexOf(k) === i && !avoided.has(k)).slice(0, 3);
+      ordered.forEach((k) => avoided.delete(k));
       const rated = options.map((o) => ({ ...o, rec: ordered.indexOf(norm(o.value)) >= 0 ? ordered.indexOf(norm(o.value)) + 1 : undefined, avoid: avoided.has(norm(o.value)) || undefined })).sort((a, b) => (a.rec ?? 9) - (b.rec ?? 9));
       setMessages((m) => (m.some((x) => x.id === picks.id) ? [...m.filter((x) => x.id !== picks.id), { ...picks, text: ordered.length ? "The desk's picks first. Pick the pair for the new token:" : "Pick the pair for the new token:", picks: { kind: "pair", options: rated } }] : m));
       pairReadRef.current = { at: Date.now(), options: rated, summary: sparkyText };
