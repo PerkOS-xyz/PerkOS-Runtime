@@ -10,7 +10,7 @@ import { launchMarket, type LaunchMarket } from "../../lib/launchMarket";
 // este install. Lectura publica; cada fila trae lo reclamable para la card.
 export type LaunchRow = {
   tokenAddress: string; name: string; symbol: string; chain: string; timestamp?: number; status?: string;
-  pair?: string; deployer?: string; deployerX?: string; feeRecipient?: string;
+  pair?: string; pairAddress?: string; deployer?: string; deployerX?: string; feeRecipient?: string;
   mine: boolean; deployedHere: boolean;
   claimable?: { token0: string; token1: string; token0Label: string; token1Label: string }; claimed?: { token0: string; token1: string; count: number }; share?: string;
   bankrUrl: string; explorer: string; poolId?: string; market?: LaunchMarket;
@@ -30,7 +30,7 @@ export async function GET(req: Request) {
       const a = l.tokenAddress.toLowerCase();
       rows.set(a, {
         tokenAddress: l.tokenAddress, name: l.tokenName, symbol: l.tokenSymbol, chain: l.chain, timestamp: l.timestamp, status: l.status,
-        pair: l.pairedStock?.symbol ?? "WETH", deployer: l.deployer?.walletAddress, deployerX: l.deployer?.xUsername, feeRecipient: l.feeRecipient?.walletAddress, poolId: l.poolId,
+        pair: l.pairedStock?.symbol ?? "WETH", pairAddress: l.pairedStock?.address, deployer: l.deployer?.walletAddress, deployerX: l.deployer?.xUsername, feeRecipient: l.feeRecipient?.walletAddress, poolId: l.poolId,
         mine: (l.feeRecipient?.walletAddress ?? "").toLowerCase() === wallet.toLowerCase(),
         deployedHere: Boolean(bw && (l.deployer?.walletAddress ?? "").toLowerCase() === bw.evm.toLowerCase()),
         bankrUrl: `https://bankr.bot/launches/${l.tokenAddress}`, explorer: `https://basescan.org/token/${l.tokenAddress}`

@@ -54,7 +54,7 @@ export type DeskScreen = "market" | "portfolio" | "launches" | "automations" | "
 // Launches: los tokens que pagan fees a la wallet conectada (o que desplego la
 // wallet Bankr del install), con Bankr, Basescan y Claim.
 type LaunchMarket = { priceUsd?: number; change24hPct?: number; change1hPct?: number; volume24hUsd?: number; liquidityUsd?: number; fdvUsd?: number; pool?: { id: string; dex: string; label: string; quote: string; venueUrl: string; dexscreenerUrl: string; geckoUrl: string }; sparkline?: number[]; earnings?: Array<{ date: string; weth: string }>; lifetimeEarnedWeth?: string };
-type LaunchRow = { tokenAddress: string; name: string; symbol: string; chain: string; timestamp?: number; status?: string; pair?: string; deployer?: string; deployerX?: string; feeRecipient?: string; mine: boolean; deployedHere: boolean; claimable?: { token0: string; token1: string; token0Label: string; token1Label: string }; claimed?: { token0: string; token1: string; count: number }; share?: string; bankrUrl: string; explorer: string; poolId?: string; market?: LaunchMarket };
+type LaunchRow = { tokenAddress: string; name: string; symbol: string; chain: string; timestamp?: number; status?: string; pair?: string; pairAddress?: string; deployer?: string; deployerX?: string; feeRecipient?: string; mine: boolean; deployedHere: boolean; claimable?: { token0: string; token1: string; token0Label: string; token1Label: string }; claimed?: { token0: string; token1: string; count: number }; share?: string; bankrUrl: string; explorer: string; poolId?: string; market?: LaunchMarket };
 const money = (n?: number) => (n === undefined ? "–" : n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(2)}M` : n >= 1000 ? `$${Math.round(n).toLocaleString("en-US")}` : n >= 1 ? `$${n.toFixed(2)}` : `$${n.toPrecision(3)}`);
 const pct = (n?: number) => (n === undefined ? "" : `${n > 0 ? "+" : ""}${n.toFixed(1)}%`);
 /** Barras de ganancias por dia (WETH equivalente segun Bankr). */
@@ -262,7 +262,14 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
                     <span className="lc-right"><em className={`st ${fee ? "active" : ""}`}>{justClaimed ? "claimed" : fee ? "fees to claim" : l.status ?? "live"}</em><CopyAddr address={l.tokenAddress} label={`${l.symbol} token`} /></span>
                   </div>
                   {indexed ? <PriceChart points={m?.sparkline} label="24h · 15m closes" /> : (
-                    <div className="pc empty"><span>Not indexed yet</span><small>DexScreener usually picks up a new pool within a few minutes</small></div>
+                    <div className="pc empty seed">
+                      <span>No trades yet</span>
+                      <small>Indexers list a pool after its first swap. Seed it with a small buy of {l.symbol}{l.pair ? ` with ${l.pair}` : ""}; you sign it in your wallet.</small>
+                      <nav className="seed-links" aria-label="Seed the pool">
+                        <a href={`https://app.uniswap.org/swap?chain=base${l.pairAddress ? `&inputCurrency=${l.pairAddress}` : ""}&outputCurrency=${l.tokenAddress}`} target="_blank" rel="noreferrer">Buy {l.symbol} on Uniswap ↗</a>
+                        <a href={l.bankrUrl} target="_blank" rel="noreferrer">on Bankr ↗</a>
+                      </nav>
+                    </div>
                   )}
                   <div className="kpis6">
                     <span><b>{indexed ? money(m!.priceUsd) : "–"}</b><small>price</small></span>
