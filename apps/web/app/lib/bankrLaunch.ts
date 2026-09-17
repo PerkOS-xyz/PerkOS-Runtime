@@ -18,7 +18,7 @@ export type Recipient = { type: "wallet" | "x" | "farcaster" | "ens"; value: str
 export type LaunchParams = { name: string; symbol: string; pair: QuoteToken; feeRecipient: Recipient; description?: string; image?: string; websiteUrl?: string; tweetUrl?: string; disableVesting?: boolean; quoteOnlyFees?: boolean; degenMode?: boolean };
 export type LaunchSim = { tokenAddress: string; poolId: string; feeDistribution?: unknown; creatorAddress?: string };
 export type LaunchReceipt = LaunchSim & { txHash: string; chain: string };
-export type BankrLaunch = { tokenName: string; tokenSymbol: string; chain: string; tokenAddress: string; poolId?: string; txHash?: string; timestamp?: number; pairedStock?: { address: string; symbol: string }; deployer?: { walletAddress?: string } };
+export type BankrLaunch = { tokenName: string; tokenSymbol: string; chain: string; tokenAddress: string; poolId?: string; txHash?: string; timestamp?: number; status?: string; imageUri?: string; pairedStock?: { address: string; symbol: string }; deployer?: { walletAddress?: string; xUsername?: string }; feeRecipient?: { walletAddress?: string } };
 export type LaunchResult<T> = { ok: true; data: T } | { ok: false; error: string; detail: string };
 
 const quotesCache = new DiskCache<QuoteToken[]>("bankr-launch-quotes", 60 * 60_000);
@@ -109,6 +109,15 @@ export async function myLaunches(evm: string): Promise<{ all: BankrLaunch[]; las
   const mine = list.filter((l) => (l.deployer?.walletAddress ?? "").toLowerCase() === evm.toLowerCase());
   const last24h = mine.filter((l) => (l.timestamp ?? 0) > Date.now() - 24 * 3600_000).length;
   return { all: mine, last24h };
+}
+
+/** Los launches publicos que tocan a la persona: donde su wallet cobra las fees, o los que desplego la wallet Bankr del install. */
+export async function walletLaunches(wallet: string, deployer?: string | null): Promise<BankrLaunch[]> {
+  const r = await fetch(`${BASE}/token-launches`, { signal: AbortSignal.timeout(15_000) }).catch(() => null);
+  if (!r || !r.ok) return [];
+  const list = asList<BankrLaunch>(await r.json(), ["launches", "data", "tokenLaunches"]);
+  const w = wallet.toLowerCase(); const d = (deployer ?? "").toLowerCase();
+  return list.filter((l) => (l.feeRecipient?.walletAddress ?? "").toLowerCase() === w || (d && (l.deployer?.walletAddress ?? "").toLowerCase() === d));
 }
 
 /** Las reglas de Bankr que Risk mira antes de un GO (docs 2026-09-16). */

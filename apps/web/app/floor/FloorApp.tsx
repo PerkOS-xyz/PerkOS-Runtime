@@ -79,7 +79,7 @@ function Shell() {
   type LaunchDraft = { id: string; name: string; symbol: string; description?: string; pair: { address: string; symbol: string; name: string; kind?: string; illiquid?: boolean }; recipient: { type: "wallet" | "x" | "farcaster" | "ens"; value: string }; recipientLabel: string; resolvedRecipient?: string; feeRecipient: string; ownRecipient: boolean; options: { vesting: "on" | "off"; feesIn: "both" | "quote"; degen: boolean; description?: string; image?: string; websiteUrl?: string; tweetUrl?: string }; chain: string; provider: string; deployer: string | null; ownKey: boolean; disableVesting: boolean; checks: Array<{ label: string; ok: boolean; note: string }>; ready: boolean; sim: { tokenAddress: string; poolId: string } | null; simError?: string; wallet: { evm: string; ethBase: number; club: boolean } | null; last24h: number; facts: string[]; draftedAt: string; receipt?: { tokenAddress: string; poolId: string; txHash: string; explorer: string; bankrUrl: string } };
   // Fees del creador (Bankr): lo que ganan los tokens que la persona lanzo; el claim lo firma ella.
   type FeeToken = { tokenAddress: string; name: string; symbol: string; share: string; token0Label: string; token1Label: string; claimable: { token0: string; token1: string }; claimed: { token0: string; token1: string; count: number } };
-  type FeesInfo = { address: string; tokens: FeeToken[]; totals: { claimableWeth: string; claimedWeth: string; claimCount: number }; lifetimeEarnedWeth: string; at: string };
+  type FeesInfo = { address: string; tokens: FeeToken[]; totals: { claimableWeth: string; claimedWeth: string; claimCount: number }; lifetimeEarnedWeth: string; at: string; only?: string };
   // Automation (Bankr): DCA, stop loss o limit que corre en Bankr desde la wallet Bankr de la persona.
   type AutoRec = { id: string; kind: "dca" | "stop" | "limit" | "schedule"; asset?: string; amountUsd?: number; interval?: string; price?: number; text: string; prompt: string; createdAt: string; status: "active" | "paused" | "cancelled"; reply?: string };
   type Brief = { at: string; stock: { symbol: string; ticker: string; name: string; issuer: string }; priceUsd?: number; change24hPct?: number; range24h?: { low: number; high: number; open: number; last: number }; volume24hUsd?: number; sparkline?: number[]; pool: { fee: number; usdcDepth: number; priceUsd?: number } | null; chainlink?: { priceUsd: number; ageMin: number; stale: boolean }; premiumPct?: number; swaps24h?: { count: number; usdcVolume: number; buys: number; sells: number }; holding?: { balance: string; valueUsd: number }; lines: string[] };
@@ -839,19 +839,26 @@ function Shell() {
   }, []);
 
   // Fees card: lectura publica de Bankr para la wallet conectada; una card por consulta.
-  const feesCard = useCallback(async (msgId?: number): Promise<number | undefined> => {
+  const feesCard = useCallback(async (msgId?: number, only?: string): Promise<number | undefined> => {
     const id = msgId ?? Date.now() + 6;
     if (!msgId) { setCaption("Reading your creator fees…"); touch(); }
     try {
       const res = await fetch("/api/fees");
       const j = (await res.json().catch(() => ({}))) as FeesInfo & { error?: string; detail?: string };
+      // Una sola card para un token: "claim fees for OWL" o el boton Claim de la pantalla Launches.
+      const filter = only ?? (msgId ? messagesRef.current.find((x) => x.id === msgId)?.fees?.only : undefined);
+      if (Array.isArray(j.tokens) && filter) {
+        const f = filter.toLowerCase();
+        j.tokens = j.tokens.filter((t) => t.symbol.toLowerCase() === f || t.tokenAddress.toLowerCase() === f);
+        j.totals = { claimableWeth: j.totals?.claimableWeth ?? "0", claimedWeth: j.totals?.claimedWeth ?? "0", claimCount: j.tokens.reduce((n, t) => n + (t.claimed?.count ?? 0), 0) };
+      }
       if (!res.ok || !Array.isArray(j.tokens)) {
         flog("warn", `fees ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`);
         if (!msgId) setMessages((m) => [...m.slice(-60), { id, role: "draft", who: "trader", text: `Could not read your fees: ${j.detail ?? j.error ?? res.status}` }]);
         setCaption("");
         return undefined;
       }
-      const info: FeesInfo = { ...j, at: new Date().toISOString() };
+      const info: FeesInfo = { ...j, at: new Date().toISOString(), only: filter };
       const claimable = info.tokens.filter((t) => Number(t.claimable.token0) > 0 || Number(t.claimable.token1) > 0).length;
       flog("info", `fees: ${info.tokens.length} tokens · ${claimable} claimable · ${info.totals.claimableWeth} WETH claimable · ${info.totals.claimedWeth} claimed`);
       if (msgId) setMessages((m) => m.map((x) => (x.id === msgId ? { ...x, fees: info } : x)));
@@ -875,7 +882,7 @@ function Shell() {
     try {
       patch({ stage: "signing", note: "" });
       setCaption("Building the claim with Bankr…");
-      const res = await fetch("/api/fees/claim", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+      const res = await fetch("/api/fees/claim", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tokens: f.tokens.filter((t) => Number(t.claimable.token0) > 0 || Number(t.claimable.token1) > 0).map((t) => t.tokenAddress) }) });
       const j = (await res.json().catch(() => ({}))) as { recipient?: string; txs?: Array<{ tokenSymbol: string; to: `0x${string}`; data: `0x${string}`; chainId: number }>; errors?: Array<{ message?: string; error?: string }>; error?: string; detail?: string };
       if (!res.ok) throw new Error(j.detail ?? j.error ?? `HTTP ${res.status}`);
       if (!j.recipient || j.recipient.toLowerCase() !== wallet.address.toLowerCase()) throw new Error("claim built for another wallet");
@@ -1240,7 +1247,8 @@ function Shell() {
     }
     if (cmd === "automate") { quoteRef.current = null; void automationDraft(it.text); return; }
     if (cmd === "automations") { setDeskScreen("automations"); setCaption("Your Bankr automations"); return; }
-    if (cmd === "fees") { quoteRef.current = null; void feesCard(); return; }
+    if (cmd === "fees") { quoteRef.current = null; void feesCard(undefined, it.token); return; }
+    if (cmd === "launches") { setDeskScreen("launches"); setCaption("Your tokens on Base"); return; }
     if (cmd === "buy" || cmd === "sell") {
       quoteRef.current = null;
       // Sin activo reconocido no se asume NVDAc: se usa el activo en foco o se pregunta.
@@ -1769,6 +1777,9 @@ function Shell() {
           </button>
           <button type="button" className={deskScreen === "portfolio" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "portfolio" ? "" : "portfolio")} title="Portfolio · your positions on Base">
             <WalletIcon /><span>Portfolio</span>
+          </button>
+          <button type="button" className={deskScreen === "launches" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "launches" ? "" : "launches")} title="Launches · tokens that pay fees to your wallet, with Bankr and claim">
+            <RocketIcon /><span>Launches</span>
           </button>
           <button type="button" className={deskScreen === "automations" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "automations" ? "" : "automations")} title="Automations · DCA, stop loss and limit rules running in Bankr">
             <LoopIcon /><span>Automations</span>
@@ -2338,7 +2349,11 @@ function FeesCard({ fees, tx, onClaim, onRefresh }: {
   };
   const cancel = () => { window.clearTimeout(holdRef.current); setHolding(false); };
   const decision = tx.stage === "done" ? "Claimed" : tx.stage === "signing" || tx.stage === "pending" ? "Claiming" : tx.stage === "failed" ? "Not claimed" : withFees.length ? "Claim" : "Fees";
-  const head = fees.tokens.length === 0 ? "no launches paying this wallet yet" : `${fees.tokens.length} token${fees.tokens.length > 1 ? "s" : ""} · ${fmt(fees.totals.claimableWeth)} WETH to claim · ${fmt(fees.totals.claimedWeth)} WETH claimed`;
+  // Lo reclamable por quote token (NVDA, WETH...), no solo el total en WETH de Bankr.
+  const byQuote = new Map<string, number>();
+  for (const t of fees.tokens) byQuote.set(t.token0Label, (byQuote.get(t.token0Label) ?? 0) + num(t.claimable.token0));
+  const quoteLine = [...byQuote.entries()].filter(([, v]) => v > 0).map(([k, v]) => `${fmt(String(v))} ${k}`).join(" + ");
+  const head = fees.tokens.length === 0 ? "no launches paying this wallet yet" : `${fees.tokens.length} token${fees.tokens.length > 1 ? "s" : ""} · ${quoteLine ? `${quoteLine} to claim` : "nothing to claim yet"} · claimed ${fees.totals.claimCount}×`;
   return (
     <div className={`draft-card fees st-${tx.stage}`}>
       <div className="draft-head">
@@ -2423,6 +2438,13 @@ function AutomationCard({ auto, tx, onCreate, onOpen }: {
   );
 }
 
+function RocketIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M5 15l-2 6 6-2" /><path d="M14 4c3-1 6-1 7 0 1 1 1 4 0 7l-8 8-7-7 8-8z" /><circle cx="15" cy="9" r="1.6" />
+    </svg>
+  );
+}
 function LoopIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

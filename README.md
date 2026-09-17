@@ -36,7 +36,7 @@ flowchart TD
   FE --> C
   D --> C[Card on the table<br/>Hold to approve, launch, create or claim]
   C --> X[You sign in your wallet, or Bankr executes]
-  X --> R[Receipt on Base<br/>Notes, History and Map keep the record]
+  X --> R[Receipt on Base<br/>Launches, Notes, History and Map keep the record]
 ```
 
 | Say | Who works | Card | Who executes |
@@ -46,7 +46,8 @@ flowchart TD
 | `buy $5 of NVDA`, `sell half my TSLA` | Uniswap or Aerodrome draft plus a Bankr second quote; the four agents (order mode); Risk GO or BLOCK | Draft card, Hold to approve | you sign in your wallet, receipt on Base |
 | `launch Night Owl (OWL) paired with NVDA`, add `fees to @handle` (X, Farcaster, ENS or a wallet), `no vesting`, `quote only fees`, `degen` | Bankr checks and simulation (which also resolves the recipient); the four agents (launch mode); Risk GO or BLOCK | Launch card, Hold to launch | Bankr deploys, gas sponsored; 95% of the pool fee pays the recipient, your wallet by default |
 | `dca $5 into NVDA every week`, `stop loss on TSLA at 380` | Trader drafts the prompt, no desk turn | Automation card, Hold to create | Bankr's agent, from your Bankr wallet |
-| `claim my fees`, `what did I earn` | public Bankr read, no desk turn | Fees card, Hold to claim | you sign the claim, gas on Base |
+| `claim my fees`, `claim fees for OWL`, `what did I earn` | public Bankr read, no desk turn | Fees card, Hold to claim | you sign the claim, gas on Base |
+| `show my launches` | the desk dock: every token that pays fees to your wallet, with Bankr, Basescan and Claim fees per token | | |
 | `show my automations`, `history`, `notes`, `map`, `portfolio`, `market` | the desk dock | | |
 | `summarize the day` | Sparky folds the journal into the desk memory | | |
 
