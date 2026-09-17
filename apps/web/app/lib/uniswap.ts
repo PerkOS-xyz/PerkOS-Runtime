@@ -40,7 +40,7 @@ function client() {
 }
 
 export type TradeSide = "buy" | "sell";
-export type TradeTx = { to: `0x${string}`; data: Hex; value: `0x${string}`; label: "approve" | "swap" };
+export type TradeTx = { to: `0x${string}`; data: Hex; value: `0x${string}`; label: "approve" | "permit" | "swap"; /** Simular justo antes de pedir la firma (depende de las anteriores). */ simulate?: boolean };
 export type TradeDraft = {
   id: string;
   chainId: number;
@@ -76,6 +76,8 @@ export type TradeDraft = {
   bankr?: BankrQuote | null;
   /** Compra de un token lanzado: se paga con ETH (no USDC) y la ruta se describe en una linea. */
   payWith?: { symbol: string; amountHuman: string; balanceHuman: string; priceUsd: number };
+  /** Venta de un token lanzado: lo que entra a la wallet es ETH. */
+  receive?: { symbol: string; amountHuman: string; minHuman: string; usd: number };
   route?: string;
 };
 

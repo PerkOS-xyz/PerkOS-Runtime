@@ -54,7 +54,7 @@ export type DeskScreen = "market" | "portfolio" | "launches" | "automations" | "
 // Launches: los tokens que pagan fees a la wallet conectada (o que desplego la
 // wallet Bankr del install), con Bankr, Basescan y Claim.
 type LaunchMarket = { priceUsd?: number; change24hPct?: number; change1hPct?: number; volume24hUsd?: number; liquidityUsd?: number; fdvUsd?: number; pool?: { id: string; dex: string; label: string; quote: string; venueUrl: string; dexscreenerUrl: string; geckoUrl: string }; sparkline?: number[]; earnings?: Array<{ date: string; weth: string }>; lifetimeEarnedWeth?: string };
-type LaunchRow = { tokenAddress: string; name: string; symbol: string; chain: string; timestamp?: number; status?: string; pair?: string; pairAddress?: string; deployer?: string; deployerX?: string; feeRecipient?: string; mine: boolean; deployedHere: boolean; claimable?: { token0: string; token1: string; token0Label: string; token1Label: string }; claimed?: { token0: string; token1: string; count: number }; share?: string; bankrUrl: string; explorer: string; poolId?: string; market?: LaunchMarket };
+type LaunchRow = { tokenAddress: string; name: string; symbol: string; chain: string; timestamp?: number; status?: string; pair?: string; pairAddress?: string; deployer?: string; deployerX?: string; feeRecipient?: string; mine: boolean; deployedHere: boolean; claimable?: { token0: string; token1: string; token0Label: string; token1Label: string }; claimed?: { token0: string; token1: string; count: number }; share?: string; bankrUrl: string; explorer: string; poolId?: string; market?: LaunchMarket; balance?: number; balanceUsd?: number };
 const money = (n?: number) => (n === undefined ? "–" : n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(2)}M` : n >= 1000 ? `$${Math.round(n).toLocaleString("en-US")}` : n >= 1 ? `$${n.toFixed(2)}` : `$${n.toPrecision(3)}`);
 const pct = (n?: number) => (n === undefined ? "" : `${n > 0 ? "+" : ""}${n.toFixed(1)}%`);
 /** Barras de ganancias por dia (WETH equivalente segun Bankr). */
@@ -279,6 +279,12 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
                     <span><b>{indexed ? money(m?.volume24hUsd) : "–"}</b><small>volume 24h</small></span>
                     <span><b>{indexed ? money(m?.liquidityUsd) : "–"}</b><small>liquidity</small></span>
                     <span><b>{indexed ? money(m?.fdvUsd) : "–"}</b><small>FDV</small></span>
+                  </div>
+                  {/* Operar desde el desk: comprar con ETH siempre; vender a ETH si la wallet tiene saldo. */}
+                  <div className="launch-trade">
+                    <small>{l.balance && l.balance > 0 ? `You hold ${Math.round(l.balance).toLocaleString("en-US")} ${l.symbol}${l.balanceUsd ? ` · about ${money(l.balanceUsd)}` : ""}` : `Trade ${l.symbol} from the desk, paid in ETH on Base`}</small>
+                    <nav className="seed-links buy" aria-label={`Buy ${l.symbol}`}>{indexed ? [1, 5, 10].map((usd) => <button type="button" key={usd} onClick={() => onSay(`buy $${usd} of ${l.tokenAddress}`)}>Buy ${usd}</button>) : null}</nav>
+                    {l.balance && l.balance > 0 ? <nav className="seed-links sell" aria-label={`Sell ${l.symbol}`}>{[25, 50, 100].map((p) => <button type="button" key={p} onClick={() => onSay(`sell ${p}% of ${l.tokenAddress}`)}>{p === 100 ? "Sell all" : `Sell ${p}%`}</button>)}</nav> : null}
                   </div>
                   <div className="launch-body">
                     <div className="launch-pool">

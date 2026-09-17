@@ -2348,3 +2348,9 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 /* "No trades yet" lleva texto, botones de compra y enlaces: crece con su contenido, no con la altura fija del grafico. */
 .pc.empty.seed { height: auto; min-height: 132px; overflow: visible; padding: 16px 14px; gap: 8px; }
 .pc.empty.seed small { max-width: 46ch; line-height: 1.4; }
+/* Operar un token lanzado desde su fila: comprar con ETH, vender a ETH. */
+.launch-trade { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 10px 0 2px; }
+.launch-trade small { flex: 1 1 100%; font-size: 11px; color: var(--mute); }
+.launch-trade .seed-links { justify-content: flex-start; margin: 0; }
+.seed-links.sell button { font: inherit; font-size: 11px; letter-spacing: 0.04em; padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(255, 179, 71, 0.6); background: rgba(255, 179, 71, 0.12); color: #ffe0b0; cursor: pointer; }
+.seed-links.sell button:hover { background: rgba(255, 179, 71, 0.24); }

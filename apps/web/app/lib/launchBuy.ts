@@ -18,6 +18,8 @@ type Addr = `0x${string}`;
 export type PoolKey = { currency0: Addr; currency1: Addr; fee: number; tickSpacing: number; hooks: Addr };
 
 const initAbi = parseAbi(["event Initialize(bytes32 indexed id, address indexed currency0, address indexed currency1, uint24 fee, int24 tickSpacing, address hooks, uint160 sqrtPriceX96, int24 tick)"]);
+const permit2Abi = parseAbi(["function allowance(address owner, address token, address spender) view returns (uint160 amount, uint48 expiration, uint48 nonce)", "function approve(address token, address spender, uint160 amount, uint48 expiration)"]);
+const allowanceAbi = parseAbi(["function allowance(address owner, address spender) view returns (uint256)", "function approve(address spender, uint256 amount) returns (bool)"]);
 const erc20 = parseAbi(["function decimals() view returns (uint8)", "function symbol() view returns (string)", "function name() view returns (string)", "function balanceOf(address) view returns (uint256)"]);
 const quoterV2 = parseAbi([
   "function quoteExactInput(bytes path, uint256 amountIn) returns (uint256 amountOut, uint160[] sqrtPriceX96AfterList, uint32[] initializedTicksCrossedList, uint256 gasEstimate)",
@@ -31,8 +33,9 @@ const v4Quoter = parseAbi([
 const routerAbi = parseAbi(["function execute(bytes commands, bytes[] inputs, uint256 deadline) payable"]);
 
 // Comandos del Universal Router y acciones de v4-periphery (los mismos bytes que usan los swaps reales del pool).
-const CMD = { V3_SWAP_EXACT_IN: "00", SWEEP: "04", WRAP_ETH: "0b", V4_SWAP: "10" } as const;
-const ACT = { SWAP_EXACT_IN_SINGLE: "06", SETTLE: "0b", TAKE_ALL: "0f" } as const;
+const CMD = { V3_SWAP_EXACT_IN: "00", SWEEP: "04", WRAP_ETH: "0b", UNWRAP_WETH: "0c", V4_SWAP: "10" } as const;
+const ACT = { SWAP_EXACT_IN_SINGLE: "06", SETTLE: "0b", SETTLE_ALL: "0c", TAKE: "0e", TAKE_ALL: "0f" } as const;
+export const PERMIT2 = "0x000000000022D473030F116dDEE9F6B43aC78BA3" as const;
 const MSG_SENDER = "0x0000000000000000000000000000000000000001" as const;
 const CONTRACT_BALANCE = 1n << 255n; // "lo que tenga el router": salida del tramo anterior
 const OPEN_DELTA = 0n;               // "todo el credito abierto" tras el SETTLE
@@ -176,5 +179,114 @@ export async function draftLaunchBuy(a: LaunchBuyArgs): Promise<TradeDraft> {
     bankr: null,
     payWith: { symbol: "ETH", amountHuman: ethHuman.toFixed(6), balanceHuman: Number(formatUnits(ethBal, 18)).toFixed(6), priceUsd: ethUsd },
     route: `${routeLabel} → ${symbol} · one transaction through Uniswap's Universal Router · simulated on Base`
+  };
+}
+
+export type LaunchSellArgs = { recipient: Addr; token: Addr; deployTx: Hex; fraction?: number; amountToken?: number; slippageBps?: number };
+
+/** Draft de venta a ETH: token -> par (V4) -> WETH (V3) -> ETH a la wallet. Vender un ERC-20 pide permiso:
+    approve del token a Permit2 (una vez por token) y permiso de Permit2 al router por el monto exacto
+    y 30 minutos. La llamada final se simula en el cliente justo antes de firmarla. */
+export async function draftLaunchSell(a: LaunchSellArgs): Promise<TradeDraft> {
+  const slippageBps = a.slippageBps ?? 300;
+  const c = client();
+  const key = await poolKeyFromDeploy(a.deployTx, a.token);
+  const pair = (key.currency0.toLowerCase() === a.token.toLowerCase() ? key.currency1 : key.currency0) as Addr;
+  const zeroForOne = key.currency0.toLowerCase() === a.token.toLowerCase(); // entra el token, sale el par
+  const isWeth = pair.toLowerCase() === WETH.toLowerCase();
+  const [symbol, name, decimals, pairSymbol, bal, ethBal, tokenAllowance, p2] = await Promise.all([
+    c.readContract({ address: a.token, abi: erc20, functionName: "symbol" }),
+    c.readContract({ address: a.token, abi: erc20, functionName: "name" }),
+    c.readContract({ address: a.token, abi: erc20, functionName: "decimals" }),
+    isWeth ? Promise.resolve("WETH") : c.readContract({ address: pair, abi: erc20, functionName: "symbol" }),
+    c.readContract({ address: a.token, abi: erc20, functionName: "balanceOf", args: [a.recipient] }),
+    c.getBalance({ address: a.recipient }),
+    c.readContract({ address: a.token, abi: allowanceAbi, functionName: "allowance", args: [a.recipient, PERMIT2] }),
+    c.readContract({ address: PERMIT2, abi: permit2Abi, functionName: "allowance", args: [a.recipient, a.token, UNIVERSAL_ROUTER] })
+  ]);
+  if (bal <= 0n) throw new TradeError("NO_BALANCE", `You hold no ${symbol} on Base`);
+  let amountIn: bigint;
+  if (a.amountToken !== undefined) amountIn = BigInt(Math.round(Number(a.amountToken) * 1e6)) * 10n ** BigInt(decimals) / 1_000_000n;
+  else { const f = Math.min(1, Math.max(0, Number(a.fraction ?? 1))); amountIn = f >= 1 ? bal : (bal * BigInt(Math.round(f * 10_000))) / 10_000n; }
+  if (amountIn <= 0n) throw new TradeError("AMOUNT", "Nothing to sell");
+  if (amountIn > bal) throw new TradeError("NO_BALANCE", `You hold ${formatUnits(bal, decimals)} ${symbol}; the draft needs ${formatUnits(amountIn, decimals)}`);
+  if (amountIn >= 1n << 160n) throw new TradeError("AMOUNT", "Amount too large for one draft");
+
+  // Tramo V4: token -> par.
+  const q4 = await c.simulateContract({ address: V4_QUOTER, abi: v4Quoter, functionName: "quoteExactInputSingle", args: [{ poolKey: key, zeroForOne, exactAmount: amountIn, hookData: "0x" }] }).catch(() => null);
+  if (!q4 || q4.result[0] <= 0n) throw new TradeError("NO_POOL", `The ${symbol} pool did not return a quote`);
+  const pairOut = q4.result[0];
+  // Tramo V3: par -> WETH, la ruta que mas entregue.
+  let ethOut = pairOut, path: Hex | null = null, routeLabel = "ETH";
+  if (!isWeth) {
+    const routes: Array<{ label: string; path: Hex }> = [
+      { label: `${pairSymbol} → ETH`, path: v3Path([pair, 3000, WETH]) },
+      { label: `${pairSymbol} → USDC → ETH`, path: v3Path([pair, 3000, USDC, 500, WETH]) }
+    ];
+    const quoted = (await Promise.all(routes.map(async (r) => {
+      try { const q = await c.simulateContract({ address: QUOTER_V2, abi: quoterV2, functionName: "quoteExactInput", args: [r.path, pairOut] }); return { ...r, out: q.result[0] }; } catch { return null; }
+    }))).filter((x): x is { label: string; path: Hex; out: bigint } => Boolean(x && x.out > 0n));
+    if (!quoted.length) throw new TradeError("NO_POOL", `No Uniswap V3 route from ${pairSymbol} to ETH on Base`);
+    quoted.sort((x, y) => (y.out > x.out ? 1 : y.out < x.out ? -1 : 0));
+    ethOut = quoted[0].out; path = quoted[0].path; routeLabel = quoted[0].label;
+  }
+  const minEth = (ethOut * BigInt(10_000 - slippageBps)) / 10_000n;
+  const oneEth = await c.simulateContract({ address: QUOTER_V2, abi: quoterV2, functionName: "quoteExactInputSingle", args: [{ tokenIn: WETH, tokenOut: USDC, amountIn: parseEther("1"), fee: 500, sqrtPriceLimitX96: 0n }] });
+  const ethUsd = Number(formatUnits(oneEth.result[0], USDC_DECIMALS));
+  const deadline = Math.floor(Date.now() / 1000) + 20 * 60;
+
+  const keyTuple = { type: "tuple", components: [{ type: "address", name: "currency0" }, { type: "address", name: "currency1" }, { type: "uint24", name: "fee" }, { type: "int24", name: "tickSpacing" }, { type: "address", name: "hooks" }] } as const;
+  const swapParams = encodeAbiParameters(
+    [{ type: "tuple", components: [{ ...keyTuple, name: "poolKey" }, { type: "bool", name: "zeroForOne" }, { type: "uint128", name: "amountIn" }, { type: "uint128", name: "amountOutMinimum" }, { type: "bytes", name: "hookData" }] }],
+    [{ poolKey: key, zeroForOne, amountIn, amountOutMinimum: (pairOut * BigInt(10_000 - slippageBps)) / 10_000n, hookData: "0x" }]
+  );
+  const settleAll = encodeAbiParameters([{ type: "address" }, { type: "uint256" }], [a.token, amountIn]);          // paga quien firma, via Permit2
+  const take = encodeAbiParameters([{ type: "address" }, { type: "address" }, { type: "uint256" }], [pair, UNIVERSAL_ROUTER, OPEN_DELTA]); // el par queda en el router
+  const v4Input = encodeAbiParameters([{ type: "bytes" }, { type: "bytes[]" }], [`0x${ACT.SWAP_EXACT_IN_SINGLE}${ACT.SETTLE_ALL}${ACT.TAKE}`, [swapParams, settleAll, take]]);
+  const commands: string[] = [CMD.V4_SWAP];
+  const inputs: Hex[] = [v4Input];
+  if (path) { commands.push(CMD.V3_SWAP_EXACT_IN); inputs.push(encodeAbiParameters([{ type: "address" }, { type: "uint256" }, { type: "uint256" }, { type: "bytes" }, { type: "bool" }], [UNIVERSAL_ROUTER, CONTRACT_BALANCE, 0n, path, false])); }
+  commands.push(CMD.UNWRAP_WETH); inputs.push(encodeAbiParameters([{ type: "address" }, { type: "uint256" }], [MSG_SENDER, minEth])); // el minimo en ETH protege toda la ruta
+  if (path) { commands.push(CMD.SWEEP); inputs.push(encodeAbiParameters([{ type: "address" }, { type: "address" }, { type: "uint256" }], [pair, MSG_SENDER, 0n])); }
+  const data = encodeFunctionData({ abi: routerAbi, functionName: "execute", args: [`0x${commands.join("")}`, inputs, BigInt(deadline)] });
+
+  const txs: TradeDraft["txs"] = [];
+  const needsToken = tokenAllowance < amountIn;
+  const now = Math.floor(Date.now() / 1000);
+  const needsPermit = p2[0] < amountIn || Number(p2[1]) < now + 10 * 60;
+  if (needsToken) txs.push({ label: "approve", to: a.token, value: "0x0", data: encodeFunctionData({ abi: allowanceAbi, functionName: "approve", args: [PERMIT2, (1n << 256n) - 1n] }) });
+  if (needsPermit) txs.push({ label: "permit", to: PERMIT2, value: "0x0", data: encodeFunctionData({ abi: permit2Abi, functionName: "approve", args: [a.token, UNIVERSAL_ROUTER, amountIn, now + 30 * 60] }) });
+  txs.push({ label: "swap", to: UNIVERSAL_ROUTER, value: "0x0", data, simulate: true });
+
+  const inHuman = Number(formatUnits(amountIn, decimals));
+  const ethHuman = Number(formatUnits(ethOut, 18));
+  const usd = ethHuman * ethUsd;
+  return {
+    id: `draft-${Date.now().toString(36)}`,
+    chainId: BASE_CHAIN_ID,
+    recipient: a.recipient,
+    side: "sell",
+    stock: { symbol, ticker: symbol, name, issuer: "Bankr launch", address: a.token, decimals },
+    pool: key.hooks, fee: 0, poolUsdcDepth: 0,
+    tokenIn: { address: a.token, symbol, decimals },
+    tokenOut: { address: WETH, symbol: "ETH", decimals: 18 },
+    amountIn: amountIn.toString(),
+    amountInHuman: inHuman >= 1000 ? Math.round(inHuman).toString() : inHuman.toFixed(4),
+    amountInUsd: Number(usd.toFixed(2)),
+    quoteOut: ethOut.toString(),
+    quoteOutHuman: ethHuman.toFixed(6),
+    minOut: minEth.toString(),
+    slippageBps,
+    impliedPriceUsd: inHuman > 0 ? usd / inHuman : 0,
+    gasEstimate: q4.result[1].toString(),
+    deadline,
+    quotedAt: new Date().toISOString(),
+    needsApproval: needsToken || needsPermit,
+    balanceUsdc: "0",
+    balanceToken: formatUnits(bal, decimals),
+    txs,
+    venue: "uniswap", venueLabel: "Uniswap V4", venues: [], bankr: null,
+    receive: { symbol: "ETH", amountHuman: ethHuman.toFixed(6), minHuman: Number(formatUnits(minEth, 18)).toFixed(6), usd: Number(usd.toFixed(2)) },
+    route: `${symbol} → ${isWeth ? "" : `${routeLabel.replace(" → ETH", "")} → `}ETH · through Uniswap's Universal Router · wallet ETH ${Number(formatUnits(ethBal, 18)).toFixed(4)} for gas`
   };
 }
