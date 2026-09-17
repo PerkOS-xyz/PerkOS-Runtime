@@ -1566,6 +1566,8 @@ function Shell() {
     const cmd = it.kind;
     flog("info", `intent: ${it.kind}${"asset" in it && it.asset ? ` · ${it.asset}` : ""}`);
     if (cmd === "chat" && spoken) {
+      // "read the pairs again": lectura fresca de la mesa, saltando la cache de 30 min.
+      if (/\b(read|scan|check|rank) the pairs? again\b|\bpairs? again\b/i.test(spoken)) { pairReadRef.current = null; identityAskRef.current = null; void launchGuide(); return; }
       if (identityAskRef.current) { void suggestNames(spoken); return; }
       if (turnLiveRef.current) { void sideChat(spoken); return; }
       quoteRef.current = null;
