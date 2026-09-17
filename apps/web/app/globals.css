@@ -1724,6 +1724,10 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
    linea de promesa no toque el compositor; en split, debajo de la fila 2 de
    la cabecera para no pegarse al lockup. */
 .stage:not(.split):not(.desk-open):not(.turn-live) .core-wrap { top: calc(54% + 18px); }
+/* Sparky solo (aun sin equipo en escena): mas al centro vertical. */
+.stage:not(.team-seen):not(.split):not(.desk-open):not(.turn-live) .core-wrap { top: 44%; }
+/* Con el hilo vacio las burbujas de arranque ya invitan a hablar: la linea "Hey Sparky" sobra. */
+.stage.fresh:not(.split):not(.desk-open) .whisper { display: none; }
 /* Fila de agentes 15 px mas arriba en reposo (revision 2026-09-17). */
 .stage:not(.split):not(.desk-open):not(.turn-live) .orbit .orb { margin-top: -15px; }
 /* La promesa sube 15 px: Sparky bajo, la linea no. */
@@ -2188,3 +2192,9 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 
 /* Tras entrar, la escena es solo Sparky: los agentes dormidos aparecen cuando el equipo despierta por primera vez. */
 .stage:not(.team-seen) .orb:not(.on) { opacity: 0 !important; pointer-events: none; }
+
+/* Burbujas de arranque sobre el compositor (hilo vacio, escena en reposo). */
+.starters { position: absolute; left: 0; right: 0; bottom: calc(100% + 10px); display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding: 0 6px; pointer-events: auto; animation: turnIn 260ms var(--split-ease) both; }
+.starters button { font: inherit; font-size: 11.5px; letter-spacing: 0.01em; text-transform: none; padding: 7px 13px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.28); background: rgba(6, 10, 22, 0.5); color: #cdd7ee; cursor: pointer; backdrop-filter: blur(12px); transition: border-color 160ms ease, color 160ms ease, background 160ms ease; }
+.starters button:hover { border-color: rgba(236, 27, 105, 0.6); color: #fff; background: rgba(236, 27, 105, 0.12); }
+@container stage (max-width: 700px) { .starters { display: none; } }

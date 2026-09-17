@@ -24,6 +24,15 @@ let perkosDeclined = false;
 
 type Team = "hibernated" | "waking" | "ready";
 
+// Burbujas de arranque sobre el compositor. En ingles, y cada una cae en un intent real:
+// chat con brief de mercado, chat con la lista de pares de Bankr, analisis de la mesa (despierta al equipo), portafolio.
+const STARTERS = [
+  "Which tokenized stock looks best to go long today?",
+  "Which stock token can I pair a new token launch with?",
+  "Analyze NVDAc",
+  "What is in my portfolio?"
+];
+
 export default function FloorApp() {
   return (
     <Providers>
@@ -1809,7 +1818,7 @@ function Shell() {
   }
 
   return (
-    <div className={`stage${teamSeen ? " team-seen" : ""}${split ? " split" : ""}${debug ? " with-debug" : ""}${deskScreen ? " desk-open" : ""}${deskScreen && deskMax ? " desk-max" : ""}${turn && !turn.collapsed ? " turn-live" : ""}${turn?.collapsed ? " turn-chips" : ""}`}>
+    <div className={`stage${teamSeen ? " team-seen" : ""}${messages.length === 0 && !turn ? " fresh" : ""}${split ? " split" : ""}${debug ? " with-debug" : ""}${deskScreen ? " desk-open" : ""}${deskScreen && deskMax ? " desk-max" : ""}${turn && !turn.collapsed ? " turn-live" : ""}${turn?.collapsed ? " turn-chips" : ""}`}>
       <div className="dragbar" />
       {/* Lockup de partnership invertido (brand.base.org/partnerships: el
           partner lidera cuando es su lanzamiento): PerkOS + la cadena del desk.
@@ -2031,6 +2040,13 @@ function Shell() {
         })()}
       </div>
 
+      {/* Arranques de conversacion (como en cualquier chat): solo con el hilo vacio y la escena en reposo.
+          Cada burbuja envia el texto tal cual, con lo que recorre los intents reales del desk. */}
+      {messages.length === 0 && !split && !turn ? (
+        <div className="starters" aria-label="Suggested questions">
+          {STARTERS.map((t) => <button key={t} type="button" onClick={() => { touch(); run(t); }}>{t}</button>)}
+        </div>
+      ) : null}
       <form
         className="ask"
         onSubmit={(e) => {
