@@ -10,7 +10,7 @@ import { launchMarket, type LaunchMarket } from "../../lib/launchMarket";
 // este install. Lectura publica; cada fila trae lo reclamable para la card.
 export type LaunchRow = {
   tokenAddress: string; name: string; symbol: string; chain: string; timestamp?: number; status?: string;
-  pair?: string; deployer?: string; deployerX?: string; feeRecipient?: string;
+  pair?: string; pairAddress?: string; deployer?: string; deployerX?: string; feeRecipient?: string;
   mine: boolean; deployedHere: boolean;
   claimable?: { token0: string; token1: string; token0Label: string; token1Label: string }; claimed?: { token0: string; token1: string; count: number }; share?: string;
   bankrUrl: string; explorer: string; poolId?: string; market?: LaunchMarket;
