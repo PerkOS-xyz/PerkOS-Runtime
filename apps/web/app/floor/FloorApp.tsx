@@ -152,6 +152,7 @@ function Shell() {
   fleetRef.current = fleet;
   const fleetAtRef = useRef(0);
   const fleetActionRef = useRef<(action: "status" | "wake" | "hibernate") => Promise<Fleet | null | undefined>>(async () => null);
+  const wakeJobRef = useRef<Promise<Fleet | null | undefined> | null>(null);
   const perkosRef = useRef(perkos);
   perkosRef.current = perkos;
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -165,7 +166,7 @@ function Shell() {
   activityRef.current = activity;
   const act = useCallback((text: string) => setActivity((a) => {
     const now = Date.now();
-    if (!a || !a.live) return { start: now, steps: [{ at: now, text }], live: true };
+    if (!a || !a.live || now - a.start > 90_000) return { start: now, steps: [{ at: now, text }], live: true };
     if (a.steps[a.steps.length - 1]?.text === text) return a;
     return { ...a, steps: [...a.steps, { at: now, text }] };
   }), []);
@@ -268,11 +269,11 @@ function Shell() {
       // o una firma en curso) el chat no se esconde: ahi esta el boton.
       const waiting = messagesRef.current.some((x) => x.role === "draft" && x.tx && ["idle", "signing", "pending"].includes(x.tx.stage) && (x.draft || x.launch || x.auto || (x.fees && x.fees.tokens.some((t) => Number(t.claimable.token0) > 0 || Number(t.claimable.token1) > 0))));
       if (waiting) { touchRef.current(); return; }
-      // Una eleccion pendiente (chips de par o de nombre) o la pregunta "de que va el token" tambien
-      // esperan a la persona: el chat no se pliega hasta 15 min despues de haberlas mostrado.
       const FIFTEEN = 15 * 60_000;
       const choosing = messagesRef.current.some((x) => x.kind === "picks" && Date.now() - x.id < FIFTEEN) || Boolean(identityAskRef.current && Date.now() - identityAskRef.current.at < FIFTEEN);
       if (choosing) { touchRef.current(); return; }
+      // Un hilo con mensajes no se pliega: el demo y el video necesitan ver la respuesta.
+      if (messagesRef.current.some((x) => x.text || x.launch || x.draft || x.analysis)) { touchRef.current(); return; }
       setSplit(false);
     }, 120_000);
   }, []);
@@ -379,6 +380,31 @@ function Shell() {
     if (!c) return [];
     return [`Launch card on the table (unsigned draft, nothing deployed): ${c.name || "unnamed"} (${c.symbol || "no symbol"}) paired with ${c.pair.symbol || "no pair yet"}; about: "${(c.options.description ?? c.description ?? "").slice(0, 240) || "empty"}"; logo ${c.options.image ? "set" : "missing"}; fees pay to ${c.recipientRaw?.trim() || "the connected wallet"}; Bankr simulation ${c.stale ? "pending" : c.sim ? "passed" : c.simError ? "failed" : "not run"}. The person can change name, symbol or description by asking in the chat, or edit the card.`];
   };
+  // Despertar al equipo en paralelo a Sparky: el humano conversa, no mira un reloj de 2 min.
+  const kickWake = useCallback(() => {
+    if (wakeJobRef.current) return wakeJobRef.current;
+    const asleep = (x: Fleet | null | undefined) => Boolean(x && x.agents.some((a) => a.state === "hibernated" || a.state === "waking"));
+    const job = (async () => {
+      let f0 = fleetRef.current;
+      if (f0 && Date.now() - fleetAtRef.current > 60_000) f0 = (await fleetActionRef.current("status")) ?? f0;
+      if (!asleep(f0)) return f0;
+      setTeam("waking");
+      act("Waking Scout, Risk, Trader and Auditor in the background. Sparky stays with you.");
+      f0 = (await fleetActionRef.current("wake")) ?? f0;
+      const t0 = Date.now();
+      while (asleep(f0) && Date.now() - t0 < 240_000) {
+        await new Promise((r) => setTimeout(r, 5000));
+        f0 = (await fleetActionRef.current("status")) ?? f0;
+      }
+      if (!asleep(f0)) {
+        act("The team is up and joining the relay, about 40 seconds");
+        await new Promise((r) => setTimeout(r, 40_000));
+      }
+      return f0;
+    })();
+    wakeJobRef.current = job.finally(() => { if (wakeJobRef.current === job) wakeJobRef.current = null; });
+    return wakeJobRef.current;
+  }, [act]);
   const chat = useCallback(async (text: string, opts: { youId?: number } = {}) => {
     abortChat();
     beginTurn();
@@ -392,9 +418,10 @@ function Shell() {
     // Si el pedido ya esta en el hilo (advise lo muestra antes del scan), se reutiliza.
     const youId = opts.youId ?? Date.now();
     const floorId = Date.now() + 1;
+    let sparkId = floorId;
     setMessages((m) => [...m.filter((x) => !(x.id === youId + 1 && x.role === "floor" && x.kind === "status")).slice(-60), ...(opts.youId ? [] : [{ id: youId, role: "you" as const, text, turnId: youId }]), { id: floorId, role: "floor" as const, text: "", streaming: true, turnId: youId }]);
     const setFloor = (t: string, streaming: boolean) =>
-      setMessages((m) => m.map((x) => (x.id === floorId ? { ...x, text: t, streaming } : x)));
+      setMessages((m) => m.map((x) => (x.id === sparkId ? { ...x, text: t, streaming } : x)));
     flog("info", `chat -> ${text.slice(0, 80)}`);
     act(modeRef.current === "chat" ? "Sparky is reading your message" : "Checking who is awake on the desk");
     stickRef.current = true;
@@ -418,21 +445,60 @@ function Shell() {
         flog("info", "chat: Sparky answers on its own; the team stays asleep (no task assigned)");
         act("Sparky answers this one alone, the team stays asleep");
       } else if (asleep(f0)) {
-        setCaption("Waking the team on PerkOS…");
-        act("Waking Scout, Risk, Trader and Auditor on PerkOS. They were asleep: one to two minutes");
-        setTeam("waking");
-        f0 = (await fleetActionRef.current("wake")) ?? f0;
-        const t0 = Date.now();
-        while (asleep(f0) && Date.now() - t0 < 240_000 && !ac.signal.aborted) {
-          await new Promise((r) => setTimeout(r, 5000));
-          f0 = (await fleetActionRef.current("status")) ?? f0;
+        // Sparky habla ya; el wake corre atras. El humano no mira un reloj.
+        void kickWake();
+        setCaption("The team is waking. Talk to Sparky.");
+        act("Sparky stays with you while the team wakes");
+        try {
+          const wr = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text, warming: true, fleet: [], desk: deskRef.current ? { name: deskRef.current.name, roles: deskRef.current.agents.map((a) => a.name) } : undefined, brief: [...(briefRef.current?.lines ?? []), ...cardFacts()].length ? [...(briefRef.current?.lines ?? []), ...cardFacts()] : null, news: briefRef.current?.news ?? null, focus: focusRef.current || null, mode: modeRef.current, thread: threadRef.current || "new", seed: threadSeed(youId) }),
+            signal: ac.signal
+          });
+          if (wr.ok && wr.body) {
+            const rd = wr.body.getReader();
+            const dc = new TextDecoder();
+            let buf = "";
+            for (;;) {
+              const { value, done } = await rd.read();
+              if (done) break;
+              buf += dc.decode(value, { stream: true });
+              let i: number;
+              while ((i = buf.indexOf("\n\n")) >= 0) {
+                const line = buf.slice(0, i).replace(/^data:\s*/, "");
+                buf = buf.slice(i + 2);
+                if (!line) continue;
+                let ev: { delta?: string; done?: boolean; error?: string };
+                try { ev = JSON.parse(line); } catch { continue; }
+                if (ev.error) break;
+                if (typeof ev.delta === "string") {
+                  if (!full) actEnd();
+                  full += ev.delta;
+                  pending += ev.delta;
+                  setThinking(false);
+                  setFloor(full, true);
+                  const m = pending.match(/^([\s\S]*?[.!?])(\s+|$)/);
+                  if (m && m[1].trim().length >= 12) { speak(m[1].trim()); pending = pending.slice(m[0].length); }
+                }
+              }
+            }
+            if (pending.trim()) speak(pending);
+            setFloor(full, false);
+            full = "";
+            pending = "";
+          }
+        } catch (e) {
+          if ((e as Error).name !== "AbortError") flog("warn", `warm chat: ${(e as Error).message}`);
         }
-        if (!asleep(f0) && !ac.signal.aborted) {
-          // ECS ya corre; Hermes tarda ~40 s mas en unirse al relay.
-          setCaption("Team is booting…");
-          act("The team is up and joining the relay, about 40 seconds");
-          await new Promise((r) => setTimeout(r, 40_000));
-        }
+        const warmId = sparkId;
+        sparkId = floorId + 1;
+        setMessages((m) => [...m.map((x) => (x.id === warmId ? { ...x, streaming: false } : x)), { id: sparkId, role: "floor", text: "", streaming: true, turnId: youId }]);
+        turnLiveRef.current = true;
+        while (wakeJobRef.current && !ac.signal.aborted) await new Promise((r) => setTimeout(r, 400));
+        turnLiveRef.current = false;
+        f0 = fleetRef.current;
+        if (ac.signal.aborted) throw Object.assign(new Error("aborted"), { name: "AbortError" });
       }
       const f = f0;
       // Charla sin hechos (small talk, preguntas sobre el desk): responde solo Floor.
@@ -641,7 +707,7 @@ function Shell() {
       kbWriteRef.current({ journal: true, body: `**You**: ${text}\n${teamLines ? `${teamLines}\n` : ""}- **Sparky**: ${full.replace(/\s+/g, " ").slice(0, 900)}` });
     } catch (e) {
       if ((e as Error).name !== "AbortError") flog("error", `chat: ${(e as Error).message}`);
-      setMessages((m) => m.map((x) => (x.id === floorId ? { ...x, streaming: false } : x)));
+      setMessages((m) => m.map((x) => (x.id === sparkId || x.id === floorId ? { ...x, streaming: false } : x)));
       releaseDraft(youId);
     } finally {
       actEnd();
@@ -651,7 +717,7 @@ function Shell() {
       if (chatAbort.current === ac) chatAbort.current = null;
       endTurn();
     }
-  }, [abortChat, beginTurn, endTurn, speak, touch, act, actEnd]);
+  }, [abortChat, beginTurn, endTurn, speak, touch, act, actEnd, kickWake]);
 
   const teamRef = useRef<Team>("hibernated");
   teamRef.current = team;
@@ -1000,6 +1066,7 @@ function Shell() {
   }, []);
   const pairReadRef = useRef<{ at: number; options: NonNullable<Msg["picks"]>["options"]; summary: string } | null>(null);
   const launchGuide = useCallback(async () => {
+    void kickWake();
     const youId = Date.now();
     const prev = pairReadRef.current;
     if (prev && Date.now() - prev.at < 30 * 60_000) {
@@ -1092,7 +1159,7 @@ function Shell() {
       status("Could not read the pairs. Say the pair yourself: launch Night Owl (OWL) paired with NVDAc.");
       setCaption("");
     }
-  }, [chat, touch]);
+  }, [chat, touch, kickWake]);
   // Paso 2: con el par elegido, Sparky pregunta de que va el token; la siguiente frase de la
   // persona se toma como esa descripcion y Sparky propone tres nombre + simbolo + About.
   // La tarjeta no existe todavia: primero el par, luego nombre y descripcion con Sparky, y
@@ -1536,6 +1603,7 @@ function Shell() {
   // -> noticias con fuentes (Grok web_search) -> turno de mesa con ambos.
   // Memo de 15 min: repetir solo refresca el precio.
   const analyzeAsset = useCallback(async (asset: string, spoken: string, force = false) => {
+    void kickWake();
     setFocusAsset(asset);
     setDeskScreen("market");
     touch();
@@ -1605,7 +1673,7 @@ function Shell() {
     modeRef.current = "analyze";
     await chat(spoken);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chat, speak, touch]);
+  }, [chat, speak, touch, kickWake]);
 
   // Conocimiento local: cada turno deja rastro en ~/.perkos-xyz/knowledge
   // (diario, analisis, ordenes). Best effort; nunca bloquea la escena.
@@ -1658,6 +1726,7 @@ function Shell() {
   // + noticias de los que mas se movieron, turno de mesa en modo "advise" y un
   // documento fechado con el ranking para revisarlo al mes.
   const adviseMarket = useCallback(async (text: string) => {
+    void kickWake();
     setCaption("Scanning the market…");
     act("Scanning every tokenized stock the desk can trade: price, 30 day range, pool depth");
     busyRef.current = true;
@@ -1704,7 +1773,7 @@ function Shell() {
       setCaption("Could not scan the market.");
       actEnd();
     }
-  }, [chat, touch, act, actEnd]);
+  }, [chat, touch, act, actEnd, kickWake]);
 
   // Precalentar el mercado (scan, noticias, valuacion de los 10 activos) al
   // arrancar y cada 15 min: una pregunta abierta no debe esperar a Grok.
@@ -2570,7 +2639,7 @@ function Shell() {
           ref={askRef}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder={"Ask Sparky. Try \"buy $3 of NVDAc\""}
+          placeholder={"Ask Sparky. Nothing spends until you hold."}
           spellCheck={false}
           autoComplete="off"
           aria-label="Ask Sparky"

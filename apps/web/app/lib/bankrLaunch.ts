@@ -156,7 +156,7 @@ export function launchChecks(w: BankrWallet | null, last24h: number, name: strin
   return [
     { label: "Fees pay to", ok: Boolean(recipient), note: recipient ? `${recipientLabel(recipient)}${recipient.type === "wallet" ? "" : " · Bankr resolves it to their wallet"}` : "no recipient" },
     { label: "Bankr wallet", ok: Boolean(w), note: w ? `${w.evm.slice(0, 6)}…${w.evm.slice(-4)}${w.club ? " · Bankr Club" : ""}` : "no Bankr key or wallet on this install" },
-    { label: "ETH on Base", ok: (w?.ethBase ?? 0) >= 0.002, note: `${(w?.ethBase ?? 0).toFixed(4)} ETH · Bankr asks for 0.002 even with sponsored gas` },
+    { label: "ETH on Base", ok: (w?.ethBase ?? 0) >= 0.002, note: `${(w?.ethBase ?? 0).toFixed(4)} ETH · gas sponsored, you sign` },
     { label: "Launch quota", ok: last24h < 3, note: `${last24h} of 3 launches used in the last 24 h` },
     { label: "Pair", ok: Boolean(pair && !pair.illiquid), note: pair ? `${pair.symbol} · ${pair.name}${pair.kind === "stock" ? " · tokenized stock" : pair.kind === "major" ? " · the default quote" : ""}${pair.illiquid ? " · illiquid, hard to trade until liquidity arrives" : ""}` : "not in Bankr's registry on Base" },
     { label: "Name and symbol", ok: name.length >= 1 && name.length <= 100 && /^[A-Z0-9]{1,20}$/i.test(symbol), note: `${name} · ${symbol}` }

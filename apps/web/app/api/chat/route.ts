@@ -78,7 +78,7 @@ export async function POST(req: Request) {
   const denied = guard(req);
   if (denied) return denied;
   kbBusy(true, 3 * 60_000);
-  const body = (await req.json().catch(() => ({}))) as { text?: string; fleet?: Array<{ role: string; ok: boolean; reply: string; detail?: string }>; desk?: { name?: string; roles?: string[] }; brief?: string[] | null; news?: string | null; focus?: string | null; side?: boolean; mode?: string; thread?: string; seed?: Array<{ role?: string; content?: string }> };
+  const body = (await req.json().catch(() => ({}))) as { text?: string; fleet?: Array<{ role: string; ok: boolean; reply: string; detail?: string }>; desk?: { name?: string; roles?: string[] }; brief?: string[] | null; news?: string | null; focus?: string | null; side?: boolean; mode?: string; thread?: string; seed?: Array<{ role?: string; content?: string }>; warming?: boolean };
   const text = body.text?.trim() ?? "";
   // Respuestas de la flota (Hermes en PerkOS infra) para este turno: Grok es
   // la voz del Floor y las resume; no inventa lo que un agente no dijo.
@@ -136,18 +136,21 @@ export async function POST(req: Request) {
           : "";
       }).catch(() => "")
     : "";
-  const styleCtx = "\n\n## Style\nNo em dashes in your replies: use commas, colons or full stops. No emojis.";
+  const styleCtx = "\n\n## Style\nNo em dashes in your replies: use commas, colons or full stops. No emojis. Numbers as digits with thousands separators ($1,611.67, +5.89%, 3 min), never spelled out.";
   const pairCtx = body.mode === "pair"
     ? "\n\n## Pairing a new token launch\nThe human is choosing which asset a new token's pool is paired with. Summarize the desk's ranking in two or three sentences, say which one you would pick and why, and end by asking them to pick one: the app shows the candidates as buttons under your message. Do not launch or draft anything."
     : "";
   const sideCtx = body.side === true
     ? "\n\n## A desk turn is running right now\nThe person asked something while Scout, Risk, Trader and Auditor are still working. You are the principal: answer only this question, in one or two sentences, from the facts you already have. Do not speak for agents that have not answered yet; say they are still working if asked.\n"
     : "";
-  const instructions = buildInstructions(base, brief, live?.context ?? "") + factsCtx + localCtx + launchCtx + pulseCtx + pairCtx + styleCtx + sideCtx + (fleetCtx
+  const warmCtx = body.warming === true
+    ? "\n\n## The team is waking in the background (one to two minutes)\nYou stay with the person. Talk. Use the market facts if you have them. Ask what they want: size, names to skip, pair, risk. Do not stall, do not say you are waiting, do not address @Scout @Risk @Trader @Auditor. They will join when they are up. Keep it to a short spoken paragraph plus one question.\n"
+    : "";
+  const instructions = buildInstructions(base, brief, live?.context ?? "") + factsCtx + localCtx + launchCtx + pulseCtx + pairCtx + styleCtx + sideCtx + warmCtx + (fleetCtx
     ? "\n\n## Your teammates just answered this turn (Hermes agents on PerkOS infra). Speak for the desk: summarize what they found, name who said what when it matters, flag disagreements and what needs the human's approval. Do not invent what they did not say.\n" + fleetCtx
-    : body.mode !== "pair" && body.side !== true
-      ? "\n\n## You are answering alone\nNo agent was woken and no card was created by this message. Never say you are drafting, sizing, simulating or launching anything, and never address @Scout, @Risk, @Trader or @Auditor: they are not in this turn. If the person wants an order, an analysis or a launch, tell them the exact sentence that starts it (for a launch: launch NAME (SYMBOL) paired with NVDAc, or the Launch a token button) and that the draft card appears then."
-      : "");
+    : body.warming === true || body.mode === "pair" || body.side === true
+      ? ""
+      : "\n\n## You are answering alone\nNo agent was woken and no card was created by this message. Never say you are drafting, sizing, simulating or launching anything, and never address @Scout, @Risk, @Trader or @Auditor: they are not in this turn. If the person wants an order, an analysis or a launch, tell them the exact sentence that starts it (for a launch: launch NAME (SYMBOL) paired with NVDAc, or the Launch a token button) and that the draft card appears then.");
   const knowledgeInfo = live
     ? `knowledge: ${live.count} items · ${live.ms} ms${live.note ? ` · ${live.note}` : ""}`
     : "knowledge: skipped (small talk)";
