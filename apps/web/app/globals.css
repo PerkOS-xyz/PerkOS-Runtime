@@ -2588,7 +2588,10 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
    roster de 4 agentes va detras de un disclosure, no en una grilla fija. ==== */
 .wizard-card.desk-setup {
   --ds-mute: #9aabc8;
-  width: min(860px, calc(100% - 48px));
+  /* Ancho contra el contenedor `stage`, no contra el padre: `.logo-3d` se encoge con su
+     contenido, asi que un 100% ahi es circular y la tarjeta cambiaba de ancho segun lo que
+     tuviera dentro. `cqi` ya descuenta el panel de debug (.gate.with-debug recorta su ancho). */
+  width: min(860px, calc(100cqi - 48px));
   max-height: calc(100vh - 56px);
   overflow-y: auto;
   scrollbar-width: thin;
@@ -2696,7 +2699,7 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .wizard-card.desk-setup .ds-foot > .hint-line { margin-top: 10px; max-width: 56ch; }
 .wizard-card.desk-setup .ds-foot button.back { margin-top: 6px; }
 /* Sala de espera: la misma cabecera, sin formulario. Angosta, para que se lea como un estado. */
-.wizard-card.desk-setup.waiting { width: min(560px, calc(100% - 48px)); }
+.wizard-card.desk-setup.waiting { width: min(560px, calc(100cqi - 48px)); }
 .wizard-card.desk-setup.waiting .ds-intro { margin-bottom: 18px; }
 /* ==== Banda de espera (2026-09-18): vitrina, no carrusel ====
    Marco fijo (etiqueta, contador, riel) y contenido que cambia. La jerarquia se
@@ -2843,7 +2846,7 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 }
 
 @container stage (max-width: 700px) {
-  .wizard-card.desk-setup { width: calc(100% - 32px); }
+  .wizard-card.desk-setup { width: calc(100cqi - 32px); }
 }
 @container stage (max-width: 700px) {
   .wizard-card.desk-setup .ds-split { display: none; }
