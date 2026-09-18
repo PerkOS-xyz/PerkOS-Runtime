@@ -296,12 +296,12 @@ const WAIT_SLIDES: Array<{ k: string; t: string; d: string }> = [
   // primeras cuentan el producto entero; el resto es premio para una firma lenta o para
   // la sala del demo, donde la banda gira en bucle. Arco: control, equipo, precios,
   // creacion, permanencia, propiedad. Abre y cierra en la wallet.
-  { k: "YOUR CALL", t: "Nothing moves until you say so.", d: "Every order the desk writes is a draft. You hold to approve it and it is signed with your own wallet." },
-  { k: "YOUR TEAM", t: "Four agents, one desk.", d: "Scout reads the market, Risk sets the limits and can block, Trader drafts and routes, Auditor keeps the record." },
-  { k: "ON BASE", t: "Priced where it trades.", d: "Routes come from Uniswap and Aerodrome on Base, with a second quote from Bankr before anything is drafted." },
-  { k: "LAUNCHES", t: "It can make the thing too.", d: "Launch a token from one sentence: name, symbol, logo and pool. The trading fees go to your wallet." },
-  { k: "AUTOMATIONS", t: "It keeps its post.", d: "Recurring buys, limits and stops run while you are away, and the team hibernates when there is nothing to do." },
-  { k: "YOUR RECORD", t: "The desk remembers, and it is yours.", d: "Notes, the knowledge map and the full history stay on your machine, encrypted by your wallet and open in Obsidian." }
+  { k: "YOUR CALL", t: "They draft. You approve.", d: "Every order stays a draft until you hold to approve it, and it is signed with your own wallet." },
+  { k: "THE TEAM", t: "Four agents, one job each.", d: "Scout finds opportunities, Risk sets limits, Trader drafts the orders, and Auditor reconciles what happened against what was asked." },
+  { k: "PRICE CHECK", t: "Every price is checked twice.", d: "Routes come from Uniswap and Aerodrome on Base, and a second quote from Bankr checks them before a draft." },
+  { k: "NEW TOKEN", t: "Launch a token from one sentence.", d: "A name, symbol, description and an AI logo become a live pool, with the trading fees paid to your wallet." },
+  { k: "ON REPEAT", t: "Recurring buys, limits and stops.", d: "You approve the rule once, then it runs on a schedule or a trigger while the team hibernates between tasks." },
+  { k: "YOUR RECORD", t: "Your history stays on your machine.", d: "Notes, a knowledge map and the full history stay local, encrypted by your wallet, and open in Obsidian." }
 ];
 
 function WaitSlides() {
