@@ -131,6 +131,29 @@ export async function deskTemplate(wallet: string, lang = "en", templateId = FLE
   };
 }
 
+/** Un desk mio, tal como PerkOS lo guarda: un proyecto de la wallet. La flota escribe
+    `wallets/{wallet}/projects/fleet-<templateId>`, asi que un desk ya es un proyecto. */
+export type DeskProject = { projectId: string; templateId: string; name: string; goal: string; status: string; agents: number; updatedAt?: string };
+
+export async function listProjects(wallet: string): Promise<DeskProject[]> {
+  const idToken = await token(wallet);
+  const r = await perkosRequest<{ projects?: Array<Record<string, unknown>> }>("/projects", { idToken, timeoutMs: 20_000 });
+  const str = (v: unknown) => (typeof v === "string" ? v : "");
+  return (r.projects ?? []).map((p) => {
+    const projectId = str(p.id) || str(p.projectId);
+    return {
+      projectId,
+      // Los desks son los proyectos que nacieron de un template fleet.
+      templateId: projectId.startsWith("fleet-") ? projectId.slice("fleet-".length) : "",
+      name: str(p.name) || projectId,
+      goal: str(p.goal),
+      status: str(p.status) || "Active",
+      agents: Number.isFinite(Number(p.agents)) ? Number(p.agents) : 0,
+      updatedAt: str(p.updatedAt) || undefined
+    };
+  });
+}
+
 /** Todas las cards: los templates fleet publicados (hoy uno; el wizard muestra una card por cada uno). */
 export async function listDeskTemplates(wallet: string, lang = "en"): Promise<DeskTemplate[]> {
   const idToken = await token(wallet);

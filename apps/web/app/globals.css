@@ -2468,3 +2468,74 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 /* El bloque vive dentro de la lista de posiciones (para desplazarse con ella): se aisla de su rejilla. */
 .desk-panel .rows li.pf-li, .desk-panel .rows li.pf-li:hover { display: block; padding: 0; border: 0; background: transparent; cursor: default; }
 .desk-panel .rows li.pf-li .pf-launches li, .desk-panel .rows li.pf-li .pf-launches li:hover { display: grid; grid-template-columns: minmax(84px, 0.9fr) repeat(3, minmax(0, 1.25fr)); gap: 10px; align-items: start; padding: 8px 0 0; border: 0; border-top: 1px solid rgba(120, 160, 255, 0.1); border-radius: 0; background: transparent; cursor: default; }
+
+/* ── Fuera del desk: catalogo de desks y los mios ── */
+.mark-home { background: transparent; border: 0; padding: 0; margin: 0; cursor: pointer; display: flex; border-radius: 8px; }
+.mark-home:hover img { filter: brightness(1.25); }
+.mark-home:focus-visible { outline: 2px solid rgba(236, 27, 105, 0.7); outline-offset: 4px; }
+/* Fuera del desk de verdad: por encima de la cuenta (z-index 60) y del dock, y opaca, para que
+   no quede medio desk asomando detras. */
+.desks-home { position: absolute; inset: 0; z-index: 70; display: flex; flex-direction: column; gap: 14px; padding: 56px 30px 30px; overflow: auto; background: linear-gradient(180deg, #0a0c16, #03040a); animation: turnIn 180ms var(--split-ease) both; }
+.desks-home header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.dh-mark { display: flex; align-items: baseline; gap: 12px; }
+.dh-mark img { height: 26px; width: auto; }
+.dh-mark span { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--mute); }
+.dh-back { font: inherit; font-size: 11px; letter-spacing: 0.04em; padding: 7px 15px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); background: transparent; color: #cdd7ee; cursor: pointer; }
+.dh-back:hover { border-color: rgba(236, 27, 105, 0.6); color: #ffd3e1; }
+.dh-lead { margin: 0; font-size: 12.5px; line-height: 1.5; color: #b9c4dd; max-width: 78ch; }
+.dh-cols { display: grid; grid-template-columns: 1fr 1px 1fr; gap: 22px; align-items: stretch; min-height: 0; }
+.dh-cols > .dh-split { background: linear-gradient(180deg, transparent, rgba(120, 160, 255, 0.22) 20%, rgba(120, 160, 255, 0.22) 80%, transparent); }
+.dh-cols > section { min-width: 0; }
+/* Cabeceras como etiqueta de sala: encima de su zona, en la misma linea base a los dos lados. */
+.dh-label { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 0 2px 12px; }
+.desks-home h2 { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); }
+.dh-label small { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--mute); opacity: 0.7; }
+/* La vitrina del catalogo: se levanta del fondo sin llegar a ser un panel claro. */
+.dh-case { position: relative; border-radius: 26px; padding: 22px 18px 18px; border: 1px solid rgba(150, 180, 255, 0.16);
+  background: linear-gradient(175deg, #12141f 0%, #0d0f19 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 -24px 40px rgba(0, 0, 0, 0.35), 0 12px 32px rgba(0, 0, 0, 0.4); }
+.desks-home ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.dh-card { border: 1px solid rgba(120, 160, 255, 0.14); border-radius: 16px; background: rgba(255, 255, 255, 0.02); box-shadow: none; padding: 14px 15px; display: flex; flex-direction: column; gap: 7px; }
+.dh-card.on { border-color: rgba(236, 27, 105, 0.45); background: rgba(236, 27, 105, 0.06); }
+.dh-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.dh-head b { font-size: 14px; font-weight: 600; color: #e6ecff; }
+.dh-card p { margin: 0; font-size: 12px; line-height: 1.45; color: #b9c4dd; }
+.dh-facts { display: flex; flex-wrap: wrap; gap: 6px 8px; }
+.dh-facts span { font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--mute); border: 1px solid rgba(160, 180, 220, 0.2); border-radius: 999px; padding: 2px 9px; }
+.dh-card button { align-self: flex-start; margin-top: 3px; font: inherit; font-size: 11.5px; letter-spacing: 0.04em; padding: 7px 16px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); background: transparent; color: #cdd7ee; cursor: pointer; }
+.dh-card button.go { border-color: rgba(236, 27, 105, 0.6); background: rgba(236, 27, 105, 0.14); color: #ffd3e1; }
+.dh-card button:disabled { opacity: 0.4; cursor: default; }
+.dh-empty { margin: 0; font-size: 12px; color: var(--mute); }
+@media (max-width: 900px) { .dh-cols { grid-template-columns: 1fr; } .dh-cols > .dh-split { display: none; } }
+/* La carta del template: se colecciona, se hojea. Una por template, en fila con scroll y snap;
+   hoy solo PerkOS Floor Desk, el sábado se suma EQLTY. El arte es el equipo que trae el desk. */
+.dh-deck { flex-direction: row; gap: 18px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 6px 4px 14px; scrollbar-width: thin; justify-content: safe center; }
+.dh-tcard { scroll-snap-align: center; flex: 0 0 auto; width: min(440px, 92%); display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: 20px; color: #e6ecff;
+  border: 1px solid rgba(120, 160, 255, 0.28);
+  background:
+    radial-gradient(120% 70% at 50% -10%, rgba(236, 27, 105, 0.16), transparent 60%),
+    linear-gradient(170deg, rgba(28, 32, 54, 0.95), rgba(6, 8, 18, 0.98));
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06); }
+.dh-tcard.robinhood { border-color: rgba(0, 200, 5, 0.35); background: radial-gradient(120% 70% at 50% -10%, rgba(0, 200, 5, 0.14), transparent 60%), linear-gradient(170deg, rgba(20, 38, 24, 0.95), rgba(5, 10, 8, 0.98)); }
+.dh-tcard > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.dh-tcard > header span { font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--mute); }
+/* El arte: la marca arriba, el nombre del desk en grande y Sparky asomando a la derecha. */
+.dh-art { position: relative; overflow: hidden; min-height: 186px; border-radius: 18px; padding: 16px 150px 18px 18px; border: 1px solid rgba(160, 180, 220, 0.16); display: flex; flex-direction: column; gap: 8px; justify-content: flex-start;
+  background: radial-gradient(90% 90% at 12% 10%, rgba(236, 27, 105, 0.22), transparent 62%), linear-gradient(160deg, rgba(24, 28, 48, 0.9), rgba(4, 6, 14, 0.95)); }
+.dh-tcard.robinhood .dh-art { background: radial-gradient(90% 90% at 12% 10%, rgba(0, 200, 5, 0.18), transparent 62%), linear-gradient(160deg, rgba(16, 34, 20, 0.9), rgba(3, 8, 5, 0.95)); }
+/* En un flex en columna el default es stretch: sin esto la marca se estira a todo el ancho. */
+.dh-art-logo { align-self: flex-start; height: 26px; width: auto; opacity: 0.95; }
+.dh-art > b { font-size: 34px; line-height: 1.08; font-weight: 600; letter-spacing: -0.015em; color: #ffffff; text-wrap: balance; }
+.dh-art-sparky { position: absolute; right: -18px; bottom: -20px; height: 190px; width: auto; filter: drop-shadow(0 6px 18px rgba(236, 27, 105, 0.4)); pointer-events: none; }
+.dh-type { align-self: flex-start; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: #ffd3e1; border: 1px solid rgba(236, 27, 105, 0.5); background: rgba(236, 27, 105, 0.12); border-radius: 999px; padding: 3px 11px; }
+.dh-tcard.robinhood .dh-type { color: #c9f7dd; border-color: rgba(0, 200, 5, 0.5); background: rgba(0, 200, 5, 0.12); }
+.dh-tcard p { margin: 0; font-size: 12.5px; line-height: 1.5; color: #b9c4dd; }
+.dh-stats { margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding-top: 9px; border-top: 1px solid rgba(160, 180, 220, 0.14); }
+.dh-stats div { display: flex; flex-direction: column; gap: 2px; }
+.dh-stats dt { font-size: 8.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--mute); }
+.dh-stats dd { margin: 0; font-size: 14px; font-weight: 600; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.dh-tcard > footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 2px; }
+.dh-tcard > footer small { font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--mute); }
+.dh-tcard button { margin: 0; font: inherit; font-size: 11.5px; letter-spacing: 0.04em; padding: 7px 16px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); background: transparent; color: #cdd7ee; cursor: pointer; }
+.dh-tcard button.go { border-color: rgba(236, 27, 105, 0.6); background: rgba(236, 27, 105, 0.16); color: #ffd3e1; }
+.dh-tcard button:disabled { opacity: 0.4; cursor: default; }
