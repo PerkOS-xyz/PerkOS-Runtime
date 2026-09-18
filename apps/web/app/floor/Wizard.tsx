@@ -292,12 +292,16 @@ function RailCard({ rail }: { rail: RailStep }) {
 /** Lo que PerkOS hace, en la espera. Firmar puede tardar 20 s: en vez de un spinner,
  *  la espera cuenta el producto. Cada lamina es una frase, no un parrafo. */
 const WAIT_SLIDES: Array<{ k: string; t: string; d: string }> = [
-  { k: "YOUR TEAM", t: "Four agents, one desk.", d: "Scout reads the market, Risk says go or block, Trader drafts the order, Auditor keeps the record." },
-  { k: "YOUR CALL", t: "They draft. You approve.", d: "Every order is a draft until you hold to approve it, signed by your own wallet. Nothing spends on its own." },
-  { k: "ON BASE", t: "Tokenized stocks, priced twice.", d: "Routes from Uniswap and Aerodrome, with a second quote from Bankr before anything is drafted." },
-  { k: "LAUNCHES", t: "Launch a token in one sentence.", d: "Name, symbol, logo and pool, with the trading fees going to your wallet. Claim them from the desk." },
-  { k: "AUTOMATIONS", t: "Rules that run while you sleep.", d: "Recurring buys, limits and stops. The team hibernates when idle, so an idle desk costs almost nothing." },
-  { k: "YOUR RECORD", t: "The desk remembers.", d: "Notes, the knowledge map and the full history stay yours, encrypted by your wallet and readable in Obsidian." }
+  // El orden lo fija que la espera son 15 a 25 s: se ven 3 o 4 laminas, no 6. Las tres
+  // primeras cuentan el producto entero; el resto es premio para una firma lenta o para
+  // la sala del demo, donde la banda gira en bucle. Arco: control, equipo, precios,
+  // creacion, permanencia, propiedad. Abre y cierra en la wallet.
+  { k: "YOUR CALL", t: "Nothing moves until you say so.", d: "Every order the desk writes is a draft. You hold to approve it and it is signed with your own wallet." },
+  { k: "YOUR TEAM", t: "Four agents, one desk.", d: "Scout reads the market, Risk sets the limits and can block, Trader drafts and routes, Auditor keeps the record." },
+  { k: "ON BASE", t: "Priced where it trades.", d: "Routes come from Uniswap and Aerodrome on Base, with a second quote from Bankr before anything is drafted." },
+  { k: "LAUNCHES", t: "It can make the thing too.", d: "Launch a token from one sentence: name, symbol, logo and pool. The trading fees go to your wallet." },
+  { k: "AUTOMATIONS", t: "It keeps its post.", d: "Recurring buys, limits and stops run while you are away, and the team hibernates when there is nothing to do." },
+  { k: "YOUR RECORD", t: "The desk remembers, and it is yours.", d: "Notes, the knowledge map and the full history stay on your machine, encrypted by your wallet and open in Obsidian." }
 ];
 
 function WaitSlides() {
