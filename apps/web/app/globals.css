@@ -2560,6 +2560,15 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .dh-tcard > footer small { font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--mute); }
 .dh-tcard button { margin: 0; font: inherit; font-size: 11.5px; letter-spacing: 0.04em; padding: 7px 16px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); background: transparent; color: #cdd7ee; cursor: pointer; }
 .dh-tcard button.go { border-color: rgba(236, 27, 105, 0.6); background: rgba(236, 27, 105, 0.16); color: #ffd3e1; }
+/* La accion principal de la carta pesa mas que el resto: es lo que se viene a hacer. */
+.dh-tcard button.go { font-size: 12.5px; font-weight: 600; padding: 9px 20px; }
+/* Cual de las plantillas es la que se va a montar. Con una sola, lo dice igual. */
+.dh-sel { margin-right: auto; font-style: normal; font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: #ffd3e1; border: 1px solid rgba(236, 27, 105, 0.5); background: rgba(236, 27, 105, 0.14); border-radius: 999px; padding: 3px 8px; }
+/* Sin desks, el lado derecho no es un cartel: es por donde se empieza. */
+.dh-start { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; padding: 20px 22px; border-radius: 18px; border: 1px dashed rgba(160, 180, 220, 0.24); background: rgba(12, 14, 24, 0.5); }
+.dh-start p { margin: 0; font-size: 12.5px; line-height: 1.55; color: #b9c4dd; max-width: 46ch; }
+.dh-start button.go { font: inherit; font-size: 12.5px; font-weight: 600; letter-spacing: 0.03em; padding: 10px 22px; border-radius: 999px; border: 1px solid rgba(236, 27, 105, 0.6); background: rgba(236, 27, 105, 0.16); color: #ffd3e1; cursor: pointer; }
+.dh-start button.go:hover { background: rgba(236, 27, 105, 0.26); }
 .dh-tcard button:disabled { opacity: 0.4; cursor: default; }
 /* Por que no hay un segundo desk de esta plantilla: se dice, no se deja un boton muerto. */
 .dh-limit { margin: 0; font-size: 10.5px; line-height: 1.5; color: var(--mute); border-top: 1px solid rgba(160, 180, 220, 0.14); padding-top: 9px; }

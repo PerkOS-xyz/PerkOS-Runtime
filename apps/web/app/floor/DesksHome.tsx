@@ -95,6 +95,8 @@ export default function DesksHome({ selected, onOpen, onClose, onSetUp, who, onL
                 <li key={t.id} className={`dh-tcard ${chain}`}>
                   <header>
                     <span>Desk template</span>
+                    {/* Con una sola plantilla hay que decir cual es la que se va a montar. */}
+                    {t.id === selected ? <em className="dh-sel">Selected</em> : null}
                     <ChainMark chain={chain} small />
                   </header>
                   {/* El arte de la carta: la marca, el nombre del desk en grande y Sparky, que es la voz. */}
@@ -139,7 +141,16 @@ export default function DesksHome({ selected, onOpen, onClose, onSetUp, who, onL
             <h2 id="dh-mine">Your desks</h2>
             <small>{desks.length ? `${desks.length} running` : "none yet"}</small>
           </div>
-          {templates && !desks.length ? <p className="dh-empty">No desk yet. Set one up from a template on the left and it appears here, ready to open.</p> : null}
+          {templates && !desks.length ? (
+            <div className="dh-start">
+              <p>No desk yet. Set one up and it appears here, ready to open.</p>
+              {templates.length ? (
+                <button type="button" className="go" onClick={() => onSetUp((templates.find((x) => x.id === selected) ?? templates[0]).id)}>
+                  Set up {(templates.find((x) => x.id === selected) ?? templates[0]).name}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           <ul>
             {desks.map((d) => {
               const t = (templates ?? []).find((x) => x.id === d.templateId);
