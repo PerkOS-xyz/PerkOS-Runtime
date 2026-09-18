@@ -2475,7 +2475,7 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .mark-home:focus-visible { outline: 2px solid rgba(236, 27, 105, 0.7); outline-offset: 4px; }
 /* Fuera del desk de verdad: por encima de la cuenta (z-index 60) y del dock, y opaca, para que
    no quede medio desk asomando detras. */
-.desks-home { position: absolute; inset: 0; z-index: 70; display: flex; flex-direction: column; gap: 14px; padding: 26px 30px 30px; overflow: auto; background: linear-gradient(180deg, #0a0c16, #03040a); animation: turnIn 180ms var(--split-ease) both; }
+.desks-home { position: absolute; inset: 0; z-index: 70; display: flex; flex-direction: column; gap: 14px; padding: 56px 30px 30px; overflow: auto; background: linear-gradient(180deg, #0a0c16, #03040a); animation: turnIn 180ms var(--split-ease) both; }
 .desks-home header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .dh-mark { display: flex; align-items: baseline; gap: 12px; }
 .dh-mark img { height: 26px; width: auto; }
