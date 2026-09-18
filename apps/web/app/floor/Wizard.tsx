@@ -343,28 +343,29 @@ function TeamCard({ team }: { team: TeamStep }) {
   // Mientras la sesion de PerkOS se firma y llegan las plantillas no se sabe si esta
   // persona ya tiene desk, asi que no se puede pedir que monte uno. Antes se pintaba
   // el formulario entero como sala de espera y se reemplazaba solo: eso desconcierta.
-  if (!perkosConnected || !desks.length) {
+  if (!perkosConnected || !desks.length || deploying) {
+    const wait = deploying
+      ? { k: "YOUR DESK", t: `Setting up ${name.trim() || desk?.name || "your desk"}.`, d: "The team is being created on PerkOS infrastructure under your account. The first time takes a couple of minutes." }
+      : perkosConnected
+        ? { k: "YOUR ACCOUNT", t: "Reading your desks.", d: deskNote || "One moment: asking PerkOS which desks you run." }
+        : perkosBusy
+          ? { k: "YOUR ACCOUNT", t: "Connecting your account.", d: "Approve the signature in your wallet. It only proves the wallet is yours; nothing is spent." }
+          : { k: "YOUR ACCOUNT", t: "PerkOS account not connected.", d: perkosNote || "The signature was not completed." };
     return (
       <div className="wizard-card team desk-setup waiting">
         <header className="ds-head">
           <div className="ds-brand">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo-name.png" alt="PerkOS" />
-            <span className="k">YOUR ACCOUNT</span>
+            <span className="k">{wait.k}</span>
           </div>
         </header>
         <div className="ds-intro">
-          <b>{perkosConnected ? "Reading your desks." : perkosBusy ? "Connecting your account." : "PerkOS account not connected."}</b>
-          <p className="lead">
-            {perkosConnected
-              ? deskNote || "One moment: asking PerkOS which desks you run."
-              : perkosBusy
-                ? "Approve the signature in your wallet. It only proves the wallet is yours; nothing is spent."
-                : perkosNote || "The signature was not completed."}
-          </p>
+          <b>{wait.t}</b>
+          <p className="lead">{wait.d}</p>
         </div>
         {/* La espera cuenta lo que hace PerkOS; solo mientras de verdad se espera. */}
-        {perkosConnected || perkosBusy ? <WaitSlides /> : null}
+        {deploying || perkosConnected || perkosBusy ? <WaitSlides /> : null}
         {!perkosConnected && !perkosBusy ? (
           <footer className="ds-foot">
             <div className="row">
