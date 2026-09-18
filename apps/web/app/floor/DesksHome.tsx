@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { ChainMark } from "./ChainMark";
-import { chainOf, deskManifest, DESK_MODULES } from "./deskManifest";
+import { chainOf, deskManifest, DESK_MODULES, CHAINS } from "./deskManifest";
+import AgentAvatar from "./AgentAvatar";
 
 // Fuera del desk: el catalogo de PerkOS a la izquierda y mis desks a la derecha. Un desk es un
 // proyecto de la wallet, asi que los dos lados son lo mismo visto desde dos momentos: lo que se
@@ -69,27 +70,44 @@ export default function DesksHome({ selected, onOpen, onClose, onSetUp }: {
           <p className="dh-sub">Published on PerkOS. Each one describes a kind of desk.</p>
           {templates === null ? <p className="dh-empty">Reading PerkOS…</p> : null}
           {templates && !templates.length ? <p className="dh-empty">{note || "No desk template published yet."}</p> : null}
-          <ul>
-            {(templates ?? []).map((t) => {
+          {/* Una carta por template, en fila con scroll: se pasa a la siguiente como en un album. */}
+          <ul className="dh-deck">
+            {(templates ?? []).map((t, i) => {
               const m = deskManifest(t);
               const mine = deskFor(t.id);
+              const chain = chainOf(t);
               return (
-                <li key={t.id} className="dh-card">
-                  <div className="dh-head">
+                <li key={t.id} className={`dh-tcard ${chain}`}>
+                  <header>
                     <b>{t.name}</b>
-                    <ChainMark chain={chainOf(t)} small />
+                    <ChainMark chain={chain} small />
+                  </header>
+                  {/* El arte de la carta es el equipo: los agentes que vienen con el desk. */}
+                  <div className="dh-art">
+                    <div className="dh-team">
+                      {t.agents.slice(0, 4).map((a) => (
+                        <span key={a.role} title={`${a.name}: ${a.duty}`}>
+                          <AgentAvatar agent={{ id: `${t.id}-${a.role}`, role: a.role, name: a.name }} size={60} />
+                          <small>{a.role}</small>
+                        </span>
+                      ))}
+                    </div>
                   </div>
+                  <div className="dh-type">{DESK_MODULES[m.module].label}</div>
                   <p>{t.description}</p>
-                  <div className="dh-facts">
-                    <span>{DESK_MODULES[m.module].label}</span>
-                    <span>{t.agents.length} agents</span>
-                    <span>{m.screens.length ? m.screens.join(", ") : "no desk screens"}</span>
-                  </div>
-                  {mine ? (
-                    <button type="button" disabled title="You already have a desk from this template. More than one is coming.">Already yours</button>
-                  ) : (
-                    <button type="button" className="go" onClick={() => onSetUp(t.id)}>Set up this desk</button>
-                  )}
+                  <dl className="dh-stats">
+                    <div><dt>Chain</dt><dd>{CHAINS[chain].name}</dd></div>
+                    <div><dt>Agents</dt><dd>{t.agents.length}</dd></div>
+                    <div><dt>Screens</dt><dd>{m.screens.length || "–"}</dd></div>
+                  </dl>
+                  <footer>
+                    {mine ? (
+                      <button type="button" disabled title="You already have a desk from this template. More than one is coming.">Already yours</button>
+                    ) : (
+                      <button type="button" className="go" onClick={() => onSetUp(t.id)}>Set up this desk</button>
+                    )}
+                    <small>{i + 1} of {(templates ?? []).length}</small>
+                  </footer>
                 </li>
               );
             })}
