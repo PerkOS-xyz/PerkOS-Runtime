@@ -53,6 +53,9 @@ export default function DesksHome({ selected, onOpen, onClose, onSetUp, who, onL
   }, []);
 
   const deskFor = (templateId: string) => desks.find((d) => d.templateId === templateId);
+  // Quien todavia no tiene desk no tiene adonde volver: se entra haciendo clic en un
+  // proyecto, y hasta entonces esta pantalla es la casa.
+  const canReturn = desks.some((d) => d.templateId === selected);
 
   return (
     <div className="desks-home">
@@ -65,7 +68,7 @@ export default function DesksHome({ selected, onOpen, onClose, onSetUp, who, onL
         {/* Fuera del desk es donde se cambia de cuenta: el desk pertenece a una wallet. */}
         <div className="dh-acct">
           {who ? <span title="The wallet this desk belongs to">{who}</span> : null}
-          <button type="button" className="dh-back" onClick={onClose}>Back to the desk</button>
+          {canReturn ? <button type="button" className="dh-back" onClick={onClose}>Back to the desk</button> : null}
           {onLogout ? <button type="button" className="dh-out" onClick={onLogout}>Log out</button> : null}
         </div>
       </header>
@@ -136,7 +139,7 @@ export default function DesksHome({ selected, onOpen, onClose, onSetUp, who, onL
             <h2 id="dh-mine">Your desks</h2>
             <small>{desks.length ? `${desks.length} running` : "none yet"}</small>
           </div>
-          {templates && !desks.length ? <p className="dh-empty">No desk yet. Set one up from a template and it appears here.</p> : null}
+          {templates && !desks.length ? <p className="dh-empty">No desk yet. Set one up from a template on the left and it appears here, ready to open.</p> : null}
           <ul>
             {desks.map((d) => {
               const t = (templates ?? []).find((x) => x.id === d.templateId);

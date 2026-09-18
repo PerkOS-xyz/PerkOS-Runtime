@@ -5,6 +5,7 @@ import Ambient from "./Ambient";
 import XaiConnect from "./XaiConnect";
 import { useWallet } from "./wallet/context";
 import { flog } from "./log";
+import { ChainMark, chainOf } from "./ChainMark";
 
 // Pasos: 0 ident cinematografico -> 1 Privy (wallet) -> 2 LLM -> 3 equipo ->
 // 4 rail de gasto (1Claw, opcional). FloorApp decide donde arranca: 2 si falta
@@ -31,8 +32,10 @@ export type TeamStep = {
   onPay: () => void;
   onReconnect: () => void;
   onSkip: () => void;
-  /** Abierto a mano teniendo ya un desk: hay sitio al que volver, y la salida no es "entrar sin equipo". */
-  adding?: boolean;
+  /** Abierto a mano ("+ Add a desk" o el catalogo) teniendo ya un desk: hay sitio al
+   *  que volver, asi que la salida es volver, no "entrar sin equipo". */
+  adding: boolean;
+  /** Cierra el paso sin tocar el estado de la flota. Solo se pinta con `adding`. */
   onCancel?: () => void;
   /** Por que no se puede montar otro desk de esta plantilla con esta wallet, si es el caso. */
   blocked?: string;
@@ -144,10 +147,9 @@ function Auth({ step, setStep, onDone, team, rail }: { step: number; setStep: (n
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ wallet: wallet.address, finish: true })
     });
-    // Con el LLM listo sigue el equipo; FloorApp cierra el wizard cuando la
-    // flota existe (o al saltar el paso).
-    if (team) setStep(3);
-    else onDone();
+    // Con el LLM listo se sale del wizard: FloorApp abre el catalogo de desks si
+    // todavia no hay ninguno. Montar un desk se elige alli, no se impone aqui.
+    onDone();
   }
 
   return (
@@ -287,109 +289,140 @@ function RailCard({ rail }: { rail: RailStep }) {
   );
 }
 
-/** Paso 3: elegir el equipo. Una card por template fleet de PerkOS (hoy una);
- *  la elegida muestra sus roles y el boton de deploy bajo la cuenta del usuario. */
+/** Paso 3: nombrar y montar el desk. La decision real es el nombre; el template
+ *  y el roster son contexto y van mas chicos. Con 2 a 4 templates el catalogo es
+ *  un carrusel horizontal (como el deck de DesksHome), no una grilla. `adding`
+ *  distingue "+ Add a desk" (ya hay un desk, se puede volver) del primer
+ *  arranque (no hay adonde volver todavia). */
 function TeamCard({ team }: { team: TeamStep }) {
-  const { name, onName, desks, desk, deskNote, perkosConnected, perkosBusy, perkosNote, fundingUrl, paying, deploying, adding, blocked } = team;
+  const {
+    name, onName, desks, desk, deskNote,
+    perkosConnected, perkosBusy, perkosNote,
+    fundingUrl, paying, deploying, adding, blocked
+  } = team;
   const ready = perkosConnected && !!desk && !blocked;
+  const heading = desks.length > 1 ? "Choose a desk." : adding ? "Add a desk." : "Your first desk.";
+
   return (
-    <div className="wizard-card team">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img className="team-mark" src="/logo-name.png" alt="PerkOS" />
-      <div className="k">{adding ? "NEW DESK" : "YOUR DESK"}</div>
-      <b>{adding ? "Name your desk." : desks.length > 1 ? "Choose a desk." : "Your first desk."}</b>
-      <p className="lead">A desk brings its team, its chain and its screens. The team runs on PerkOS infrastructure under your account. They draft; you approve.</p>
-
-      {perkosConnected && desks.length ? (
-        <label className="desk-name">
-          <span>Name this desk</span>
-          <input
-            value={name}
-            onChange={(e) => onName(e.target.value.slice(0, 120))}
-            placeholder={desk?.name ?? "My desk"}
-            aria-label="Name this desk"
-            spellCheck={false}
-          />
-          <small>Yours to rename later. It is the project name on PerkOS.</small>
-        </label>
-      ) : null}
-
-      {!perkosConnected ? (
-        <p className="hint-line">
-          {perkosBusy ? "Connecting your PerkOS account… approve the signature in your wallet." : perkosNote || "PerkOS account not connected."}
-        </p>
-      ) : null}
-      {perkosConnected && !desks.length && deskNote ? <p className="hint-line err">{deskNote}</p> : null}
-
-      {desks.length ? <div className="k sub">Built from</div> : null}
-      {desks.length ? (
-        <div className="desk-cards" role="list">
-          {desks.map((d) => {
-            const on = desk?.id === d.id;
-            return (
-              <button
-                key={d.id}
-                type="button"
-                role="listitem"
-                className={`desk-card${on ? " on" : ""}`}
-                aria-pressed={on}
-                onClick={() => team.onSelect(d.id)}
-              >
-                <span className="k">PERKOS TEMPLATE</span>
-                <strong>{d.name}</strong>
-                <span className="desk-desc">{d.description}</span>
-                <span className="desk-roles">
-                  {d.agents.map((a) => (
-                    <span key={a.role} className="tag role">{a.name}</span>
-                  ))}
-                </span>
-                <span className="desk-meta">{d.agents.length} agents · sleeps after {d.idleMinutes} min idle</span>
-              </button>
-            );
-          })}
+    <div className="wizard-card team desk-setup">
+      <header className="ds-head">
+        <div className="ds-brand">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-name.png" alt="PerkOS" />
+          <span className="k">{adding ? "NEW DESK" : "YOUR DESK"}</span>
         </div>
-      ) : null}
+        {adding && team.onCancel ? (
+          <button type="button" className="ds-back" onClick={team.onCancel}>Back to desks</button>
+        ) : null}
+      </header>
 
-      {desk ? (
-        <ul className="providers team-roles">
-          {desk.agents.map((a) => (
-            <li key={a.role} className="provider">
-              <div className="provider-head">
-                <span className="provider-name">{a.name}</span>
-                <span className="tag role">{a.role}</span>
-              </div>
-              <small>{a.duty}</small>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      <div className="row">
-        {!perkosConnected && !perkosBusy ? (
-          <button type="button" className="cta" onClick={team.onReconnect}>Connect PerkOS</button>
-        ) : fundingUrl ? (
-          <button type="button" className="cta" disabled={paying} onClick={team.onPay}>
-            {paying ? "Waiting for payment…" : "Activate PerkOS infrastructure"}
-          </button>
-        ) : (
-          <button type="button" className="cta" disabled={!ready || deploying} onClick={team.onDeploy}>
-            {deploying ? "Deploying…" : `Deploy ${desk?.name ?? "team"} on PerkOS`}
-          </button>
-        )}
+      <div className="ds-intro">
+        <b>{heading}</b>
+        <p className="lead">A desk brings its team, its chain and its screens, running on PerkOS infrastructure under your account.</p>
       </div>
-      <p className="hint-line">
-        {blocked
-          ? blocked
-          : fundingUrl
+
+      <div className="ds-body">
+        <section className="ds-naming">
+          {perkosConnected && desks.length ? (
+            <label className="desk-name">
+              <span>Name this desk</span>
+              <input
+                value={name}
+                onChange={(e) => onName(e.target.value.slice(0, 120))}
+                placeholder={desk?.name ?? "My desk"}
+                aria-label="Name this desk"
+                spellCheck={false}
+              />
+              <small>Yours to rename later. It is the project name on PerkOS.</small>
+            </label>
+          ) : null}
+          {!perkosConnected ? (
+            <p className="hint-line">
+              {perkosBusy ? "Connecting your PerkOS account… approve the signature in your wallet." : perkosNote || "PerkOS account not connected."}
+            </p>
+          ) : null}
+          {perkosConnected && !desks.length && deskNote ? <p className="hint-line err">{deskNote}</p> : null}
+        </section>
+
+        {desks.length ? (
+          <>
+            <i className="ds-split" aria-hidden="true" />
+            <section className="ds-template">
+              <div className="k sub">BUILT FROM</div>
+              <div className="desk-cards" role="list">
+                {desks.map((d) => {
+                  const on = desk?.id === d.id;
+                  return (
+                    <button
+                      key={d.id}
+                      type="button"
+                      role="listitem"
+                      className={`desk-card${on ? " on" : ""}`}
+                      aria-pressed={on}
+                      onClick={() => team.onSelect(d.id)}
+                    >
+                      <header className="desk-card-head">
+                        <span className="k">PERKOS TEMPLATE</span>
+                        <ChainMark chain={chainOf(d)} small />
+                      </header>
+                      <strong>{d.name}</strong>
+                      <span className="desk-desc">{d.description}</span>
+                      <span className="desk-roles">
+                        {d.agents.map((a) => (
+                          <span key={a.role} className="tag role">{a.name}</span>
+                        ))}
+                      </span>
+                      <span className="desk-meta">{d.agents.length} agents · sleeps after {d.idleMinutes} min idle</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {desk ? (
+                <details className="desk-roster">
+                  <summary>Meet the team <small>· {desk.agents.length} agents</small></summary>
+                  <ul className="providers team-roles">
+                    {desk.agents.map((a) => (
+                      <li key={a.role} className="provider">
+                        <div className="provider-head">
+                          <span className="provider-name">{a.name}</span>
+                          <span className="tag role">{a.role}</span>
+                        </div>
+                        <small>{a.duty}</small>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
+            </section>
+          </>
+        ) : null}
+      </div>
+
+      <footer className="ds-foot">
+        {blocked ? <p className="hint-line warn">{blocked}</p> : null}
+        <div className="row">
+          {!perkosConnected && !perkosBusy ? (
+            <button type="button" className="cta" onClick={team.onReconnect}>Connect PerkOS</button>
+          ) : fundingUrl ? (
+            <button type="button" className="cta" disabled={paying} onClick={team.onPay}>
+              {paying ? "Waiting for payment…" : "Activate PerkOS infrastructure"}
+            </button>
+          ) : (
+            <button type="button" className="cta" disabled={!ready || deploying} onClick={team.onDeploy}>
+              {deploying ? "Deploying…" : "Deploy on PerkOS"}
+            </button>
+          )}
+        </div>
+        <p className="hint-line">
+          {fundingUrl
             ? "Opens pay.perkos.xyz in your browser. Card, USDC on Base, or a code. The team deploys as soon as the balance is positive."
             : "Runs under your account · they draft, you approve."}
-      </p>
-      {/* Abierto a mano: hay desk al que volver, asi que la salida es volver, no entrar sin equipo. */}
-      {adding ? (
-        <button type="button" className="back" onClick={team.onCancel}>Back to the desk</button>
-      ) : (
-        <button type="button" className="back" onClick={team.onSkip}>Enter Floor without a team</button>
-      )}
+        </p>
+        {!adding ? (
+          <button type="button" className="back" onClick={team.onSkip}>Enter Floor without a team</button>
+        ) : null}
+      </footer>
     </div>
   );
 }

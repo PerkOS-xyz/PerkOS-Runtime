@@ -2563,8 +2563,6 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .dh-tcard button:disabled { opacity: 0.4; cursor: default; }
 /* Por que no hay un segundo desk de esta plantilla: se dice, no se deja un boton muerto. */
 .dh-limit { margin: 0; font-size: 10.5px; line-height: 1.5; color: var(--mute); border-top: 1px solid rgba(160, 180, 220, 0.14); padding-top: 9px; }
-/* La marca preside el paso: es PerkOS quien monta el desk. */
-.wizard-card.team .team-mark { height: 26px; width: auto; align-self: center; opacity: 0.95; }
 /* Nombrar el desk antes de montarlo: el nombre manda y el template va debajo. */
 .wizard-card .desk-name { display: flex; flex-direction: column; gap: 5px; margin: 4px 0 2px; }
 .wizard-card .desk-name > span { font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); }
@@ -2572,3 +2570,131 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .wizard-card .desk-name input:focus { border-color: rgba(236, 27, 105, 0.6); }
 .wizard-card .desk-name small { font-size: 10.5px; color: var(--mute); }
 .wizard-card .k.sub { margin-top: 6px; }
+
+/* ==== Desk setup (2026-09-18): rediseno del paso "Your desk" (TeamCard) con el
+   nombre primero. El input es la decision; el deck de templates y el roster son
+   contexto y se leen mas chicos. La cabecera lleva la marca de PerkOS y, solo si
+   se entro a proposito, una salida tranquila distinta del "Enter Floor without a
+   team" del primer arranque. Dos columnas en ventana ancha, una bajo 700px; el
+   roster de 4 agentes va detras de un disclosure, no en una grilla fija. ==== */
+.wizard-card.desk-setup {
+  --ds-mute: #9aabc8;
+  width: min(860px, calc(100% - 48px));
+  max-height: calc(100vh - 56px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  gap: 0;
+  text-align: left;
+  align-items: stretch;
+  padding: 4px 4px 8px;
+}
+
+/* Cabecera: la marca (pedido del producto) y la salida. */
+.wizard-card.desk-setup .ds-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.wizard-card.desk-setup .ds-brand { display: flex; align-items: center; gap: 12px; }
+.wizard-card.desk-setup .ds-brand img { height: 22px; width: auto; filter: none; }
+.wizard-card.desk-setup .ds-brand span.k { font-size: 11px; }
+.wizard-card.desk-setup .ds-back {
+  font: inherit; font-size: 11px; letter-spacing: 0.04em; text-transform: none;
+  padding: 7px 15px; border-radius: 999px;
+  border: 1px solid rgba(160, 180, 220, 0.3); background: transparent; color: #cdd7ee; cursor: pointer;
+}
+.wizard-card.desk-setup .ds-back:hover { border-color: rgba(236, 27, 105, 0.6); color: #ffd3e1; }
+
+/* Intro: el titular lleva el peso; el lead es una linea, no tres. */
+.wizard-card.desk-setup .ds-intro { margin-bottom: 22px; }
+.wizard-card.desk-setup .ds-intro b { display: block; font-size: 21px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 8px; }
+.wizard-card.desk-setup .ds-intro .lead { max-width: 58ch; font-size: 13px; }
+
+/* Cuerpo: nombrar (la decision) a la izquierda, template y roster (el contexto)
+   a la derecha, con el mismo divisor fino que DesksHome. Una columna bajo 700px. */
+.wizard-card.desk-setup .ds-body { display: grid; grid-template-columns: minmax(220px, 300px) 1px minmax(0, 1fr); gap: 24px; align-items: start; }
+.wizard-card.desk-setup .ds-split { align-self: stretch; background: linear-gradient(180deg, transparent, rgba(120, 160, 255, 0.22) 20%, rgba(120, 160, 255, 0.22) 80%, transparent); }
+
+/* El nombre: el unico sitio donde vive. Borde rosa suave para marcarlo como el
+   campo primario, el mismo rosa del boton al que lleva. */
+.wizard-card.desk-setup .desk-name input {
+  font-size: 18px;
+  padding: 12px 14px;
+  border-color: rgba(236, 27, 105, 0.3);
+  background: rgba(3, 4, 10, 0.7);
+  box-shadow: 0 0 0 1px rgba(236, 27, 105, 0.08);
+}
+.wizard-card.desk-setup .desk-name input:focus {
+  border-color: rgba(236, 27, 105, 0.65);
+  box-shadow: 0 0 0 1px rgba(236, 27, 105, 0.2), 0 0 20px rgba(236, 27, 105, 0.18);
+}
+.wizard-card.desk-setup .ds-naming .hint-line { margin-top: 2px; }
+/* Contraste: la letra chica bajo el input, el kicker de seccion y la meta del
+   deck salen de --mute a un secundario legible. */
+.wizard-card.desk-setup .desk-name small,
+.wizard-card.desk-setup .k.sub,
+.wizard-card.desk-setup .desk-meta { color: var(--ds-mute); }
+.wizard-card.desk-setup .k.sub { font-size: 10px; margin: 0 0 10px; }
+
+/* Deck de templates: cards compactas, ya no lo mas ruidoso de la pantalla. Con
+   uno fluye a la izquierda; con 2 a 4 se pasan de lado con snap, como el deck de
+   DesksHome. El nombre del template va apagado, no rosa: es contexto, la
+   identidad es el input de arriba. */
+.wizard-card.desk-setup .desk-cards {
+  display: flex; flex-wrap: nowrap; gap: 12px;
+  overflow-x: auto; scroll-snap-type: x mandatory;
+  padding: 2px 2px 6px;
+  scrollbar-width: thin;
+}
+.wizard-card.desk-setup .desk-card {
+  scroll-snap-align: start;
+  flex: 0 0 auto;
+  width: min(240px, 78vw);
+  max-width: none;
+  display: flex; flex-direction: column; gap: 7px;
+  padding: 13px 14px 12px;
+  border-radius: 14px;
+}
+.wizard-card.desk-setup .desk-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.wizard-card.desk-setup .desk-card strong { font-size: 13px; font-weight: 600; color: #c5d2ee; }
+.wizard-card.desk-setup .desk-card .desk-desc {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+/* Roster: cerrado por defecto (ahorra 150-180px), con el aire de .trace y no de
+   una grilla siempre abierta. */
+.wizard-card.desk-setup .desk-roster { margin-top: 12px; font-size: 12px; }
+.wizard-card.desk-setup .desk-roster summary { cursor: pointer; list-style: none; color: var(--ds-mute); letter-spacing: 0.02em; }
+.wizard-card.desk-setup .desk-roster summary::-webkit-details-marker { display: none; }
+.wizard-card.desk-setup .desk-roster summary::after { content: " ›"; }
+.wizard-card.desk-setup .desk-roster[open] summary::after { content: " ⌄"; }
+.wizard-card.desk-setup .desk-roster summary:hover { color: #e6ecff; }
+.wizard-card.desk-setup .desk-roster summary small { color: var(--ds-mute); }
+.wizard-card.desk-setup .desk-roster .providers { margin-top: 10px; max-width: none; }
+.wizard-card.desk-setup .desk-roster .team-roles { grid-template-columns: 1fr; max-width: none; gap: 6px; }
+
+/* Bloqueado (un desk por wallet): se explica, no se apaga y ya. Mismo ambar que .lc-warn. */
+.wizard-card.desk-setup .hint-line.warn {
+  margin: 0 0 12px; padding: 7px 10px; border-radius: 10px; max-width: 56ch;
+  color: #ffd8a8; background: rgba(255, 179, 71, 0.1); border: 1px solid rgba(255, 179, 71, 0.4);
+}
+
+/* Pie: un CTA a todo el ancho, su linea de ayuda y, solo en el primer arranque, la salida fantasma. */
+.wizard-card.desk-setup .ds-foot { margin-top: 22px; display: flex; flex-direction: column; align-items: flex-start; }
+.wizard-card.desk-setup .ds-foot .row { width: 100%; }
+.wizard-card.desk-setup .ds-foot button.cta { width: 100%; }
+.wizard-card.desk-setup .ds-foot > .hint-line { margin-top: 10px; max-width: 56ch; }
+.wizard-card.desk-setup .ds-foot button.back { margin-top: 6px; }
+
+@container stage (max-width: 700px) {
+  .wizard-card.desk-setup { width: calc(100% - 32px); }
+  .wizard-card.desk-setup .ds-body { grid-template-columns: 1fr; gap: 18px; }
+  .wizard-card.desk-setup .ds-split { display: none; }
+}
+@container stage (max-width: 560px) {
+  .wizard-card.desk-setup .ds-head { flex-wrap: wrap; row-gap: 10px; }
+  .wizard-card.desk-setup .desk-card { width: min(220px, 82vw); }
+  .wizard-card.desk-setup .ds-intro b { font-size: 19px; }
+}
+/* Ventanas bajas (~900px y menos): margenes mas cortos; el overflow-y del card es el ultimo recurso. */
+@media (max-height: 760px) {
+  .wizard-card.desk-setup .ds-head { margin-bottom: 12px; }
+  .wizard-card.desk-setup .ds-intro { margin-bottom: 14px; }
+  .wizard-card.desk-setup .ds-foot { margin-top: 14px; }
+}
