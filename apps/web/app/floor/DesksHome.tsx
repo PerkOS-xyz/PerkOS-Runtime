@@ -23,6 +23,47 @@ const when = (iso?: string): string => {
   return `${Math.round(h / 24)} d ago`;
 };
 
+/** Esqueleto de carga. Usa las mismas clases que el contenido real (`dh-tcard`, `dh-art`,
+ *  `dh-stats`, `dh-card`), asi la caja mide lo mismo antes y despues y nada se estira cuando
+ *  llegan los datos: la altura sale del CSS de siempre, no de una estimacion que se queda vieja. */
+function SkelTemplate() {
+  return (
+    <li className="dh-tcard base skel" aria-hidden="true">
+      <header>
+        <span className="sk sk-kicker" />
+        <span className="sk sk-mark" />
+      </header>
+      <div className="dh-art">
+        <span className="sk sk-logo" />
+        <span className="sk sk-title" />
+        <span className="sk sk-title short" />
+      </div>
+      <span className="sk sk-chip" />
+      <p><span className="sk sk-line" /><span className="sk sk-line" /><span className="sk sk-line short" /></p>
+      <dl className="dh-stats">
+        {["chain", "agents", "screens"].map((k) => (
+          <div key={k}><dt><span className="sk sk-dt" /></dt><dd><span className="sk sk-dd" /></dd></div>
+        ))}
+      </dl>
+      <footer>
+        <span className="sk sk-btn" />
+        <span className="sk sk-count" />
+      </footer>
+    </li>
+  );
+}
+
+function SkelDesk() {
+  return (
+    <li className="dh-card skel" aria-hidden="true">
+      <div className="dh-head"><span className="sk sk-name" /><span className="sk sk-mark" /></div>
+      <p><span className="sk sk-line" /><span className="sk sk-line short" /></p>
+      <div className="dh-facts"><span className="sk sk-fact" /><span className="sk sk-fact" /></div>
+      <span className="sk sk-btn" />
+    </li>
+  );
+}
+
 export default function DesksHome({ selected, onOpen, onClose, onSetUp, who, onLogout }: {
   /** El desk activo, por su templateId. */
   selected: string;
@@ -37,6 +78,13 @@ export default function DesksHome({ selected, onOpen, onClose, onSetUp, who, onL
   const [templates, setTemplates] = useState<DeskTemplateCard[] | null>(null);
   const [desks, setDesks] = useState<DeskProjectCard[]>([]);
   const [note, setNote] = useState("");
+  // El esqueleto se queda un minimo en pantalla: con respuesta rapida, aparecer y desaparecer
+  // en 200 ms se lee como un fallo. Con respuesta lenta no añade nada, ya habia pasado.
+  const [held, setHeld] = useState(true);
+  useEffect(() => {
+    const t = window.setTimeout(() => setHeld(false), 450);
+    return () => window.clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -52,6 +100,7 @@ export default function DesksHome({ selected, onOpen, onClose, onSetUp, who, onL
     return () => { live = false; };
   }, []);
 
+  const loading = templates === null || held;
   const deskFor = (templateId: string) => desks.find((d) => d.templateId === templateId);
   // Quien todavia no tiene desk no tiene adonde volver: se entra haciendo clic en un
   // proyecto, y hasta entonces esta pantalla es la casa.
@@ -78,15 +127,15 @@ export default function DesksHome({ selected, onOpen, onClose, onSetUp, who, onL
         <section aria-labelledby="dh-catalog">
           <div className="dh-label">
             <h2 id="dh-catalog">Desk templates</h2>
-            <small>{templates === null ? "reading PerkOS" : `${templates.length} ${templates.length === 1 ? "template" : "templates"}`}</small>
+            <small>{loading ? "reading PerkOS" : `${templates!.length} ${templates!.length === 1 ? "template" : "templates"}`}</small>
           </div>
           {/* La vitrina: el catalogo va dentro de una caja elevada, lo mio queda al ras. */}
           <div className="dh-case">
-          {templates === null ? <p className="dh-empty">Reading PerkOS…</p> : null}
-          {templates && !templates.length ? <p className="dh-empty">{note || "No desk template published yet."}</p> : null}
+          {templates && !templates.length && !held ? <p className="dh-empty">{note || "No desk template published yet."}</p> : null}
           {/* Una carta por template, en fila con scroll: se pasa a la siguiente como en un album. */}
-          <ul className="dh-deck">
-            {(templates ?? []).map((t, i) => {
+          <ul className={`dh-deck${loading ? " loading" : ""}`}>
+            {loading ? <SkelTemplate /> : null}
+            {(loading ? [] : templates ?? []).map((t, i) => {
               const m = deskManifest(t);
               const mine = deskFor(t.id);
               const limit = deskLimit(t, !!mine);
@@ -139,9 +188,10 @@ export default function DesksHome({ selected, onOpen, onClose, onSetUp, who, onL
         <section aria-labelledby="dh-mine">
           <div className="dh-label">
             <h2 id="dh-mine">Your desks</h2>
-            <small>{desks.length ? `${desks.length} running` : "none yet"}</small>
+            <small>{loading ? "reading" : desks.length ? `${desks.length} running` : "none yet"}</small>
           </div>
-          {templates && !desks.length ? (
+          {loading ? <ul className="loading"><SkelDesk /></ul> : null}
+          {!loading && templates && !desks.length ? (
             <div className="dh-start">
               <p>No desk yet. Set one up and it appears here, ready to open.</p>
               {templates.length ? (
@@ -152,7 +202,7 @@ export default function DesksHome({ selected, onOpen, onClose, onSetUp, who, onL
             </div>
           ) : null}
           <ul>
-            {desks.map((d) => {
+            {(loading ? [] : desks).map((d) => {
               const t = (templates ?? []).find((x) => x.id === d.templateId);
               const on = d.templateId === selected;
               return (

@@ -2570,6 +2570,44 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .dh-start button.go { font: inherit; font-size: 12.5px; font-weight: 600; letter-spacing: 0.03em; padding: 10px 22px; border-radius: 999px; border: 1px solid rgba(236, 27, 105, 0.6); background: rgba(236, 27, 105, 0.16); color: #ffd3e1; cursor: pointer; }
 .dh-start button.go:hover { background: rgba(236, 27, 105, 0.26); }
 .dh-tcard button:disabled { opacity: 0.4; cursor: default; }
+/* ==== Esqueleto de carga (2026-09-18) ====
+   La respuesta de PerkOS tarda 1 a 2 s y antes la caja nacia vacia y se estiraba al llegar.
+   El esqueleto se pinta con las MISMAS clases que el contenido (.dh-tcard, .dh-art, .dh-stats,
+   .dh-card), asi que reserva exactamente su medida: no hay numero que mantener sincronizado.
+   El brillo es un barrido lento y de poco contraste; esto es un producto oscuro y sobrio. ==== */
+.sk { display: block; border-radius: 6px; background: rgba(160, 180, 220, 0.11); position: relative; overflow: hidden; }
+.sk::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgba(200, 215, 255, 0.09) 50%, transparent 80%);
+  transform: translateX(-100%);
+  animation: skSweep 1900ms ease-in-out infinite;
+}
+@keyframes skSweep { to { transform: translateX(100%); } }
+/* Cada pieza mide lo que mide el texto al que sustituye. */
+.sk-kicker { width: 82px; height: 9px; }
+.sk-mark { width: 14px; height: 14px; border-radius: 4px; }
+.sk-logo { width: 62px; height: 26px; }
+.sk-title { width: 62%; height: 30px; margin-top: 6px; border-radius: 8px; }
+.sk-title.short { width: 44%; }
+.sk-chip { width: 148px; height: 17px; border-radius: 999px; }
+.sk-line { width: 100%; height: 10px; margin-bottom: 8px; }
+.sk-line.short { width: 68%; margin-bottom: 0; }
+.sk-dt { width: 42px; height: 8px; }
+.sk-dd { width: 54px; height: 13px; margin-top: 5px; }
+.sk-btn { width: 138px; height: 31px; border-radius: 999px; }
+.sk-count { width: 34px; height: 9px; }
+.sk-name { width: 150px; height: 14px; }
+.sk-fact { width: 58px; height: 16px; border-radius: 999px; }
+/* La carta fantasma no invita a pulsar nada. */
+.dh-tcard.skel, .dh-card.skel { pointer-events: none; }
+.dh-tcard.skel .dh-art { justify-content: flex-start; }
+/* El relevo: el contenido real entra con un fundido corto, sin un segundo salto. */
+.dh-deck:not(.loading) > li, .desks-home ul:not(.loading) > li { animation: skIn 260ms ease-out both; }
+@keyframes skIn { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .sk::after { animation: none; }
+  .dh-deck:not(.loading) > li, .desks-home ul:not(.loading) > li { animation: none; }
+}
 /* Por que no hay un segundo desk de esta plantilla: se dice, no se deja un boton muerto. */
 .dh-limit { margin: 0; font-size: 10.5px; line-height: 1.5; color: var(--mute); border-top: 1px solid rgba(160, 180, 220, 0.14); padding-top: 9px; }
 /* Nombrar el desk antes de montarlo: el nombre manda y el template va debajo. */
