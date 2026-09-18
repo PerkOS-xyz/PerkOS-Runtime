@@ -2510,12 +2510,14 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.07); }
 .dh-tcard.robinhood { border-color: rgba(0, 200, 5, 0.35); background: radial-gradient(120% 70% at 50% -10%, rgba(0, 200, 5, 0.14), transparent 60%), linear-gradient(170deg, rgba(20, 38, 24, 0.95), rgba(5, 10, 8, 0.98)); }
 .dh-tcard > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.dh-tcard > header b { font-size: 15px; font-weight: 600; letter-spacing: 0.01em; }
-.dh-art { border-radius: 14px; padding: 14px 10px 10px; border: 1px solid rgba(160, 180, 220, 0.16);
-  background: radial-gradient(90% 80% at 50% 20%, rgba(120, 160, 255, 0.14), rgba(0, 0, 0, 0.28)); }
-.dh-team { display: flex; justify-content: center; gap: 6px; }
-.dh-team span { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; }
-.dh-team small { font-size: 8.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--mute); }
+.dh-tcard > header span { font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--mute); }
+/* El arte: la marca arriba, el nombre del desk en grande y Sparky asomando a la derecha. */
+.dh-art { position: relative; overflow: hidden; min-height: 132px; border-radius: 14px; padding: 12px 108px 14px 14px; border: 1px solid rgba(160, 180, 220, 0.16); display: flex; flex-direction: column; gap: 8px; justify-content: flex-start;
+  background: radial-gradient(90% 90% at 12% 10%, rgba(236, 27, 105, 0.22), transparent 62%), linear-gradient(160deg, rgba(24, 28, 48, 0.9), rgba(4, 6, 14, 0.95)); }
+.dh-tcard.robinhood .dh-art { background: radial-gradient(90% 90% at 12% 10%, rgba(0, 200, 5, 0.18), transparent 62%), linear-gradient(160deg, rgba(16, 34, 20, 0.9), rgba(3, 8, 5, 0.95)); }
+.dh-art-logo { height: 18px; width: auto; opacity: 0.95; }
+.dh-art > b { font-size: 25px; line-height: 1.08; font-weight: 600; letter-spacing: -0.015em; color: #ffffff; text-wrap: balance; }
+.dh-art-sparky { position: absolute; right: -14px; bottom: -16px; height: 132px; width: auto; filter: drop-shadow(0 6px 18px rgba(236, 27, 105, 0.4)); pointer-events: none; }
 .dh-type { align-self: flex-start; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: #ffd3e1; border: 1px solid rgba(236, 27, 105, 0.5); background: rgba(236, 27, 105, 0.12); border-radius: 999px; padding: 3px 11px; }
 .dh-tcard.robinhood .dh-type { color: #c9f7dd; border-color: rgba(0, 200, 5, 0.5); background: rgba(0, 200, 5, 0.12); }
 .dh-tcard p { margin: 0; font-size: 12px; line-height: 1.45; color: #b9c4dd; }

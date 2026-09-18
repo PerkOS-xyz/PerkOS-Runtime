@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { ChainMark } from "./ChainMark";
 import { chainOf, deskManifest, DESK_MODULES, CHAINS } from "./deskManifest";
-import AgentAvatar from "./AgentAvatar";
 
 // Fuera del desk: el catalogo de PerkOS a la izquierda y mis desks a la derecha. Un desk es un
 // proyecto de la wallet, asi que los dos lados son lo mismo visto desde dos momentos: lo que se
@@ -79,19 +78,16 @@ export default function DesksHome({ selected, onOpen, onClose, onSetUp }: {
               return (
                 <li key={t.id} className={`dh-tcard ${chain}`}>
                   <header>
-                    <b>{t.name}</b>
+                    <span>Desk template</span>
                     <ChainMark chain={chain} small />
                   </header>
-                  {/* El arte de la carta es el equipo: los agentes que vienen con el desk. */}
+                  {/* El arte de la carta: la marca, el nombre del desk en grande y Sparky, que es la voz. */}
                   <div className="dh-art">
-                    <div className="dh-team">
-                      {t.agents.slice(0, 4).map((a) => (
-                        <span key={a.role} title={`${a.name}: ${a.duty}`}>
-                          <AgentAvatar agent={{ id: `${t.id}-${a.role}`, role: a.role, name: a.name }} size={60} />
-                          <small>{a.role}</small>
-                        </span>
-                      ))}
-                    </div>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img className="dh-art-logo" src="/logo.png" alt="PerkOS" draggable={false} />
+                    <b>{t.name}</b>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img className="dh-art-sparky" src="/sparky-full.png" alt="" draggable={false} />
                   </div>
                   <div className="dh-type">{DESK_MODULES[m.module].label}</div>
                   <p>{t.description}</p>
