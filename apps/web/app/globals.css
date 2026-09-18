@@ -2570,6 +2570,48 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .dh-start button.go { font: inherit; font-size: 12.5px; font-weight: 600; letter-spacing: 0.03em; padding: 10px 22px; border-radius: 999px; border: 1px solid rgba(236, 27, 105, 0.6); background: rgba(236, 27, 105, 0.16); color: #ffd3e1; cursor: pointer; }
 .dh-start button.go:hover { background: rgba(236, 27, 105, 0.26); }
 .dh-tcard button:disabled { opacity: 0.4; cursor: default; }
+/* ==== Puerta de pago (2026-09-18) ====
+   Un 402 dejaba una linea de caption y una pestana del navegador abierta sola.
+   Esto es la explicacion, que se queda en el app: que cuesta, que opciones hay y
+   que pasa despues. Mismo material que la vitrina del catalogo. ==== */
+.paywall { position: absolute; inset: 0; z-index: 75; display: grid; place-items: center; padding: 40px 24px;
+  background: radial-gradient(90% 70% at 50% 0%, rgba(236, 27, 105, 0.1), transparent 60%), rgba(4, 5, 12, 0.92);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); animation: turnIn 180ms ease both; }
+.pw-card { width: min(640px, 100%); max-height: calc(100vh - 80px); overflow-y: auto; scrollbar-width: thin;
+  display: flex; flex-direction: column; text-align: left; padding: 22px 24px 20px; border-radius: 22px;
+  border: 1px solid rgba(150, 180, 255, 0.16); background: linear-gradient(175deg, #12141f 0%, #0d0f19 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 24px 60px rgba(0, 0, 0, 0.55); }
+.pw-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.pw-brand { display: flex; align-items: center; gap: 12px; }
+.pw-brand img { height: 22px; width: auto; }
+.pw-brand .k { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--mute); }
+.pw-back { font: inherit; font-size: 11px; letter-spacing: 0.04em; padding: 7px 15px; border-radius: 999px;
+  border: 1px solid rgba(160, 180, 220, 0.3); background: transparent; color: #cdd7ee; cursor: pointer; }
+.pw-back:hover { border-color: rgba(236, 27, 105, 0.6); color: #ffd3e1; }
+.pw-intro { margin-bottom: 18px; }
+.pw-intro b { display: block; font-size: 21px; font-weight: 600; letter-spacing: -0.01em; color: #e8eeff; margin-bottom: 8px; }
+.pw-intro .lead { margin: 0; max-width: 58ch; font-size: 13px; line-height: 1.55; color: #b9c4dd; }
+/* Las tres puertas: codigo, pagar, ahora no. Ninguna gasta sola. */
+.pw-doors { display: flex; flex-direction: column; gap: 10px; }
+.pw-door { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; font: inherit;
+  padding: 14px 16px; border-radius: 16px; border: 1px solid rgba(120, 160, 255, 0.16);
+  background: rgba(255, 255, 255, 0.02); color: inherit; cursor: pointer; transition: border-color 160ms ease, background 160ms ease; }
+.pw-door:hover { border-color: rgba(236, 27, 105, 0.45); background: rgba(236, 27, 105, 0.06); }
+.pw-door b { font-size: 14px; font-weight: 600; color: #e6ecff; }
+.pw-door small { font-size: 12px; line-height: 1.5; color: #b9c4dd; }
+.pw-door.go { border-color: rgba(236, 27, 105, 0.5); background: rgba(236, 27, 105, 0.1); }
+.pw-door.quiet b { color: #c5d2ee; }
+.pw-waiting { margin: 0; padding: 14px 16px; border-radius: 16px; border: 1px dashed rgba(160, 180, 220, 0.28);
+  background: rgba(12, 14, 24, 0.5); font-size: 12.5px; line-height: 1.55; color: #b9c4dd; max-width: 58ch; }
+.pw-foot { margin: 16px 0 0; font-size: 11.5px; line-height: 1.5; color: var(--mute); }
+/* Tiempo de desk en la barra de cuenta. En rosa solo cuando de verdad queda poco. */
+.who .dk { font-style: normal; font-size: 10.5px; letter-spacing: 0.04em; padding: 2px 9px; border-radius: 999px;
+  border: 1px solid rgba(160, 180, 220, 0.26); color: #b9c4dd; white-space: nowrap; }
+.who .dk.low { border-color: rgba(236, 27, 105, 0.5); background: rgba(236, 27, 105, 0.12); color: #ffd3e1; }
+@container stage (max-width: 700px) {
+  .pw-card { padding: 18px 18px 16px; }
+  .who .dk { display: none; }
+}
 /* ==== Esqueleto de carga (2026-09-18) ====
    La respuesta de PerkOS tarda 1 a 2 s y antes la caja nacia vacia y se estiraba al llegar.
    El esqueleto se pinta con las MISMAS clases que el contenido (.dh-tcard, .dh-art, .dh-stats,
