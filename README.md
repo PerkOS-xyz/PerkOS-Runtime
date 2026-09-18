@@ -80,8 +80,9 @@ Feedback for the Uniswap team is in [FEEDBACK.md](FEEDBACK.md).
 **Where a person meets it**: the desk drafts a trade, the card shows the route and the simulated
 output, and the transaction is signed in the person's own wallet after a two second hold.
 
-Tokens launched from the desk and traded through these paths on Base mainnet: FLOORT, NVDAc,
-Cab Bots (CABOT) and Clarity (CLARITY, `0x5D7437988e5a4A2788dc2cd09bD612Aa3704DbA3`).
+Tokens launched from the desk with Bankr and traded through these paths on Base mainnet: FLOORT,
+Cab Bots (CABOT) and Clarity (CLARITY, `0x5D7437988e5a4A2788dc2cd09bD612Aa3704DbA3`). Each is
+paired with a tokenized stock, which is what puts the V3 leg in front of the V4 leg.
 
 ## Layout
 
