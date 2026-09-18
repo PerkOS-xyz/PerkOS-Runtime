@@ -289,6 +289,43 @@ function RailCard({ rail }: { rail: RailStep }) {
   );
 }
 
+/** Lo que PerkOS hace, en la espera. Firmar puede tardar 20 s: en vez de un spinner,
+ *  la espera cuenta el producto. Cada lamina es una frase, no un parrafo. */
+const WAIT_SLIDES: Array<{ k: string; t: string; d: string }> = [
+  { k: "YOUR TEAM", t: "Four agents, one desk.", d: "Scout reads the market, Risk says go or block, Trader drafts the order, Auditor keeps the record." },
+  { k: "YOUR CALL", t: "They draft. You approve.", d: "Every order is a draft until you hold to approve it, signed by your own wallet. Nothing spends on its own." },
+  { k: "ON BASE", t: "Tokenized stocks, priced twice.", d: "Routes from Uniswap and Aerodrome, with a second quote from Bankr before anything is drafted." },
+  { k: "LAUNCHES", t: "Launch a token in one sentence.", d: "Name, symbol, logo and pool, with the trading fees going to your wallet. Claim them from the desk." },
+  { k: "AUTOMATIONS", t: "Rules that run while you sleep.", d: "Recurring buys, limits and stops. The team hibernates when idle, so an idle desk costs almost nothing." },
+  { k: "YOUR RECORD", t: "The desk remembers.", d: "Notes, the knowledge map and the full history stay yours, encrypted by your wallet and readable in Obsidian." }
+];
+
+function WaitSlides() {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setI((n) => (n + 1) % WAIT_SLIDES.length), 5200);
+    return () => window.clearInterval(id);
+  }, []);
+  return (
+    <div className="ds-slides" aria-live="off">
+      <div className="ds-stack">
+        {WAIT_SLIDES.map((s, n) => (
+          <article key={s.k} className={`ds-slide${n === i ? " on" : ""}`} aria-hidden={n !== i}>
+            <span className="k">{s.k}</span>
+            <b>{s.t}</b>
+            <p>{s.d}</p>
+          </article>
+        ))}
+      </div>
+      <div className="ds-dots" aria-hidden="true">
+        {WAIT_SLIDES.map((s, n) => (
+          <i key={s.k} className={n === i ? "on" : ""} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** Paso 3: nombrar y montar el desk. La decision real es el nombre; el template
  *  y el roster son contexto y van mas chicos. Con 2 a 4 templates el catalogo es
  *  un carrusel horizontal (como el deck de DesksHome), no una grilla. `adding`
@@ -326,6 +363,8 @@ function TeamCard({ team }: { team: TeamStep }) {
                 : perkosNote || "The signature was not completed."}
           </p>
         </div>
+        {/* La espera cuenta lo que hace PerkOS; solo mientras de verdad se espera. */}
+        {perkosConnected || perkosBusy ? <WaitSlides /> : null}
         {!perkosConnected && !perkosBusy ? (
           <footer className="ds-foot">
             <div className="row">
