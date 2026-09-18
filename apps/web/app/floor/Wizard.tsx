@@ -292,6 +292,18 @@ function RailCard({ rail }: { rail: RailStep }) {
   );
 }
 
+/** true cuando han pasado `ms` desde que se monto. Para no ensenar una espera que no
+ *  llega a existir: si la sesion de PerkOS sigue viva la respuesta tarda un parpadeo y
+ *  una tarjeta que aparece y desaparece en 300 ms se lee como un fallo. */
+function useElapsed(ms: number): boolean {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    const t = window.setTimeout(() => setOn(true), ms);
+    return () => window.clearTimeout(t);
+  }, [ms]);
+  return on;
+}
+
 /** Lo que PerkOS hace, en la espera. Firmar puede tardar 20 s: en vez de un spinner,
  *  la espera cuenta el producto. Cada lamina es una frase, no un parrafo. */
 const WAIT_SLIDES: Array<{ k: string; t: string; d: string }> = [
@@ -357,6 +369,10 @@ function TeamCard({ team }: { team: TeamStep }) {
     perkosConnected, perkosBusy, perkosNote,
     fundingUrl, paying, deploying, adding, blocked, ai, onChangeAi
   } = team;
+  // La espera solo se pinta si de verdad hay espera, y las laminas mas tarde todavia:
+  // con sesion viva esto dura un parpadeo y no debe verse nada.
+  const waitingSeen = useElapsed(700);
+  const slidesSeen = useElapsed(1600);
   const ready = perkosConnected && !!desk && !blocked;
   const heading = desks.length > 1 ? "Choose a desk." : adding ? "Add a desk." : "Your first desk.";
 
@@ -364,6 +380,7 @@ function TeamCard({ team }: { team: TeamStep }) {
   // persona ya tiene desk, asi que no se puede pedir que monte uno. Antes se pintaba
   // el formulario entero como sala de espera y se reemplazaba solo: eso desconcierta.
   if (!perkosConnected || !desks.length) {
+    if (!waitingSeen) return null;
     const wait = perkosConnected
       ? { k: "YOUR ACCOUNT", t: "Reading your desks.", d: deskNote || "One moment: asking PerkOS which desks you run." }
       : perkosBusy
@@ -383,7 +400,7 @@ function TeamCard({ team }: { team: TeamStep }) {
           <p className="lead">{wait.d}</p>
         </div>
         {/* La espera cuenta lo que hace PerkOS; solo mientras de verdad se espera. */}
-        {perkosConnected || perkosBusy ? <WaitSlides /> : null}
+        {slidesSeen && (perkosConnected || perkosBusy) ? <WaitSlides /> : null}
         {!perkosConnected && !perkosBusy ? (
           <footer className="ds-foot">
             <div className="row">
