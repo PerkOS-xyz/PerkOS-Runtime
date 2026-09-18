@@ -2435,12 +2435,10 @@ function Shell() {
             paying,
             deploying: team === "waking",
             onDeploy: () => {
-              // Al desk directamente: montar tarda minutos y Sparky ya puede trabajar con tu
-              // AI local mientras el equipo se crea. El estado del equipo se ve en las orbes
-              // y en la pastilla del desk, no en una pantalla que tapa.
-              setDeskSetup(false);
-              setWizard(false);
-              setSplash(false);
+              // No se cierra aqui: si PerkOS responde 402 hay que poder pagar, y ese boton
+              // vive en este paso. El efecto de abajo lleva al desk en cuanto la flota existe
+              // de verdad (unos segundos), y entonces el equipo se ve montandose en las orbes
+              // mientras Sparky ya atiende.
               setTeam("waking");
               setCaption("Your team is being created. Sparky can start now.");
               void saveDeskNameRef.current();
