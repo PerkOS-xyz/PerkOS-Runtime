@@ -12,6 +12,11 @@ const KNOWN_NOISE: Array<{ test: RegExp; level: LogLevel; msg: string; drop?: bo
   { test: /pairing.*(expired|deleted)|(expired|deleted).*pairing/i, level: "info", msg: "walletconnect: an old pairing expired" },
   { test: /session.*(expired|deleted|disconnected)|no matching key|missing or invalid.*session/i, level: "warn", msg: "walletconnect: the phone session ended; sign in again if you need to sign" },
   { test: /relay|websocket|socket hang up|ws error|closed before/i, level: "info", msg: "walletconnect: relay connection dropped, it reconnects on its own" },
+  // Privy, al conectar una wallet de WalletConnect, fija la cadena por defecto antes de que
+  // el proveedor del telefono exista. Las dos promesas revientan y la conexion sigue bien.
+  { test: /reading 'setDefaultChain'|reading "setDefaultChain"/i, level: "info", msg: "privy: the default chain was set before the phone wallet answered; the wallet connected anyway" },
+  { test: /reading 'request'|reading "request"/i, level: "info", msg: "privy: a call reached the wallet provider before it was ready; it retries on its own" },
+  { test: /wallet timeout/i, level: "info", msg: "walletconnect: the phone took its time to answer" },
   { test: /user rejected|user denied|user cancel|4001/i, level: "info", msg: "wallet: you declined in the wallet" },
   { test: /abort(ed|error)|operation was aborted/i, level: "info", msg: "request cancelled" },
   { test: /failed to fetch|networkerror|network request failed|load failed|err_network|err_internet_disconnected/i, level: "warn", msg: "network: a request did not reach its server; it retries on the next action" },
