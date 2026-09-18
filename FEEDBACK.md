@@ -28,9 +28,13 @@ transaction, rather than reconstructing it from assumptions about fee and tick s
 the desk trade tokens it had just created. Dynamic fee pools (`0x800000`) would have been
 impossible to guess.
 
-**`eth_simulateV1` with asset changes closed the last gap.** Every draft is simulated before it is
-offered, and the simulated output is what the person is shown. "Success" alone is not enough: a
-swap can succeed and deliver almost nothing.
+**Quoting through the Quoters, then simulating the real transaction, closed the last gap.** The
+output the person sees comes from `quoteExactInput` and `quoteExactInputSingle` on Quoter V2 and the
+V4 Quoter, read with `eth_call`. The transaction itself is then simulated from the signer's own
+address right before the signature is requested (`apps/web/app/api/trade/simulate/route.ts`), which
+is what catches the case where an approval has not landed yet and the swap would revert in the
+wallet. Quoting and simulating are two different questions and both are needed: a route can quote
+well and still revert.
 
 ## What cost us time
 
