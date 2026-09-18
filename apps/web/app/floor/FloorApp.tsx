@@ -82,6 +82,9 @@ function Shell() {
   const [wizard, setWizard] = useState(false);
   // Fuera del desk: la pantalla de desks (catalogo y los mios). El desk sigue vivo detras.
   const [home, setHome] = useState(false);
+  // Como se llamara este desk. Por defecto el del template; la persona lo cambia antes de montarlo.
+  const [deskName, setDeskName] = useState("");
+  const [deskNameTouched, setDeskNameTouched] = useState(false);
   const [wizardStart, setWizardStart] = useState(0);
   // Cambia en cada logout: fuerza el remount del wizard aunque el paso de
   // arranque no cambie (el wizard guarda el paso en su propio estado).
@@ -795,6 +798,21 @@ function Shell() {
   }, [deskId, desks]);
   const screenKey = deskScreens.join(",");
   useEffect(() => { if (deskScreen && !(APP_SCREENS as string[]).includes(deskScreen) && !screenKey.split(",").includes(deskScreen)) setDeskScreen(""); }, [deskScreen, screenKey]);
+  useEffect(() => { if (!deskNameTouched && desk?.name) setDeskName(desk.name); }, [desk?.name, deskNameTouched]);
+  // El desk es un proyecto: ponerle nombre es renombrarlo. Se guarda tras montarlo, cuando existe.
+  const saveDeskName = useCallback(async () => {
+    const id = deskIdRef.current, name = deskName.trim();
+    if (!id || !name || name === desk?.name) return;
+    for (let i = 0; i < 12; i++) {
+      const r = await fetch("/api/desks/name", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ templateId: id, name }) }).catch(() => null);
+      if (r?.ok) { flog("info", `desk named: ${name}`); return; }
+      // El proyecto nace al montar la flota: se reintenta un rato mientras aparece.
+      await new Promise((res) => setTimeout(res, 5000));
+    }
+    flog("warn", `desk name not saved: ${name}`);
+  }, [deskName, desk?.name]);
+  const saveDeskNameRef = useRef(saveDeskName);
+  saveDeskNameRef.current = saveDeskName;
   const loadDesks = useCallback(async () => {
     try {
       const res = await fetch(`/api/fleet/templates?lang=${encodeURIComponent((navigator.language || "en").slice(0, 2))}`);
@@ -2365,6 +2383,8 @@ function Shell() {
               .then(applyWho);
           }}
           team={{
+            name: deskName,
+            onName: (v: string) => { setDeskName(v); setDeskNameTouched(true); },
             desks,
             desk,
             deskNote,
@@ -2375,7 +2395,7 @@ function Shell() {
             fundingUrl: perkos.fundingUrl,
             paying,
             deploying: team === "waking",
-            onDeploy: () => { setTeam("waking"); setCaption("Deploying your team on PerkOS…"); void fleetAction("wake"); },
+            onDeploy: () => { setTeam("waking"); setCaption("Deploying your team on PerkOS…"); void saveDeskNameRef.current(); void fleetAction("wake"); },
             onPay: () => void openPay(),
             onReconnect: () => void ensurePerkos(true),
             onSkip: () => { setTeamSkipped(true); void fetch("/api/settings").then((r) => r.json()).then(applyWho); }

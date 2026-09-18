@@ -154,6 +154,18 @@ export async function listProjects(wallet: string): Promise<DeskProject[]> {
   });
 }
 
+/** Renombrar un desk: es un proyecto de la wallet, asi que se cambia su nombre como el de cualquier
+    proyecto. La flota lo crea con el nombre del template; aqui la persona le pone el suyo. */
+export async function renameProject(wallet: string, projectId: string, name: string): Promise<void> {
+  const idToken = await token(wallet);
+  await perkosRequest(`/projects/${encodeURIComponent(projectId)}`, {
+    idToken,
+    method: "PATCH",
+    body: JSON.stringify({ name: name.trim().slice(0, 120) }),
+    timeoutMs: 15_000
+  });
+}
+
 /** Todas las cards: los templates fleet publicados (hoy uno; el wizard muestra una card por cada uno). */
 export async function listDeskTemplates(wallet: string, lang = "en"): Promise<DeskTemplate[]> {
   const idToken = await token(wallet);

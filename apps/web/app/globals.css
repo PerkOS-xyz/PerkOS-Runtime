@@ -2556,3 +2556,10 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .dh-tcard button { margin: 0; font: inherit; font-size: 11.5px; letter-spacing: 0.04em; padding: 7px 16px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); background: transparent; color: #cdd7ee; cursor: pointer; }
 .dh-tcard button.go { border-color: rgba(236, 27, 105, 0.6); background: rgba(236, 27, 105, 0.16); color: #ffd3e1; }
 .dh-tcard button:disabled { opacity: 0.4; cursor: default; }
+/* Nombrar el desk antes de montarlo: el nombre manda y el template va debajo. */
+.wizard-card .desk-name { display: flex; flex-direction: column; gap: 5px; margin: 4px 0 2px; }
+.wizard-card .desk-name > span { font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); }
+.wizard-card .desk-name input { font: inherit; font-size: 16px; font-weight: 600; letter-spacing: 0; color: #ffffff; padding: 10px 13px; border-radius: 12px; border: 1px solid rgba(160, 180, 220, 0.28); background: rgba(3, 4, 10, 0.6); outline: none; }
+.wizard-card .desk-name input:focus { border-color: rgba(236, 27, 105, 0.6); }
+.wizard-card .desk-name small { font-size: 10.5px; color: var(--mute); }
+.wizard-card .k.sub { margin-top: 6px; }
