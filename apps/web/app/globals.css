@@ -2468,3 +2468,32 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 /* El bloque vive dentro de la lista de posiciones (para desplazarse con ella): se aisla de su rejilla. */
 .desk-panel .rows li.pf-li, .desk-panel .rows li.pf-li:hover { display: block; padding: 0; border: 0; background: transparent; cursor: default; }
 .desk-panel .rows li.pf-li .pf-launches li, .desk-panel .rows li.pf-li .pf-launches li:hover { display: grid; grid-template-columns: minmax(84px, 0.9fr) repeat(3, minmax(0, 1.25fr)); gap: 10px; align-items: start; padding: 8px 0 0; border: 0; border-top: 1px solid rgba(120, 160, 255, 0.1); border-radius: 0; background: transparent; cursor: default; }
+
+/* ── Fuera del desk: catalogo de desks y los mios ── */
+.mark-home { background: transparent; border: 0; padding: 0; margin: 0; cursor: pointer; display: flex; border-radius: 8px; }
+.mark-home:hover img { filter: brightness(1.25); }
+.mark-home:focus-visible { outline: 2px solid rgba(236, 27, 105, 0.7); outline-offset: 4px; }
+.desks-home { position: absolute; inset: 0; z-index: 30; display: flex; flex-direction: column; gap: 14px; padding: 26px 30px 30px; overflow: auto; background: linear-gradient(180deg, rgba(10, 12, 22, 0.985), rgba(3, 4, 10, 0.995)); backdrop-filter: blur(18px); animation: turnIn 180ms var(--split-ease) both; }
+.desks-home header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.dh-mark { display: flex; align-items: baseline; gap: 12px; }
+.dh-mark img { height: 26px; width: auto; }
+.dh-mark span { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--mute); }
+.dh-back { font: inherit; font-size: 11px; letter-spacing: 0.04em; padding: 7px 15px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); background: transparent; color: #cdd7ee; cursor: pointer; }
+.dh-back:hover { border-color: rgba(236, 27, 105, 0.6); color: #ffd3e1; }
+.dh-lead { margin: 0; font-size: 12.5px; line-height: 1.5; color: #b9c4dd; max-width: 78ch; }
+.dh-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; min-height: 0; }
+.desks-home h2 { margin: 0; font-size: 13px; font-weight: 600; color: #e6ecff; }
+.dh-sub { margin: 3px 0 12px; font-size: 11px; color: var(--mute); }
+.desks-home ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.dh-card { border: 1px solid rgba(120, 160, 255, 0.14); border-radius: 14px; background: rgba(255, 255, 255, 0.018); padding: 13px 14px; display: flex; flex-direction: column; gap: 7px; }
+.dh-card.on { border-color: rgba(236, 27, 105, 0.45); background: rgba(236, 27, 105, 0.06); }
+.dh-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.dh-head b { font-size: 14px; font-weight: 600; color: #e6ecff; }
+.dh-card p { margin: 0; font-size: 12px; line-height: 1.45; color: #b9c4dd; }
+.dh-facts { display: flex; flex-wrap: wrap; gap: 6px 8px; }
+.dh-facts span { font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--mute); border: 1px solid rgba(160, 180, 220, 0.2); border-radius: 999px; padding: 2px 9px; }
+.dh-card button { align-self: flex-start; margin-top: 3px; font: inherit; font-size: 11.5px; letter-spacing: 0.04em; padding: 7px 16px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); background: transparent; color: #cdd7ee; cursor: pointer; }
+.dh-card button.go { border-color: rgba(236, 27, 105, 0.6); background: rgba(236, 27, 105, 0.14); color: #ffd3e1; }
+.dh-card button:disabled { opacity: 0.4; cursor: default; }
+.dh-empty { margin: 0; font-size: 12px; color: var(--mute); }
+@media (max-width: 900px) { .dh-cols { grid-template-columns: 1fr; } }

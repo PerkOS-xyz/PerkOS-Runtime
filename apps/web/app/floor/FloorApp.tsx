@@ -9,6 +9,7 @@ import ChatsDrawer from "./ChatsDrawer";
 import KnowledgeMap, { type GraphNode } from "./KnowledgeMap";
 import { CHAINS, chainOf, ChainMark, deskManifest } from "./ChainMark";
 import { APP_SCREENS } from "./deskManifest";
+import DesksHome from "./DesksHome";
 import AgentCards, { applyTurnEvent, newTurn, type DeskTurn, type Role as AgentRole } from "./AgentCards";
 import AgentAvatar, { type AgentAvatarState } from "./AgentAvatar";
 import SettingsPanel from "./SettingsPanel";
@@ -79,6 +80,8 @@ function Shell() {
   const [caption, setCaption] = useState("");
   const [splash, setSplash] = useState(false);
   const [wizard, setWizard] = useState(false);
+  // Fuera del desk: la pantalla de desks (catalogo y los mios). El desk sigue vivo detras.
+  const [home, setHome] = useState(false);
   const [wizardStart, setWizardStart] = useState(0);
   // Cambia en cada logout: fuerza el remount del wizard aunque el paso de
   // arranque no cambie (el wizard guarda el paso en su propio estado).
@@ -2351,6 +2354,31 @@ function Shell() {
             </button>
           </div>
         ) : null}
+        {home ? (
+          <DesksHome
+            selected={deskId}
+            onClose={() => setHome(false)}
+            onOpen={(id) => {
+              setHome(false);
+              if (id === deskId) return;
+              setDeskId(id);
+              setDeskScreen("");
+              setFleet(null);
+              // El desk elegido se guarda: el servidor escopa por el con agentes, conocimiento y outlooks.
+              void fetch("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fleetTemplateId: id }) })
+                .then(() => fleetActionRef.current("status"))
+                .catch(() => undefined);
+              flog("info", `desk: opened ${id}`);
+            }}
+            onSetUp={(id) => {
+              setHome(false);
+              setDeskId(id);
+              setWizardStart(3);
+              setWizardEpoch((n) => n + 1);
+              setWizard(true);
+            }}
+          />
+        ) : null}
         <Wizard
           key={`${wizardStart}:${wizardEpoch}`}
           start={wizardStart}
@@ -2402,7 +2430,15 @@ function Shell() {
           partner lidera cuando es su lanzamiento): PerkOS + la cadena del desk.
           El wordmark es del shell; la marca de la cadena cambia con el desk. */}
       <div className="mark">
-        <img src="/logo-name.png" alt="PerkOS" />
+        {who && !wizard ? (
+          <button type="button" className="mark-home" onClick={() => setHome(true)} title="Your desks" aria-label="Your desks">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-name.png" alt="PerkOS" />
+          </button>
+        ) : (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img src="/logo-name.png" alt="PerkOS" />
+        )}
         {desk ? <><span className="plus" aria-hidden="true">+</span><ChainMark chain={chainOf(desk)} big /></> : null}
       </div>
       <button className="gear" type="button" onClick={() => setSettings(true)} aria-label="Settings" title="Settings">
