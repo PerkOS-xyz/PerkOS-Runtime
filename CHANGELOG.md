@@ -2,6 +2,14 @@
 
 All notable changes to the PerkOS desktop app. Versions follow [Semantic Versioning](https://semver.org); the version lives in `apps/desktop/package.json` and shows in Settings › About with the git short SHA of the build.
 
+## [0.5.7] - 2026-09-18
+
+### Added
+- A Desks screen behind the PerkOS mark: it leaves the desk and shows the catalogue published on PerkOS next to the desks you already run. Each template is a card you leaf through, with the desk name, the mark and Sparky. Opening a desk saves it, so the team, the knowledge and the outlooks are scoped to that desk.
+
+### Changed
+- A desk is a project on PerkOS: the template declares its chain, its name and its screens, and a desk module in the app supplies how that kind of desk trades. The dock now renders the screens the desk has, and a desk this version does not know keeps its own branding without inheriting mechanics it cannot run. Publishing a desk of a family the app already knows needs no new version of the app.
+
 ## [0.5.6] - 2026-09-18
 
 ### Added
