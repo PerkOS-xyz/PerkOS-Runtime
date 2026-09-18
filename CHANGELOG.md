@@ -7,8 +7,21 @@ All notable changes to the PerkOS desktop app. Versions follow [Semantic Version
 ### Added
 - A Desks screen behind the PerkOS mark: it leaves the desk and shows the catalogue published on PerkOS next to the desks you already run. Each template is a card you leaf through, with the desk name, the mark and Sparky. Opening a desk saves it, so the team, the knowledge and the outlooks are scoped to that desk.
 
+- Setting up a desk asks which AI runs it, then its name, with the template under the name. Deploying takes you into the desk and the team is built in view, so Sparky can work while it happens.
+- A desk can be taken down: its agents first, then the project, and only for the wallet that signed in.
+- The wait during a signature shows what the desk does, in six slides, and only when the wait is long enough to fill.
+
 ### Changed
 - A desk is a project on PerkOS: the template declares its chain, its name and its screens, and a desk module in the app supplies how that kind of desk trades. The dock now renders the screens the desk has, and a desk this version does not know keeps its own branding without inheriting mechanics it cannot run. Publishing a desk of a family the app already knows needs no new version of the app.
+- Signing in with no desk lands on the catalogue instead of the setup step, and a template declares how many desks it admits per wallet. Floor follows the positions of the wallet you sign in with, so it is one per wallet, and the catalogue says so instead of offering a button that does nothing.
+- The catalogue holds its shape while PerkOS answers, drawing a skeleton built from the same classes as the real cards.
+- Turning on chat history says what it does: history is per wallet, so a new one has nothing to unlock.
+
+### Fixed
+- The first QR after signing out connects. WalletConnect was left pointing at a session it had just deleted, so the first pairing was born dead and only reopening the window built a fresh one.
+- Known third party noise is recorded in plain words instead of being counted as a failure of the app.
+- The card no longer tilts under the mouse, and the template card no longer clips its own text.
+- The 1Claw claim stops being polled once it is clear it will not be finished.
 
 ## [0.5.6] - 2026-09-18
 
