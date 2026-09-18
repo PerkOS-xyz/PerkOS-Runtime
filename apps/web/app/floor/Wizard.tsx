@@ -13,7 +13,7 @@ import { flog } from "./log";
 
 export type DeskCard = { id: string; name: string; description: string; idleMinutes: number; agents: Array<{ role: string; name: string; duty: string }> };
 export type TeamStep = {
-  /** Una card por template fleet publicado en PerkOS. Hoy: PerkOS Floor Desk. */
+  /** Una card por desk publicado en PerkOS (project template de tipo fleet). Hoy: PerkOS Floor Desk. */
   desks: DeskCard[];
   desk: DeskCard | null;
   deskNote: string;
@@ -286,9 +286,9 @@ function TeamCard({ team }: { team: TeamStep }) {
   const ready = perkosConnected && !!desk;
   return (
     <div className="wizard-card team">
-      <div className="k">YOUR TEAM</div>
-      <b>{desks.length > 1 ? "Choose a team." : "Your first team."}</b>
-      <p className="lead">Teams run on PerkOS infrastructure under your account. They draft; you approve.</p>
+      <div className="k">YOUR DESK</div>
+      <b>{desks.length > 1 ? "Choose a desk." : "Your first desk."}</b>
+      <p className="lead">A desk brings its team, its chain and its screens. The team runs on PerkOS infrastructure under your account. They draft; you approve.</p>
 
       {!perkosConnected ? (
         <p className="hint-line">

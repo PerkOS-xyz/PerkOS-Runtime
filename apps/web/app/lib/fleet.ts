@@ -29,6 +29,13 @@ export type DeskTemplate = {
   description: string;
   idleMinutes: number;
   agents: Array<{ role: string; name: string; duty: string }>;
+  /** Lo que el desk declara de si mismo en PerkOS; todo opcional. Si falta, manda su modulo
+      (ver `floor/deskManifest.ts`): asi un desk nuevo se publica sin tocar el app. */
+  module?: string;
+  chain?: string;
+  tagline?: string;
+  venues?: string;
+  screens?: string[];
 };
 
 type Localized = { en: string; es: string; [k: string]: string };
@@ -43,8 +50,33 @@ type ApiTemplate = {
     namePrefix: string;
     idleMinutes: number;
     agents: Array<{ role: string; name: Localized; duty: Localized }>;
+    /** Campos del desk. PerkOS puede mandarlos sueltos o dentro de `desk`; los dos valen. */
+    module?: string;
+    chain?: string;
+    tagline?: Localized | string;
+    venues?: Localized | string;
+    screens?: string[];
+    desk?: { module?: string; chain?: string; tagline?: Localized | string; venues?: Localized | string; screens?: string[] };
   };
 };
+
+/** Un texto que puede venir plano o localizado. */
+function maybeText(v: Localized | string | undefined, lang: string): string | undefined {
+  if (typeof v === "string") return v || undefined;
+  return v ? text(v, lang) || undefined : undefined;
+}
+
+/** Lo que el desk declara de si mismo, sea suelto o bajo `desk`. Nada obligatorio. */
+function deskFields(t: ApiTemplate["template"], lang: string): Pick<DeskTemplate, "module" | "chain" | "tagline" | "venues" | "screens"> {
+  const d = t.desk ?? {};
+  return {
+    module: d.module ?? t.module,
+    chain: d.chain ?? t.chain,
+    tagline: maybeText(d.tagline ?? t.tagline, lang),
+    venues: maybeText(d.venues ?? t.venues, lang),
+    screens: Array.isArray(d.screens ?? t.screens) ? (d.screens ?? t.screens) : undefined
+  };
+}
 type ApiInstance = {
   templateId: string;
   revision: number;
@@ -94,7 +126,8 @@ export async function deskTemplate(wallet: string, lang = "en", templateId = FLE
     name: text(t.name, lang),
     description: text(t.description, lang),
     idleMinutes: t.idleMinutes,
-    agents: t.agents.map((a) => ({ role: a.role, name: text(a.name, lang), duty: text(a.duty, lang) }))
+    agents: t.agents.map((a) => ({ role: a.role, name: text(a.name, lang), duty: text(a.duty, lang) })),
+    ...deskFields(t, lang)
   };
 }
 

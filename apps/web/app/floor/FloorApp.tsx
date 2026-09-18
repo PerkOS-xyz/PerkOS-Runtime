@@ -8,6 +8,7 @@ import LaunchCard, { type LaunchEdit } from "./LaunchCard";
 import ChatsDrawer from "./ChatsDrawer";
 import KnowledgeMap, { type GraphNode } from "./KnowledgeMap";
 import { CHAINS, chainOf, ChainMark, deskManifest } from "./ChainMark";
+import { APP_SCREENS } from "./deskManifest";
 import AgentCards, { applyTurnEvent, newTurn, type DeskTurn, type Role as AgentRole } from "./AgentCards";
 import AgentAvatar, { type AgentAvatarState } from "./AgentAvatar";
 import SettingsPanel from "./SettingsPanel";
@@ -755,6 +756,9 @@ function Shell() {
   const [deskId, setDeskId] = useState("floor-desk");
   const [deskNote, setDeskNote] = useState("");
   const desk = desks.find((d) => d.id === deskId) ?? desks[0] ?? null;
+  // Las pantallas del desk salen de su manifiesto: un desk que no opera lanzamientos no las muestra.
+  const deskScreens = deskManifest(desk).screens;
+  const hasScreen = (s: DeskScreen) => (APP_SCREENS as string[]).includes(s) || deskScreens.includes(s as (typeof deskScreens)[number]);
   const deskRef = useRef<DeskTemplate | null>(null);
   deskRef.current = desk;
   // Quick switch de desk (header): guarda la eleccion, recarga la flota y
@@ -786,6 +790,8 @@ function Shell() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deskId, desks]);
+  const screenKey = deskScreens.join(",");
+  useEffect(() => { if (deskScreen && !(APP_SCREENS as string[]).includes(deskScreen) && !screenKey.split(",").includes(deskScreen)) setDeskScreen(""); }, [deskScreen, screenKey]);
   const loadDesks = useCallback(async () => {
     try {
       const res = await fetch(`/api/fleet/templates?lang=${encodeURIComponent((navigator.language || "en").slice(0, 2))}`);
@@ -2493,18 +2499,18 @@ function Shell() {
           las del desk (Market, Portfolio), luego las del shell (Notes, Map, History). */}
       {desk && !wizard ? (
         <nav className="desk-dock" aria-label="Desk and app screens">
-          <button type="button" className={deskScreen === "market" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "market" ? "" : "market")} title="Market · tokenized stocks on Base">
+          {hasScreen("market") ? (<button type="button" className={deskScreen === "market" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "market" ? "" : "market")} title="Market · tokenized stocks on Base">
             <ChartIcon /><span>Market</span>
-          </button>
-          <button type="button" className={deskScreen === "portfolio" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "portfolio" ? "" : "portfolio")} title="Portfolio · your positions on Base">
+          </button>) : null}
+          {hasScreen("portfolio") ? (<button type="button" className={deskScreen === "portfolio" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "portfolio" ? "" : "portfolio")} title="Portfolio · your positions on Base">
             <WalletIcon /><span>Portfolio</span>
-          </button>
-          <button type="button" className={deskScreen === "launches" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "launches" ? "" : "launches")} title="Launches · tokens that pay fees to your wallet, with Bankr and claim">
+          </button>) : null}
+          {hasScreen("launches") ? (<button type="button" className={deskScreen === "launches" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "launches" ? "" : "launches")} title="Launches · tokens that pay fees to your wallet, with Bankr and claim">
             <RocketIcon /><span>Launches</span>
-          </button>
-          <button type="button" className={deskScreen === "automations" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "automations" ? "" : "automations")} title="Automations · DCA, stop loss and limit rules running in Bankr">
+          </button>) : null}
+          {hasScreen("automations") ? (<button type="button" className={deskScreen === "automations" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "automations" ? "" : "automations")} title="Automations · DCA, stop loss and limit rules running in Bankr">
             <LoopIcon /><span>Automations</span>
-          </button>
+          </button>) : null}
           <i className="dock-sep" aria-hidden="true" />
           <button type="button" className={deskScreen === "notes" ? "on" : ""} onClick={() => setDeskScreen(deskScreen === "notes" ? "" : "notes")} title="Notes · what this desk remembers (local, Obsidian-compatible)">
             <NotesIcon /><span>Notes</span>

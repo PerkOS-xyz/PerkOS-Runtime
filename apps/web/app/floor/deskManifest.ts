@@ -3,6 +3,15 @@
 // desk es como un app que corre dentro del shell: trae su cadena, su slogan,
 // sus pantallas (Market, Portfolio), sus agentes y sus flujos. Lo que aqui se
 // declara es lo que cambia al cambiar de desk; lo demas no se toca.
+//
+// Un desk es un project template de PerkOS (`fleetTemplateId`), igual que un
+// proyecto en la app. La definicion es hibrida:
+//   - la plantilla manda: si trae cadena, slogan, venues o pantallas, gana;
+//   - el modulo pone el resto: como opera ese tipo de desk, que es codigo de
+//     esta app (Launches lleva Bankr y Uniswap V4 dentro, eso no se describe
+//     con datos).
+// Un desk nuevo de una familia que ya existe no necesita empaquetar version:
+// basta publicarlo en PerkOS diciendo su modulo. Uno con mecanica distinta si.
 export type ChainId = "base" | "robinhood";
 export const CHAINS: Record<ChainId, { name: string; color: string; builtOn: string }> = {
   // Base: "The Square", radio 5 %, solo Base Blue #0000ff, blanco o negro (brand.base.org).
@@ -14,16 +23,87 @@ export type DeskScreenId = "market" | "portfolio" | "launches" | "automations";
 export type AppScreenId = "notes" | "map" | "history";
 /** Pantallas del shell, iguales en todo desk. */
 export const APP_SCREENS: AppScreenId[] = ["notes", "map", "history"];
+const DESK_SCREENS: DeskScreenId[] = ["market", "portfolio", "launches", "automations"];
 
-export type DeskLike = { id?: string; chain?: string; tagline?: string } | null | undefined;
+/** Los tipos de desk que esta version del app sabe operar. */
+export type DeskModuleId = "stocks-base" | "stocks-robinhood" | "desk";
+export type DeskModule = { label: string; chain: ChainId; tagline: string; venues: string; screens: DeskScreenId[] };
 
-export function chainOf(desk: DeskLike): ChainId {
-  if (desk?.chain === "robinhood" || /eqlty|robinhood/i.test(desk?.id ?? "")) return "robinhood";
-  return "base";
+export const DESK_MODULES: Record<DeskModuleId, DeskModule> = {
+  // Floor: acciones tokenizadas en Base, con lanzamientos y automatizaciones de Bankr.
+  "stocks-base": {
+    label: "Tokenized stocks on Base",
+    chain: "base",
+    tagline: "Tokenized stocks on Base",
+    venues: "Uniswap V3 and Aerodrome on Base · Bankr second quote, launches and automations",
+    screens: ["market", "portfolio", "launches", "automations"]
+  },
+  // EQLTY: acciones tokenizadas en Robinhood Chain. Sin lanzamientos ni automatizaciones todavia.
+  "stocks-robinhood": {
+    label: "Tokenized stocks on Robinhood Chain",
+    chain: "robinhood",
+    tagline: "Tokenized stocks on Robinhood Chain",
+    venues: "Robinhood Chain",
+    screens: ["market", "portfolio"]
+  },
+  // Un desk que esta version no conoce: se muestra con lo que diga su plantilla y sin
+  // pantallas que dependan de una mecanica concreta. Mejor corto que equivocado.
+  desk: {
+    label: "Desk",
+    chain: "base",
+    tagline: "",
+    venues: "",
+    screens: []
+  }
+};
+
+export type DeskLike =
+  | {
+      id?: string;
+      name?: string;
+      /** Lo que la plantilla de PerkOS puede declarar; todo opcional. */
+      module?: string;
+      chain?: string;
+      tagline?: string;
+      venues?: string;
+      screens?: string[];
+    }
+  | null
+  | undefined;
+
+/** El desk por defecto del app, el mismo `DEFAULT_FLEET_TEMPLATE` (floor-desk) de los settings:
+    es el que vale mientras las plantillas no han llegado, para que el dock no arranque vacio. */
+export const DEFAULT_DESK_MODULE: DeskModuleId = "stocks-base";
+
+/** El modulo con el que se opera este desk: lo que diga la plantilla, si no por su id. */
+export function moduleOf(desk: DeskLike): DeskModuleId {
+  const declared = desk?.module;
+  if (declared && declared in DESK_MODULES) return declared as DeskModuleId;
+  const id = desk?.id ?? "";
+  // Todavia sin desk (arranque): el del app. Un desk con id desconocido si cae en el generico.
+  if (!id) return desk ? "desk" : DEFAULT_DESK_MODULE;
+  if (/eqlty|robinhood/i.test(id)) return "stocks-robinhood";
+  if (/floor/i.test(id)) return "stocks-base";
+  // Una plantilla nueva sin modulo: se respeta su cadena, pero no se le presta la mecanica de Floor.
+  return "desk";
 }
 
-export function deskManifest(desk: DeskLike): { chain: ChainId; tagline: string; venues: string; screens: DeskScreenId[] } {
-  const chain = chainOf(desk);
-  if (chain === "robinhood") return { chain, tagline: desk?.tagline ?? "Tokenized stocks on Robinhood Chain", venues: "Robinhood Chain", screens: ["market", "portfolio"] };
-  return { chain, tagline: desk?.tagline ?? "Tokenized stocks on Base", venues: "Uniswap V3 and Aerodrome on Base · Bankr second quote, launches and automations", screens: ["market", "portfolio", "launches", "automations"] };
+export function chainOf(desk: DeskLike): ChainId {
+  if (desk?.chain === "robinhood" || desk?.chain === "base") return desk.chain;
+  return DESK_MODULES[moduleOf(desk)].chain;
+}
+
+export function deskManifest(desk: DeskLike): { module: DeskModuleId; chain: ChainId; tagline: string; venues: string; screens: DeskScreenId[] } {
+  const id = moduleOf(desk);
+  const mod = DESK_MODULES[id];
+  // Solo pantallas que este app sabe pintar, y solo las que el modulo puede operar.
+  const asked = desk?.screens?.filter((s): s is DeskScreenId => (DESK_SCREENS as string[]).includes(s));
+  const screens = asked?.length ? asked.filter((s) => mod.screens.includes(s)) : mod.screens;
+  return {
+    module: id,
+    chain: chainOf(desk),
+    tagline: desk?.tagline || mod.tagline || desk?.name || "",
+    venues: desk?.venues || mod.venues,
+    screens
+  };
 }
