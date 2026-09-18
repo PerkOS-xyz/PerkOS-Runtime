@@ -107,6 +107,8 @@ function Shell() {
   const [streaming, setStreaming] = useState(false);
   const [draft, setDraft] = useState("");
   const [model, setModel] = useState("grok-4.6");
+  // Si hay AI conectada (vive en ~/.perkos-xyz, es de la maquina y no de la wallet).
+  const [llmOn, setLlmOn] = useState(false);
   const [effort, setEffort] = useState<"low" | "medium" | "high">("low");
   // Split: al primer envio la esfera va a la derecha y el transcript ocupa la izquierda.
   // "draft": carta del Trader (cotizacion Uniswap V3 Base + calldata) con la
@@ -2093,6 +2095,7 @@ function Shell() {
         .then(([s, llm]: [{ name?: string; wallet?: string }, { connected?: boolean }]) => {
           applyWho(s);
           flog("info", `llm status: ${llm?.connected ? "connected" : "not connected"}`);
+          setLlmOn(Boolean(llm?.connected));
           void ensurePerkosRef.current();
           // Con LLM, el wizard sigue en el paso del equipo (3): se cierra solo
           // en cuanto la flota existe (ver effect mas abajo) o al saltarlo.
@@ -2394,6 +2397,8 @@ function Shell() {
           key={`${wizardStart}:${wizardEpoch}`}
           start={wizardStart}
           onDone={() => {
+            // Se venia de cambiar el AI durante el montaje: se vuelve al montaje, no se cierra.
+            if (deskSetup) { setWizardStart(3); setWizardEpoch((n) => n + 1); return; }
             setWizard(false);
             setSplash(false);
             // Recien conectado y sin desk: el catalogo es lo primero que se ve.
@@ -2415,12 +2420,25 @@ function Shell() {
             fundingUrl: perkos.fundingUrl,
             paying,
             deploying: team === "waking",
-            onDeploy: () => { setTeam("waking"); setCaption("Deploying your team on PerkOS…"); void saveDeskNameRef.current(); void fleetAction("wake"); },
+            onDeploy: () => {
+              // Al desk directamente: montar tarda minutos y Sparky ya puede trabajar con tu
+              // AI local mientras el equipo se crea. El estado del equipo se ve en las orbes
+              // y en la pastilla del desk, no en una pantalla que tapa.
+              setDeskSetup(false);
+              setWizard(false);
+              setSplash(false);
+              setTeam("waking");
+              setCaption("Your team is being created. Sparky can start now.");
+              void saveDeskNameRef.current();
+              void fleetAction("wake");
+            },
             onPay: () => void openPay(),
             onReconnect: () => void ensurePerkos(true),
             onSkip: () => { setDeskSetup(false); setTeamSkipped(true); void fetch("/api/settings").then((r) => r.json()).then(applyWho); },
             // Abierto a mano (desde el catalogo): hay desk al que volver, asi que el paso
             // tiene salida propia y no obliga a montar ni a entrar sin equipo.
+            ai: llmOn ? `xAI · ${model.replace("grok-", "Grok ").replace("-fast", " Fast")}` : "",
+            onChangeAi: () => { setWizardStart(2); setWizardEpoch((n) => n + 1); },
             adding: deskSetup,
             onCancel: () => { setDeskSetup(false); setWizard(false); setSplash(false); setHome(true); },
             // Si la flota que tenemos es la de este mismo desk, ya es suyo: la plantilla decide
