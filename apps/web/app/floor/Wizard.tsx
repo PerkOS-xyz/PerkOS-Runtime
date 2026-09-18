@@ -39,6 +39,9 @@ export type TeamStep = {
   onCancel?: () => void;
   /** Por que no se puede montar otro desk de esta plantilla con esta wallet, si es el caso. */
   blocked?: string;
+  /** El AI de la persona, el que usa Sparky: se dice antes de montar y se puede cambiar. */
+  ai?: string;
+  onChangeAi?: () => void;
 };
 
 export type RailStep = {
@@ -352,7 +355,7 @@ function TeamCard({ team }: { team: TeamStep }) {
   const {
     name, onName, desks, desk, deskNote,
     perkosConnected, perkosBusy, perkosNote,
-    fundingUrl, paying, deploying, adding, blocked
+    fundingUrl, paying, deploying, adding, blocked, ai, onChangeAi
   } = team;
   const ready = perkosConnected && !!desk && !blocked;
   const heading = desks.length > 1 ? "Choose a desk." : adding ? "Add a desk." : "Your first desk.";
@@ -360,14 +363,12 @@ function TeamCard({ team }: { team: TeamStep }) {
   // Mientras la sesion de PerkOS se firma y llegan las plantillas no se sabe si esta
   // persona ya tiene desk, asi que no se puede pedir que monte uno. Antes se pintaba
   // el formulario entero como sala de espera y se reemplazaba solo: eso desconcierta.
-  if (!perkosConnected || !desks.length || deploying) {
-    const wait = deploying
-      ? { k: "YOUR DESK", t: `Setting up ${name.trim() || desk?.name || "your desk"}.`, d: "The team is being created on PerkOS infrastructure under your account. The first time takes a couple of minutes." }
-      : perkosConnected
-        ? { k: "YOUR ACCOUNT", t: "Reading your desks.", d: deskNote || "One moment: asking PerkOS which desks you run." }
-        : perkosBusy
-          ? { k: "YOUR ACCOUNT", t: "Connecting your account.", d: "Approve the signature in your wallet. It only proves the wallet is yours; nothing is spent." }
-          : { k: "YOUR ACCOUNT", t: "PerkOS account not connected.", d: perkosNote || "The signature was not completed." };
+  if (!perkosConnected || !desks.length) {
+    const wait = perkosConnected
+      ? { k: "YOUR ACCOUNT", t: "Reading your desks.", d: deskNote || "One moment: asking PerkOS which desks you run." }
+      : perkosBusy
+        ? { k: "YOUR ACCOUNT", t: "Connecting your account.", d: "Approve the signature in your wallet. It only proves the wallet is yours; nothing is spent." }
+        : { k: "YOUR ACCOUNT", t: "PerkOS account not connected.", d: perkosNote || "The signature was not completed." };
     return (
       <div className="wizard-card team desk-setup waiting">
         <header className="ds-head">
@@ -382,7 +383,7 @@ function TeamCard({ team }: { team: TeamStep }) {
           <p className="lead">{wait.d}</p>
         </div>
         {/* La espera cuenta lo que hace PerkOS; solo mientras de verdad se espera. */}
-        {deploying || perkosConnected || perkosBusy ? <WaitSlides /> : null}
+        {perkosConnected || perkosBusy ? <WaitSlides /> : null}
         {!perkosConnected && !perkosBusy ? (
           <footer className="ds-foot">
             <div className="row">
@@ -427,6 +428,13 @@ function TeamCard({ team }: { team: TeamStep }) {
               />
               <small>Yours to rename later. It is the project name on PerkOS.</small>
             </label>
+          ) : null}
+          {perkosConnected && desks.length ? (
+            <p className="ds-ai">
+              <span className="k">RUNS ON YOUR AI</span>
+              <b>{ai || "No AI connected"}</b>
+              {onChangeAi ? <button type="button" onClick={onChangeAi}>Change</button> : null}
+            </p>
           ) : null}
           {!perkosConnected ? (
             <p className="hint-line">

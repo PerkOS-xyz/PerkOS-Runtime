@@ -2642,6 +2642,12 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
   box-shadow: 0 0 0 1px rgba(236, 27, 105, 0.2), 0 0 20px rgba(236, 27, 105, 0.18);
 }
 .wizard-card.desk-setup .ds-naming .hint-line { margin-top: 2px; }
+/* Con que AI habla Sparky en este desk. Se dice antes de montar, no despues. */
+.wizard-card.desk-setup .ds-ai { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 12px 0 0; padding-top: 11px; border-top: 1px solid rgba(160, 180, 220, 0.14); }
+.wizard-card.desk-setup .ds-ai .k { flex: 1 0 100%; font-size: 9px; letter-spacing: 0.14em; color: var(--ds-mute); }
+.wizard-card.desk-setup .ds-ai b { font-size: 13px; font-weight: 500; color: #c5d2ee; }
+.wizard-card.desk-setup .ds-ai button { margin: 0; padding: 0; border: 0; background: none; font: inherit; font-size: 11px; letter-spacing: 0.04em; color: #ff8fa8; cursor: pointer; }
+.wizard-card.desk-setup .ds-ai button:hover { color: #ffd3e1; }
 /* Contraste: la letra chica bajo el input, el kicker de seccion y la meta del
    deck salen de --mute a un secundario legible. */
 .wizard-card.desk-setup .desk-name small,
