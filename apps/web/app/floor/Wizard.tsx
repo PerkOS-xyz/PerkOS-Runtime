@@ -13,6 +13,9 @@ import { flog } from "./log";
 
 export type DeskCard = { id: string; name: string; description: string; idleMinutes: number; agents: Array<{ role: string; name: string; duty: string }> };
 export type TeamStep = {
+  /** Como se va a llamar este desk: es el nombre del proyecto en PerkOS. */
+  name: string;
+  onName: (v: string) => void;
   /** Una card por desk publicado en PerkOS (project template de tipo fleet). Hoy: PerkOS Floor Desk. */
   desks: DeskCard[];
   desk: DeskCard | null;
@@ -28,6 +31,11 @@ export type TeamStep = {
   onPay: () => void;
   onReconnect: () => void;
   onSkip: () => void;
+  /** Abierto a mano teniendo ya un desk: hay sitio al que volver, y la salida no es "entrar sin equipo". */
+  adding?: boolean;
+  onCancel?: () => void;
+  /** Por que no se puede montar otro desk de esta plantilla con esta wallet, si es el caso. */
+  blocked?: string;
 };
 
 export type RailStep = {
@@ -282,13 +290,27 @@ function RailCard({ rail }: { rail: RailStep }) {
 /** Paso 3: elegir el equipo. Una card por template fleet de PerkOS (hoy una);
  *  la elegida muestra sus roles y el boton de deploy bajo la cuenta del usuario. */
 function TeamCard({ team }: { team: TeamStep }) {
-  const { desks, desk, deskNote, perkosConnected, perkosBusy, perkosNote, fundingUrl, paying, deploying } = team;
+  const { name, onName, desks, desk, deskNote, perkosConnected, perkosBusy, perkosNote, fundingUrl, paying, deploying } = team;
   const ready = perkosConnected && !!desk;
   return (
     <div className="wizard-card team">
       <div className="k">YOUR DESK</div>
       <b>{desks.length > 1 ? "Choose a desk." : "Your first desk."}</b>
       <p className="lead">A desk brings its team, its chain and its screens. The team runs on PerkOS infrastructure under your account. They draft; you approve.</p>
+
+      {perkosConnected && desks.length ? (
+        <label className="desk-name">
+          <span>Name this desk</span>
+          <input
+            value={name}
+            onChange={(e) => onName(e.target.value.slice(0, 120))}
+            placeholder={desk?.name ?? "My desk"}
+            aria-label="Name this desk"
+            spellCheck={false}
+          />
+          <small>Yours to rename later. It is the project name on PerkOS.</small>
+        </label>
+      ) : null}
 
       {!perkosConnected ? (
         <p className="hint-line">
@@ -297,6 +319,7 @@ function TeamCard({ team }: { team: TeamStep }) {
       ) : null}
       {perkosConnected && !desks.length && deskNote ? <p className="hint-line err">{deskNote}</p> : null}
 
+      {desks.length ? <div className="k sub">Built from</div> : null}
       {desks.length ? (
         <div className="desk-cards" role="list">
           {desks.map((d) => {

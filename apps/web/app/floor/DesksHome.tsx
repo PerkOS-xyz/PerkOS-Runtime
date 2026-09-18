@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { ChainMark } from "./ChainMark";
-import { chainOf, deskManifest, DESK_MODULES, CHAINS } from "./deskManifest";
+import { chainOf, deskManifest, deskLimit, DESK_MODULES, CHAINS } from "./deskManifest";
 
 // Fuera del desk: el catalogo de PerkOS a la izquierda y mis desks a la derecha. Un desk es un
 // proyecto de la wallet, asi que los dos lados son lo mismo visto desde dos momentos: lo que se
 // puede montar y lo que ya esta montado. Aqui no se gasta nada: se abre un desk o se vuelve.
 
-export type DeskTemplateCard = { id: string; revision: number; name: string; description: string; agents: Array<{ role: string; name: string; duty: string }>; module?: string; chain?: string; tagline?: string; venues?: string; screens?: string[] };
+export type DeskTemplateCard = { id: string; revision: number; name: string; description: string; agents: Array<{ role: string; name: string; duty: string }>; module?: string; chain?: string; tagline?: string; venues?: string; screens?: string[]; instances?: string };
 export type DeskProjectCard = { projectId: string; templateId: string; name: string; goal: string; status: string; agents: number; updatedAt?: string };
 
 const when = (iso?: string): string => {
@@ -78,6 +78,7 @@ export default function DesksHome({ selected, onOpen, onClose, onSetUp }: {
             {(templates ?? []).map((t, i) => {
               const m = deskManifest(t);
               const mine = deskFor(t.id);
+              const limit = deskLimit(t, !!mine);
               const chain = chainOf(t);
               return (
                 <li key={t.id} className={`dh-tcard ${chain}`}>
@@ -101,13 +102,18 @@ export default function DesksHome({ selected, onOpen, onClose, onSetUp }: {
                     <div><dt>Screens</dt><dd>{m.screens.length || "–"}</dd></div>
                   </dl>
                   <footer>
-                    {mine ? (
-                      <button type="button" disabled title="You already have a desk from this template. More than one is coming.">Already yours</button>
+                    {/* Un desk que vive de la wallet es uno por wallet: en vez de un boton muerto,
+                        se abre el que ya existe y se dice por que no hay un segundo. */}
+                    {mine && limit ? (
+                      <button type="button" className="go" onClick={() => onOpen(t.id)} title={limit}>Open your desk</button>
+                    ) : mine ? (
+                      <button type="button" className="go" onClick={() => onSetUp(t.id)}>Set up another</button>
                     ) : (
                       <button type="button" className="go" onClick={() => onSetUp(t.id)}>Set up this desk</button>
                     )}
                     <small>{i + 1} of {(templates ?? []).length}</small>
                   </footer>
+                  {limit ? <p className="dh-limit">{limit}</p> : null}
                 </li>
               );
             })}

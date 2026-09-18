@@ -7,7 +7,7 @@ import DeskPanel, { shareLaunchUrl, type DeskScreen } from "./DeskPanel";
 import LaunchCard, { type LaunchEdit } from "./LaunchCard";
 import ChatsDrawer from "./ChatsDrawer";
 import KnowledgeMap, { type GraphNode } from "./KnowledgeMap";
-import { CHAINS, chainOf, ChainMark, deskManifest } from "./ChainMark";
+import { CHAINS, chainOf, ChainMark, deskManifest, deskLimit } from "./ChainMark";
 import { APP_SCREENS } from "./deskManifest";
 import DesksHome from "./DesksHome";
 import AgentCards, { applyTurnEvent, newTurn, type DeskTurn, type Role as AgentRole } from "./AgentCards";
@@ -82,6 +82,11 @@ function Shell() {
   const [wizard, setWizard] = useState(false);
   // Fuera del desk: la pantalla de desks (catalogo y los mios). El desk sigue vivo detras.
   const [home, setHome] = useState(false);
+  // Como se llamara este desk. Por defecto el del template; la persona lo cambia antes de montarlo.
+  // El paso de montar un desk, abierto a proposito: no se cierra solo aunque ya exista una flota.
+  const [deskSetup, setDeskSetup] = useState(false);
+  const [deskName, setDeskName] = useState("");
+  const [deskNameTouched, setDeskNameTouched] = useState(false);
   const [wizardStart, setWizardStart] = useState(0);
   // Cambia en cada logout: fuerza el remount del wizard aunque el paso de
   // arranque no cambie (el wizard guarda el paso en su propio estado).
@@ -795,6 +800,21 @@ function Shell() {
   }, [deskId, desks]);
   const screenKey = deskScreens.join(",");
   useEffect(() => { if (deskScreen && !(APP_SCREENS as string[]).includes(deskScreen) && !screenKey.split(",").includes(deskScreen)) setDeskScreen(""); }, [deskScreen, screenKey]);
+  useEffect(() => { if (!deskNameTouched && desk?.name) setDeskName(desk.name); }, [desk?.name, deskNameTouched]);
+  // El desk es un proyecto: ponerle nombre es renombrarlo. Se guarda tras montarlo, cuando existe.
+  const saveDeskName = useCallback(async () => {
+    const id = deskIdRef.current, name = deskName.trim();
+    if (!id || !name || name === desk?.name) return;
+    for (let i = 0; i < 12; i++) {
+      const r = await fetch("/api/desks/name", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ templateId: id, name }) }).catch(() => null);
+      if (r?.ok) { flog("info", `desk named: ${name}`); return; }
+      // El proyecto nace al montar la flota: se reintenta un rato mientras aparece.
+      await new Promise((res) => setTimeout(res, 5000));
+    }
+    flog("warn", `desk name not saved: ${name}`);
+  }, [deskName, desk?.name]);
+  const saveDeskNameRef = useRef(saveDeskName);
+  saveDeskNameRef.current = saveDeskName;
   const loadDesks = useCallback(async () => {
     try {
       const res = await fetch(`/api/fleet/templates?lang=${encodeURIComponent((navigator.language || "en").slice(0, 2))}`);
@@ -2171,6 +2191,9 @@ function Shell() {
   // la escena con las orbs es donde se ve el progreso.
   useEffect(() => {
     if (!wizard || wizardStart !== 3) return;
+    // Abierto a mano desde "+ Add a desk" o desde la pantalla de desks: se queda hasta que la
+    // persona monte o salga. Sin esto el paso se cerraba solo por tener ya una flota.
+    if (deskSetup) return;
     if (teamSkipped) { setWizard(false); setSplash(false); return; }
     if (fleet && fleet.status !== "none") {
       const railed = fleet.agents.find((a) => a.rail);
@@ -2178,7 +2201,7 @@ function Shell() {
       setWizard(false);
       setSplash(false);
     }
-  }, [wizard, wizardStart, fleet, teamSkipped, railSkipped, railStatus]);
+  }, [wizard, wizardStart, fleet, teamSkipped, railSkipped, railStatus, deskSetup]);
   useEffect(() => {
     if (!wizard || wizardStart !== 4) return;
     if (railSkipped || rail.status === "linked") {
@@ -2365,6 +2388,8 @@ function Shell() {
               .then(applyWho);
           }}
           team={{
+            name: deskName,
+            onName: (v: string) => { setDeskName(v); setDeskNameTouched(true); },
             desks,
             desk,
             deskNote,
@@ -2375,10 +2400,15 @@ function Shell() {
             fundingUrl: perkos.fundingUrl,
             paying,
             deploying: team === "waking",
-            onDeploy: () => { setTeam("waking"); setCaption("Deploying your team on PerkOS…"); void fleetAction("wake"); },
+            onDeploy: () => { setDeskSetup(false); setTeam("waking"); setCaption("Deploying your team on PerkOS…"); void saveDeskNameRef.current(); void fleetAction("wake"); },
             onPay: () => void openPay(),
             onReconnect: () => void ensurePerkos(true),
-            onSkip: () => { setTeamSkipped(true); void fetch("/api/settings").then((r) => r.json()).then(applyWho); }
+            onSkip: () => { setDeskSetup(false); setTeamSkipped(true); void fetch("/api/settings").then((r) => r.json()).then(applyWho); },
+            // Abierto a mano (desde el catalogo): hay desk al que volver, asi que el paso
+            // tiene salida propia y no obliga a montar ni a entrar sin equipo.
+            adding: deskSetup && !!fleet && fleet.status !== "none",
+            onCancel: () => { setDeskSetup(false); setWizard(false); setSplash(false); },
+            blocked: deskLimit(desk, deskSetup && !!fleet && fleet.status !== "none" && desk?.id === deskId)
           }}
           rail={{
             status: rail.status,
@@ -2420,6 +2450,7 @@ function Shell() {
             onSetUp={(id) => {
               setHome(false);
               setDeskId(id);
+              setDeskSetup(true);
               setWizardStart(3);
               setWizardEpoch((n) => n + 1);
               setWizard(true);
@@ -2466,7 +2497,9 @@ function Shell() {
                     </li>
                   ))}
                   <li className="add">
-                    <button type="button" onClick={() => { setDeskMenu(false); setWizardStart(3); setWizard(true); }}>+ Add a desk</button>
+                    {/* Al catalogo, no al wizard: alli se ve que se puede montar y que ya es tuyo.
+                        Floor es uno por wallet, asi que mandar directo al setup seria un callejon. */}
+                    <button type="button" onClick={() => { setDeskMenu(false); setHome(true); }}>+ Add a desk</button>
                   </li>
                 </ul>
               ) : null}

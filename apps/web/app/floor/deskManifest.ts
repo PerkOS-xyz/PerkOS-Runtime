@@ -27,7 +27,15 @@ const DESK_SCREENS: DeskScreenId[] = ["market", "portfolio", "launches", "automa
 
 /** Los tipos de desk que esta version del app sabe operar. */
 export type DeskModuleId = "stocks-base" | "stocks-robinhood" | "desk";
-export type DeskModule = { label: string; chain: ChainId; tagline: string; venues: string; screens: DeskScreenId[] };
+
+/** Cuantos desks de esta familia tienen sentido bajo una misma wallet.
+ *  Floor lee la wallet conectada: cartera, lanzamientos, fees y firma salen de ella.
+ *  Dos desks Floor con la misma wallet mostrarian el mismo libro con el doble de
+ *  agentes, asi que el desk es uno por wallet y un segundo Floor se abre entrando
+ *  con otra wallet. Un desk cuyo trabajo no sale de la wallet (investigacion,
+ *  contenido, una empresa) si admite varios a la vez. */
+export type DeskInstances = "one-per-wallet" | "many";
+export type DeskModule = { label: string; chain: ChainId; tagline: string; venues: string; screens: DeskScreenId[]; instances: DeskInstances };
 
 export const DESK_MODULES: Record<DeskModuleId, DeskModule> = {
   // Floor: acciones tokenizadas en Base, con lanzamientos y automatizaciones de Bankr.
@@ -36,7 +44,8 @@ export const DESK_MODULES: Record<DeskModuleId, DeskModule> = {
     chain: "base",
     tagline: "Tokenized stocks on Base",
     venues: "Uniswap V3 and Aerodrome on Base · Bankr second quote, launches and automations",
-    screens: ["market", "portfolio", "launches", "automations"]
+    screens: ["market", "portfolio", "launches", "automations"],
+    instances: "one-per-wallet"
   },
   // EQLTY: acciones tokenizadas en Robinhood Chain. Sin lanzamientos ni automatizaciones todavia.
   "stocks-robinhood": {
@@ -44,7 +53,8 @@ export const DESK_MODULES: Record<DeskModuleId, DeskModule> = {
     chain: "robinhood",
     tagline: "Tokenized stocks on Robinhood Chain",
     venues: "Robinhood Chain",
-    screens: ["market", "portfolio"]
+    screens: ["market", "portfolio"],
+    instances: "one-per-wallet"
   },
   // Un desk que esta version no conoce: se muestra con lo que diga su plantilla y sin
   // pantallas que dependan de una mecanica concreta. Mejor corto que equivocado.
@@ -53,7 +63,8 @@ export const DESK_MODULES: Record<DeskModuleId, DeskModule> = {
     chain: "base",
     tagline: "",
     venues: "",
-    screens: []
+    screens: [],
+    instances: "many"
   }
 };
 
@@ -67,6 +78,7 @@ export type DeskLike =
       tagline?: string;
       venues?: string;
       screens?: string[];
+      instances?: string;
     }
   | null
   | undefined;
@@ -93,7 +105,21 @@ export function chainOf(desk: DeskLike): ChainId {
   return DESK_MODULES[moduleOf(desk)].chain;
 }
 
-export function deskManifest(desk: DeskLike): { module: DeskModuleId; chain: ChainId; tagline: string; venues: string; screens: DeskScreenId[] } {
+/** Cuantos desks admite esta plantilla por wallet: lo que diga la plantilla, si no su modulo. */
+export function instancesOf(desk: DeskLike): DeskInstances {
+  const declared = desk?.instances;
+  if (declared === "one-per-wallet" || declared === "many") return declared;
+  return DESK_MODULES[moduleOf(desk)].instances;
+}
+
+/** Razon por la que no se puede montar otro desk de esta plantilla con esta wallet,
+ *  o "" si si se puede. La frase es la que se le ensena a la persona. */
+export function deskLimit(desk: DeskLike, alreadyMine: boolean): string {
+  if (!alreadyMine || instancesOf(desk) === "many") return "";
+  return `One ${desk?.name ?? "desk"} per wallet. It follows the positions of the wallet you sign in with, so a second one would show the same book. Sign in with another wallet to run another.`;
+}
+
+export function deskManifest(desk: DeskLike): { module: DeskModuleId; chain: ChainId; tagline: string; venues: string; screens: DeskScreenId[]; instances: DeskInstances } {
   const id = moduleOf(desk);
   const mod = DESK_MODULES[id];
   // Solo pantallas que este app sabe pintar, y solo las que el modulo puede operar.
@@ -104,6 +130,7 @@ export function deskManifest(desk: DeskLike): { module: DeskModuleId; chain: Cha
     chain: chainOf(desk),
     tagline: desk?.tagline || mod.tagline || desk?.name || "",
     venues: desk?.venues || mod.venues,
-    screens
+    screens,
+    instances: instancesOf(desk)
   };
 }
