@@ -10,6 +10,7 @@ import KnowledgeMap, { type GraphNode } from "./KnowledgeMap";
 import { CHAINS, chainOf, ChainMark, deskManifest, deskLimit } from "./ChainMark";
 import { APP_SCREENS } from "./deskManifest";
 import DesksHome from "./DesksHome";
+import PayWall from "./PayWall";
 import AgentCards, { applyTurnEvent, newTurn, type DeskTurn, type Role as AgentRole } from "./AgentCards";
 import AgentAvatar, { type AgentAvatarState } from "./AgentAvatar";
 import SettingsPanel from "./SettingsPanel";
@@ -158,6 +159,18 @@ function Shell() {
   // Espejo de DeskTemplate (app/lib/fleet.ts) sin importar codigo server-only.
   type DeskTemplate = { id: string; revision: number; name: string; description: string; idleMinutes: number; chain?: string; agents: Array<{ role: string; name: string; duty: string }> };
   const [perkos, setPerkos] = useState<{ connected: boolean; busy: boolean; fundingUrl: string; note: string }>({ connected: false, busy: false, fundingUrl: "", note: "" });
+  // Lo que la persona tiene para correr su desk. `deskHours` ya viene dividido
+  // entre los agentes que corren: en horas de reloj, que es lo que se vive.
+  type Money = {
+    loaded: boolean;
+    creditsUsd: number;
+    deskHours: number | null;
+    rateUsdPerDeskHour: number;
+    allowed: boolean;
+    reason: string;
+    exempt: boolean;
+  };
+  const [money, setMoney] = useState<Money>({ loaded: false, creditsUsd: 0, deskHours: null, rateUsdPerDeskHour: 0, allowed: true, reason: "", exempt: false });
   const [fleet, setFleet] = useState<Fleet | null>(null);
   const fleetRef = useRef<Fleet | null>(null);
   fleetRef.current = fleet;
@@ -842,12 +855,86 @@ function Shell() {
   // browser del sistema (main.cjs manda pay.perkos.xyz afuera). Mientras la
   // persona paga, polling del saldo; cuando la infra queda habilitada, se
   // reintenta el deploy solo. Sin deep link de vuelta: el polling alcanza.
+  // El reloj largo: el estado de la cuenta se vuelve a leer al arrancar, al
+  // enfocar la ventana y al reconectar. Sin esto, quien paga desde el telefono o
+  // vuelve una hora despues no se enteraba nunca: la unica lectura vivia dentro
+  // del sondeo del pago y moria con el.
+  const refreshMoney = useCallback(async (): Promise<Money | null> => {
+    try {
+      const r = await fetch("/api/perkos/billing");
+      if (!r.ok) return null;
+      const j = (await r.json()) as Partial<Money> & { deskHours?: number | null };
+      const next: Money = {
+        loaded: true,
+        creditsUsd: Number(j.creditsUsd ?? 0) || 0,
+        deskHours: j.deskHours === null || j.deskHours === undefined ? null : Number(j.deskHours) || 0,
+        rateUsdPerDeskHour: Number(j.rateUsdPerDeskHour ?? 0) || 0,
+        allowed: Boolean(j.allowed),
+        reason: String(j.reason ?? ""),
+        exempt: Boolean(j.exempt)
+      };
+      setMoney(next);
+      return next;
+    } catch {
+      return null;
+    }
+  }, []);
+  const refreshMoneyRef = useRef(refreshMoney);
+  refreshMoneyRef.current = refreshMoney;
+
+  /** La puerta gratis: idempotente en la API, asi que se pide en cada entrada. */
+  const claimWelcome = useCallback(async () => {
+    try {
+      const r = await fetch("/api/perkos/billing", { method: "POST" });
+      if (!r.ok) { void refreshMoneyRef.current(); return; }
+      const j = (await r.json()) as { granted?: boolean; grantedUsd?: number; deskHours?: number | null };
+      if (j.granted) {
+        flog("info", `welcome: $${Number(j.grantedUsd ?? 0).toFixed(2)} of desk time added`);
+      }
+      void refreshMoneyRef.current();
+    } catch {
+      /* el estado se vuelve a leer solo en el proximo foco */
+    }
+  }, []);
+  const claimWelcomeRef = useRef(claimWelcome);
+  claimWelcomeRef.current = claimWelcome;
+
+  useEffect(() => {
+    if (!perkos.connected) return;
+    const again = () => void refreshMoneyRef.current();
+    again();
+    window.addEventListener("focus", again);
+    window.addEventListener("online", again);
+    return () => {
+      window.removeEventListener("focus", again);
+      window.removeEventListener("online", again);
+    };
+  }, [perkos.connected]);
+
+  /** "5h 00m", "48m", "0m". Horas de reloj del desk, no de agente. */
+  const fmtDeskTime = (h: number): string => {
+    const mins = Math.max(0, Math.round(h * 60));
+    return mins >= 60 ? `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, "0")}m` : `${mins}m`;
+  };
+
+  // Aviso unico cuando queda poco: nadie deberia enterarse de que se acaba el
+  // tiempo por un desk que se apaga.
+  const lowWarnedRef = useRef(false);
+  useEffect(() => {
+    if (!money.loaded || money.exempt || money.deskHours === null) return;
+    if (money.deskHours >= 2) { lowWarnedRef.current = false; return; }
+    if (money.deskHours <= 0 || lowWarnedRef.current) return;
+    lowWarnedRef.current = true;
+    setCaption(`About ${fmtDeskTime(money.deskHours)} of desk time left. Your desk keeps working, and the team sleeps when it runs out. Nothing is lost.`);
+  }, [money.loaded, money.exempt, money.deskHours]);
+
   const payPollRef = useRef(0);
   const wizardRef = useRef(false);
   wizardRef.current = wizard;
   const deskIdRef = useRef("floor-desk");
   deskIdRef.current = deskId;
   const [paying, setPaying] = useState(false);
+  const [payWall, setPayWall] = useState(false);
   const stopPayPoll = useCallback(() => { window.clearTimeout(payPollRef.current); payPollRef.current = 0; setPaying(false); }, []);
   const openPay = useCallback(async () => {
     try {
@@ -865,6 +952,8 @@ function Shell() {
           const bj = (await b.json().catch(() => ({}))) as { creditsUsd?: number; allowed?: boolean; reason?: string };
           if (b.ok && bj.allowed) {
             flog("info", `pay: infra allowed · $${(bj.creditsUsd ?? 0).toFixed(2)} credits`);
+            void refreshMoneyRef.current();
+            setPayWall(false);
             stopPayPoll();
             setPerkos((p) => ({ ...p, fundingUrl: "", note: "" }));
             setTeam("waking");
@@ -873,7 +962,15 @@ function Shell() {
             return;
           }
         } catch {}
-        if (Date.now() - started > 30 * 60_000) { flog("warn", "pay: gave up waiting after 30 min"); stopPayPoll(); setCaption("Payment window closed · press Deploy again"); return; }
+        // Se deja de preguntar cada 5 s, pero NO se deja de saber: el estado se
+        // relee al volver a la ventana, asi que pagar mas tarde o desde el
+        // telefono sigue funcionando sin tocar nada.
+        if (Date.now() - started > 30 * 60_000) {
+          flog("info", "pay: still unpaid after 30 min, will pick it up when you come back");
+          stopPayPoll();
+          setCaption("No payment yet. Finish in the browser and come back: PerkOS picks it up on its own.");
+          return;
+        }
         payPollRef.current = window.setTimeout(() => void tick(), 5000);
       };
       payPollRef.current = window.setTimeout(() => void tick(), 5000);
@@ -891,10 +988,12 @@ function Shell() {
       if (!res.ok) {
         if (res.status === 402) {
           setPerkos((p) => ({ ...p, fundingUrl: "https://pay.perkos.xyz", note: "Activate PerkOS infrastructure" }));
-          setCaption("Activate PerkOS infrastructure to run the team");
-          // Desde la escena (comando "wake") no hay boton: abrir el pago directo.
-          // En el wizard el paso "Your team" muestra el boton y la persona decide.
-          if (action === "wake" && !wizardRef.current) void openPay();
+          setCaption("");
+          void refreshMoneyRef.current();
+          // Fuera del wizard se abre la pantalla, no el navegador: antes se
+          // encontraba una pestana de pago sin haber pedido nada y sin saber por que.
+          // El paso de montaje tiene su propio boton y decide la persona.
+          if (action === "wake" && !wizardRef.current) setPayWall(true);
         }
         if (res.status === 404) setCaption("Team template not published yet");
         flog(res.status === 402 ? "warn" : "error", `fleet ${action} ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`);
@@ -919,7 +1018,7 @@ function Shell() {
       if (!force) {
         const cur = (await fetch(`/api/perkos/session?wallet=${encodeURIComponent(addr)}`).then((r) => r.json())) as { connected?: boolean; configured?: boolean };
         if (cur.configured === false) { flog("warn", "perkos: session not available on this build"); setPerkos({ connected: false, busy: false, fundingUrl: "", note: "not configured" }); return; }
-        if (cur.connected) { flog("info", "perkos: session ok"); setPerkos({ connected: true, busy: false, fundingUrl: "", note: "" }); void loadDesks(); void fleetAction("status"); return; }
+        if (cur.connected) { flog("info", "perkos: session ok"); setPerkos({ connected: true, busy: false, fundingUrl: "", note: "" }); void loadDesks(); void fleetAction("status"); void claimWelcomeRef.current(); return; }
         // La firma automatica se pide una sola vez: tras un timeout o un rechazo
         // en la wallet, cada montaje volvia a mandar un pedido a MetaMask.
         if (perkosDeclined) { flog("info", "perkos: sign-in skipped (declined earlier · Settings > Reconnect)"); setPerkos({ connected: false, busy: false, fundingUrl: "", note: "Reconnect to sign in" }); return; }
@@ -948,6 +1047,7 @@ function Shell() {
       setPerkos({ connected: true, busy: false, fundingUrl: "", note: "" });
       void loadDesks();
       void fleetAction("status");
+      void claimWelcomeRef.current();
     } catch (e) {
       perkosDeclined = true;
       flog("error", `perkos: ${(e as Error).message}`);
@@ -2478,6 +2578,16 @@ function Shell() {
   return (
     <div className={`stage${teamSeen ? " team-seen" : ""}${messages.length === 0 && !turn ? " fresh" : ""}${split ? " split" : ""}${debug ? " with-debug" : ""}${deskScreen ? " desk-open" : ""}${deskScreen && deskMax ? " desk-max" : ""}${turn && !turn.collapsed ? " turn-live" : ""}${turn?.collapsed ? " turn-chips" : ""}`}>
       <div className="dragbar" />
+      {payWall ? (
+        <PayWall
+          deskHours={money.deskHours}
+          rateUsdPerDeskHour={money.rateUsdPerDeskHour}
+          reason={money.reason}
+          waiting={paying}
+          onPay={() => void openPay()}
+          onClose={() => setPayWall(false)}
+        />
+      ) : null}
       {home ? (
           <DesksHome
             selected={deskId}
@@ -2566,6 +2676,15 @@ function Shell() {
           <span title={wallet.signWhere === "phone" ? `${wallet.walletName || "External wallet"} over WalletConnect: approvals show up on your phone` : wallet.signWhere === "embedded" ? "PerkOS wallet (Privy): signs inside this app" : undefined}>{who}</span>
           {wallet.signWhere && !linkLost ? <em className="wk" title={wallet.signWhere === "phone" ? "Approvals show up in your wallet app on your phone" : wallet.signWhere === "embedded" ? "Signs inside this app" : "Signs in your browser wallet"}>{wallet.signWhere === "phone" ? "phone wallet" : wallet.signWhere === "embedded" ? "app wallet" : "browser wallet"}</em> : null}
           <em className={`pk${perkos.connected ? " on" : ""}`} title={perkos.connected ? "PerkOS session active" : perkos.note || "PerkOS not connected"}>PerkOS</em>
+          {/* Lo que queda, en horas de reloj del desk. Una wallet patrocinada no lo ve. */}
+          {money.loaded && !money.exempt && money.deskHours !== null ? (
+            <em
+              className={`dk${money.deskHours < 2 ? " low" : ""}`}
+              title={`Desk time left at this desk's size${money.rateUsdPerDeskHour ? `, about $${money.rateUsdPerDeskHour.toFixed(2)} an hour while the team is awake` : ""}. The meter stops when they sleep.`}
+            >
+              {fmtDeskTime(money.deskHours)} of desk time
+            </em>
+          ) : null}
           {linkLost || (wallet.loaded && !wallet.connected && !wallet.busy) ? <button type="button" className="relink" onClick={relink} title="You are signed in, but no wallet is linked to this window. Sign in again in Privy and scan the QR; the scene stays.">Wallet not linked · sign in again</button> : null}
           <button type="button" onClick={logout}>
             Log out
