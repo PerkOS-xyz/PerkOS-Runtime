@@ -36,9 +36,9 @@ export default function ChatsDrawer({ bridge, onClose }: { bridge: ChatsBridge; 
       <small className="lead">Saved as you go, encrypted on this computer with a key from your wallet.</small>
       {locked || bridge.locked ? (
         <div className="launch-empty">
-          <b>Chat history is locked</b>
-          <span>One signature from your wallet, once on this computer, derives the key that encrypts your history. It moves no funds and approves nothing.</span>
-          {bridge.canUnlock ? <button type="button" onClick={() => bridge.onUnlock()}>Unlock with my wallet</button> : <span>Link your wallet first.</span>}
+          <b>Chat history is off for this wallet</b>
+          <span>Each wallet keeps its own chats, encrypted with a key only it can derive. One signature, once per wallet on this computer, turns it on and brings back anything this wallet already had. It moves no funds and approves nothing.</span>
+          {bridge.canUnlock ? <button type="button" onClick={() => bridge.onUnlock()}>Turn it on with my wallet</button> : <span>Link your wallet first.</span>}
         </div>
       ) : (
         <>
