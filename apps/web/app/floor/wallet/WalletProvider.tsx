@@ -93,6 +93,24 @@ function humanPrivyError(code: string): string {
   }
 }
 
+/** WalletConnect v2 guarda su sesion en localStorage (`wc@2:*`) y en IndexedDB. Al salir,
+ *  Privy cierra lo suyo y borra el registro, pero el almacen queda con la referencia: el
+ *  primer QR del siguiente login nace atado a ella y no conecta nunca
+ *  ("Missing or invalid. Record was recently deleted"), hasta que se cierra y se reabre el
+ *  modal, que fuerza un emparejamiento nuevo. Esto lo limpia para que el primer QR ya sirva.
+ *  Sobrevive al reinicio de la app, asi que no basta con cerrarla y abrirla. */
+function purgeWalletConnect() {
+  try {
+    for (const k of Object.keys(window.localStorage)) {
+      if (k.startsWith("wc@2:") || k.startsWith("WALLETCONNECT_")) window.localStorage.removeItem(k);
+    }
+    window.indexedDB?.deleteDatabase("WALLET_CONNECT_V2_INDEXED_DB");
+    flog("info", "walletconnect: storage cleared for the next pairing");
+  } catch (e) {
+    flog("warn", `walletconnect: could not clear storage: ${(e as Error).message}`);
+  }
+}
+
 function Bridge({ children }: { children: ReactNode }) {
   const { ready, authenticated, logout: privyLogout, user } = usePrivy();
   const { wallets, ready: walletsReady } = useWallets();
@@ -110,7 +128,7 @@ function Bridge({ children }: { children: ReactNode }) {
     const p = privyLogout()
       .then(() => flog("info", "privy: session closed"))
       .catch((e: unknown) => flog("warn", `privy: logout failed: ${(e as Error).message}`))
-      .finally(() => { logoutRef.current = null; setLoggingOut(false); });
+      .finally(() => { purgeWalletConnect(); logoutRef.current = null; setLoggingOut(false); });
     logoutRef.current = p;
     return p;
   }, [privyLogout]);
@@ -147,6 +165,10 @@ function Bridge({ children }: { children: ReactNode }) {
     for (let i = 0; i < 40 && authRef.current; i++) await new Promise((r) => setTimeout(r, 100));
     if (authRef.current) flog("warn", "privy: still authenticated after logout, the login modal may miss the wallet options");
     if (closed) await new Promise((r) => setTimeout(r, 400));
+    // Sin sesion viva no hay nada de WalletConnect que conservar, y puede haber un registro
+    // muerto de una salida anterior (sobrevive al reinicio). Se limpia antes de abrir para
+    // que el primer QR sea un emparejamiento nuevo.
+    if (!authRef.current) purgeWalletConnect();
     // Se comprueba que el modal abrio; si Privy ignoro la llamada se reintenta (hasta 3 veces).
     for (let attempt = 1; attempt <= 3; attempt++) {
       flog("info", `privy: login modal${attempt > 1 ? ` (attempt ${attempt})` : ""}`);

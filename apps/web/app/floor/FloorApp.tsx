@@ -2318,7 +2318,10 @@ function Shell() {
     // Privy tarda varios segundos en cerrar la sesion; no esperarlo: la
     // bienvenida aparece ya. Mientras cierra, el provider reporta connected=false
     // y busy=true, y el boton del hero espera a que termine antes de abrir el login.
-    void wallet.logout();
+    // Al terminar se recarga la ventana: el cliente de WalletConnect vive en memoria y
+    // se queda con la sesion que se acaba de borrar, asi que el primer QR del siguiente
+    // login no conectaba. Recargar es lo que se hacia a mano cerrando y abriendo la app.
+    void wallet.logout().finally(() => window.setTimeout(() => window.location.reload(), 400));
     setWizardStart(0);
     setWizardEpoch((e) => e + 1);
     setWizard(true);
