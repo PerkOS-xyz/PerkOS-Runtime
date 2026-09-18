@@ -229,6 +229,10 @@ function RailCard({ rail }: { rail: RailStep }) {
     try { localStorage.setItem("perkos.rail.email", email.trim()); } catch {}
     rail.onLink(email.trim());
   };
+  // Un reclamo puede quedarse a medias: el vault existe pero la API ya no devuelve
+  // su URL. Antes "Open 1Claw again" abria undefined, o sea nada, y sin decirlo.
+  // Sin URL no hay nada que reabrir: se acuna uno nuevo.
+  const stale = rail.status === "claim_pending" && !rail.claimUrl;
   return (
     <div className="wizard-card team rail">
       <div className="k">SPEND RAIL</div>
@@ -253,7 +257,9 @@ function RailCard({ rail }: { rail: RailStep }) {
             {rail.status === "linked"
               ? "Your vault and the Trader's credential are in place."
               : rail.status === "claim_pending"
-                ? "Finish claiming your vault at 1Claw. This step completes on its own once you do."
+                ? stale
+                  ? "The claim from the last attempt is no longer open. Link again and 1Claw gives you a new one."
+                  : "Finish claiming your vault at 1Claw. This step completes on its own once you do."
                 : rail.status === "not_configured"
                   ? "Not enabled on this PerkOS yet."
                   : "You get your own vault at 1Claw; the Trader gets a credential that can only act within it."}
@@ -261,7 +267,7 @@ function RailCard({ rail }: { rail: RailStep }) {
         </li>
       </ul>
 
-      {rail.status === "not_connected" || rail.status === "unknown" ? (
+      {rail.status === "not_connected" || rail.status === "unknown" || stale ? (
         <label>
           <span>Your email (for your 1Claw account)</span>
           <input type="email" value={email} placeholder="you@company.com" autoComplete="email" onChange={(e) => setEmail(e.target.value)} />
@@ -270,7 +276,11 @@ function RailCard({ rail }: { rail: RailStep }) {
       {rail.note ? <p className={`hint-line${/fail|could not|error/i.test(rail.note) ? " err" : ""}`}>{rail.note}</p> : null}
 
       <div className="row">
-        {rail.status === "claim_pending" ? (
+        {stale ? (
+          <button type="button" className="cta" disabled={!traderReady || !validEmail || rail.busy} onClick={link}>
+            {rail.busy ? "Linking…" : "Link 1Claw again"}
+          </button>
+        ) : rail.status === "claim_pending" ? (
           <button type="button" className="cta" onClick={rail.onOpenClaim}>Open 1Claw again</button>
         ) : rail.status === "linked" ? (
           <button type="button" className="cta" onClick={rail.onSkip}>Enter Floor</button>
@@ -281,9 +291,11 @@ function RailCard({ rail }: { rail: RailStep }) {
         )}
       </div>
       <p className="hint-line">
-        {rail.status === "claim_pending"
-          ? "Waiting for the claim in your browser…"
-          : "Opens 1Claw in your browser to claim the vault. The key never touches this Mac."}
+        {stale
+          ? "Nothing to reopen: that claim is gone. Linking again mints a fresh one."
+          : rail.status === "claim_pending"
+            ? "Waiting for the claim in your browser…"
+            : "Opens 1Claw in your browser to claim the vault. The key never touches this Mac."}
       </p>
       {rail.status !== "linked" ? (
         <button type="button" className="back" onClick={rail.onSkip}>Enter Floor without a spend rail</button>

@@ -2566,7 +2566,12 @@ function Shell() {
             note: rail.note,
             claimUrl: rail.claimUrl,
             onLink: (email: string) => void railEnrol(email),
-            onOpenClaim: () => { if (rail.claimUrl) window.open(rail.claimUrl, "_blank", "noopener"); },
+            onOpenClaim: () => {
+              // Sin URL no hacia nada y no lo decia. Ahora queda escrito y visible.
+              if (rail.claimUrl) { window.open(rail.claimUrl, "_blank", "noopener"); return; }
+              flog("warn", "rail: claim pending but PerkOS returned no link for it; link again to mint a new one");
+              setRail((p) => ({ ...p, note: "That claim is no longer open. Link 1Claw again to get a new one." }));
+            },
             onSkip: () => setRailSkipped(true)
           }}
         />
