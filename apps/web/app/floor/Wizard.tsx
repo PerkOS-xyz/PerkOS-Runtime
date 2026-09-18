@@ -290,12 +290,14 @@ function RailCard({ rail }: { rail: RailStep }) {
 /** Paso 3: elegir el equipo. Una card por template fleet de PerkOS (hoy una);
  *  la elegida muestra sus roles y el boton de deploy bajo la cuenta del usuario. */
 function TeamCard({ team }: { team: TeamStep }) {
-  const { name, onName, desks, desk, deskNote, perkosConnected, perkosBusy, perkosNote, fundingUrl, paying, deploying } = team;
-  const ready = perkosConnected && !!desk;
+  const { name, onName, desks, desk, deskNote, perkosConnected, perkosBusy, perkosNote, fundingUrl, paying, deploying, adding, blocked } = team;
+  const ready = perkosConnected && !!desk && !blocked;
   return (
     <div className="wizard-card team">
-      <div className="k">YOUR DESK</div>
-      <b>{desks.length > 1 ? "Choose a desk." : "Your first desk."}</b>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img className="team-mark" src="/logo-name.png" alt="PerkOS" />
+      <div className="k">{adding ? "NEW DESK" : "YOUR DESK"}</div>
+      <b>{adding ? "Name your desk." : desks.length > 1 ? "Choose a desk." : "Your first desk."}</b>
       <p className="lead">A desk brings its team, its chain and its screens. The team runs on PerkOS infrastructure under your account. They draft; you approve.</p>
 
       {perkosConnected && desks.length ? (
@@ -376,11 +378,18 @@ function TeamCard({ team }: { team: TeamStep }) {
         )}
       </div>
       <p className="hint-line">
-        {fundingUrl
-          ? "Opens pay.perkos.xyz in your browser. Card, USDC on Base, or a code. The team deploys as soon as the balance is positive."
-          : "Runs under your account · they draft, you approve."}
+        {blocked
+          ? blocked
+          : fundingUrl
+            ? "Opens pay.perkos.xyz in your browser. Card, USDC on Base, or a code. The team deploys as soon as the balance is positive."
+            : "Runs under your account · they draft, you approve."}
       </p>
-      <button type="button" className="back" onClick={team.onSkip}>Enter Floor without a team</button>
+      {/* Abierto a mano: hay desk al que volver, asi que la salida es volver, no entrar sin equipo. */}
+      {adding ? (
+        <button type="button" className="back" onClick={team.onCancel}>Back to the desk</button>
+      ) : (
+        <button type="button" className="back" onClick={team.onSkip}>Enter Floor without a team</button>
+      )}
     </div>
   );
 }
