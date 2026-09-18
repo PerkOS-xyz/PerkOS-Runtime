@@ -2,6 +2,33 @@
 
 All notable changes to the PerkOS desktop app. Versions follow [Semantic Versioning](https://semver.org); the version lives in `apps/desktop/package.json` and shows in Settings › About with the git short SHA of the build.
 
+## [0.5.6] - 2026-09-18
+
+### Added
+- Guided token launch: the desk reads which tokenized stocks a launch can pair with and ranks them, then Sparky helps name the token and write its description, the logo comes from a file or from the image model, fees go to the connected wallet, and Bankr simulates the launch before you hold.
+- Buy a launched token from the desk, paid with ETH on Base in one signature, and sell it back to ETH in two. The route is quoted across every Uniswap fee tier, the exact transaction is simulated before it is offered, and a draft is refused when it would move the price too much.
+- Launches panel as a wallet: a portfolio header, one row per token leading with what you hold and its value, and Trade, Pool and Fees tabs with an amount field and quick amounts.
+- Launch pulse: what is trading on Bankr right now, shown when choosing a pair and available to Sparky.
+- After advising the market, the Trader posts a working order book: scale in, a limit below the last price, or skip. Nothing spends until you hold.
+- Sparky keeps talking while the desk wakes, and a live activity block shows what the desk is doing step by step.
+- Agent avatars in the scene, starter chips on the composer, and a welcome page that opens the wallet directly.
+
+### Fixed
+- Relink the wallet without leaving the scene, and the sign in window actually opens.
+- Third party noise (expired WalletConnect proposals, declined signatures) is logged as information instead of a red error.
+- The chat no longer folds while a choice is waiting, and Sparky keeps the context of the thread.
+- The 1Claw badge stays visible under the Trader when the desk splits.
+- Links to other sites open the token page, and a paired stock shows its on chain symbol.
+
+## [0.5.5] - 2026-09-17
+
+### Added
+- Agent avatars from the PerkOS construction kit: a permanent identity per agent, separate from role, expression and runtime state. Hibernating agents look asleep, not offline. The Trader, who signs with 1Claw, carries the 1Claw red.
+- Chat history: threads saved as you go, encrypted on this computer with a key derived from one wallet signature, with a Chats drawer to rename, pin, search and reopen them.
+
+### Changed
+- The desk agents wake only when a task needs them. Sparky answers on its own.
+
 ## [0.5.4] - 2026-09-17
 
 ### Added
