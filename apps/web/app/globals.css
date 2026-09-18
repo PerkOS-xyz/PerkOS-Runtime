@@ -2691,8 +2691,23 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .wizard-card.desk-setup .ds-foot > .hint-line { margin-top: 10px; max-width: 56ch; }
 .wizard-card.desk-setup .ds-foot button.back { margin-top: 6px; }
 /* Sala de espera: la misma cabecera, sin formulario. Angosta, para que se lea como un estado. */
-.wizard-card.desk-setup.waiting { width: min(520px, calc(100% - 48px)); }
-.wizard-card.desk-setup.waiting .ds-intro { margin-bottom: 0; }
+.wizard-card.desk-setup.waiting { width: min(560px, calc(100% - 48px)); }
+.wizard-card.desk-setup.waiting .ds-intro { margin-bottom: 18px; }
+/* Firmar puede tardar 20 s: la espera cuenta el producto en vez de girar un spinner.
+   Las laminas se apilan en la misma caja (altura fija) para que nada salte al cambiar. */
+.ds-slides { border-top: 1px solid rgba(160, 180, 220, 0.14); padding-top: 16px; }
+.ds-stack { position: relative; min-height: 104px; }
+.ds-slide { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 7px; opacity: 0; transform: translateY(6px); transition: opacity 520ms ease, transform 520ms ease; pointer-events: none; }
+.ds-slide.on { opacity: 1; transform: none; }
+.ds-slide .k { font-size: 9px; letter-spacing: 0.2em; color: #ffd3e1; }
+.ds-slide b { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: #e6ecff; }
+.ds-slide p { margin: 0; font-size: 12.5px; line-height: 1.55; max-width: 52ch; color: #b9c4dd; }
+.ds-dots { display: flex; gap: 6px; margin-top: 14px; }
+.ds-dots i { width: 16px; height: 2px; border-radius: 999px; background: rgba(160, 180, 220, 0.25); transition: background 320ms ease; }
+.ds-dots i.on { background: rgba(236, 27, 105, 0.85); }
+@media (prefers-reduced-motion: reduce) {
+  .ds-slide { transition: none; transform: none; }
+}
 
 @container stage (max-width: 700px) {
   .wizard-card.desk-setup { width: calc(100% - 32px); }
