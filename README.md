@@ -53,6 +53,36 @@ flowchart TD
 
 Fixed rules: nothing executes without a hold; a swap or a fee claim pays only the wallet connected in Settings; a BLOCK from Risk disables the card; every turn is kept in History and every note in the local vault.
 
+## Uniswap integration, for reviewers
+
+Runtime NYC, Uniswap track. Everything below is in this repository and runs in the shipped app.
+Feedback for the Uniswap team is in [FEEDBACK.md](FEEDBACK.md).
+
+**Quoting and drafting a trade on tokenized stocks** · [`apps/web/app/lib/uniswap.ts`](apps/web/app/lib/uniswap.ts)
+- `QUOTER_V2` and `SWAP_ROUTER_02` (lines 14 to 15): Uniswap V3 on Base.
+- `draftTrade()` (line 102): quotes the pair, compares the Uniswap route against Aerodrome, and
+  returns the exact transactions the person will sign. Nothing is sent from here.
+- The quote itself (line 225): `quoteExactInputSingle` on Quoter V2.
+
+**Buying and selling a launched token, one signature, two hops** · [`apps/web/app/lib/launchBuy.ts`](apps/web/app/lib/launchBuy.ts)
+- `UNIVERSAL_ROUTER`, `POOL_MANAGER`, `V4_QUOTER`, `PERMIT2` (lines 12 to 38).
+- `bestV3Route()` (line 75): walks every fee tier in `FEE_TIERS` (line 73), directly and through
+  USDC, and keeps the best output. A single tier route once cost a user most of a 5 dollar buy.
+- `MAX_IMPACT` (line 96) and the guards at lines 142 and 261: a draft is refused when it would move
+  the price more than 12%.
+- `draftLaunchBuy()` (line 102) and `draftLaunchSell()` (line 221): wrap ETH, the V3 leg to the
+  pair, the V4 leg into the token, and a sweep of every intermediate balance.
+
+**Reading a V4 pool the app did not create** · [`apps/web/app/lib/launchMarket.ts`](apps/web/app/lib/launchMarket.ts)
+- `launchMarket()` (line 15): recovers the `PoolKey` from the `Initialize` event of the deploy
+  transaction, which is the only reliable way to trade a dynamic fee pool created by a third party.
+
+**Where a person meets it**: the desk drafts a trade, the card shows the route and the simulated
+output, and the transaction is signed in the person's own wallet after a two second hold.
+
+Tokens launched from the desk and traded through these paths on Base mainnet: FLOORT, NVDAc,
+Cab Bots (CABOT) and Clarity (CLARITY, `0x5D7437988e5a4A2788dc2cd09bD612Aa3704DbA3`).
+
 ## Layout
 
 ```
