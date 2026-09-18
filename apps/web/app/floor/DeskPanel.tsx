@@ -156,6 +156,7 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
       setOpen(null);
       fetch("/api/kb/notes?limit=40").then((r) => r.json()).then((j) => { if (live) setNotes(j.notes ?? []); }).catch((e) => live && setErr(String(e)));
     } else {
+      void loadLaunches(); // Portfolio tambien dice cuanto dio cada launch en acciones
       fetch("/api/market/portfolio").then((r) => r.json()).then((j) => { if (!live) return; if (j.error) { setErr(j.detail ?? j.error); setPositions([]); } else { setPositions(j.positions ?? []); setTotal(j.totalUsd ?? 0); setUsdc(typeof j.usdc === "number" ? j.usdc : undefined); setChg24(typeof j.change24hPct === "number" ? j.change24hPct : undefined); } }).catch((e) => live && setErr(String(e)));
     }
     return () => { live = false; };
@@ -411,6 +412,32 @@ export default function DeskPanel({ screen, focus, onScreen, onClose, onSay, onS
                 </li>
               );
             })}
+          {(() => {
+            // Lo que cada token lanzado ha pagado en su accion (el par): reclamado, que ya esta dentro de las
+            // posiciones de arriba, y por reclamar. Varias pueden pagar en la misma accion (NVDAc) y se funden alli.
+            const mine = (launches ?? []).filter((l) => l.mine);
+            if (!mine.length) return null;
+            const num = (v?: string) => Number(String(v ?? "0").replace(/[<,]/g, "")) || 0;
+            const stockSide = (l: LaunchRow) => { const c = l.claimable, d = l.claimed; const sym = l.symbol.toUpperCase(); const stockIs1 = (c?.token0Label ?? "").toUpperCase() === sym; return { label: l.pair ?? (stockIs1 ? c?.token1Label : c?.token0Label) ?? "", claimed: num(stockIs1 ? d?.token1 : d?.token0), claimable: num(stockIs1 ? c?.token1 : c?.token0), count: d?.count ?? 0 }; };
+            const px = (label: string) => (positions ?? []).find((p) => p.symbol.toUpperCase().replace(/C$/, "") === label.toUpperCase().replace(/C$/, ""))?.priceUsd;
+            const amt = (n: number) => (n === 0 ? "0" : n < 0.000001 ? "<0.000001" : n < 1 ? n.toFixed(6).replace(/0+$/, "") : n.toFixed(4));
+            return (
+              <li className="pf-li"><div className="pf-launches">
+                <div className="pf-l-head"><b>From your launches</b><small>creator fees paid in the paired stock · claimed ones are already inside the positions above</small></div>
+                <ul>
+                  {mine.map((l) => { const f = stockSide(l); const price = px(f.label); return (
+                    <li key={l.tokenAddress}>
+                      <span className="pf-l-id"><b>{l.symbol}</b><small>pays in {f.label || "its pair"}</small></span>
+                      <span className="pf-l-n"><b>{amt(f.claimed)} {f.label}</b><small>claimed{f.count ? ` · ${f.count}×` : ""}{price && f.claimed ? ` · about ${usd(f.claimed * price)}` : ""}</small></span>
+                      <span className="pf-l-n"><b>{amt(f.claimable)} {f.label}</b><small>to claim{price && f.claimable ? ` · about ${usd(f.claimable * price)}` : ""}</small></span>
+                      <span className="pf-l-n"><b>{l.balanceUsd ? usd(l.balanceUsd) : "–"}</b><small>{l.balance ? `${Math.round(l.balance).toLocaleString("en-US")} ${l.symbol} held` : `no ${l.symbol} held`}</small></span>
+                    </li>
+                  ); })}
+                </ul>
+                <button type="button" onClick={() => onScreen("launches")}>Open Launches</button>
+              </div></li>
+            );
+          })()}
           </ul>
         </>
       )}
