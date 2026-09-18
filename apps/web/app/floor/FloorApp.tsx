@@ -2195,6 +2195,9 @@ function Shell() {
     // persona monte o salga. Sin esto el paso se cerraba solo por tener ya una flota.
     if (deskSetup) return;
     if (teamSkipped) { setWizard(false); setSplash(false); return; }
+    // Sin desk todavia: la casa es el catalogo, donde se ve que hay y que es mio.
+    // Montar un desk se elige alli, no se impone al entrar.
+    if (fleet && fleet.status === "none") { setWizard(false); setSplash(false); setHome(true); return; }
     if (fleet && fleet.status !== "none") {
       const railed = fleet.agents.find((a) => a.rail);
       if (railed && !railed.railLinked && !railSkipped) { setWizardStart(4); void railStatus(); return; }
@@ -2383,6 +2386,8 @@ function Shell() {
           onDone={() => {
             setWizard(false);
             setSplash(false);
+            // Recien conectado y sin desk: el catalogo es lo primero que se ve.
+            if (!fleet || fleet.status === "none") setHome(true);
             void fetch("/api/settings")
               .then((r) => r.json())
               .then(applyWho);
@@ -2407,7 +2412,7 @@ function Shell() {
             // Abierto a mano (desde el catalogo): hay desk al que volver, asi que el paso
             // tiene salida propia y no obliga a montar ni a entrar sin equipo.
             adding: deskSetup,
-            onCancel: () => { setDeskSetup(false); setWizard(false); setSplash(false); },
+            onCancel: () => { setDeskSetup(false); setWizard(false); setSplash(false); setHome(true); },
             // Si la flota que tenemos es la de este mismo desk, ya es suyo: la plantilla decide
             // si eso impide montar otro. El catalogo ya no lleva aqui en ese caso; esto es el cinturon.
             blocked: deskSetup ? deskLimit(desk, !!fleet && fleet.status !== "none") : ""
