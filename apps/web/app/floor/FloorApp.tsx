@@ -107,6 +107,8 @@ function Shell() {
   const [streaming, setStreaming] = useState(false);
   const [draft, setDraft] = useState("");
   const [model, setModel] = useState("grok-4.6");
+  // Si hay AI conectada (vive en ~/.perkos-xyz, es de la maquina y no de la wallet).
+  const [llmOn, setLlmOn] = useState(false);
   const [effort, setEffort] = useState<"low" | "medium" | "high">("low");
   // Split: al primer envio la esfera va a la derecha y el transcript ocupa la izquierda.
   // "draft": carta del Trader (cotizacion Uniswap V3 Base + calldata) con la
@@ -2093,6 +2095,7 @@ function Shell() {
         .then(([s, llm]: [{ name?: string; wallet?: string }, { connected?: boolean }]) => {
           applyWho(s);
           flog("info", `llm status: ${llm?.connected ? "connected" : "not connected"}`);
+          setLlmOn(Boolean(llm?.connected));
           void ensurePerkosRef.current();
           // Con LLM, el wizard sigue en el paso del equipo (3): se cierra solo
           // en cuanto la flota existe (ver effect mas abajo) o al saltarlo.
@@ -2135,15 +2138,27 @@ function Shell() {
   const [rail, setRail] = useState<RailState>({ status: "unknown", busy: false, note: "" });
   const [railSkipped, setRailSkipped] = useState(false);
   const railPollRef = useRef(0);
+  // El claim de 1Claw se abre en el navegador y puede no completarse nunca: el sondeo
+  // tiene tope (2 min) y solo escribe en el log cuando el estado cambia. Sin esto quedaba
+  // un timer eterno escribiendo una linea cada 5 s.
+  const railTriesRef = useRef(0);
+  const railSeenRef = useRef("");
   const railStatus = useCallback(async () => {
     window.clearTimeout(railPollRef.current);
     try {
       const res = await fetch("/api/fleet/rail");
       const j = (await res.json().catch(() => ({}))) as { status?: RailState["status"]; claimUrl?: string; vaultId?: string; oneclawAgentId?: string; linkedRoles?: string[]; error?: string; detail?: string };
       if (!res.ok || !j.status) { flog("warn", `rail status ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`); return; }
-      flog("info", `rail: ${j.status}${j.vaultId ? ` · vault ${j.vaultId.slice(0, 8)}` : ""}${j.linkedRoles?.length ? ` · ${j.linkedRoles.join("/")}` : ""}`);
+      const line = `rail: ${j.status}${j.vaultId ? ` · vault ${j.vaultId.slice(0, 8)}` : ""}${j.linkedRoles?.length ? ` · ${j.linkedRoles.join("/")}` : ""}`;
+      if (line !== railSeenRef.current) { railSeenRef.current = line; flog("info", line); }
       setRail((p) => ({ ...p, status: j.status!, vaultId: j.vaultId, oneclawAgentId: j.oneclawAgentId, linkedRoles: j.linkedRoles, claimUrl: j.claimUrl ?? p.claimUrl, note: j.status === "linked" ? "" : p.note }));
-      if (j.status === "claim_pending") railPollRef.current = window.setTimeout(() => void railStatus(), 5000);
+      if (j.status === "claim_pending" && railTriesRef.current < 24) {
+        railTriesRef.current += 1;
+        railPollRef.current = window.setTimeout(() => void railStatus(), 5000);
+      } else if (j.status === "claim_pending") {
+        flog("info", "rail: the 1Claw claim is still open in your browser; press Link 1Claw again when you finish it");
+      }
+      if (j.status !== "claim_pending") railTriesRef.current = 0;
     } catch (e) {
       flog("error", `rail status: ${(e as Error).message}`);
     }
@@ -2167,7 +2182,7 @@ function Shell() {
       }
       if (j.claimUrl) window.open(j.claimUrl, "_blank", "noopener");
       setRail({ status: j.status, claimUrl: j.claimUrl, vaultId: j.vaultId, busy: false, note: "" });
-      if (j.status === "claim_pending") railPollRef.current = window.setTimeout(() => void railStatus(), 5000);
+      if (j.status === "claim_pending") { railTriesRef.current = 0; railPollRef.current = window.setTimeout(() => void railStatus(), 5000); }
     } catch (e) {
       flog("error", `rail enrol: ${(e as Error).message}`);
       setRail((p) => ({ ...p, busy: false, note: "Could not link 1Claw. Try again." }));
@@ -2176,7 +2191,9 @@ function Shell() {
   // En la escena, el estado del rail se lee una vez por flota (Settings y el
   // badge del Trader lo muestran); el wizard lo refresca por su cuenta.
   useEffect(() => {
-    if (rail.status !== "unknown" || !fleet?.agents.some((a) => a.rail) || !perkos.connected) return;
+    // Sin desk no hay rail que mirar: si la flota desaparece, se corta el sondeo.
+    if (!fleet || fleet.status === "none") { window.clearTimeout(railPollRef.current); return; }
+    if (rail.status !== "unknown" || !fleet.agents.some((a) => a.rail) || !perkos.connected) return;
     void railStatus();
   }, [fleet, rail.status, perkos.connected, railStatus]);
   const openRailStep = useCallback(() => {
@@ -2193,9 +2210,19 @@ function Shell() {
     if (!wizard || wizardStart !== 3) return;
     // Abierto a mano desde "+ Add a desk" o desde la pantalla de desks: se queda hasta que la
     // persona monte o salga. Sin esto el paso se cerraba solo por tener ya una flota.
-    if (deskSetup) return;
-    if (teamSkipped) { setWizard(false); setSplash(false); return; }
-    if (fleet && fleet.status !== "none") {
+    const has = fleet && fleet.status !== "none";
+    if (deskSetup) {
+      // Abierto a proposito: se queda hasta que la flota exista. Durante el deploy sigue
+      // siendo "none" un rato largo, y salir de aqui dejaba la espera sin pantalla.
+      if (!has) return;
+      setDeskSetup(false);
+    } else {
+      if (teamSkipped) { setWizard(false); setSplash(false); return; }
+      // Sin desk y sin nada en marcha: la casa es el catalogo, donde se ve que hay y que
+      // es mio. Montar un desk se elige alli, no se impone al entrar.
+      if (fleet && fleet.status === "none") { setWizard(false); setSplash(false); setHome(true); return; }
+    }
+    if (has) {
       const railed = fleet.agents.find((a) => a.rail);
       if (railed && !railed.railLinked && !railSkipped) { setWizardStart(4); void railStatus(); return; }
       setWizard(false);
@@ -2315,7 +2342,10 @@ function Shell() {
     // Privy tarda varios segundos en cerrar la sesion; no esperarlo: la
     // bienvenida aparece ya. Mientras cierra, el provider reporta connected=false
     // y busy=true, y el boton del hero espera a que termine antes de abrir el login.
-    void wallet.logout();
+    // Al terminar se recarga la ventana: el cliente de WalletConnect vive en memoria y
+    // se queda con la sesion que se acaba de borrar, asi que el primer QR del siguiente
+    // login no conectaba. Recargar es lo que se hacia a mano cerrando y abriendo la app.
+    void wallet.logout().finally(() => window.setTimeout(() => window.location.reload(), 400));
     setWizardStart(0);
     setWizardEpoch((e) => e + 1);
     setWizard(true);
@@ -2381,8 +2411,12 @@ function Shell() {
           key={`${wizardStart}:${wizardEpoch}`}
           start={wizardStart}
           onDone={() => {
+            // Se venia de cambiar el AI durante el montaje: se vuelve al montaje, no se cierra.
+            if (deskSetup) { setWizardStart(3); setWizardEpoch((n) => n + 1); return; }
             setWizard(false);
             setSplash(false);
+            // Recien conectado y sin desk: el catalogo es lo primero que se ve.
+            if (!fleet || fleet.status === "none") setHome(true);
             void fetch("/api/settings")
               .then((r) => r.json())
               .then(applyWho);
@@ -2400,15 +2434,30 @@ function Shell() {
             fundingUrl: perkos.fundingUrl,
             paying,
             deploying: team === "waking",
-            onDeploy: () => { setDeskSetup(false); setTeam("waking"); setCaption("Deploying your team on PerkOS…"); void saveDeskNameRef.current(); void fleetAction("wake"); },
+            onDeploy: () => {
+              // Al desk directamente: montar tarda minutos y Sparky ya puede trabajar con tu
+              // AI local mientras el equipo se crea. El estado del equipo se ve en las orbes
+              // y en la pastilla del desk, no en una pantalla que tapa.
+              setDeskSetup(false);
+              setWizard(false);
+              setSplash(false);
+              setTeam("waking");
+              setCaption("Your team is being created. Sparky can start now.");
+              void saveDeskNameRef.current();
+              void fleetAction("wake");
+            },
             onPay: () => void openPay(),
             onReconnect: () => void ensurePerkos(true),
             onSkip: () => { setDeskSetup(false); setTeamSkipped(true); void fetch("/api/settings").then((r) => r.json()).then(applyWho); },
             // Abierto a mano (desde el catalogo): hay desk al que volver, asi que el paso
             // tiene salida propia y no obliga a montar ni a entrar sin equipo.
-            adding: deskSetup && !!fleet && fleet.status !== "none",
-            onCancel: () => { setDeskSetup(false); setWizard(false); setSplash(false); },
-            blocked: deskLimit(desk, deskSetup && !!fleet && fleet.status !== "none" && desk?.id === deskId)
+            ai: llmOn ? `xAI · ${model.replace("grok-", "Grok ").replace("-fast", " Fast")}` : "",
+            onChangeAi: () => { setWizardStart(2); setWizardEpoch((n) => n + 1); },
+            adding: deskSetup,
+            onCancel: () => { setDeskSetup(false); setWizard(false); setSplash(false); setHome(true); },
+            // Si la flota que tenemos es la de este mismo desk, ya es suyo: la plantilla decide
+            // si eso impide montar otro. El catalogo ya no lleva aqui en ese caso; esto es el cinturon.
+            blocked: deskSetup ? deskLimit(desk, !!fleet && fleet.status !== "none") : ""
           }}
           rail={{
             status: rail.status,
@@ -2434,6 +2483,8 @@ function Shell() {
       {home ? (
           <DesksHome
             selected={deskId}
+            who={who}
+            onLogout={() => { setHome(false); logout(); }}
             onClose={() => setHome(false)}
             onOpen={(id) => {
               setHome(false);
@@ -2449,9 +2500,13 @@ function Shell() {
             }}
             onSetUp={(id) => {
               setHome(false);
-              setDeskId(id);
+              // Otra plantilla: su flota aun no se ha leido, y la del desk actual no cuenta aqui.
+              if (id !== deskId) { setDeskId(id); setFleet(null); }
               setDeskSetup(true);
-              setWizardStart(3);
+              // Montar un desk empieza por el AI: es Sparky quien va a hablar y quien lleva el
+              // desk, asi que se pregunta antes de nombrarlo. Si ya hay una conectada, el paso
+              // la muestra y se sigue con un clic; `onDone` trae de vuelta al montaje.
+              setWizardStart(2);
               setWizardEpoch((n) => n + 1);
               setWizard(true);
             }}
@@ -2715,7 +2770,7 @@ function Shell() {
         <span className="ask-left">
         <button type="button" className={`chat-peek${chatsOpen ? " on" : ""}`} onClick={() => setChatsOpen((o) => !o)} title="Your saved conversations"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden><path d="M4 6h16M4 12h16M4 18h10" /></svg>Chats</button>
         {messages.length > 0 ? <button type="button" className="chat-peek" onClick={() => newChatRef.current()} title="Start a new conversation. This one stays saved in Chats.">New chat</button> : null}
-        {historyLocked && wallet.canSign ? <button type="button" className="chat-peek pending" onClick={() => void unlockHistory()} title="One signature, once on this computer: it derives the key that encrypts your chat history on disk. It moves no funds.">Unlock history</button> : null}
+        {historyLocked && wallet.canSign ? <button type="button" className="chat-peek pending" onClick={() => void unlockHistory()} title="One signature, once per wallet on this computer. It derives the key that encrypts your chats on disk and brings back any this wallet already had. It moves no funds and approves nothing.">Turn on chat history</button> : null}
         {!split && messages.length > 0 ? (() => {
           const pending = messages.filter((x) => x.role === "draft" && x.tx?.stage === "idle" && (x.draft || x.launch || x.auto)).length;
           return (

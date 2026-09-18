@@ -2483,6 +2483,11 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .dh-mark span { font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--mute); }
 .dh-back { font: inherit; font-size: 11px; letter-spacing: 0.04em; padding: 7px 15px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); background: transparent; color: #cdd7ee; cursor: pointer; }
 .dh-back:hover { border-color: rgba(236, 27, 105, 0.6); color: #ffd3e1; }
+/* La cuenta vive fuera del desk: aqui se ve con cual se entro y aqui se sale. */
+.dh-acct { display: flex; align-items: center; gap: 12px; }
+.dh-acct > span { font-size: 11px; letter-spacing: 0.04em; color: #b9c4dd; }
+.dh-out { font: inherit; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; padding: 0; border: 0; background: none; color: var(--mute); cursor: pointer; }
+.dh-out:hover { color: #ffd3e1; }
 .dh-lead { margin: 0; font-size: 12.5px; line-height: 1.5; color: #b9c4dd; width: 100%; max-width: 1180px; margin-inline: auto; }
 .dh-cols { display: grid; grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr); gap: clamp(16px, 2.4cqi, 30px); align-items: start; width: 100%; max-width: 1180px; margin-inline: auto; margin-block: auto; }
 .dh-cols > .dh-split { background: linear-gradient(180deg, transparent, rgba(120, 160, 255, 0.22) 20%, rgba(120, 160, 255, 0.22) 80%, transparent); }
@@ -2555,7 +2560,54 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .dh-tcard > footer small { font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--mute); }
 .dh-tcard button { margin: 0; font: inherit; font-size: 11.5px; letter-spacing: 0.04em; padding: 7px 16px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); background: transparent; color: #cdd7ee; cursor: pointer; }
 .dh-tcard button.go { border-color: rgba(236, 27, 105, 0.6); background: rgba(236, 27, 105, 0.16); color: #ffd3e1; }
+/* La accion principal de la carta pesa mas que el resto: es lo que se viene a hacer. */
+.dh-tcard button.go { font-size: 12.5px; font-weight: 600; padding: 9px 20px; }
+/* Cual de las plantillas es la que se va a montar. Con una sola, lo dice igual. */
+.dh-sel { margin-right: auto; font-style: normal; font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: #ffd3e1; border: 1px solid rgba(236, 27, 105, 0.5); background: rgba(236, 27, 105, 0.14); border-radius: 999px; padding: 3px 8px; }
+/* Sin desks, el lado derecho no es un cartel: es por donde se empieza. */
+.dh-start { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; padding: 20px 22px; border-radius: 18px; border: 1px dashed rgba(160, 180, 220, 0.24); background: rgba(12, 14, 24, 0.5); }
+.dh-start p { margin: 0; font-size: 12.5px; line-height: 1.55; color: #b9c4dd; max-width: 46ch; }
+.dh-start button.go { font: inherit; font-size: 12.5px; font-weight: 600; letter-spacing: 0.03em; padding: 10px 22px; border-radius: 999px; border: 1px solid rgba(236, 27, 105, 0.6); background: rgba(236, 27, 105, 0.16); color: #ffd3e1; cursor: pointer; }
+.dh-start button.go:hover { background: rgba(236, 27, 105, 0.26); }
 .dh-tcard button:disabled { opacity: 0.4; cursor: default; }
+/* ==== Esqueleto de carga (2026-09-18) ====
+   La respuesta de PerkOS tarda 1 a 2 s y antes la caja nacia vacia y se estiraba al llegar.
+   El esqueleto se pinta con las MISMAS clases que el contenido (.dh-tcard, .dh-art, .dh-stats,
+   .dh-card), asi que reserva exactamente su medida: no hay numero que mantener sincronizado.
+   El brillo es un barrido lento y de poco contraste; esto es un producto oscuro y sobrio. ==== */
+.sk { display: block; border-radius: 6px; background: rgba(160, 180, 220, 0.11); position: relative; overflow: hidden; }
+.sk::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgba(200, 215, 255, 0.09) 50%, transparent 80%);
+  transform: translateX(-100%);
+  animation: skSweep 1900ms ease-in-out infinite;
+}
+@keyframes skSweep { to { transform: translateX(100%); } }
+/* Cada pieza mide lo que mide el texto al que sustituye. */
+.sk-kicker { width: 82px; height: 9px; }
+.sk-mark { width: 14px; height: 14px; border-radius: 4px; }
+.sk-logo { width: 62px; height: 26px; }
+.sk-title { width: 62%; height: 30px; margin-top: 6px; border-radius: 8px; }
+.sk-title.short { width: 44%; }
+.sk-chip { width: 148px; height: 17px; border-radius: 999px; }
+.sk-line { width: 100%; height: 10px; margin-bottom: 8px; }
+.sk-line.short { width: 68%; margin-bottom: 0; }
+.sk-dt { width: 42px; height: 8px; }
+.sk-dd { width: 54px; height: 13px; margin-top: 5px; }
+.sk-btn { width: 138px; height: 31px; border-radius: 999px; }
+.sk-count { width: 34px; height: 9px; }
+.sk-name { width: 150px; height: 14px; }
+.sk-fact { width: 58px; height: 16px; border-radius: 999px; }
+/* La carta fantasma no invita a pulsar nada. */
+.dh-tcard.skel, .dh-card.skel { pointer-events: none; }
+.dh-tcard.skel .dh-art { justify-content: flex-start; }
+/* El relevo: el contenido real entra con un fundido corto, sin un segundo salto. */
+.dh-deck:not(.loading) > li, .desks-home ul:not(.loading) > li { animation: skIn 260ms ease-out both; }
+@keyframes skIn { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .sk::after { animation: none; }
+  .dh-deck:not(.loading) > li, .desks-home ul:not(.loading) > li { animation: none; }
+}
 /* Por que no hay un segundo desk de esta plantilla: se dice, no se deja un boton muerto. */
 .dh-limit { margin: 0; font-size: 10.5px; line-height: 1.5; color: var(--mute); border-top: 1px solid rgba(160, 180, 220, 0.14); padding-top: 9px; }
 /* Nombrar el desk antes de montarlo: el nombre manda y el template va debajo. */
@@ -2565,3 +2617,292 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .wizard-card .desk-name input:focus { border-color: rgba(236, 27, 105, 0.6); }
 .wizard-card .desk-name small { font-size: 10.5px; color: var(--mute); }
 .wizard-card .k.sub { margin-top: 6px; }
+
+/* ==== Desk setup (2026-09-18): rediseno del paso "Your desk" (TeamCard) con el
+   nombre primero. El input es la decision; el deck de templates y el roster son
+   contexto y se leen mas chicos. La cabecera lleva la marca de PerkOS y, solo si
+   se entro a proposito, una salida tranquila distinta del "Enter Floor without a
+   team" del primer arranque. Dos columnas en ventana ancha, una bajo 700px; el
+   roster de 4 agentes va detras de un disclosure, no en una grilla fija. ==== */
+.wizard-card.desk-setup {
+  --ds-mute: #9aabc8;
+  /* Ancho contra el contenedor `stage`, no contra el padre: `.logo-3d` se encoge con su
+     contenido, asi que un 100% ahi es circular y la tarjeta cambiaba de ancho segun lo que
+     tuviera dentro. `cqi` ya descuenta el panel de debug (.gate.with-debug recorta su ancho). */
+  width: min(860px, calc(100cqi - 48px));
+  max-height: calc(100vh - 56px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  gap: 0;
+  text-align: left;
+  align-items: stretch;
+  padding: 4px 4px 8px;
+}
+
+/* Cabecera: la marca (pedido del producto) y la salida. */
+.wizard-card.desk-setup .ds-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.wizard-card.desk-setup .ds-brand { display: flex; align-items: center; gap: 12px; }
+.wizard-card.desk-setup .ds-brand img { height: 22px; width: auto; filter: none; }
+.wizard-card.desk-setup .ds-brand span.k { font-size: 11px; }
+.wizard-card.desk-setup .ds-back {
+  font: inherit; font-size: 11px; letter-spacing: 0.04em; text-transform: none;
+  padding: 7px 15px; border-radius: 999px;
+  border: 1px solid rgba(160, 180, 220, 0.3); background: transparent; color: #cdd7ee; cursor: pointer;
+}
+.wizard-card.desk-setup .ds-back:hover { border-color: rgba(236, 27, 105, 0.6); color: #ffd3e1; }
+
+/* Intro: el titular lleva el peso; el lead es una linea, no tres. */
+.wizard-card.desk-setup .ds-intro { margin-bottom: 22px; }
+.wizard-card.desk-setup .ds-intro b { display: block; font-size: 21px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 8px; }
+.wizard-card.desk-setup .ds-intro .lead { max-width: 58ch; font-size: 13px; }
+
+/* Cuerpo: nombrar (la decision) a la izquierda, template y roster (el contexto)
+   a la derecha, con el mismo divisor fino que DesksHome. Una columna bajo 700px. */
+/* Flex con wrap en vez de columnas fijas: cuando la tarjeta es estrecha (panel de debug
+   abierto, ventana chica) las dos secciones se apilan solas, sin depender de una consulta
+   que mide la ventana y no la tarjeta. */
+.wizard-card.desk-setup .ds-body { display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: flex-start; }
+.wizard-card.desk-setup .ds-naming { flex: 1 1 200px; min-width: 0; }
+.wizard-card.desk-setup .ds-template { flex: 1 1 240px; min-width: 0; }
+.wizard-card.desk-setup .ds-split { flex: 0 0 1px; align-self: stretch; background: linear-gradient(180deg, transparent, rgba(120, 160, 255, 0.22) 20%, rgba(120, 160, 255, 0.22) 80%, transparent); }
+
+/* El nombre: el unico sitio donde vive. Borde rosa suave para marcarlo como el
+   campo primario, el mismo rosa del boton al que lleva. */
+.wizard-card.desk-setup .desk-name input {
+  font-size: 18px;
+  padding: 12px 14px;
+  border-color: rgba(236, 27, 105, 0.3);
+  background: rgba(3, 4, 10, 0.7);
+  box-shadow: 0 0 0 1px rgba(236, 27, 105, 0.08);
+}
+.wizard-card.desk-setup .desk-name input:focus {
+  border-color: rgba(236, 27, 105, 0.65);
+  box-shadow: 0 0 0 1px rgba(236, 27, 105, 0.2), 0 0 20px rgba(236, 27, 105, 0.18);
+}
+.wizard-card.desk-setup .ds-naming .hint-line { margin-top: 2px; }
+/* Con que AI habla Sparky en este desk. Se dice antes de montar, no despues. */
+.wizard-card.desk-setup .ds-ai { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 12px 0 0; padding-top: 11px; border-top: 1px solid rgba(160, 180, 220, 0.14); }
+.wizard-card.desk-setup .ds-ai .k { flex: 1 0 100%; font-size: 9px; letter-spacing: 0.14em; color: var(--ds-mute); }
+.wizard-card.desk-setup .ds-ai b { font-size: 13px; font-weight: 500; color: #c5d2ee; }
+.wizard-card.desk-setup .ds-ai button { margin: 0; padding: 0; border: 0; background: none; font: inherit; font-size: 11px; letter-spacing: 0.04em; color: #ff8fa8; cursor: pointer; }
+.wizard-card.desk-setup .ds-ai button:hover { color: #ffd3e1; }
+/* Contraste: la letra chica bajo el input, el kicker de seccion y la meta del
+   deck salen de --mute a un secundario legible. */
+.wizard-card.desk-setup .desk-name small,
+.wizard-card.desk-setup .k.sub,
+.wizard-card.desk-setup .desk-meta { color: var(--ds-mute); }
+.wizard-card.desk-setup .k.sub { font-size: 10px; margin: 0 0 10px; }
+
+/* Deck de templates: cards compactas, ya no lo mas ruidoso de la pantalla. Con
+   uno fluye a la izquierda; con 2 a 4 se pasan de lado con snap, como el deck de
+   DesksHome. El nombre del template va apagado, no rosa: es contexto, la
+   identidad es el input de arriba. */
+.wizard-card.desk-setup .desk-cards {
+  display: flex; flex-wrap: nowrap; gap: 12px;
+  overflow-x: auto; scroll-snap-type: x mandatory;
+  padding: 2px 2px 6px;
+  scrollbar-width: thin;
+}
+.wizard-card.desk-setup .desk-card {
+  scroll-snap-align: start;
+  flex: 0 0 auto;
+  width: min(240px, 100%);
+  max-width: 100%;
+  display: flex; flex-direction: column; gap: 7px;
+  padding: 13px 14px 12px;
+  border-radius: 14px;
+}
+.wizard-card.desk-setup .desk-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.wizard-card.desk-setup .desk-card strong { font-size: 13px; font-weight: 600; color: #c5d2ee; }
+.wizard-card.desk-setup .desk-card .desk-desc {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+/* Roster: cerrado por defecto (ahorra 150-180px), con el aire de .trace y no de
+   una grilla siempre abierta. */
+.wizard-card.desk-setup .desk-roster { margin-top: 12px; font-size: 12px; }
+.wizard-card.desk-setup .desk-roster summary { cursor: pointer; list-style: none; color: var(--ds-mute); letter-spacing: 0.02em; }
+.wizard-card.desk-setup .desk-roster summary::-webkit-details-marker { display: none; }
+.wizard-card.desk-setup .desk-roster summary::after { content: " ›"; }
+.wizard-card.desk-setup .desk-roster[open] summary::after { content: " ⌄"; }
+.wizard-card.desk-setup .desk-roster summary:hover { color: #e6ecff; }
+.wizard-card.desk-setup .desk-roster summary small { color: var(--ds-mute); }
+.wizard-card.desk-setup .desk-roster .providers { margin-top: 10px; max-width: none; }
+.wizard-card.desk-setup .desk-roster .team-roles { grid-template-columns: 1fr; max-width: none; gap: 6px; }
+
+/* Bloqueado (un desk por wallet): se explica, no se apaga y ya. Mismo ambar que .lc-warn. */
+.wizard-card.desk-setup .hint-line.warn {
+  margin: 0 0 12px; padding: 7px 10px; border-radius: 10px; max-width: 56ch;
+  color: #ffd8a8; background: rgba(255, 179, 71, 0.1); border: 1px solid rgba(255, 179, 71, 0.4);
+}
+
+/* Pie: un CTA a todo el ancho, su linea de ayuda y, solo en el primer arranque, la salida fantasma. */
+.wizard-card.desk-setup .ds-foot { margin-top: 22px; display: flex; flex-direction: column; align-items: flex-start; }
+.wizard-card.desk-setup .ds-foot .row { width: 100%; }
+.wizard-card.desk-setup .ds-foot button.cta { width: 100%; }
+.wizard-card.desk-setup .ds-foot > .hint-line { margin-top: 10px; max-width: 56ch; }
+.wizard-card.desk-setup .ds-foot button.back { margin-top: 6px; }
+/* Sala de espera: la misma cabecera, sin formulario. Angosta, para que se lea como un estado. */
+.wizard-card.desk-setup.waiting { width: min(560px, calc(100cqi - 48px)); }
+.wizard-card.desk-setup.waiting .ds-intro { margin-bottom: 18px; }
+/* ==== Banda de espera (2026-09-18): vitrina, no carrusel ====
+   Marco fijo (etiqueta, contador, riel) y contenido que cambia. La jerarquia se
+   sostiene por tamano, peso, luminancia y profundidad: el estado de arriba es el
+   unico texto a 21px/600 en --ink y lo unico que no se mueve; la banda vive
+   hundida en una placa y no supera nunca a #c5d2ee. El unico rosa a plena fuerza
+   es el relleno de 3px del riel, abajo, fuera del recorrido de lectura.
+   Material de .dh-case (el catalogo de desks) con un lavado rosa desde la esquina. */
+.ws-band {
+  /* --ws-dwell es el intervalo del componente (5200ms). El relleno termina 320ms
+     antes para que la barra llegue al final y repose antes del cambio. */
+  --ws-dwell: 5200ms;
+  --ws-fill: 4880ms;
+  --ws-stack: 108px;
+  --ws-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  margin-top: 4px;
+  padding: 15px 18px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(150, 180, 255, 0.14);
+  background:
+    radial-gradient(120% 120% at 0% 0%, rgba(236, 27, 105, 0.1), transparent 58%),
+    linear-gradient(175deg, #12141f 0%, #0d0f19 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 -24px 40px rgba(0, 0, 0, 0.35),
+    0 12px 32px rgba(0, 0, 0, 0.4);
+}
+
+/* Marco: nombra la banda y dice en que lamina va. Nunca cambia de tamano. */
+.ws-band .ws-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; margin-bottom: 13px;
+}
+.ws-band .ws-head .k {
+  font-size: 9.5px; line-height: 14px; letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--ds-mute, #9aabc8);
+}
+.ws-band .ws-count {
+  font-size: 9.5px; line-height: 14px; letter-spacing: 0.14em; color: #6f7d99;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pila: alto fijo y parrafo recortado a 3 lineas. La banda no puede cambiar de
+   alto por mucho que varie el largo de la frase. 14 + 8 + 19,5 + 8 + 58,125 = 108. */
+.ws-band .ws-stack { position: relative; min-height: var(--ws-stack); }
+.ws-band .ws-slide {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; gap: 8px;
+  opacity: 0;
+  pointer-events: none;
+  /* Salida: se apaga en el sitio, corta y acelerando. Sin desplazamiento: dos
+     textos moviendose a la vez se leen como ruido en un proyector. */
+  transition: opacity 240ms cubic-bezier(0.4, 0, 1, 1);
+}
+.ws-band .ws-slide.on {
+  opacity: 1;
+  pointer-events: auto;
+  /* Entrada: mas larga, con cola, y arranca a los 140ms. Solape real ~100ms:
+     es un relevo, no un fundido cruzado. */
+  transition: opacity 560ms var(--ws-ease) 140ms;
+}
+/* Las tres lineas suben con 60ms de diferencia (solo transform, nunca opacidad:
+   la opacidad la lleva el padre y asi el cruce no se enturbia). El transform
+   vuelve al punto de partida justo cuando la lamina ya es invisible. */
+.ws-band .ws-slide > * { transform: translateY(10px); transition: transform 0ms linear 240ms; }
+.ws-band .ws-slide.on > * { transform: none; transition: transform 640ms var(--ws-ease) var(--ws-d, 140ms); }
+.ws-band .ws-slide.on .k { --ws-d: 140ms; }
+.ws-band .ws-slide.on b { --ws-d: 200ms; }
+.ws-band .ws-slide.on p { --ws-d: 260ms; }
+
+/* Tipografia: un escalon por debajo del estado en tamano, peso y luminancia.
+   10 / 15 / 12,5 frente a los 21px del titular. La barrita rosa etiqueta la
+   lamina como canal (mismo recurso que .turn.floor.pulse). */
+.ws-band .ws-slide .k {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 10px; line-height: 14px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: #ff8fa8;
+}
+.ws-band .ws-slide .k::before {
+  content: ""; flex: none; width: 14px; height: 1px;
+  background: rgba(236, 27, 105, 0.7);
+}
+.ws-band .ws-slide b {
+  font-size: 15px; font-weight: 500; line-height: 1.3;
+  letter-spacing: -0.005em; color: #c5d2ee;
+}
+.ws-band .ws-slide p {
+  margin: 0; font-size: 12.5px; line-height: 1.55; max-width: 62ch;
+  color: #b9c4dd; text-shadow: none;
+  /* Con 62ch las seis frases miden 2 lineas; el recorte a 3 es el seguro que
+     hace de --ws-stack una garantia y no una estimacion. */
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+/* Riel: un tramo por lamina, a todo el ancho de la placa. Los pasados quedan
+   llenos y tenues, el actual se llena durante la permanencia, los futuros
+   vacios. Lineal a proposito: una barra de tiempo que acelera miente. */
+.ws-band .ws-rail { display: flex; gap: 6px; margin-top: 14px; }
+.ws-band .ws-seg {
+  position: relative; flex: 1 1 0; height: 3px; border-radius: 999px;
+  background: rgba(160, 180, 220, 0.14);
+  transition: background 400ms ease; /* al dar la vuelta, el reset es un apagado suave */
+}
+.ws-band .ws-seg.done { background: rgba(160, 180, 220, 0.34); }
+.ws-band .ws-seg > i {
+  position: absolute; inset: 0; border-radius: 999px;
+  transform: scaleX(0); transform-origin: left center;
+  background: linear-gradient(90deg, rgba(236, 27, 105, 0.55), rgba(236, 27, 105, 0.95));
+  box-shadow: 0 0 8px rgba(236, 27, 105, 0.45);
+  animation-name: wsFill;
+  animation-duration: var(--ws-fill);
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+@keyframes wsFill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* Movimiento reducido: solo fundido cruzado, nada se desplaza. La rotacion se
+   queda (son seis mensajes distintos, quitarla seria quitar contenido). El riel
+   sigue diciendo la posicion pero deja de contar el tiempo: una barra que se
+   anima sin parar es justo lo que esta consulta existe para apagar. */
+@media (prefers-reduced-motion: reduce) {
+  .ws-band .ws-slide,
+  .ws-band .ws-slide.on { transition: opacity 200ms linear; }
+  .ws-band .ws-slide > *,
+  .ws-band .ws-slide.on > * { transform: none; transition: none; }
+  .ws-band .ws-seg > i { animation: none; transform: scaleX(1); box-shadow: none; }
+  .ws-band .ws-seg { transition: none; }
+}
+
+/* Ventana angosta: la card se va casi a sangre, asi que la placa deja de flotar
+   y pasa a leerse como seccion. La medida sigue en 62ch, asi la frase sigue en
+   2 lineas y --ws-stack no se mueve. */
+@container stage (max-width: 700px) {
+  .ws-band { padding: 14px 15px 13px; border-radius: 16px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 -20px 34px rgba(0, 0, 0, 0.32); }
+}
+@container stage (max-width: 560px) {
+  /* 14 + 8 + 18,2 + 8 + 55,8 = 104. */
+  .ws-band { --ws-stack: 104px; padding: 13px 14px 12px; }
+  .ws-band .ws-head { margin-bottom: 11px; }
+  .ws-band .ws-head .k { letter-spacing: 0.14em; }
+  .ws-band .ws-slide b { font-size: 14px; }
+  .ws-band .ws-slide p { font-size: 12px; }
+  .ws-band .ws-rail { gap: 5px; margin-top: 12px; }
+}
+
+@container stage (max-width: 700px) {
+  .wizard-card.desk-setup { width: calc(100cqi - 32px); }
+}
+@container stage (max-width: 700px) {
+  .wizard-card.desk-setup .ds-split { display: none; }
+}
+@container stage (max-width: 560px) {
+  .wizard-card.desk-setup .ds-head { flex-wrap: wrap; row-gap: 10px; }
+  .wizard-card.desk-setup .desk-card { width: 100%; }
+  .wizard-card.desk-setup .ds-intro b { font-size: 19px; }
+}
+/* Ventanas bajas (~900px y menos): margenes mas cortos; el overflow-y del card es el ultimo recurso. */
+@media (max-height: 760px) {
+  .wizard-card.desk-setup .ds-head { margin-bottom: 12px; }
+  .wizard-card.desk-setup .ds-intro { margin-bottom: 14px; }
+  .wizard-card.desk-setup .ds-foot { margin-top: 14px; }
+}

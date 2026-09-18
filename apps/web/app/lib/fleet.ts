@@ -170,6 +170,26 @@ export async function renameProject(wallet: string, projectId: string, name: str
   });
 }
 
+/** Borrar un desk entero. Es un proyecto de la wallet, pero la API borra el arbol del
+    proyecto SIN tumbar los agentes, asi que quedarian 4 tareas de ECS corriendo y cobrando:
+    primero cae cada agente (teardown completo) y despues el proyecto. Solo alcanza a la
+    wallet de la sesion, o sea que no hay forma de tocar el desk de otra cuenta desde aqui. */
+export async function deleteDesk(wallet: string, templateId = FLEET_TEMPLATE_ID): Promise<{ agents: string[]; projectId: string }> {
+  const idToken = await token(wallet);
+  const fleet = await fleetStatus(wallet, templateId);
+  const agents: string[] = [];
+  for (const a of fleet.agents) {
+    const ref = a.agentId || a.name;
+    // "planned" es un agente que la plantilla describe pero que nunca se creo.
+    if (!ref || a.state === "planned") continue;
+    await perkosRequest(`/agents/${encodeURIComponent(ref)}`, { idToken, method: "DELETE", timeoutMs: 60_000 });
+    agents.push(a.name);
+  }
+  const projectId = `fleet-${templateId}`;
+  await perkosRequest(`/projects/${encodeURIComponent(projectId)}`, { idToken, method: "DELETE", timeoutMs: 30_000 });
+  return { agents, projectId };
+}
+
 /** Todas las cards: los templates fleet publicados (hoy uno; el wizard muestra una card por cada uno). */
 export async function listDeskTemplates(wallet: string, lang = "en"): Promise<DeskTemplate[]> {
   const idToken = await token(wallet);

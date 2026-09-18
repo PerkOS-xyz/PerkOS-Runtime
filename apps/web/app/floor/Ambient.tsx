@@ -3,42 +3,15 @@
 import { useEffect, useRef, type ReactNode } from "react";
 
 export default function Ambient({ children, cine = false }: { children: ReactNode; cine?: boolean }) {
-  const stage = useRef<HTMLDivElement>(null);
-  const logo = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const el = stage.current;
-    const mark = logo.current;
-    if (!el || !mark || reduce) return;
-    let live = !cine;
-    const arm = cine ? window.setTimeout(() => { live = true; }, 2200) : 0;
-
-    const onMove = (e: MouseEvent) => {
-      if (!live) return;
-      const r = el.getBoundingClientRect();
-      const nx = (e.clientX - r.left) / r.width - 0.5;
-      const ny = (e.clientY - r.top) / r.height - 0.5;
-      mark.style.transform = `rotateX(${(-ny * 10).toFixed(2)}deg) rotateY(${(nx * 14).toFixed(2)}deg)`;
-    };
-    const onLeave = () => {
-      mark.style.transform = "rotateX(0deg) rotateY(0deg)";
-    };
-    el.addEventListener("mousemove", onMove);
-    el.addEventListener("mouseleave", onLeave);
-    return () => {
-      window.clearTimeout(arm);
-      el.removeEventListener("mousemove", onMove);
-      el.removeEventListener("mouseleave", onLeave);
-    };
-  }, [cine]);
-
+  // Sin parallax de raton. La capa inclinaba en 3D lo que envuelve (que en todos los pasos
+  // del wizard es la tarjeta, no un logo): el texto se movia al mover el raton y marea.
+  // El ambiente lo ponen el blob de marca y las brasas, que no dependen del puntero.
   return (
-    <div className={`ambient${cine ? " cine" : ""}`} ref={stage}>
+    <div className={`ambient${cine ? " cine" : ""}`}>
       <div className="letterbox" aria-hidden />
       <div className="brand-blob" aria-hidden />
       <Embers />
-      <div className="logo-3d" ref={logo}>
+      <div className="logo-3d">
         {children}
       </div>
     </div>
