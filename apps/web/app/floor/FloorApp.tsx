@@ -117,7 +117,7 @@ function Shell() {
   type Brief = { at: string; stock: { symbol: string; ticker: string; name: string; issuer: string }; priceUsd?: number; change24hPct?: number; range24h?: { low: number; high: number; open: number; last: number }; volume24hUsd?: number; sparkline?: number[]; pool: { fee: number; usdcDepth: number; priceUsd?: number } | null; chainlink?: { priceUsd: number; ageMin: number; stale: boolean }; premiumPct?: number; swaps24h?: { count: number; usdcVolume: number; buys: number; sells: number }; holding?: { balance: string; valueUsd: number }; lines: string[] };
   type News = { text: string; sources: Array<{ url: string; title?: string }>; at: string };
   type Analysis = { brief: Brief; news?: News; scout?: string; risk?: string; verdict?: "GO" | "BLOCK"; prev?: { priceUsd?: number; at: string }; loadingNews?: boolean };
-  type Msg = { id: number; role: "you" | "floor" | "team" | "draft" | "analysis"; who?: string; text: string; streaming?: boolean; draft?: Draft; launch?: LaunchDraft; auto?: AutoRec; fees?: FeesInfo; tx?: DraftTx; verdict?: "GO" | "BLOCK"; analysis?: Analysis; turnId?: number; kind?: "open" | "side" | "status" | "picks" | "pulse"; trace?: Array<{ at: number; text: string }>; traceMs?: number; picks?: { kind: "pair" | "identity"; options: Array<{ value: string; label: string; note?: string; rec?: number; avoid?: boolean; name?: string; symbol?: string; about?: string }> } };
+  type Msg = { id: number; role: "you" | "floor" | "team" | "draft" | "analysis"; who?: string; text: string; streaming?: boolean; draft?: Draft; launch?: LaunchDraft; auto?: AutoRec; fees?: FeesInfo; tx?: DraftTx; verdict?: "GO" | "BLOCK"; analysis?: Analysis; turnId?: number; kind?: "open" | "side" | "status" | "picks" | "pulse"; trace?: Array<{ at: number; text: string }>; traceMs?: number; picks?: { kind: "pair" | "identity" | "trader"; options: Array<{ value: string; label: string; note?: string; rec?: number; avoid?: boolean; name?: string; symbol?: string; about?: string }> } };
   // Agent graph del turno en curso (cards bajo las esferas) y turnos plegados.
   const [turn, setTurn] = useState<DeskTurn | null>(null);
   const turnRef = useRef<DeskTurn | null>(null);
@@ -397,8 +397,8 @@ function Shell() {
         f0 = (await fleetActionRef.current("status")) ?? f0;
       }
       if (!asleep(f0)) {
-        act("The team is up and joining the relay, about 40 seconds");
-        await new Promise((r) => setTimeout(r, 40_000));
+        act("The team is up.");
+        flog("info", "wake: ready, no extra relay wait");
       }
       return f0;
     })();
@@ -524,12 +524,14 @@ function Shell() {
         const factBits = [held ? `launch ${held.symbol} paired with ${held.pair.symbol}${held.checks.length ? `, ${held.checks.filter((c) => c.ok).length}/${held.checks.length} checks pass` : ""}` : "", quote ? `Uniswap $${quote.priceUsd.toFixed(2)}` : "", quote?.bankr ? `Bankr $${quote.bankr.priceUsd.toFixed(2)}` : "", facts?.chainlinkUsd ? `Chainlink $${facts.chainlinkUsd.toFixed(2)}` : "", facts?.swaps24h !== undefined ? `${facts.swaps24h} swaps in 24h` : ""].filter(Boolean);
         const openLine = `@Scout @Risk ${text}${factBits.length ? `. Facts attached: ${factBits.join(", ")}.` : "."}`;
         setMessages((m) => [...m.filter((x) => x.id !== floorId), { id: youId + 90, role: "floor", kind: "open", text: openLine, turnId: youId }, { id: floorId, role: "floor", text: "", streaming: true, turnId: youId }]);
+        flog("info", `desk: posting /api/fleet/desk · roles ${readyRoles.join(",")}`);
         const fr = await fetch("/api/fleet/desk", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text, roles: readyRoles, quote, brief: briefRef.current?.lines ?? null, news: briefRef.current?.news ?? null, mode: modeRef.current }),
           signal: ac.signal
         });
+        flog("info", `desk: http ${fr.status}${fr.body ? "" : " · no body"}`);
         if (fr.ok && fr.body) {
           const rd = fr.body.getReader();
           const dc = new TextDecoder();
@@ -1315,6 +1317,53 @@ function Shell() {
       setCaption("");
     }
   }, [touch]);
+  // Tras un consejo, el Trader ofrece el libro (spot+DCA, limit, skip). Nada se
+  // gasta: cada chip draftea y espera Hold. Tickers salen de lo que dijo la mesa.
+  const pickTrader = useCallback((msgId: number, value: string) => {
+    setMessages((m) => m.filter((x) => x.id !== msgId));
+    if (value === "skip") {
+      const id = Date.now();
+      setMessages((m) => [...m.slice(-60), { id, role: "floor", text: "Skipped. The desk drafted nothing. Nothing spends." }]);
+      setCaption("No order.");
+      return;
+    }
+    const [kind, asset, n] = value.split(":");
+    const usd = Math.max(1, Math.min(100, Number(n) || 20));
+    if (kind === "scale" && asset) {
+      void tradeDraft({ side: "buy", stock: asset, amountUsd: usd });
+      void automationDraft(`DCA $${usd} into ${asset} tokenized stock on Base every week`);
+      return;
+    }
+    if (kind === "limit" && asset) {
+      const px = Number(n);
+      if (!Number.isFinite(px) || px <= 0) return;
+      void automationDraft(`Set a limit order to buy $20 of ${asset} tokenized stock on Base if the price drops to $${px}`);
+    }
+  }, [tradeDraft, automationDraft]);
+  const offerTraderBook = useCallback((turnId: number) => {
+    const blob = lastRepliesRef.current.filter((x) => x.ok && x.reply).map((x) => x.reply).join(" ");
+    const mentioned = [...new Set(blob.match(/\b[A-Z]{2,6}c\b/g) ?? [])].filter((s) => !/TSLAc|WTCOIN/i.test(s));
+    if (!mentioned.length) return;
+    const spot = mentioned.find((s) => /NVDA/i.test(s)) ?? mentioned[mentioned.length > 1 ? 1 : 0];
+    const limitSym = mentioned.find((s) => s !== spot) ?? mentioned[0];
+    const priceOf = (sym: string) => {
+      const line = (briefRef.current?.lines ?? []).find((l) => l.startsWith(sym));
+      const m = line?.match(/\$([0-9][0-9,]*(?:\.\d+)?)/);
+      return m ? Number(m[1].replace(/,/g, "")) : 0;
+    };
+    const px = priceOf(limitSym);
+    const limitPx = px > 0 ? Math.round(px * 0.96) : 0;
+    const usd = 20;
+    const options: Array<{ value: string; label: string; note?: string; rec?: number }> = [
+      { value: `scale:${spot}:${usd}`, label: `Hold $${usd} ${spot} now + $${usd} every week`, note: "Spot + DCA · 1Claw lock · nothing spends until you hold", rec: 1 }
+    ];
+    if (limitPx) options.push({ value: `limit:${limitSym}:${limitPx}`, label: `Limit ${limitSym} at $${limitPx.toLocaleString("en-US")}`, note: "Buy the dip · Hold to create in Bankr" });
+    options.push({ value: "skip", label: "Skip", note: "No order" });
+    const id = Date.now() + 80;
+    setMessages((m) => [...m.slice(-60), { id, role: "floor", kind: "picks", text: "Trader can post working orders. You approve once.", turnId, picks: { kind: "trader", options } }]);
+    setCaption("Trader drafted the book. Hold a chip, or skip.");
+    flog("info", `trader book: scale ${spot} $${usd} · limit ${limitSym} ${limitPx || "—"}`);
+  }, []);
   const createAutomation = useCallback(async (msgId: number) => {
     const msg = messagesRef.current.find((x) => x.id === msgId);
     const a = msg?.auto;
@@ -1764,6 +1813,7 @@ function Shell() {
       setFocusAsset("");
       modeRef.current = "advise";
       await chat(text, { youId });
+      offerTraderBook(youId);
       const replies = lastRepliesRef.current;
       const who = replies.filter((x) => x.ok && x.reply).map((x) => `- **${cap(x.role)}**: ${x.reply.replace(/\s+/g, " ")}`).join("\n");
       const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
@@ -1773,7 +1823,7 @@ function Shell() {
       setCaption("Could not scan the market.");
       actEnd();
     }
-  }, [chat, touch, act, actEnd, kickWake]);
+  }, [chat, touch, act, actEnd, kickWake, offerTraderBook]);
 
   // Precalentar el mercado (scan, noticias, valuacion de los 10 activos) al
   // arrancar y cada 15 min: una pregunta abierta no debe esperar a Grok.
@@ -2555,7 +2605,7 @@ function Shell() {
             ) : m.kind === "picks" && m.picks ? (
               <div className="bubble picks">
                 <p>{m.text}</p>
-                <div className="pick-chips">{m.picks.options.map((o) => <button type="button" key={o.value} className={`${o.rec ? ` rec rec-${o.rec}` : ""}${o.avoid ? " avoid" : ""}`} onClick={() => (m.picks?.kind === "identity" ? void pickIdentity(m.id, o) : pickPair(m.id, o.value))}>{o.rec ? <em>Desk pick {o.rec}</em> : o.avoid ? <em className="no">Desk says avoid</em> : null}<b>{o.label}</b>{o.note ? <small>{o.note}</small> : null}</button>)}</div>
+                <div className="pick-chips">{m.picks.options.map((o) => <button type="button" key={o.value} className={`${o.rec ? ` rec rec-${o.rec}` : ""}${o.avoid ? " avoid" : ""}`} onClick={() => (m.picks?.kind === "identity" ? void pickIdentity(m.id, o) : m.picks?.kind === "trader" ? pickTrader(m.id, o.value) : pickPair(m.id, o.value))}>{o.rec ? <em>Desk pick {o.rec}</em> : o.avoid ? <em className="no">Desk says avoid</em> : null}<b>{o.label}</b>{o.note ? <small>{o.note}</small> : null}</button>)}</div>
               </div>
             ) : (
               <div className="bubble">
