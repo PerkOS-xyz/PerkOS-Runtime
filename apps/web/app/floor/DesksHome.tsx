@@ -61,12 +61,16 @@ export default function DesksHome({ selected, onOpen, onClose, onSetUp }: {
         </div>
         <button type="button" className="dh-back" onClick={onClose}>Back to the desk</button>
       </header>
-      <p className="dh-lead">A desk is a project on PerkOS: it brings its team, its chain and its screens. Open one to work in it.</p>
+      <p className="dh-lead">A desk is a project on PerkOS: it brings its team, its chain and its screens. Browse the catalogue on the left, open one you already run on the right.</p>
 
       <div className="dh-cols">
         <section aria-labelledby="dh-catalog">
-          <h2 id="dh-catalog">Desk templates</h2>
-          <p className="dh-sub">Published on PerkOS. Each one describes a kind of desk.</p>
+          <div className="dh-label">
+            <h2 id="dh-catalog">Desk templates</h2>
+            <small>{templates === null ? "reading PerkOS" : `${templates.length} ${templates.length === 1 ? "template" : "templates"}`}</small>
+          </div>
+          {/* La vitrina: el catalogo va dentro de una caja elevada, lo mio queda al ras. */}
+          <div className="dh-case">
           {templates === null ? <p className="dh-empty">Reading PerkOS…</p> : null}
           {templates && !templates.length ? <p className="dh-empty">{note || "No desk template published yet."}</p> : null}
           {/* Una carta por template, en fila con scroll: se pasa a la siguiente como en un album. */}
@@ -108,11 +112,16 @@ export default function DesksHome({ selected, onOpen, onClose, onSetUp }: {
               );
             })}
           </ul>
+          </div>
         </section>
 
+        <i className="dh-split" aria-hidden="true" />
+
         <section aria-labelledby="dh-mine">
-          <h2 id="dh-mine">Your desks</h2>
-          <p className="dh-sub">Running under your account, with their own team.</p>
+          <div className="dh-label">
+            <h2 id="dh-mine">Your desks</h2>
+            <small>{desks.length ? `${desks.length} running` : "none yet"}</small>
+          </div>
           {templates && !desks.length ? <p className="dh-empty">No desk yet. Set one up from a template and it appears here.</p> : null}
           <ul>
             {desks.map((d) => {

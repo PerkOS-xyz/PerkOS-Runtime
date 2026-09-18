@@ -2483,11 +2483,19 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .dh-back { font: inherit; font-size: 11px; letter-spacing: 0.04em; padding: 7px 15px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); background: transparent; color: #cdd7ee; cursor: pointer; }
 .dh-back:hover { border-color: rgba(236, 27, 105, 0.6); color: #ffd3e1; }
 .dh-lead { margin: 0; font-size: 12.5px; line-height: 1.5; color: #b9c4dd; max-width: 78ch; }
-.dh-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; min-height: 0; }
-.desks-home h2 { margin: 0; font-size: 13px; font-weight: 600; color: #e6ecff; }
-.dh-sub { margin: 3px 0 12px; font-size: 11px; color: var(--mute); }
+.dh-cols { display: grid; grid-template-columns: 1fr 1px 1fr; gap: 22px; align-items: stretch; min-height: 0; }
+.dh-cols > .dh-split { background: linear-gradient(180deg, transparent, rgba(120, 160, 255, 0.22) 20%, rgba(120, 160, 255, 0.22) 80%, transparent); }
+.dh-cols > section { min-width: 0; }
+/* Cabeceras como etiqueta de sala: encima de su zona, en la misma linea base a los dos lados. */
+.dh-label { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 0 2px 12px; }
+.desks-home h2 { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); }
+.dh-label small { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--mute); opacity: 0.7; }
+/* La vitrina del catalogo: se levanta del fondo sin llegar a ser un panel claro. */
+.dh-case { position: relative; border-radius: 26px; padding: 22px 18px 18px; border: 1px solid rgba(150, 180, 255, 0.16);
+  background: linear-gradient(175deg, #12141f 0%, #0d0f19 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 -24px 40px rgba(0, 0, 0, 0.35), 0 12px 32px rgba(0, 0, 0, 0.4); }
 .desks-home ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-.dh-card { border: 1px solid rgba(120, 160, 255, 0.14); border-radius: 14px; background: rgba(255, 255, 255, 0.018); padding: 13px 14px; display: flex; flex-direction: column; gap: 7px; }
+.dh-card { border: 1px solid rgba(120, 160, 255, 0.14); border-radius: 16px; background: rgba(255, 255, 255, 0.02); box-shadow: none; padding: 14px 15px; display: flex; flex-direction: column; gap: 7px; }
 .dh-card.on { border-color: rgba(236, 27, 105, 0.45); background: rgba(236, 27, 105, 0.06); }
 .dh-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .dh-head b { font-size: 14px; font-weight: 600; color: #e6ecff; }
@@ -2498,16 +2506,16 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .dh-card button.go { border-color: rgba(236, 27, 105, 0.6); background: rgba(236, 27, 105, 0.14); color: #ffd3e1; }
 .dh-card button:disabled { opacity: 0.4; cursor: default; }
 .dh-empty { margin: 0; font-size: 12px; color: var(--mute); }
-@media (max-width: 900px) { .dh-cols { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .dh-cols { grid-template-columns: 1fr; } .dh-cols > .dh-split { display: none; } }
 /* La carta del template: se colecciona, se hojea. Una por template, en fila con scroll y snap;
    hoy solo PerkOS Floor Desk, el sábado se suma EQLTY. El arte es el equipo que trae el desk. */
 .dh-deck { flex-direction: row; gap: 18px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 6px 4px 14px; scrollbar-width: thin; justify-content: safe center; }
-.dh-tcard { scroll-snap-align: center; flex: 0 0 auto; width: min(440px, 92%); display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: 24px; color: #e6ecff;
+.dh-tcard { scroll-snap-align: center; flex: 0 0 auto; width: min(440px, 92%); display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: 20px; color: #e6ecff;
   border: 1px solid rgba(120, 160, 255, 0.28);
   background:
     radial-gradient(120% 70% at 50% -10%, rgba(236, 27, 105, 0.16), transparent 60%),
     linear-gradient(170deg, rgba(28, 32, 54, 0.95), rgba(6, 8, 18, 0.98));
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.07); }
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06); }
 .dh-tcard.robinhood { border-color: rgba(0, 200, 5, 0.35); background: radial-gradient(120% 70% at 50% -10%, rgba(0, 200, 5, 0.14), transparent 60%), linear-gradient(170deg, rgba(20, 38, 24, 0.95), rgba(5, 10, 8, 0.98)); }
 .dh-tcard > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .dh-tcard > header span { font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--mute); }
