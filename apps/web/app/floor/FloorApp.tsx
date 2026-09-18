@@ -117,7 +117,7 @@ function Shell() {
   type Brief = { at: string; stock: { symbol: string; ticker: string; name: string; issuer: string }; priceUsd?: number; change24hPct?: number; range24h?: { low: number; high: number; open: number; last: number }; volume24hUsd?: number; sparkline?: number[]; pool: { fee: number; usdcDepth: number; priceUsd?: number } | null; chainlink?: { priceUsd: number; ageMin: number; stale: boolean }; premiumPct?: number; swaps24h?: { count: number; usdcVolume: number; buys: number; sells: number }; holding?: { balance: string; valueUsd: number }; lines: string[] };
   type News = { text: string; sources: Array<{ url: string; title?: string }>; at: string };
   type Analysis = { brief: Brief; news?: News; scout?: string; risk?: string; verdict?: "GO" | "BLOCK"; prev?: { priceUsd?: number; at: string }; loadingNews?: boolean };
-  type Msg = { id: number; role: "you" | "floor" | "team" | "draft" | "analysis"; who?: string; text: string; streaming?: boolean; draft?: Draft; launch?: LaunchDraft; auto?: AutoRec; fees?: FeesInfo; tx?: DraftTx; verdict?: "GO" | "BLOCK"; analysis?: Analysis; turnId?: number; kind?: "open" | "side" | "status" | "picks" | "pulse"; trace?: Array<{ at: number; text: string }>; traceMs?: number; picks?: { kind: "pair" | "identity"; options: Array<{ value: string; label: string; note?: string; rec?: number; avoid?: boolean; name?: string; symbol?: string; about?: string }> } };
+  type Msg = { id: number; role: "you" | "floor" | "team" | "draft" | "analysis"; who?: string; text: string; streaming?: boolean; draft?: Draft; launch?: LaunchDraft; auto?: AutoRec; fees?: FeesInfo; tx?: DraftTx; verdict?: "GO" | "BLOCK"; analysis?: Analysis; turnId?: number; kind?: "open" | "side" | "status" | "picks" | "pulse"; trace?: Array<{ at: number; text: string }>; traceMs?: number; picks?: { kind: "pair" | "identity" | "trader"; options: Array<{ value: string; label: string; note?: string; rec?: number; avoid?: boolean; name?: string; symbol?: string; about?: string }> } };
   // Agent graph del turno en curso (cards bajo las esferas) y turnos plegados.
   const [turn, setTurn] = useState<DeskTurn | null>(null);
   const turnRef = useRef<DeskTurn | null>(null);
@@ -152,6 +152,7 @@ function Shell() {
   fleetRef.current = fleet;
   const fleetAtRef = useRef(0);
   const fleetActionRef = useRef<(action: "status" | "wake" | "hibernate") => Promise<Fleet | null | undefined>>(async () => null);
+  const wakeJobRef = useRef<Promise<Fleet | null | undefined> | null>(null);
   const perkosRef = useRef(perkos);
   perkosRef.current = perkos;
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -165,7 +166,7 @@ function Shell() {
   activityRef.current = activity;
   const act = useCallback((text: string) => setActivity((a) => {
     const now = Date.now();
-    if (!a || !a.live) return { start: now, steps: [{ at: now, text }], live: true };
+    if (!a || !a.live || now - a.start > 90_000) return { start: now, steps: [{ at: now, text }], live: true };
     if (a.steps[a.steps.length - 1]?.text === text) return a;
     return { ...a, steps: [...a.steps, { at: now, text }] };
   }), []);
@@ -268,11 +269,11 @@ function Shell() {
       // o una firma en curso) el chat no se esconde: ahi esta el boton.
       const waiting = messagesRef.current.some((x) => x.role === "draft" && x.tx && ["idle", "signing", "pending"].includes(x.tx.stage) && (x.draft || x.launch || x.auto || (x.fees && x.fees.tokens.some((t) => Number(t.claimable.token0) > 0 || Number(t.claimable.token1) > 0))));
       if (waiting) { touchRef.current(); return; }
-      // Una eleccion pendiente (chips de par o de nombre) o la pregunta "de que va el token" tambien
-      // esperan a la persona: el chat no se pliega hasta 15 min despues de haberlas mostrado.
       const FIFTEEN = 15 * 60_000;
       const choosing = messagesRef.current.some((x) => x.kind === "picks" && Date.now() - x.id < FIFTEEN) || Boolean(identityAskRef.current && Date.now() - identityAskRef.current.at < FIFTEEN);
       if (choosing) { touchRef.current(); return; }
+      // Un hilo con mensajes no se pliega: el demo y el video necesitan ver la respuesta.
+      if (messagesRef.current.some((x) => x.text || x.launch || x.draft || x.analysis)) { touchRef.current(); return; }
       setSplit(false);
     }, 120_000);
   }, []);
@@ -379,6 +380,31 @@ function Shell() {
     if (!c) return [];
     return [`Launch card on the table (unsigned draft, nothing deployed): ${c.name || "unnamed"} (${c.symbol || "no symbol"}) paired with ${c.pair.symbol || "no pair yet"}; about: "${(c.options.description ?? c.description ?? "").slice(0, 240) || "empty"}"; logo ${c.options.image ? "set" : "missing"}; fees pay to ${c.recipientRaw?.trim() || "the connected wallet"}; Bankr simulation ${c.stale ? "pending" : c.sim ? "passed" : c.simError ? "failed" : "not run"}. The person can change name, symbol or description by asking in the chat, or edit the card.`];
   };
+  // Despertar al equipo en paralelo a Sparky: el humano conversa, no mira un reloj de 2 min.
+  const kickWake = useCallback(() => {
+    if (wakeJobRef.current) return wakeJobRef.current;
+    const asleep = (x: Fleet | null | undefined) => Boolean(x && x.agents.some((a) => a.state === "hibernated" || a.state === "waking"));
+    const job = (async () => {
+      let f0 = fleetRef.current;
+      if (f0 && Date.now() - fleetAtRef.current > 60_000) f0 = (await fleetActionRef.current("status")) ?? f0;
+      if (!asleep(f0)) return f0;
+      setTeam("waking");
+      act("Waking Scout, Risk, Trader and Auditor in the background. Sparky stays with you.");
+      f0 = (await fleetActionRef.current("wake")) ?? f0;
+      const t0 = Date.now();
+      while (asleep(f0) && Date.now() - t0 < 240_000) {
+        await new Promise((r) => setTimeout(r, 5000));
+        f0 = (await fleetActionRef.current("status")) ?? f0;
+      }
+      if (!asleep(f0)) {
+        act("The team is up.");
+        flog("info", "wake: ready, no extra relay wait");
+      }
+      return f0;
+    })();
+    wakeJobRef.current = job.finally(() => { if (wakeJobRef.current === job) wakeJobRef.current = null; });
+    return wakeJobRef.current;
+  }, [act]);
   const chat = useCallback(async (text: string, opts: { youId?: number } = {}) => {
     abortChat();
     beginTurn();
@@ -392,9 +418,10 @@ function Shell() {
     // Si el pedido ya esta en el hilo (advise lo muestra antes del scan), se reutiliza.
     const youId = opts.youId ?? Date.now();
     const floorId = Date.now() + 1;
+    let sparkId = floorId;
     setMessages((m) => [...m.filter((x) => !(x.id === youId + 1 && x.role === "floor" && x.kind === "status")).slice(-60), ...(opts.youId ? [] : [{ id: youId, role: "you" as const, text, turnId: youId }]), { id: floorId, role: "floor" as const, text: "", streaming: true, turnId: youId }]);
     const setFloor = (t: string, streaming: boolean) =>
-      setMessages((m) => m.map((x) => (x.id === floorId ? { ...x, text: t, streaming } : x)));
+      setMessages((m) => m.map((x) => (x.id === sparkId ? { ...x, text: t, streaming } : x)));
     flog("info", `chat -> ${text.slice(0, 80)}`);
     act(modeRef.current === "chat" ? "Sparky is reading your message" : "Checking who is awake on the desk");
     stickRef.current = true;
@@ -418,21 +445,60 @@ function Shell() {
         flog("info", "chat: Sparky answers on its own; the team stays asleep (no task assigned)");
         act("Sparky answers this one alone, the team stays asleep");
       } else if (asleep(f0)) {
-        setCaption("Waking the team on PerkOS…");
-        act("Waking Scout, Risk, Trader and Auditor on PerkOS. They were asleep: one to two minutes");
-        setTeam("waking");
-        f0 = (await fleetActionRef.current("wake")) ?? f0;
-        const t0 = Date.now();
-        while (asleep(f0) && Date.now() - t0 < 240_000 && !ac.signal.aborted) {
-          await new Promise((r) => setTimeout(r, 5000));
-          f0 = (await fleetActionRef.current("status")) ?? f0;
+        // Sparky habla ya; el wake corre atras. El humano no mira un reloj.
+        void kickWake();
+        setCaption("The team is waking. Talk to Sparky.");
+        act("Sparky stays with you while the team wakes");
+        try {
+          const wr = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text, warming: true, fleet: [], desk: deskRef.current ? { name: deskRef.current.name, roles: deskRef.current.agents.map((a) => a.name) } : undefined, brief: [...(briefRef.current?.lines ?? []), ...cardFacts()].length ? [...(briefRef.current?.lines ?? []), ...cardFacts()] : null, news: briefRef.current?.news ?? null, focus: focusRef.current || null, mode: modeRef.current, thread: threadRef.current || "new", seed: threadSeed(youId) }),
+            signal: ac.signal
+          });
+          if (wr.ok && wr.body) {
+            const rd = wr.body.getReader();
+            const dc = new TextDecoder();
+            let buf = "";
+            for (;;) {
+              const { value, done } = await rd.read();
+              if (done) break;
+              buf += dc.decode(value, { stream: true });
+              let i: number;
+              while ((i = buf.indexOf("\n\n")) >= 0) {
+                const line = buf.slice(0, i).replace(/^data:\s*/, "");
+                buf = buf.slice(i + 2);
+                if (!line) continue;
+                let ev: { delta?: string; done?: boolean; error?: string };
+                try { ev = JSON.parse(line); } catch { continue; }
+                if (ev.error) break;
+                if (typeof ev.delta === "string") {
+                  if (!full) actEnd();
+                  full += ev.delta;
+                  pending += ev.delta;
+                  setThinking(false);
+                  setFloor(full, true);
+                  const m = pending.match(/^([\s\S]*?[.!?])(\s+|$)/);
+                  if (m && m[1].trim().length >= 12) { speak(m[1].trim()); pending = pending.slice(m[0].length); }
+                }
+              }
+            }
+            if (pending.trim()) speak(pending);
+            setFloor(full, false);
+            full = "";
+            pending = "";
+          }
+        } catch (e) {
+          if ((e as Error).name !== "AbortError") flog("warn", `warm chat: ${(e as Error).message}`);
         }
-        if (!asleep(f0) && !ac.signal.aborted) {
-          // ECS ya corre; Hermes tarda ~40 s mas en unirse al relay.
-          setCaption("Team is booting…");
-          act("The team is up and joining the relay, about 40 seconds");
-          await new Promise((r) => setTimeout(r, 40_000));
-        }
+        const warmId = sparkId;
+        sparkId = floorId + 1;
+        setMessages((m) => [...m.map((x) => (x.id === warmId ? { ...x, streaming: false } : x)), { id: sparkId, role: "floor", text: "", streaming: true, turnId: youId }]);
+        turnLiveRef.current = true;
+        while (wakeJobRef.current && !ac.signal.aborted) await new Promise((r) => setTimeout(r, 400));
+        turnLiveRef.current = false;
+        f0 = fleetRef.current;
+        if (ac.signal.aborted) throw Object.assign(new Error("aborted"), { name: "AbortError" });
       }
       const f = f0;
       // Charla sin hechos (small talk, preguntas sobre el desk): responde solo Floor.
@@ -458,12 +524,14 @@ function Shell() {
         const factBits = [held ? `launch ${held.symbol} paired with ${held.pair.symbol}${held.checks.length ? `, ${held.checks.filter((c) => c.ok).length}/${held.checks.length} checks pass` : ""}` : "", quote ? `Uniswap $${quote.priceUsd.toFixed(2)}` : "", quote?.bankr ? `Bankr $${quote.bankr.priceUsd.toFixed(2)}` : "", facts?.chainlinkUsd ? `Chainlink $${facts.chainlinkUsd.toFixed(2)}` : "", facts?.swaps24h !== undefined ? `${facts.swaps24h} swaps in 24h` : ""].filter(Boolean);
         const openLine = `@Scout @Risk ${text}${factBits.length ? `. Facts attached: ${factBits.join(", ")}.` : "."}`;
         setMessages((m) => [...m.filter((x) => x.id !== floorId), { id: youId + 90, role: "floor", kind: "open", text: openLine, turnId: youId }, { id: floorId, role: "floor", text: "", streaming: true, turnId: youId }]);
+        flog("info", `desk: posting /api/fleet/desk · roles ${readyRoles.join(",")}`);
         const fr = await fetch("/api/fleet/desk", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text, roles: readyRoles, quote, brief: briefRef.current?.lines ?? null, news: briefRef.current?.news ?? null, mode: modeRef.current }),
           signal: ac.signal
         });
+        flog("info", `desk: http ${fr.status}${fr.body ? "" : " · no body"}`);
         if (fr.ok && fr.body) {
           const rd = fr.body.getReader();
           const dc = new TextDecoder();
@@ -641,7 +709,7 @@ function Shell() {
       kbWriteRef.current({ journal: true, body: `**You**: ${text}\n${teamLines ? `${teamLines}\n` : ""}- **Sparky**: ${full.replace(/\s+/g, " ").slice(0, 900)}` });
     } catch (e) {
       if ((e as Error).name !== "AbortError") flog("error", `chat: ${(e as Error).message}`);
-      setMessages((m) => m.map((x) => (x.id === floorId ? { ...x, streaming: false } : x)));
+      setMessages((m) => m.map((x) => (x.id === sparkId || x.id === floorId ? { ...x, streaming: false } : x)));
       releaseDraft(youId);
     } finally {
       actEnd();
@@ -651,7 +719,7 @@ function Shell() {
       if (chatAbort.current === ac) chatAbort.current = null;
       endTurn();
     }
-  }, [abortChat, beginTurn, endTurn, speak, touch, act, actEnd]);
+  }, [abortChat, beginTurn, endTurn, speak, touch, act, actEnd, kickWake]);
 
   const teamRef = useRef<Team>("hibernated");
   teamRef.current = team;
@@ -1000,6 +1068,7 @@ function Shell() {
   }, []);
   const pairReadRef = useRef<{ at: number; options: NonNullable<Msg["picks"]>["options"]; summary: string } | null>(null);
   const launchGuide = useCallback(async () => {
+    void kickWake();
     const youId = Date.now();
     const prev = pairReadRef.current;
     if (prev && Date.now() - prev.at < 30 * 60_000) {
@@ -1092,7 +1161,7 @@ function Shell() {
       status("Could not read the pairs. Say the pair yourself: launch Night Owl (OWL) paired with NVDAc.");
       setCaption("");
     }
-  }, [chat, touch]);
+  }, [chat, touch, kickWake]);
   // Paso 2: con el par elegido, Sparky pregunta de que va el token; la siguiente frase de la
   // persona se toma como esa descripcion y Sparky propone tres nombre + simbolo + About.
   // La tarjeta no existe todavia: primero el par, luego nombre y descripcion con Sparky, y
@@ -1248,6 +1317,53 @@ function Shell() {
       setCaption("");
     }
   }, [touch]);
+  // Tras un consejo, el Trader ofrece el libro (spot+DCA, limit, skip). Nada se
+  // gasta: cada chip draftea y espera Hold. Tickers salen de lo que dijo la mesa.
+  const pickTrader = useCallback((msgId: number, value: string) => {
+    setMessages((m) => m.filter((x) => x.id !== msgId));
+    if (value === "skip") {
+      const id = Date.now();
+      setMessages((m) => [...m.slice(-60), { id, role: "floor", text: "Skipped. The desk drafted nothing. Nothing spends." }]);
+      setCaption("No order.");
+      return;
+    }
+    const [kind, asset, n] = value.split(":");
+    const usd = Math.max(1, Math.min(100, Number(n) || 20));
+    if (kind === "scale" && asset) {
+      void tradeDraft({ side: "buy", stock: asset, amountUsd: usd });
+      void automationDraft(`DCA $${usd} into ${asset} tokenized stock on Base every week`);
+      return;
+    }
+    if (kind === "limit" && asset) {
+      const px = Number(n);
+      if (!Number.isFinite(px) || px <= 0) return;
+      void automationDraft(`Set a limit order to buy $20 of ${asset} tokenized stock on Base if the price drops to $${px}`);
+    }
+  }, [tradeDraft, automationDraft]);
+  const offerTraderBook = useCallback((turnId: number) => {
+    const blob = lastRepliesRef.current.filter((x) => x.ok && x.reply).map((x) => x.reply).join(" ");
+    const mentioned = [...new Set(blob.match(/\b[A-Z]{2,6}c\b/g) ?? [])].filter((s) => !/TSLAc|WTCOIN/i.test(s));
+    if (!mentioned.length) return;
+    const spot = mentioned.find((s) => /NVDA/i.test(s)) ?? mentioned[mentioned.length > 1 ? 1 : 0];
+    const limitSym = mentioned.find((s) => s !== spot) ?? mentioned[0];
+    const priceOf = (sym: string) => {
+      const line = (briefRef.current?.lines ?? []).find((l) => l.startsWith(sym));
+      const m = line?.match(/\$([0-9][0-9,]*(?:\.\d+)?)/);
+      return m ? Number(m[1].replace(/,/g, "")) : 0;
+    };
+    const px = priceOf(limitSym);
+    const limitPx = px > 0 ? Math.round(px * 0.96) : 0;
+    const usd = 20;
+    const options: Array<{ value: string; label: string; note?: string; rec?: number }> = [
+      { value: `scale:${spot}:${usd}`, label: `Hold $${usd} ${spot} now + $${usd} every week`, note: "Spot + DCA · 1Claw lock · nothing spends until you hold", rec: 1 }
+    ];
+    if (limitPx) options.push({ value: `limit:${limitSym}:${limitPx}`, label: `Limit ${limitSym} at $${limitPx.toLocaleString("en-US")}`, note: "Buy the dip · Hold to create in Bankr" });
+    options.push({ value: "skip", label: "Skip", note: "No order" });
+    const id = Date.now() + 80;
+    setMessages((m) => [...m.slice(-60), { id, role: "floor", kind: "picks", text: "Trader can post working orders. You approve once.", turnId, picks: { kind: "trader", options } }]);
+    setCaption("Trader drafted the book. Hold a chip, or skip.");
+    flog("info", `trader book: scale ${spot} $${usd} · limit ${limitSym} ${limitPx || "—"}`);
+  }, []);
   const createAutomation = useCallback(async (msgId: number) => {
     const msg = messagesRef.current.find((x) => x.id === msgId);
     const a = msg?.auto;
@@ -1536,6 +1652,7 @@ function Shell() {
   // -> noticias con fuentes (Grok web_search) -> turno de mesa con ambos.
   // Memo de 15 min: repetir solo refresca el precio.
   const analyzeAsset = useCallback(async (asset: string, spoken: string, force = false) => {
+    void kickWake();
     setFocusAsset(asset);
     setDeskScreen("market");
     touch();
@@ -1605,7 +1722,7 @@ function Shell() {
     modeRef.current = "analyze";
     await chat(spoken);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chat, speak, touch]);
+  }, [chat, speak, touch, kickWake]);
 
   // Conocimiento local: cada turno deja rastro en ~/.perkos-xyz/knowledge
   // (diario, analisis, ordenes). Best effort; nunca bloquea la escena.
@@ -1658,6 +1775,7 @@ function Shell() {
   // + noticias de los que mas se movieron, turno de mesa en modo "advise" y un
   // documento fechado con el ranking para revisarlo al mes.
   const adviseMarket = useCallback(async (text: string) => {
+    void kickWake();
     setCaption("Scanning the market…");
     act("Scanning every tokenized stock the desk can trade: price, 30 day range, pool depth");
     busyRef.current = true;
@@ -1695,6 +1813,7 @@ function Shell() {
       setFocusAsset("");
       modeRef.current = "advise";
       await chat(text, { youId });
+      offerTraderBook(youId);
       const replies = lastRepliesRef.current;
       const who = replies.filter((x) => x.ok && x.reply).map((x) => `- **${cap(x.role)}**: ${x.reply.replace(/\s+/g, " ")}`).join("\n");
       const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
@@ -1704,7 +1823,7 @@ function Shell() {
       setCaption("Could not scan the market.");
       actEnd();
     }
-  }, [chat, touch, act, actEnd]);
+  }, [chat, touch, act, actEnd, kickWake, offerTraderBook]);
 
   // Precalentar el mercado (scan, noticias, valuacion de los 10 activos) al
   // arrancar y cada 15 min: una pregunta abierta no debe esperar a Grok.
@@ -2486,7 +2605,7 @@ function Shell() {
             ) : m.kind === "picks" && m.picks ? (
               <div className="bubble picks">
                 <p>{m.text}</p>
-                <div className="pick-chips">{m.picks.options.map((o) => <button type="button" key={o.value} className={`${o.rec ? ` rec rec-${o.rec}` : ""}${o.avoid ? " avoid" : ""}`} onClick={() => (m.picks?.kind === "identity" ? void pickIdentity(m.id, o) : pickPair(m.id, o.value))}>{o.rec ? <em>Desk pick {o.rec}</em> : o.avoid ? <em className="no">Desk says avoid</em> : null}<b>{o.label}</b>{o.note ? <small>{o.note}</small> : null}</button>)}</div>
+                <div className="pick-chips">{m.picks.options.map((o) => <button type="button" key={o.value} className={`${o.rec ? ` rec rec-${o.rec}` : ""}${o.avoid ? " avoid" : ""}`} onClick={() => (m.picks?.kind === "identity" ? void pickIdentity(m.id, o) : m.picks?.kind === "trader" ? pickTrader(m.id, o.value) : pickPair(m.id, o.value))}>{o.rec ? <em>Desk pick {o.rec}</em> : o.avoid ? <em className="no">Desk says avoid</em> : null}<b>{o.label}</b>{o.note ? <small>{o.note}</small> : null}</button>)}</div>
               </div>
             ) : (
               <div className="bubble">
@@ -2570,7 +2689,7 @@ function Shell() {
           ref={askRef}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder={"Ask Sparky. Try \"buy $3 of NVDAc\""}
+          placeholder={"Ask Sparky. Nothing spends until you hold."}
           spellCheck={false}
           autoComplete="off"
           aria-label="Ask Sparky"

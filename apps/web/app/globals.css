@@ -1378,10 +1378,9 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 /* Reposo: bajo la fila centrada (30/43/57/70 %); split: bajo la fila derecha (54/66/78/90 %). */
 /* Cards y chips bajo la fila en reposo (fila al 21 %, 34 %..72 %): debajo de
    las etiquetas y del badge 1Claw del Trader. */
-.ag-layer { position: absolute; left: 27%; width: 52%; top: calc(21% + 150px); z-index: 4; }
-.ag-layer.chips { top: calc(21% + 150px); }
-.stage.split .ag-layer { left: 53%; width: 44%; top: calc(10% + 118px); }
-.stage.split .ag-layer.chips { top: calc(10% + 118px); }
+.ag-layer { position: absolute; left: 27%; width: 52%; top: calc(21% + 165px); z-index: 4; }
+.ag-layer.chips { top: calc(21% + 165px); }
+.stage.split .ag-layer { left: 53%; width: 44%; }
 .stage.turn-live .core-wrap { top: 82%; transform: translate(-50%, -50%) scale(0.5); transition: left var(--split-ms) var(--split-ease), top var(--split-ms) var(--split-ease), transform var(--split-ms) var(--split-ease); }
 .stage.turn-live .whisper { display: none; }
 .ag-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; align-items: start; }
@@ -1578,11 +1577,12 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .stage.split .trader { left: 80.5%; top: 40%; }
 .stage.split .auditor { left: 91.5%; top: 40%; }
 .stage.split .guest { left: 97%; top: 54%; }
-.stage.split .ag-layer { top: calc(40% + 118px); transition: top var(--split-ms) var(--split-ease); }
-.stage.split .ag-layer.chips { top: calc(40% + 118px); }
+.stage.split .ag-layer { top: calc(40% + 175px); transition: top var(--split-ms) var(--split-ease); }
+.stage.split .ag-layer.chips { top: calc(40% + 175px); }
 .stage.split.turn-live .scout, .stage.split.turn-live .risk, .stage.split.turn-live .trader, .stage.split.turn-live .auditor { top: 16%; }
 .stage.split.turn-live .guest { top: 30%; }
-.stage.split.turn-live .ag-layer { top: calc(16% + 118px); }
+.stage.split.turn-live .ag-layer { top: calc(16% + 175px); }
+.stage.split.turn-live .ag-layer.chips { top: calc(16% + 175px); }
 /* Con un panel abierto la esfera se queda arriba del chat, como antes. */
 .stage.split.desk-open .core-wrap { left: calc(40px + clamp(280px, 46%, 620px) / 2); top: 81px; transform: translate(-50%, -50%) scale(0.27); }
 /* El caption de estado va a la izquierda: el dock de pantallas ocupa la derecha. */
@@ -1728,8 +1728,8 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .stage:not(.team-seen):not(.split):not(.desk-open):not(.turn-live) .core-wrap { top: 44%; }
 /* Con el hilo vacio las burbujas de arranque ya invitan a hablar: la linea de promesa sobra ahi. */
 .stage.fresh:not(.split):not(.desk-open) .whisper { display: none; }
-/* Fila de agentes 15 px mas arriba en reposo (revision 2026-09-17). */
-.stage:not(.split):not(.desk-open):not(.turn-live) .orbit .orb { margin-top: -15px; }
+/* Fila de agentes 30 px mas arriba en reposo (screenshot 2026-09-17). */
+.stage:not(.split):not(.desk-open):not(.turn-live) .orbit .orb { margin-top: -30px; }
 /* La promesa sube 15 px: Sparky bajo, la linea no. */
 .stage:not(.split):not(.desk-open):not(.turn-live) .mic-dock { margin-top: -15px; }
 /* En split, Sparky mini nunca pisa el lockup: como minimo 320 px desde la izquierda. */
@@ -2194,7 +2194,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .stage:not(.team-seen) .orb:not(.on) { opacity: 0 !important; pointer-events: none; }
 
 /* Burbujas de arranque sobre el compositor (hilo vacio, escena en reposo). */
-.starters { position: absolute; left: 0; right: 0; bottom: calc(100% + 10px); display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding: 0 6px; pointer-events: auto; animation: turnIn 260ms var(--split-ease) both; }
+.starters { position: relative; left: auto; right: auto; bottom: auto; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding: 0 6px 10px; pointer-events: auto; animation: turnIn 260ms var(--split-ease) both; }
 .starters button { font: inherit; font-size: 11.5px; letter-spacing: 0.01em; text-transform: none; padding: 7px 13px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.28); background: rgba(6, 10, 22, 0.5); color: #cdd7ee; cursor: pointer; backdrop-filter: blur(12px); transition: border-color 160ms ease, color 160ms ease, background 160ms ease; }
 .starters button:hover { border-color: rgba(236, 27, 105, 0.6); color: #fff; background: rgba(236, 27, 105, 0.12); }
 @container stage (max-width: 700px) { .starters { display: none; } }
@@ -2251,7 +2251,7 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 
 /* Chips de eleccion bajo un mensaje de Sparky (par del launch). */
 .bubble.picks p { margin: 0 0 8px; }
-.pick-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pick-chips { display: flex; flex-wrap: wrap; gap: 12px; }
 .pick-chips button { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 6px 11px; border-radius: 10px; border: 1px solid rgba(160, 180, 220, 0.3); background: rgba(6, 10, 22, 0.5); color: #cdd7ee; cursor: pointer; font: inherit; text-transform: none; letter-spacing: 0; text-align: left; }
 .pick-chips button b { font-size: 12px; font-weight: 600; color: #e6ecff; }
 .pick-chips button small { font-size: 9.5px; color: var(--mute); }
