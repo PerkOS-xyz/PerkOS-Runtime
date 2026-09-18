@@ -2693,20 +2693,148 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 /* Sala de espera: la misma cabecera, sin formulario. Angosta, para que se lea como un estado. */
 .wizard-card.desk-setup.waiting { width: min(560px, calc(100% - 48px)); }
 .wizard-card.desk-setup.waiting .ds-intro { margin-bottom: 18px; }
-/* Firmar puede tardar 20 s: la espera cuenta el producto en vez de girar un spinner.
-   Las laminas se apilan en la misma caja (altura fija) para que nada salte al cambiar. */
-.ds-slides { border-top: 1px solid rgba(160, 180, 220, 0.14); padding-top: 16px; }
-.ds-stack { position: relative; min-height: 104px; }
-.ds-slide { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 7px; opacity: 0; transform: translateY(6px); transition: opacity 520ms ease, transform 520ms ease; pointer-events: none; }
-.ds-slide.on { opacity: 1; transform: none; }
-.ds-slide .k { font-size: 9px; letter-spacing: 0.2em; color: #ffd3e1; }
-.ds-slide b { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: #e6ecff; }
-.ds-slide p { margin: 0; font-size: 12.5px; line-height: 1.55; max-width: 52ch; color: #b9c4dd; }
-.ds-dots { display: flex; gap: 6px; margin-top: 14px; }
-.ds-dots i { width: 16px; height: 2px; border-radius: 999px; background: rgba(160, 180, 220, 0.25); transition: background 320ms ease; }
-.ds-dots i.on { background: rgba(236, 27, 105, 0.85); }
+/* ==== Banda de espera (2026-09-18): vitrina, no carrusel ====
+   Marco fijo (etiqueta, contador, riel) y contenido que cambia. La jerarquia se
+   sostiene por tamano, peso, luminancia y profundidad: el estado de arriba es el
+   unico texto a 21px/600 en --ink y lo unico que no se mueve; la banda vive
+   hundida en una placa y no supera nunca a #c5d2ee. El unico rosa a plena fuerza
+   es el relleno de 3px del riel, abajo, fuera del recorrido de lectura.
+   Material de .dh-case (el catalogo de desks) con un lavado rosa desde la esquina. */
+.ws-band {
+  /* --ws-dwell es el intervalo del componente (5200ms). El relleno termina 320ms
+     antes para que la barra llegue al final y repose antes del cambio. */
+  --ws-dwell: 5200ms;
+  --ws-fill: 4880ms;
+  --ws-stack: 108px;
+  --ws-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  margin-top: 4px;
+  padding: 15px 18px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(150, 180, 255, 0.14);
+  background:
+    radial-gradient(120% 120% at 0% 0%, rgba(236, 27, 105, 0.1), transparent 58%),
+    linear-gradient(175deg, #12141f 0%, #0d0f19 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 -24px 40px rgba(0, 0, 0, 0.35),
+    0 12px 32px rgba(0, 0, 0, 0.4);
+}
+
+/* Marco: nombra la banda y dice en que lamina va. Nunca cambia de tamano. */
+.ws-band .ws-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; margin-bottom: 13px;
+}
+.ws-band .ws-head .k {
+  font-size: 9.5px; line-height: 14px; letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--ds-mute, #9aabc8);
+}
+.ws-band .ws-count {
+  font-size: 9.5px; line-height: 14px; letter-spacing: 0.14em; color: #6f7d99;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pila: alto fijo y parrafo recortado a 3 lineas. La banda no puede cambiar de
+   alto por mucho que varie el largo de la frase. 14 + 8 + 19,5 + 8 + 58,125 = 108. */
+.ws-band .ws-stack { position: relative; min-height: var(--ws-stack); }
+.ws-band .ws-slide {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; gap: 8px;
+  opacity: 0;
+  pointer-events: none;
+  /* Salida: se apaga en el sitio, corta y acelerando. Sin desplazamiento: dos
+     textos moviendose a la vez se leen como ruido en un proyector. */
+  transition: opacity 240ms cubic-bezier(0.4, 0, 1, 1);
+}
+.ws-band .ws-slide.on {
+  opacity: 1;
+  pointer-events: auto;
+  /* Entrada: mas larga, con cola, y arranca a los 140ms. Solape real ~100ms:
+     es un relevo, no un fundido cruzado. */
+  transition: opacity 560ms var(--ws-ease) 140ms;
+}
+/* Las tres lineas suben con 60ms de diferencia (solo transform, nunca opacidad:
+   la opacidad la lleva el padre y asi el cruce no se enturbia). El transform
+   vuelve al punto de partida justo cuando la lamina ya es invisible. */
+.ws-band .ws-slide > * { transform: translateY(10px); transition: transform 0ms linear 240ms; }
+.ws-band .ws-slide.on > * { transform: none; transition: transform 640ms var(--ws-ease) var(--ws-d, 140ms); }
+.ws-band .ws-slide.on .k { --ws-d: 140ms; }
+.ws-band .ws-slide.on b { --ws-d: 200ms; }
+.ws-band .ws-slide.on p { --ws-d: 260ms; }
+
+/* Tipografia: un escalon por debajo del estado en tamano, peso y luminancia.
+   10 / 15 / 12,5 frente a los 21px del titular. La barrita rosa etiqueta la
+   lamina como canal (mismo recurso que .turn.floor.pulse). */
+.ws-band .ws-slide .k {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 10px; line-height: 14px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: #ff8fa8;
+}
+.ws-band .ws-slide .k::before {
+  content: ""; flex: none; width: 14px; height: 1px;
+  background: rgba(236, 27, 105, 0.7);
+}
+.ws-band .ws-slide b {
+  font-size: 15px; font-weight: 500; line-height: 1.3;
+  letter-spacing: -0.005em; color: #c5d2ee;
+}
+.ws-band .ws-slide p {
+  margin: 0; font-size: 12.5px; line-height: 1.55; max-width: 62ch;
+  color: #b9c4dd; text-shadow: none;
+  /* Con 62ch las seis frases miden 2 lineas; el recorte a 3 es el seguro que
+     hace de --ws-stack una garantia y no una estimacion. */
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+/* Riel: un tramo por lamina, a todo el ancho de la placa. Los pasados quedan
+   llenos y tenues, el actual se llena durante la permanencia, los futuros
+   vacios. Lineal a proposito: una barra de tiempo que acelera miente. */
+.ws-band .ws-rail { display: flex; gap: 6px; margin-top: 14px; }
+.ws-band .ws-seg {
+  position: relative; flex: 1 1 0; height: 3px; border-radius: 999px;
+  background: rgba(160, 180, 220, 0.14);
+  transition: background 400ms ease; /* al dar la vuelta, el reset es un apagado suave */
+}
+.ws-band .ws-seg.done { background: rgba(160, 180, 220, 0.34); }
+.ws-band .ws-seg > i {
+  position: absolute; inset: 0; border-radius: 999px;
+  transform: scaleX(0); transform-origin: left center;
+  background: linear-gradient(90deg, rgba(236, 27, 105, 0.55), rgba(236, 27, 105, 0.95));
+  box-shadow: 0 0 8px rgba(236, 27, 105, 0.45);
+  animation-name: wsFill;
+  animation-duration: var(--ws-fill);
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+@keyframes wsFill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* Movimiento reducido: solo fundido cruzado, nada se desplaza. La rotacion se
+   queda (son seis mensajes distintos, quitarla seria quitar contenido). El riel
+   sigue diciendo la posicion pero deja de contar el tiempo: una barra que se
+   anima sin parar es justo lo que esta consulta existe para apagar. */
 @media (prefers-reduced-motion: reduce) {
-  .ds-slide { transition: none; transform: none; }
+  .ws-band .ws-slide,
+  .ws-band .ws-slide.on { transition: opacity 200ms linear; }
+  .ws-band .ws-slide > *,
+  .ws-band .ws-slide.on > * { transform: none; transition: none; }
+  .ws-band .ws-seg > i { animation: none; transform: scaleX(1); box-shadow: none; }
+  .ws-band .ws-seg { transition: none; }
+}
+
+/* Ventana angosta: la card se va casi a sangre, asi que la placa deja de flotar
+   y pasa a leerse como seccion. La medida sigue en 62ch, asi la frase sigue en
+   2 lineas y --ws-stack no se mueve. */
+@container stage (max-width: 700px) {
+  .ws-band { padding: 14px 15px 13px; border-radius: 16px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 -20px 34px rgba(0, 0, 0, 0.32); }
+}
+@container stage (max-width: 560px) {
+  /* 14 + 8 + 18,2 + 8 + 55,8 = 104. */
+  .ws-band { --ws-stack: 104px; padding: 13px 14px 12px; }
+  .ws-band .ws-head { margin-bottom: 11px; }
+  .ws-band .ws-head .k { letter-spacing: 0.14em; }
+  .ws-band .ws-slide b { font-size: 14px; }
+  .ws-band .ws-slide p { font-size: 12px; }
+  .ws-band .ws-rail { gap: 5px; margin-top: 12px; }
 }
 
 @container stage (max-width: 700px) {

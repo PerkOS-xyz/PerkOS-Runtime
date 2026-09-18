@@ -310,23 +310,36 @@ function WaitSlides() {
     const id = window.setInterval(() => setI((n) => (n + 1) % WAIT_SLIDES.length), 5200);
     return () => window.clearInterval(id);
   }, []);
+  const pad = (n: number) => String(n).padStart(2, "0");
   return (
-    <div className="ds-slides" aria-live="off">
-      <div className="ds-stack">
+    <section className="ws-band" aria-label="What the desk does" aria-live="off">
+      {/* Marco fijo: no cambia de sitio ni de tamano al rotar. */}
+      <header className="ws-head">
+        <span className="k">WHAT THE DESK DOES</span>
+        <span className="ws-count">{pad(i + 1)} / {pad(WAIT_SLIDES.length)}</span>
+      </header>
+
+      {/* Las seis laminas se apilan en la misma caja de alto fijo. */}
+      <div className="ws-stack">
         {WAIT_SLIDES.map((s, n) => (
-          <article key={s.k} className={`ds-slide${n === i ? " on" : ""}`} aria-hidden={n !== i}>
+          <article key={s.k} className={`ws-slide${n === i ? " on" : ""}`} aria-hidden={n !== i}>
             <span className="k">{s.k}</span>
             <b>{s.t}</b>
             <p>{s.d}</p>
           </article>
         ))}
       </div>
-      <div className="ds-dots" aria-hidden="true">
+
+      {/* El <i> solo existe en el tramo activo: al cambiar el indice se monta de
+          nuevo y la animacion de relleno arranca de cero, sin timers extra. */}
+      <div className="ws-rail" aria-hidden="true">
         {WAIT_SLIDES.map((s, n) => (
-          <i key={s.k} className={n === i ? "on" : ""} />
+          <span key={s.k} className={`ws-seg${n < i ? " done" : ""}${n === i ? " now" : ""}`}>
+            {n === i ? <i key={i} /> : null}
+          </span>
         ))}
       </div>
-    </div>
+    </section>
   );
 }
 
