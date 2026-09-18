@@ -2483,6 +2483,11 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .dh-mark span { font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--mute); }
 .dh-back { font: inherit; font-size: 11px; letter-spacing: 0.04em; padding: 7px 15px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); background: transparent; color: #cdd7ee; cursor: pointer; }
 .dh-back:hover { border-color: rgba(236, 27, 105, 0.6); color: #ffd3e1; }
+/* La cuenta vive fuera del desk: aqui se ve con cual se entro y aqui se sale. */
+.dh-acct { display: flex; align-items: center; gap: 12px; }
+.dh-acct > span { font-size: 11px; letter-spacing: 0.04em; color: #b9c4dd; }
+.dh-out { font: inherit; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; padding: 0; border: 0; background: none; color: var(--mute); cursor: pointer; }
+.dh-out:hover { color: #ffd3e1; }
 .dh-lead { margin: 0; font-size: 12.5px; line-height: 1.5; color: #b9c4dd; width: 100%; max-width: 1180px; margin-inline: auto; }
 .dh-cols { display: grid; grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr); gap: clamp(16px, 2.4cqi, 30px); align-items: start; width: 100%; max-width: 1180px; margin-inline: auto; margin-block: auto; }
 .dh-cols > .dh-split { background: linear-gradient(180deg, transparent, rgba(120, 160, 255, 0.22) 20%, rgba(120, 160, 255, 0.22) 80%, transparent); }

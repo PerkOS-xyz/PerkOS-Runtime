@@ -23,13 +23,16 @@ const when = (iso?: string): string => {
   return `${Math.round(h / 24)} d ago`;
 };
 
-export default function DesksHome({ selected, onOpen, onClose, onSetUp }: {
+export default function DesksHome({ selected, onOpen, onClose, onSetUp, who, onLogout }: {
   /** El desk activo, por su templateId. */
   selected: string;
   onOpen: (templateId: string) => void;
   onClose: () => void;
   /** Montar el equipo de un template que todavia no tiene desk: lo hace el wizard. */
   onSetUp: (templateId: string) => void;
+  /** La cuenta con la que se entro. Aqui es util: un desk es de una wallet. */
+  who?: string;
+  onLogout?: () => void;
 }) {
   const [templates, setTemplates] = useState<DeskTemplateCard[] | null>(null);
   const [desks, setDesks] = useState<DeskProjectCard[]>([]);
@@ -59,7 +62,12 @@ export default function DesksHome({ selected, onOpen, onClose, onSetUp }: {
           <img src="/logo-name.png" alt="PerkOS" />
           <span>Desks</span>
         </div>
-        <button type="button" className="dh-back" onClick={onClose}>Back to the desk</button>
+        {/* Fuera del desk es donde se cambia de cuenta: el desk pertenece a una wallet. */}
+        <div className="dh-acct">
+          {who ? <span title="The wallet this desk belongs to">{who}</span> : null}
+          <button type="button" className="dh-back" onClick={onClose}>Back to the desk</button>
+          {onLogout ? <button type="button" className="dh-out" onClick={onLogout}>Log out</button> : null}
+        </div>
       </header>
       <p className="dh-lead">A desk is a project on PerkOS: it brings its team, its chain and its screens. Browse the catalogue on the left, open one you already run on the right.</p>
 
