@@ -303,6 +303,41 @@ function TeamCard({ team }: { team: TeamStep }) {
   const ready = perkosConnected && !!desk && !blocked;
   const heading = desks.length > 1 ? "Choose a desk." : adding ? "Add a desk." : "Your first desk.";
 
+  // Mientras la sesion de PerkOS se firma y llegan las plantillas no se sabe si esta
+  // persona ya tiene desk, asi que no se puede pedir que monte uno. Antes se pintaba
+  // el formulario entero como sala de espera y se reemplazaba solo: eso desconcierta.
+  if (!perkosConnected || !desks.length) {
+    return (
+      <div className="wizard-card team desk-setup waiting">
+        <header className="ds-head">
+          <div className="ds-brand">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-name.png" alt="PerkOS" />
+            <span className="k">YOUR ACCOUNT</span>
+          </div>
+        </header>
+        <div className="ds-intro">
+          <b>{perkosConnected ? "Reading your desks." : perkosBusy ? "Connecting your account." : "PerkOS account not connected."}</b>
+          <p className="lead">
+            {perkosConnected
+              ? deskNote || "One moment: asking PerkOS which desks you run."
+              : perkosBusy
+                ? "Approve the signature in your wallet. It only proves the wallet is yours; nothing is spent."
+                : perkosNote || "The signature was not completed."}
+          </p>
+        </div>
+        {!perkosConnected && !perkosBusy ? (
+          <footer className="ds-foot">
+            <div className="row">
+              <button type="button" className="cta" onClick={team.onReconnect}>Connect PerkOS</button>
+            </div>
+            <button type="button" className="back" onClick={team.onSkip}>Enter Floor without a team</button>
+          </footer>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div className="wizard-card team desk-setup">
       <header className="ds-head">
