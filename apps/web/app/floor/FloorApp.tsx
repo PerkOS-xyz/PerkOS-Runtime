@@ -7,7 +7,7 @@ import DeskPanel, { shareLaunchUrl, type DeskScreen } from "./DeskPanel";
 import LaunchCard, { type LaunchEdit } from "./LaunchCard";
 import ChatsDrawer from "./ChatsDrawer";
 import KnowledgeMap, { type GraphNode } from "./KnowledgeMap";
-import { CHAINS, chainOf, ChainMark, deskManifest } from "./ChainMark";
+import { CHAINS, chainOf, ChainMark, deskManifest, deskLimit } from "./ChainMark";
 import { APP_SCREENS } from "./deskManifest";
 import DesksHome from "./DesksHome";
 import AgentCards, { applyTurnEvent, newTurn, type DeskTurn, type Role as AgentRole } from "./AgentCards";
@@ -2403,7 +2403,12 @@ function Shell() {
             onDeploy: () => { setDeskSetup(false); setTeam("waking"); setCaption("Deploying your team on PerkOS…"); void saveDeskNameRef.current(); void fleetAction("wake"); },
             onPay: () => void openPay(),
             onReconnect: () => void ensurePerkos(true),
-            onSkip: () => { setDeskSetup(false); setTeamSkipped(true); void fetch("/api/settings").then((r) => r.json()).then(applyWho); }
+            onSkip: () => { setDeskSetup(false); setTeamSkipped(true); void fetch("/api/settings").then((r) => r.json()).then(applyWho); },
+            // Abierto a mano (desde el catalogo): hay desk al que volver, asi que el paso
+            // tiene salida propia y no obliga a montar ni a entrar sin equipo.
+            adding: deskSetup && !!fleet && fleet.status !== "none",
+            onCancel: () => { setDeskSetup(false); setWizard(false); setSplash(false); },
+            blocked: deskLimit(desk, deskSetup && !!fleet && fleet.status !== "none" && desk?.id === deskId)
           }}
           rail={{
             status: rail.status,

@@ -31,6 +31,11 @@ export type TeamStep = {
   onPay: () => void;
   onReconnect: () => void;
   onSkip: () => void;
+  /** Abierto a mano teniendo ya un desk: hay sitio al que volver, y la salida no es "entrar sin equipo". */
+  adding?: boolean;
+  onCancel?: () => void;
+  /** Por que no se puede montar otro desk de esta plantilla con esta wallet, si es el caso. */
+  blocked?: string;
 };
 
 export type RailStep = {

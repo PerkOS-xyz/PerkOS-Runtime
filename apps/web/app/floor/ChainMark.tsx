@@ -1,7 +1,7 @@
 "use client";
 
 import { CHAINS, type ChainId } from "./deskManifest";
-export { CHAINS, chainOf, deskManifest } from "./deskManifest";
+export { CHAINS, chainOf, deskManifest, deskLimit, instancesOf } from "./deskManifest";
 
 // Marca de la cadena del desk, con los activos oficiales del brand kit de
 // Base (brand.base.org/base-brand.zip, 2026-09-16): el Basemark en blanco en
