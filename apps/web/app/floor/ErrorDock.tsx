@@ -50,15 +50,32 @@ export default function ErrorDock({ open, onOpen }: { open: boolean; onOpen: (v:
     // Ruido conocido de librerias de terceros: se registra en nuestras palabras, en info o
     // warn, sin abrir el panel ni pintar de rojo. El rojo queda para fallos nuestros
     // (firma, orden, claim, launch, fleet). Revision del 2026-09-17.
+    // WalletConnect registra con pino y a veces lo que llega es el objeto serializado en vez
+    // del texto: {"level":50,"msg":"...","time":...}. Se saca el mensaje para poder
+    // clasificarlo; si no trae ninguno no dice nada (el texto de verdad viene en la linea de
+    // al lado) y se descarta en vez de contarse como un fallo nuestro.
+    const unpino = (raw: string): string | null => {
+      const t = raw.trim();
+      if (!t.startsWith("{") || !/"?level"?\s*:/.test(t)) return raw;
+      try {
+        const o = JSON.parse(t) as { msg?: unknown };
+        return typeof o.msg === "string" && o.msg.trim() ? o.msg : null;
+      } catch {
+        const m = /"msg"\s*:\s*"([^"]+)"/.exec(t);
+        return m ? m[1] : null;
+      }
+    };
     const classify = (raw: string): { level: LogLevel; msg: string } | "drop" | null => {
-      for (const n of KNOWN_NOISE) if (n.test.test(raw)) return n.drop ? "drop" : { level: n.level, msg: n.msg };
+      const text = unpino(raw);
+      if (text === null) return "drop";
+      for (const n of KNOWN_NOISE) if (n.test.test(text)) return n.drop ? "drop" : { level: n.level, msg: n.msg };
       return null;
     };
     const fromThird = (raw: string, fallback: string) => {
       const k = classify(raw);
       if (k === "drop") return;
       if (k) { add(k.level, k.msg); return; }
-      add("error", fallback);
+      add("error", unpino(raw) ?? fallback);
     };
     const onErr = (e: ErrorEvent) => { const raw = e.message || String(e.error ?? "error"); if (classify(raw)) e.preventDefault(); fromThird(raw, raw); };
     const onRej = (e: PromiseRejectionEvent) => {
