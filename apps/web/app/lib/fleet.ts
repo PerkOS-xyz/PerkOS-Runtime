@@ -36,6 +36,8 @@ export type DeskTemplate = {
   tagline?: string;
   venues?: string;
   screens?: string[];
+  /** "one-per-wallet" o "many": cuantos desks de esta plantilla tienen sentido por wallet. */
+  instances?: string;
 };
 
 type Localized = { en: string; es: string; [k: string]: string };
@@ -56,7 +58,8 @@ type ApiTemplate = {
     tagline?: Localized | string;
     venues?: Localized | string;
     screens?: string[];
-    desk?: { module?: string; chain?: string; tagline?: Localized | string; venues?: Localized | string; screens?: string[] };
+    instances?: string;
+    desk?: { module?: string; chain?: string; tagline?: Localized | string; venues?: Localized | string; screens?: string[]; instances?: string };
   };
 };
 
@@ -67,14 +70,15 @@ function maybeText(v: Localized | string | undefined, lang: string): string | un
 }
 
 /** Lo que el desk declara de si mismo, sea suelto o bajo `desk`. Nada obligatorio. */
-function deskFields(t: ApiTemplate["template"], lang: string): Pick<DeskTemplate, "module" | "chain" | "tagline" | "venues" | "screens"> {
+function deskFields(t: ApiTemplate["template"], lang: string): Pick<DeskTemplate, "module" | "chain" | "tagline" | "venues" | "screens" | "instances"> {
   const d = t.desk ?? {};
   return {
     module: d.module ?? t.module,
     chain: d.chain ?? t.chain,
     tagline: maybeText(d.tagline ?? t.tagline, lang),
     venues: maybeText(d.venues ?? t.venues, lang),
-    screens: Array.isArray(d.screens ?? t.screens) ? (d.screens ?? t.screens) : undefined
+    screens: Array.isArray(d.screens ?? t.screens) ? (d.screens ?? t.screens) : undefined,
+    instances: d.instances ?? t.instances
   };
 }
 type ApiInstance = {

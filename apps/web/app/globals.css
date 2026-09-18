@@ -2556,6 +2556,8 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 .dh-tcard button { margin: 0; font: inherit; font-size: 11.5px; letter-spacing: 0.04em; padding: 7px 16px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); background: transparent; color: #cdd7ee; cursor: pointer; }
 .dh-tcard button.go { border-color: rgba(236, 27, 105, 0.6); background: rgba(236, 27, 105, 0.16); color: #ffd3e1; }
 .dh-tcard button:disabled { opacity: 0.4; cursor: default; }
+/* Por que no hay un segundo desk de esta plantilla: se dice, no se deja un boton muerto. */
+.dh-limit { margin: 0; font-size: 10.5px; line-height: 1.5; color: var(--mute); border-top: 1px solid rgba(160, 180, 220, 0.14); padding-top: 9px; }
 /* Nombrar el desk antes de montarlo: el nombre manda y el template va debajo. */
 .wizard-card .desk-name { display: flex; flex-direction: column; gap: 5px; margin: 4px 0 2px; }
 .wizard-card .desk-name > span { font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); }

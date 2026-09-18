@@ -2492,7 +2492,9 @@ function Shell() {
                     </li>
                   ))}
                   <li className="add">
-                    <button type="button" onClick={() => { setDeskMenu(false); setDeskSetup(true); setWizardStart(3); setWizardEpoch((n) => n + 1); setWizard(true); }}>+ Add a desk</button>
+                    {/* Al catalogo, no al wizard: alli se ve que se puede montar y que ya es tuyo.
+                        Floor es uno por wallet, asi que mandar directo al setup seria un callejon. */}
+                    <button type="button" onClick={() => { setDeskMenu(false); setHome(true); }}>+ Add a desk</button>
                   </li>
                 </ul>
               ) : null}
