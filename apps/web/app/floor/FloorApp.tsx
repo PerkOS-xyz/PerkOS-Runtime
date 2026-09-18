@@ -2489,7 +2489,10 @@ function Shell() {
               // Otra plantilla: su flota aun no se ha leido, y la del desk actual no cuenta aqui.
               if (id !== deskId) { setDeskId(id); setFleet(null); }
               setDeskSetup(true);
-              setWizardStart(3);
+              // Montar un desk empieza por el AI: es Sparky quien va a hablar y quien lleva el
+              // desk, asi que se pregunta antes de nombrarlo. Si ya hay una conectada, el paso
+              // la muestra y se sigue con un clic; `onDone` trae de vuelta al montaje.
+              setWizardStart(2);
               setWizardEpoch((n) => n + 1);
               setWizard(true);
             }}
