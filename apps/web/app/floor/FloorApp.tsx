@@ -2756,7 +2756,7 @@ function Shell() {
         <span className="ask-left">
         <button type="button" className={`chat-peek${chatsOpen ? " on" : ""}`} onClick={() => setChatsOpen((o) => !o)} title="Your saved conversations"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden><path d="M4 6h16M4 12h16M4 18h10" /></svg>Chats</button>
         {messages.length > 0 ? <button type="button" className="chat-peek" onClick={() => newChatRef.current()} title="Start a new conversation. This one stays saved in Chats.">New chat</button> : null}
-        {historyLocked && wallet.canSign ? <button type="button" className="chat-peek pending" onClick={() => void unlockHistory()} title="One signature, once on this computer: it derives the key that encrypts your chat history on disk. It moves no funds.">Unlock history</button> : null}
+        {historyLocked && wallet.canSign ? <button type="button" className="chat-peek pending" onClick={() => void unlockHistory()} title="One signature, once per wallet on this computer. It derives the key that encrypts your chats on disk and brings back any this wallet already had. It moves no funds and approves nothing.">Turn on chat history</button> : null}
         {!split && messages.length > 0 ? (() => {
           const pending = messages.filter((x) => x.role === "draft" && x.tx?.stage === "idle" && (x.draft || x.launch || x.auto)).length;
           return (
