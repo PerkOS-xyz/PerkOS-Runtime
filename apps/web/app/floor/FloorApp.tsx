@@ -83,6 +83,8 @@ function Shell() {
   // Fuera del desk: la pantalla de desks (catalogo y los mios). El desk sigue vivo detras.
   const [home, setHome] = useState(false);
   // Como se llamara este desk. Por defecto el del template; la persona lo cambia antes de montarlo.
+  // El paso de montar un desk, abierto a proposito: no se cierra solo aunque ya exista una flota.
+  const [deskSetup, setDeskSetup] = useState(false);
   const [deskName, setDeskName] = useState("");
   const [deskNameTouched, setDeskNameTouched] = useState(false);
   const [wizardStart, setWizardStart] = useState(0);
@@ -2189,6 +2191,9 @@ function Shell() {
   // la escena con las orbs es donde se ve el progreso.
   useEffect(() => {
     if (!wizard || wizardStart !== 3) return;
+    // Abierto a mano desde "+ Add a desk" o desde la pantalla de desks: se queda hasta que la
+    // persona monte o salga. Sin esto el paso se cerraba solo por tener ya una flota.
+    if (deskSetup) return;
     if (teamSkipped) { setWizard(false); setSplash(false); return; }
     if (fleet && fleet.status !== "none") {
       const railed = fleet.agents.find((a) => a.rail);
@@ -2196,7 +2201,7 @@ function Shell() {
       setWizard(false);
       setSplash(false);
     }
-  }, [wizard, wizardStart, fleet, teamSkipped, railSkipped, railStatus]);
+  }, [wizard, wizardStart, fleet, teamSkipped, railSkipped, railStatus, deskSetup]);
   useEffect(() => {
     if (!wizard || wizardStart !== 4) return;
     if (railSkipped || rail.status === "linked") {
@@ -2395,10 +2400,10 @@ function Shell() {
             fundingUrl: perkos.fundingUrl,
             paying,
             deploying: team === "waking",
-            onDeploy: () => { setTeam("waking"); setCaption("Deploying your team on PerkOS…"); void saveDeskNameRef.current(); void fleetAction("wake"); },
+            onDeploy: () => { setDeskSetup(false); setTeam("waking"); setCaption("Deploying your team on PerkOS…"); void saveDeskNameRef.current(); void fleetAction("wake"); },
             onPay: () => void openPay(),
             onReconnect: () => void ensurePerkos(true),
-            onSkip: () => { setTeamSkipped(true); void fetch("/api/settings").then((r) => r.json()).then(applyWho); }
+            onSkip: () => { setDeskSetup(false); setTeamSkipped(true); void fetch("/api/settings").then((r) => r.json()).then(applyWho); }
           }}
           rail={{
             status: rail.status,
@@ -2440,6 +2445,7 @@ function Shell() {
             onSetUp={(id) => {
               setHome(false);
               setDeskId(id);
+              setDeskSetup(true);
               setWizardStart(3);
               setWizardEpoch((n) => n + 1);
               setWizard(true);
@@ -2486,7 +2492,7 @@ function Shell() {
                     </li>
                   ))}
                   <li className="add">
-                    <button type="button" onClick={() => { setDeskMenu(false); setWizardStart(3); setWizard(true); }}>+ Add a desk</button>
+                    <button type="button" onClick={() => { setDeskMenu(false); setDeskSetup(true); setWizardStart(3); setWizardEpoch((n) => n + 1); setWizard(true); }}>+ Add a desk</button>
                   </li>
                 </ul>
               ) : null}
