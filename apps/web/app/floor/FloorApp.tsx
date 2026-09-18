@@ -2406,9 +2406,11 @@ function Shell() {
             onSkip: () => { setDeskSetup(false); setTeamSkipped(true); void fetch("/api/settings").then((r) => r.json()).then(applyWho); },
             // Abierto a mano (desde el catalogo): hay desk al que volver, asi que el paso
             // tiene salida propia y no obliga a montar ni a entrar sin equipo.
-            adding: deskSetup && !!fleet && fleet.status !== "none",
+            adding: deskSetup,
             onCancel: () => { setDeskSetup(false); setWizard(false); setSplash(false); },
-            blocked: deskLimit(desk, deskSetup && !!fleet && fleet.status !== "none" && desk?.id === deskId)
+            // Si la flota que tenemos es la de este mismo desk, ya es suyo: la plantilla decide
+            // si eso impide montar otro. El catalogo ya no lleva aqui en ese caso; esto es el cinturon.
+            blocked: deskSetup ? deskLimit(desk, !!fleet && fleet.status !== "none") : ""
           }}
           rail={{
             status: rail.status,
@@ -2434,6 +2436,8 @@ function Shell() {
       {home ? (
           <DesksHome
             selected={deskId}
+            who={who}
+            onLogout={() => { setHome(false); logout(); }}
             onClose={() => setHome(false)}
             onOpen={(id) => {
               setHome(false);
@@ -2449,7 +2453,8 @@ function Shell() {
             }}
             onSetUp={(id) => {
               setHome(false);
-              setDeskId(id);
+              // Otra plantilla: su flota aun no se ha leido, y la del desk actual no cuenta aqui.
+              if (id !== deskId) { setDeskId(id); setFleet(null); }
               setDeskSetup(true);
               setWizardStart(3);
               setWizardEpoch((n) => n + 1);
