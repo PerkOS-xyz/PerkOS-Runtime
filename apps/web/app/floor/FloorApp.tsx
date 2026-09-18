@@ -2193,12 +2193,19 @@ function Shell() {
     if (!wizard || wizardStart !== 3) return;
     // Abierto a mano desde "+ Add a desk" o desde la pantalla de desks: se queda hasta que la
     // persona monte o salga. Sin esto el paso se cerraba solo por tener ya una flota.
-    if (deskSetup) return;
-    if (teamSkipped) { setWizard(false); setSplash(false); return; }
-    // Sin desk todavia: la casa es el catalogo, donde se ve que hay y que es mio.
-    // Montar un desk se elige alli, no se impone al entrar.
-    if (fleet && fleet.status === "none") { setWizard(false); setSplash(false); setHome(true); return; }
-    if (fleet && fleet.status !== "none") {
+    const has = fleet && fleet.status !== "none";
+    if (deskSetup) {
+      // Abierto a proposito: se queda hasta que la flota exista. Durante el deploy sigue
+      // siendo "none" un rato largo, y salir de aqui dejaba la espera sin pantalla.
+      if (!has) return;
+      setDeskSetup(false);
+    } else {
+      if (teamSkipped) { setWizard(false); setSplash(false); return; }
+      // Sin desk y sin nada en marcha: la casa es el catalogo, donde se ve que hay y que
+      // es mio. Montar un desk se elige alli, no se impone al entrar.
+      if (fleet && fleet.status === "none") { setWizard(false); setSplash(false); setHome(true); return; }
+    }
+    if (has) {
       const railed = fleet.agents.find((a) => a.rail);
       if (railed && !railed.railLinked && !railSkipped) { setWizardStart(4); void railStatus(); return; }
       setWizard(false);
@@ -2408,7 +2415,7 @@ function Shell() {
             fundingUrl: perkos.fundingUrl,
             paying,
             deploying: team === "waking",
-            onDeploy: () => { setDeskSetup(false); setTeam("waking"); setCaption("Deploying your team on PerkOS…"); void saveDeskNameRef.current(); void fleetAction("wake"); },
+            onDeploy: () => { setTeam("waking"); setCaption("Deploying your team on PerkOS…"); void saveDeskNameRef.current(); void fleetAction("wake"); },
             onPay: () => void openPay(),
             onReconnect: () => void ensurePerkos(true),
             onSkip: () => { setDeskSetup(false); setTeamSkipped(true); void fetch("/api/settings").then((r) => r.json()).then(applyWho); },
