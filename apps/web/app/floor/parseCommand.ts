@@ -106,6 +106,10 @@ export function parseIntent(raw: string): Intent {
   if (/\bhey (perkos|sparky)\b/.test(t) || t === "perkos" || t === "sparky" || t === "hey perk os") return { kind: "listen" };
   if (t === "stop" || t === "para" || t === "basta") return { kind: "stop" };
   if (/\bsettings\b/.test(t) || /\bconfig/.test(t) || /\bajustes\b/.test(t)) return { kind: "settings" };
+  // "Which stock can I pair a launch with?": preguntar por el par es justo lo que responde el launch
+  // guiado (la mesa lee los pares y los compara), asi que esa pregunta abre esa conversacion. El resto
+  // de preguntas sobre lanzar siguen siendo chat.
+  if (/\b(pair|pairing|emparejar|emparejamiento)\b/.test(t) && /\b(launch|lanzar|lanzamiento|token|coin)\b/.test(t) && !/\b(paired?|emparejad[oa])\s+(with|con)\s+[a-z]{2,6}c?\b/.test(t) && !/\(|\$[a-z]|["“']/.test(t)) return { kind: "launch" };
   // "quiero lanzar un token, que par me conviene" / "launch a token": sin nombre ni simbolo es el
   // launch guiado (la mesa compara los pares), no un consejo de mercado ni una orden de launch.
   if ((/\b(launch|lanzar|lanza|lanzo|crear|create|deploy|desplegar)\b.{0,40}\b(token|coin|memecoin|moneda)\b/.test(t) || /\b(token|coin)\b.{0,20}\b(launch|lanzamiento)\b/.test(t)) && !/\(|\$[a-z]|["“']/.test(t) && !/\b(paired?|emparejad[oa])\s+(with|con)\s+[a-z]{2,6}c?\b/.test(t) && !/^\s*(which|what|how|can|could|should|is|are|do|does|que|qué|cu[aá]l|c[oó]mo|puedo|se puede)\b/i.test(t) && !/\?\s*$/.test(t)) return { kind: "launch" };
