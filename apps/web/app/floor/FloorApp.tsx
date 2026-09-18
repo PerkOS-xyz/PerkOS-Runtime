@@ -2138,15 +2138,27 @@ function Shell() {
   const [rail, setRail] = useState<RailState>({ status: "unknown", busy: false, note: "" });
   const [railSkipped, setRailSkipped] = useState(false);
   const railPollRef = useRef(0);
+  // El claim de 1Claw se abre en el navegador y puede no completarse nunca: el sondeo
+  // tiene tope (2 min) y solo escribe en el log cuando el estado cambia. Sin esto quedaba
+  // un timer eterno escribiendo una linea cada 5 s.
+  const railTriesRef = useRef(0);
+  const railSeenRef = useRef("");
   const railStatus = useCallback(async () => {
     window.clearTimeout(railPollRef.current);
     try {
       const res = await fetch("/api/fleet/rail");
       const j = (await res.json().catch(() => ({}))) as { status?: RailState["status"]; claimUrl?: string; vaultId?: string; oneclawAgentId?: string; linkedRoles?: string[]; error?: string; detail?: string };
       if (!res.ok || !j.status) { flog("warn", `rail status ${res.status}: ${j.error ?? ""} ${j.detail ?? ""}`); return; }
-      flog("info", `rail: ${j.status}${j.vaultId ? ` · vault ${j.vaultId.slice(0, 8)}` : ""}${j.linkedRoles?.length ? ` · ${j.linkedRoles.join("/")}` : ""}`);
+      const line = `rail: ${j.status}${j.vaultId ? ` · vault ${j.vaultId.slice(0, 8)}` : ""}${j.linkedRoles?.length ? ` · ${j.linkedRoles.join("/")}` : ""}`;
+      if (line !== railSeenRef.current) { railSeenRef.current = line; flog("info", line); }
       setRail((p) => ({ ...p, status: j.status!, vaultId: j.vaultId, oneclawAgentId: j.oneclawAgentId, linkedRoles: j.linkedRoles, claimUrl: j.claimUrl ?? p.claimUrl, note: j.status === "linked" ? "" : p.note }));
-      if (j.status === "claim_pending") railPollRef.current = window.setTimeout(() => void railStatus(), 5000);
+      if (j.status === "claim_pending" && railTriesRef.current < 24) {
+        railTriesRef.current += 1;
+        railPollRef.current = window.setTimeout(() => void railStatus(), 5000);
+      } else if (j.status === "claim_pending") {
+        flog("info", "rail: the 1Claw claim is still open in your browser; press Link 1Claw again when you finish it");
+      }
+      if (j.status !== "claim_pending") railTriesRef.current = 0;
     } catch (e) {
       flog("error", `rail status: ${(e as Error).message}`);
     }
@@ -2170,7 +2182,7 @@ function Shell() {
       }
       if (j.claimUrl) window.open(j.claimUrl, "_blank", "noopener");
       setRail({ status: j.status, claimUrl: j.claimUrl, vaultId: j.vaultId, busy: false, note: "" });
-      if (j.status === "claim_pending") railPollRef.current = window.setTimeout(() => void railStatus(), 5000);
+      if (j.status === "claim_pending") { railTriesRef.current = 0; railPollRef.current = window.setTimeout(() => void railStatus(), 5000); }
     } catch (e) {
       flog("error", `rail enrol: ${(e as Error).message}`);
       setRail((p) => ({ ...p, busy: false, note: "Could not link 1Claw. Try again." }));
@@ -2179,7 +2191,9 @@ function Shell() {
   // En la escena, el estado del rail se lee una vez por flota (Settings y el
   // badge del Trader lo muestran); el wizard lo refresca por su cuenta.
   useEffect(() => {
-    if (rail.status !== "unknown" || !fleet?.agents.some((a) => a.rail) || !perkos.connected) return;
+    // Sin desk no hay rail que mirar: si la flota desaparece, se corta el sondeo.
+    if (!fleet || fleet.status === "none") { window.clearTimeout(railPollRef.current); return; }
+    if (rail.status !== "unknown" || !fleet.agents.some((a) => a.rail) || !perkos.connected) return;
     void railStatus();
   }, [fleet, rail.status, perkos.connected, railStatus]);
   const openRailStep = useCallback(() => {
