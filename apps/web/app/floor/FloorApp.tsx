@@ -2354,31 +2354,6 @@ function Shell() {
             </button>
           </div>
         ) : null}
-        {home ? (
-          <DesksHome
-            selected={deskId}
-            onClose={() => setHome(false)}
-            onOpen={(id) => {
-              setHome(false);
-              if (id === deskId) return;
-              setDeskId(id);
-              setDeskScreen("");
-              setFleet(null);
-              // El desk elegido se guarda: el servidor escopa por el con agentes, conocimiento y outlooks.
-              void fetch("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fleetTemplateId: id }) })
-                .then(() => fleetActionRef.current("status"))
-                .catch(() => undefined);
-              flog("info", `desk: opened ${id}`);
-            }}
-            onSetUp={(id) => {
-              setHome(false);
-              setDeskId(id);
-              setWizardStart(3);
-              setWizardEpoch((n) => n + 1);
-              setWizard(true);
-            }}
-          />
-        ) : null}
         <Wizard
           key={`${wizardStart}:${wizardEpoch}`}
           start={wizardStart}
@@ -2426,6 +2401,31 @@ function Shell() {
   return (
     <div className={`stage${teamSeen ? " team-seen" : ""}${messages.length === 0 && !turn ? " fresh" : ""}${split ? " split" : ""}${debug ? " with-debug" : ""}${deskScreen ? " desk-open" : ""}${deskScreen && deskMax ? " desk-max" : ""}${turn && !turn.collapsed ? " turn-live" : ""}${turn?.collapsed ? " turn-chips" : ""}`}>
       <div className="dragbar" />
+      {home ? (
+          <DesksHome
+            selected={deskId}
+            onClose={() => setHome(false)}
+            onOpen={(id) => {
+              setHome(false);
+              if (id === deskId) return;
+              setDeskId(id);
+              setDeskScreen("");
+              setFleet(null);
+              // El desk elegido se guarda: el servidor escopa por el con agentes, conocimiento y outlooks.
+              void fetch("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fleetTemplateId: id }) })
+                .then(() => fleetActionRef.current("status"))
+                .catch(() => undefined);
+              flog("info", `desk: opened ${id}`);
+            }}
+            onSetUp={(id) => {
+              setHome(false);
+              setDeskId(id);
+              setWizardStart(3);
+              setWizardEpoch((n) => n + 1);
+              setWizard(true);
+            }}
+          />
+      ) : null}
       {/* Lockup de partnership invertido (brand.base.org/partnerships: el
           partner lidera cuando es su lanzamiento): PerkOS + la cadena del desk.
           El wordmark es del shell; la marca de la cadena cambia con el desk. */}
