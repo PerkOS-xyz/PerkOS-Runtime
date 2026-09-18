@@ -2523,7 +2523,8 @@ button.lc-logo:hover { border-color: rgba(236, 27, 105, 0.6); }
 /* La carta del template: se colecciona, se hojea. Una por template, en fila con scroll y snap;
    hoy solo PerkOS Floor Desk, el sábado se suma EQLTY. El arte es el equipo que trae el desk. */
 .dh-deck { flex-direction: row; gap: 18px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 6px 4px 14px; scrollbar-width: thin; justify-content: flex-start; }
-.dh-deck:has(> :only-child) { justify-content: center; }
+/* Una sola carta: margen automatico, que centra sin pelearse con el scroll del carrusel. */
+.dh-deck > :only-child { margin-inline: auto; }
 .dh-tcard { scroll-snap-align: center; flex: 0 0 auto; width: min(460px, 100%); display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: 20px; color: #e6ecff;
   border: 1px solid rgba(120, 160, 255, 0.28);
   background:
