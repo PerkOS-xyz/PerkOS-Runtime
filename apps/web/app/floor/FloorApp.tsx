@@ -86,6 +86,13 @@ function Shell() {
     }
   }, []);
   useEffect(() => { void readGuestSeat(); }, [readGuestSeat]);
+  // Un invitado puede entrar mientras la ventana esta en segundo plano: al
+  // volver a ella se relee, que es barato y evita una mesa desactualizada.
+  useEffect(() => {
+    const onFocus = () => { void readGuestSeat(); };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [readGuestSeat]);
   const [docs, setDocs] = useState(false);
   const [market, setMarket] = useState(false);
   // Pantallas propias del desk (Market / Portfolio) y el activo enfocado.
