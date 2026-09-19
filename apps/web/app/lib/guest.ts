@@ -141,22 +141,29 @@ export async function inviteFloorGuest(wallet: string, seat = 1): Promise<GuestI
  * with the same credential the invite already put on this machine, so there is
  * no extra round trip to the API for it.
  */
-export async function guestDisplayName(seat: number, agentName: string, agentId: string): Promise<string> {
+export type GuestLook = { displayName: string; accent: string; style: string };
+
+export async function guestLook(seat: number, agentName: string, agentId: string): Promise<GuestLook> {
   try {
+    const empty = { displayName: "", accent: "", style: "" };
     const invite = await readGuestInvitePrompt(seat);
     const key = invite.match(/PERKOS_RELAY_KEY=(\S+)/)?.[1] ?? "";
-    if (!key) return "";
+    if (!key) return empty;
     const base = `${PERKOS_API_URL}/guest-mcp`;
     const r = await fetch(`${base}/identity`, {
       headers: { authorization: `Bearer ${key}`, "x-perkos-agent-name": agentName, "x-perkos-agent-id": agentId },
       signal: AbortSignal.timeout(4_000)
     });
-    if (!r.ok) return "";
-    const j = (await r.json()) as { displayName?: string; agent?: string };
+    if (!r.ok) return empty;
+    const j = (await r.json()) as { displayName?: string; identity?: { accent?: string; style?: string } | null };
     const name = String(j.displayName ?? "").trim();
-    return name && name !== agentName ? name : "";
+    return {
+      displayName: name && name !== agentName ? name : "",
+      accent: /^#[0-9a-fA-F]{6}$/.test(String(j.identity?.accent ?? "")) ? String(j.identity?.accent) : "",
+      style: ["blob", "pebble", "drop", "chip"].includes(String(j.identity?.style ?? "")) ? String(j.identity?.style) : ""
+    };
   } catch {
-    return "";
+    return { displayName: "", accent: "", style: "" };
   }
 }
 

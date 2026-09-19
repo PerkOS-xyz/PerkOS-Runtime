@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { loadSettings, saveSettings } from "../../../lib/settingsStore";
-import { inviteFloorGuest, guestStatus, readGuestInvitePrompt, guestDisplayName, MAX_GUESTS } from "../../../lib/guest";
+import { inviteFloorGuest, guestStatus, readGuestInvitePrompt, guestLook, MAX_GUESTS } from "../../../lib/guest";
 import { PerkosApiError } from "../../../lib/perkosApi";
 
 export const dynamic = "force-dynamic";
@@ -16,8 +16,10 @@ type Seat = {
   status: string;
   prompt?: string;
   complete: boolean;
-  /** What the bot calls itself, when it has said so. */
+  /** What the bot calls itself, and how it wants to be drawn. */
   displayName?: string;
+  accent?: string;
+  style?: string;
 };
 
 export async function GET() {
@@ -36,8 +38,8 @@ export async function GET() {
       } catch {
         /* the row still shows, with what we know */
       }
-      const displayName = await guestDisplayName(g.seat, g.agentName, g.agentId);
-      return { seat: g.seat, agentId: g.agentId, agentName: name, status, prompt: prompt || undefined, complete: complete(prompt), displayName: displayName || undefined };
+      const look = await guestLook(g.seat, g.agentName, g.agentId);
+      return { seat: g.seat, agentId: g.agentId, agentName: name, status, prompt: prompt || undefined, complete: complete(prompt), displayName: look.displayName || undefined, accent: look.accent || undefined, style: look.style || undefined };
     })
   );
   const first = seats[0];

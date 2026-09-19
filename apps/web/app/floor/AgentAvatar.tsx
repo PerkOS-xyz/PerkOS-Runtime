@@ -177,37 +177,37 @@ function Detail({ kind, shell, head }: { kind: AvatarDetail; shell: string; head
  * llevan su propia forma, una gota redondeada con dos ojos, en vez de casco y
  * visor. Asi se sabe de un vistazo que ese asiento vino de fuera.
  */
-function GuestMark({ accent, px, dim }: { accent: string; px: number; dim: boolean }) {
+function GuestMark({ accent, px, dim, style }: { accent: string; px: number; dim: boolean; style: string }) {
+  // Cuatro siluetas para que dos invitados no se confundan. Ninguna lleva casco
+  // ni visor: el kit de casa es de la plantilla, y un invitado viene de fuera.
+  const body: Record<string, string> = {
+    blob: "M500 120c214 0 330 138 330 330 0 142-58 250-162 306-52 28-106 42-168 42s-116-14-168-42C228 700 170 592 170 450c0-192 116-330 330-330z",
+    pebble: "M520 130c206 0 310 128 310 300 0 196-140 320-340 320-186 0-320-118-320-296 0-196 148-324 350-324z",
+    drop: "M500 110c176 96 320 226 320 372 0 176-146 296-320 296S180 658 180 482c0-146 144-276 320-372z",
+    chip: "M300 150h400c94 0 150 56 150 150v300c0 94-56 150-150 150H300c-94 0-150-56-150-150V300c0-94 56-150 150-150z"
+  };
+  const d = body[style] || body.blob;
+  const eyeY = style === "chip" ? 430 : 452;
   return (
     <svg viewBox="0 0 1000 1000" width={px} height={px} aria-hidden style={{ opacity: dim ? 0.55 : 1 }}>
       <defs>
-        <radialGradient id="gm-body" cx="38%" cy="26%" r="86%">
+        <radialGradient id={`gm-${style}`} cx="38%" cy="26%" r="86%">
           <stop offset="0%" stopColor="#ffffff" stopOpacity="0.55" />
           <stop offset="55%" stopColor={accent} />
           <stop offset="100%" stopColor="#12131b" stopOpacity="0.55" />
         </radialGradient>
       </defs>
-      {/* La gota: ancha abajo, hombros altos, sin simetria perfecta. */}
-      <path
-        d="M500 120c214 0 330 138 330 330 0 142-58 250-162 306-52 28-106 42-168 42s-116-14-168-42C228 700 170 592 170 450c0-192 116-330 330-330z"
-        fill="url(#gm-body)"
-      />
-      <path
-        d="M500 120c214 0 330 138 330 330 0 142-58 250-162 306-52 28-106 42-168 42s-116-14-168-42C228 700 170 592 170 450c0-192 116-330 330-330z"
-        fill="none"
-        stroke="#0b0d14"
-        strokeOpacity="0.35"
-        strokeWidth="14"
-      />
-      <ellipse cx="392" cy="452" rx="56" ry="74" fill="#0b0d14" />
-      <ellipse cx="608" cy="452" rx="56" ry="74" fill="#0b0d14" />
-      <ellipse cx="374" cy="424" rx="18" ry="22" fill="#ffffff" opacity="0.8" />
-      <ellipse cx="590" cy="424" rx="18" ry="22" fill="#ffffff" opacity="0.8" />
+      <path d={d} fill={`url(#gm-${style})`} />
+      <path d={d} fill="none" stroke="#0b0d14" strokeOpacity="0.35" strokeWidth="14" />
+      <ellipse cx="392" cy={eyeY} rx="56" ry="74" fill="#0b0d14" />
+      <ellipse cx="608" cy={eyeY} rx="56" ry="74" fill="#0b0d14" />
+      <ellipse cx="374" cy={eyeY - 28} rx="18" ry="22" fill="#ffffff" opacity="0.8" />
+      <ellipse cx="590" cy={eyeY - 28} rx="18" ry="22" fill="#ffffff" opacity="0.8" />
     </svg>
   );
 }
 
-export default function AgentAvatar({ agent, identity: identityProp, role, seed, state: stateProp, expression: expressionProp, size = "lg", indicator, label, className = "" }: {
+export default function AgentAvatar({ agent, identity: identityProp, role, seed, state: stateProp, expression: expressionProp, size = "lg", indicator, label, className = "", look }: {
   /** Preferido: el componente resuelve identidad, rol y estado del agente. */
   agent?: AgentLike;
   /** Contextos aislados: identidad explicita. */
@@ -222,6 +222,8 @@ export default function AgentAvatar({ agent, identity: identityProp, role, seed,
   indicator?: AvatarIndicator | null;
   label?: string;
   className?: string;
+  /** Solo invitados: el color y la silueta que el propio bot eligio. */
+  look?: { accent?: string; style?: string };
 }) {
   const uid = useId().replace(/[:]/g, "");
   const id = identityProp ?? (agent ? resolveIdentity(agent) : resolveIdentity({ id: seed ?? role ?? "guest", role: role ?? "guest" }));
@@ -243,7 +245,7 @@ export default function AgentAvatar({ agent, identity: identityProp, role, seed,
   if (isGuest) {
     return (
       <span className={`agent-avatar guest-mark ${className}`} data-role="guest" data-state={state} data-mode={st.mode} role="img" aria-label={`${name}, invited Grok Bot guest, ${state}`} style={{ width: px, height: px, color: accent }}>
-        <GuestMark accent={accent} px={px} dim={state === "offline"} />
+        <GuestMark accent={look?.accent || accent} px={px} dim={state === "offline"} style={look?.style || "blob"} />
       </span>
     );
   }

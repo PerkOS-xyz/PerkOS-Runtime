@@ -73,13 +73,13 @@ function Shell() {
   const [guestSeat, setGuestSeat] = useState<{ invited: boolean; ready: boolean; name?: string } | null>(null);
   // Un asiento por bot invitado: la mesa puede tener varios y cada uno es una
   // orb propia en su fila, no un unico hueco compartido.
-  const [guestSeats, setGuestSeats] = useState<{ seat: number; name: string; ready: boolean }[]>([]);
+  const [guestSeats, setGuestSeats] = useState<{ seat: number; name: string; ready: boolean; accent?: string; style?: string }[]>([]);
   const readGuestSeat = useCallback(async () => {
     try {
-      const j = (await fetch("/api/fleet/guest").then((r) => r.json())) as { invited?: boolean; status?: string; agentName?: string; displayName?: string; seats?: { seat: number; agentName: string; displayName?: string; status: string }[] };
+      const j = (await fetch("/api/fleet/guest").then((r) => r.json())) as { invited?: boolean; status?: string; agentName?: string; displayName?: string; seats?: { seat: number; agentName: string; displayName?: string; status: string; accent?: string; style?: string }[] };
       const invited = j.invited === true;
       setGuestSeat({ invited, ready: invited && (j.status || "").toLowerCase() === "ready", name: j.displayName || j.agentName });
-      setGuestSeats((j.seats ?? []).map((x) => ({ seat: x.seat, name: x.displayName || x.agentName, ready: (x.status || "").toLowerCase() === "ready" })));
+      setGuestSeats((j.seats ?? []).map((x) => ({ seat: x.seat, name: x.displayName || x.agentName, ready: (x.status || "").toLowerCase() === "ready", accent: x.accent, style: x.style })));
       if (invited) setGuest(true);
     } catch {
       /* deja el ultimo estado conocido */
@@ -2761,6 +2761,7 @@ function Shell() {
             on={g.ready}
             state={g.ready ? "ready" : guestSeats.length || guestSeat?.invited ? "waking" : ""}
             talking={talking.has("guest")}
+            look={{ accent: (g as { accent?: string }).accent, style: (g as { style?: string }).style }}
             refCb={(el) => { orbRefs.current[`guest${g.seat}`] = el; }}
           />
         ))}
@@ -3153,7 +3154,7 @@ function avatarState(state: string, talking?: boolean, verdict?: "GO" | "BLOCK" 
   return "offline"; // planned / not created
 }
 
-function Orb({ className, label, on, state = "", rail, onRail, talking, verdict, refCb }: { className: string; label: string; on: boolean; state?: string; rail?: { linked: boolean; lockUsd: number }; onRail?: () => void; talking?: boolean; verdict?: "GO" | "BLOCK" | ""; refCb?: (el: HTMLDivElement | null) => void }) {
+function Orb({ className, label, on, state = "", rail, onRail, talking, verdict, look, refCb }: { className: string; label: string; on: boolean; state?: string; rail?: { linked: boolean; lockUsd: number }; onRail?: () => void; talking?: boolean; verdict?: "GO" | "BLOCK" | ""; look?: { accent?: string; style?: string }; refCb?: (el: HTMLDivElement | null) => void }) {
   const sub = talking ? "Thinking" : state === "ready" ? "Online" : state === "provisioning" ? "Provisioning" : state === "waking" ? "Waking" : state === "hibernated" ? "Hibernating" : state === "failed" ? "Failed" : state === "planned" ? "Not created" : "";
   const role = className.split(" ")[0];
   const desk = role === "scout" || role === "risk" || role === "trader" || role === "auditor";
@@ -3161,7 +3162,7 @@ function Orb({ className, label, on, state = "", rail, onRail, talking, verdict,
     <div ref={refCb} className={`orb ${className}${on ? " on" : ""}${state ? ` st-${state}` : ""}${talking ? " talking" : ""}`} title={sub}>
       {/* Avatar de identidad persistente (kit v1); el estado solo cambia ojos, anillo y brillo. El Grok Bot invitado va como guest. */}
       <div className="ball avatar">
-        <AgentAvatar agent={{ id: desk ? role : "grok-bot", role: desk ? role : "guest", name: label, custody: role === "trader" ? "1claw" : null }} state={desk ? avatarState(state, talking, verdict) : on ? "idle" : "offline"} size={80} label={label} />
+        <AgentAvatar agent={{ id: desk ? role : "grok-bot", role: desk ? role : "guest", name: label, custody: role === "trader" ? "1claw" : null }} state={desk ? avatarState(state, talking, verdict) : on ? "idle" : "offline"} size={80} label={label} look={look} />
       </div>
       <span>{label}</span>
       {sub ? <small>{sub}</small> : null}
