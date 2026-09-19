@@ -238,11 +238,15 @@ app.whenReady().then(() => {
   if (mac && app.dock && !app.isPackaged) {
     try { app.dock.setIcon(path.join(__dirname, "icon.png")); } catch {}
   }
-  // Microfono para el composer (getUserMedia). Electron niega "media" si no hay handler.
+  // Microfono para el composer, y escritura al portapapeles para los botones de
+  // copiar: Electron niega "media" si no hay handler, y la comprobacion
+  // sincrona negaba clipboard-sanitized-write, asi que navigator.clipboard
+  // fallaba en silencio y el boton decia "Copied" sin haber copiado nada.
+  const allowed = new Set(["media", "clipboard-read", "clipboard-write", "clipboard-sanitized-write"]);
   session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => {
-    cb(permission === "media" || permission === "clipboard-read");
+    cb(allowed.has(permission));
   });
-  session.defaultSession.setPermissionCheckHandler((_wc, permission) => permission === "media");
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => allowed.has(permission));
   // Floor escucha y habla: que macOS no suspenda la app mientras esta abierta.
   // (Sin preload no hay IPC desde el renderer; se activa para toda la sesion.)
   powerSaveBlocker.start("prevent-app-suspension");

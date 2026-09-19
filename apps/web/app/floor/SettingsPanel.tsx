@@ -118,10 +118,29 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
       setGuest({ invited: true, agentName: j.agentName, status: j.status, prompt: j.prompt, complete: j.complete });
     } finally { setGuestBusy(false); }
   };
+  // Copying can be refused by the shell, and a button that says "Copied" when
+  // nothing was copied sends a person to paste an empty clipboard into their
+  // bot. So it only claims success when the write resolved; otherwise it opens
+  // the setup and selects it, which always works.
+  const [copyFailed, setCopyFailed] = useState(false);
+  const promptRef = useRef<HTMLTextAreaElement>(null);
   const copyGuest = async () => {
     if (!guest?.prompt) return;
-    await navigator.clipboard.writeText(guest.prompt).catch(() => undefined);
-    setCopied(true);
+    let ok = false;
+    try {
+      await navigator.clipboard.writeText(guest.prompt);
+      ok = true;
+    } catch {
+      const el = promptRef.current;
+      if (el) {
+        el.closest("details")?.setAttribute("open", "");
+        el.focus();
+        el.select();
+        try { ok = document.execCommand("copy"); } catch { ok = false; }
+      }
+    }
+    setCopyFailed(!ok);
+    setCopied(ok);
     window.setTimeout(() => setCopied(false), 1500);
   };
 
@@ -273,7 +292,7 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
               const setup = (
                 <details className="gb-reveal">
                   <summary>Show setup</summary>
-                  <textarea className="invite-prompt" readOnly value={guest?.prompt ?? ""} aria-label="Grok Bot setup" />
+                  <textarea ref={promptRef} className="invite-prompt" readOnly value={guest?.prompt ?? ""} aria-label="Grok Bot setup" />
                   <p className="hint-line">This carries a key for {name}. Treat it like a password: it goes into your Grok Bot and nowhere else.</p>
                 </details>
               );
@@ -289,6 +308,7 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
                     </span>
                   </div>
                   <p className="hint-line">Drafts with your team from outside. Never spends, never signs.</p>
+                  {copyFailed ? <p className="hint-line err">Copying was refused here. The setup is open below and selected, copy it with your keyboard.</p> : null}
 
                   {phase === "none" ? (
                     <>
