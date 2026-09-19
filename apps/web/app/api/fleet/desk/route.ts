@@ -169,11 +169,19 @@ export async function POST(req: Request) {
         ]);
         const scoutSaid = scout?.ok ? clip(scout.reply) : "(Scout did not answer)";
         const riskSaid = risk?.ok ? clip(risk.reply) : "(Risk did not answer)";
-        if (s.guestAgentId) {
-          send({ step: "start", role: "guest" });
-          const gp = `${head}\nScout said: ${scoutSaid}\nRisk said: ${riskSaid}\nYou are the owner's invited Grok Bot on this Floor. Do useful work: an extra angle, a better name, a challenge, research. Open with "@Sparky". Never write VERDICT (that is house Risk). Never spend, swap, launch, or sign.`;
-          const g = await askGuest(wallet, s.guestAgentId, gp, 40_000, req.signal);
-          send({ step: "reply", role: "guest", ok: g.ok, reply: g.reply, detail: g.detail, ms: g.ms });
+        // Every invited bot gets the same question at the same time. They are
+        // guests: the turn does not wait longer because there are more of them,
+        // and one that stays quiet costs the desk nothing.
+        const guests = s.guests.length ? s.guests : s.guestAgentId ? [{ agentId: s.guestAgentId, agentName: s.guestName, seat: 1 }] : [];
+        if (guests.length) {
+          const gp = `${head}\nScout said: ${scoutSaid}\nRisk said: ${riskSaid}\nYou are an invited Grok Bot guest on this Floor. Do useful work: an extra angle, a better name, a challenge, research. Open with "@Sparky". Never write VERDICT (that is house Risk). Never spend, swap, launch, or sign.`;
+          for (const g of guests) send({ step: "start", role: "guest", seat: g.seat, agentName: g.agentName });
+          await Promise.all(
+            guests.map(async (guest) => {
+              const g = await askGuest(wallet, guest.agentId, gp, 40_000, req.signal);
+              send({ step: "reply", role: "guest", seat: guest.seat, agentName: guest.agentName, ok: g.ok, reply: g.reply, detail: g.detail, ms: g.ms });
+            })
+          );
         }
         const verdict = gated ? (risk?.ok ? verdictOf(risk.reply) ?? "BLOCK" : "BLOCK") : undefined;
         const tail = `${head}\nScout said: ${scoutSaid}\nRisk said: ${riskSaid}${verdict ? ` (verdict ${verdict})` : ""}.`;

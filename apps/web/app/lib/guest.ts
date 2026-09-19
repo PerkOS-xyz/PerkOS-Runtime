@@ -7,9 +7,18 @@ import { ensureHome, HOME_DIR } from "./home";
 
 export const GUEST_INVITE_FILE = join(HOME_DIR, "guest-invite.md");
 
-export function guestAgentName(wallet: string): string {
+/** One seat per bot: a desk can invite more than one, and they must not share
+ *  a name, because the relay drops the older connection when two register with
+ *  the same one. Seat 1 keeps the historic name so existing invites still work. */
+export function guestAgentName(wallet: string, seat = 1): string {
   const tail = wallet.toLowerCase().replace(/^0x/, "").slice(-8);
-  return `fgrok-${tail}`;
+  return seat <= 1 ? `fgrok-${tail}` : `fgrok-${tail}-${seat}`;
+}
+
+export const MAX_GUESTS = 4;
+
+export function guestInviteFile(seat = 1): string {
+  return seat <= 1 ? GUEST_INVITE_FILE : join(HOME_DIR, `guest-invite-${seat}.md`);
 }
 
 async function token(wallet: string): Promise<string> {
@@ -26,6 +35,7 @@ export type GuestInvite = {
   prompt?: string;
   /** False when the copy is missing the key: the bot cannot connect with it. */
   complete?: boolean;
+  seat?: number;
 };
 
 /**
@@ -50,17 +60,17 @@ function inviteComplete(prompt: string): boolean {
   return prompt.includes("PERKOS_RELAY_KEY=") && prompt.includes("PERKOS_AGENT_ID=");
 }
 
-export async function readGuestInvitePrompt(): Promise<string> {
+export async function readGuestInvitePrompt(seat = 1): Promise<string> {
   try {
-    return (await readFile(GUEST_INVITE_FILE, "utf8")).trim();
+    return (await readFile(guestInviteFile(seat), "utf8")).trim();
   } catch {
     return "";
   }
 }
 
-async function savePrompt(prompt: string): Promise<string> {
+async function savePrompt(prompt: string, seat = 1): Promise<string> {
   ensureHome();
-  if (prompt.trim()) await writeFile(GUEST_INVITE_FILE, `${prompt.trim()}\n`, { mode: 0o600 });
+  if (prompt.trim()) await writeFile(guestInviteFile(seat), `${prompt.trim()}\n`, { mode: 0o600 });
   return prompt.trim();
 }
 
@@ -95,9 +105,9 @@ async function relayKey(wallet: string, agentId: string): Promise<string> {
 type InviteApi = { ok?: boolean; agentId: string; agentName: string; invitePrompt?: string };
 type AgentRow = { id?: string; name?: string; status?: string; deployMode?: string };
 
-export async function inviteFloorGuest(wallet: string): Promise<GuestInvite> {
+export async function inviteFloorGuest(wallet: string, seat = 1): Promise<GuestInvite> {
   const idToken = await token(wallet);
-  const name = guestAgentName(wallet);
+  const name = guestAgentName(wallet, seat);
   const note = "Invited Grok Bot on this Floor desk. Draft work: research, names, challenges, extra angles. Never spend, never sign, never 1Claw. House Risk owns VERDICT.";
   try {
     const r = await perkosRequest<InviteApi>("/agents/invite", {
@@ -109,16 +119,16 @@ export async function inviteFloorGuest(wallet: string): Promise<GuestInvite> {
     // The invite response does not always carry the key, and a copy without it
     // is useless to the bot, so ask for it rather than shipping a short paste.
     const key = keyFromPrompt(r.invitePrompt ?? "") || (await relayKey(wallet, r.agentId));
-    const prompt = await savePrompt(shortInvite(r.agentName || name, r.agentId, r.invitePrompt ?? "", key));
-    return { agentId: r.agentId, agentName: r.agentName || name, status: "invited", inviteFile: GUEST_INVITE_FILE, prompt, complete: inviteComplete(prompt) };
+    const prompt = await savePrompt(shortInvite(r.agentName || name, r.agentId, r.invitePrompt ?? "", key), seat);
+    return { agentId: r.agentId, agentName: r.agentName || name, status: "invited", inviteFile: guestInviteFile(seat), prompt, complete: inviteComplete(prompt), seat };
   } catch (e) {
     if (e instanceof PerkosApiError && e.status === 409) {
       const listed = await perkosRequest<{ agents?: AgentRow[] }>("/agents", { idToken, timeoutMs: 15_000 });
       const hit = (listed.agents ?? []).find((a) => a.name === name);
       if (hit?.id) {
         const key = await relayKey(wallet, hit.id);
-        const prompt = await savePrompt(shortInvite(name, hit.id, "", key));
-        return { agentId: hit.id, agentName: name, status: String(hit.status ?? "invited"), inviteFile: GUEST_INVITE_FILE, prompt, complete: inviteComplete(prompt) };
+        const prompt = await savePrompt(shortInvite(name, hit.id, "", key), seat);
+        return { agentId: hit.id, agentName: name, status: String(hit.status ?? "invited"), inviteFile: guestInviteFile(seat), prompt, complete: inviteComplete(prompt), seat };
       }
     }
     throw e;
