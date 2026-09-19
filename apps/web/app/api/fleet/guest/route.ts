@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { loadSettings, saveSettings } from "../../../lib/settingsStore";
-import { inviteFloorGuest, guestStatus, readGuestInvitePrompt, MAX_GUESTS } from "../../../lib/guest";
+import { inviteFloorGuest, guestStatus, readGuestInvitePrompt, guestDisplayName, MAX_GUESTS } from "../../../lib/guest";
 import { PerkosApiError } from "../../../lib/perkosApi";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +16,8 @@ type Seat = {
   status: string;
   prompt?: string;
   complete: boolean;
+  /** What the bot calls itself, when it has said so. */
+  displayName?: string;
 };
 
 export async function GET() {
@@ -34,7 +36,8 @@ export async function GET() {
       } catch {
         /* the row still shows, with what we know */
       }
-      return { seat: g.seat, agentId: g.agentId, agentName: name, status, prompt: prompt || undefined, complete: complete(prompt) };
+      const displayName = await guestDisplayName(g.seat, g.agentName, g.agentId);
+      return { seat: g.seat, agentId: g.agentId, agentName: name, status, prompt: prompt || undefined, complete: complete(prompt), displayName: displayName || undefined };
     })
   );
   const first = seats[0];
@@ -43,6 +46,7 @@ export async function GET() {
     invited: seats.length > 0,
     agentId: first?.agentId,
     agentName: first?.agentName,
+    displayName: first?.displayName,
     status: first?.status,
     prompt: first?.prompt,
     complete: first?.complete ?? false,

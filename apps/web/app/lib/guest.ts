@@ -135,6 +135,31 @@ export async function inviteFloorGuest(wallet: string, seat = 1): Promise<GuestI
   }
 }
 
+/**
+ * The name the bot chose for itself. It lives on the seat holder, not on the
+ * platform: the bot calls set_identity through the MCP and this reads it back
+ * with the same credential the invite already put on this machine, so there is
+ * no extra round trip to the API for it.
+ */
+export async function guestDisplayName(seat: number, agentName: string, agentId: string): Promise<string> {
+  try {
+    const invite = await readGuestInvitePrompt(seat);
+    const key = invite.match(/PERKOS_RELAY_KEY=(\S+)/)?.[1] ?? "";
+    if (!key) return "";
+    const base = `${PERKOS_API_URL}/guest-mcp`;
+    const r = await fetch(`${base}/identity`, {
+      headers: { authorization: `Bearer ${key}`, "x-perkos-agent-name": agentName, "x-perkos-agent-id": agentId },
+      signal: AbortSignal.timeout(4_000)
+    });
+    if (!r.ok) return "";
+    const j = (await r.json()) as { displayName?: string; agent?: string };
+    const name = String(j.displayName ?? "").trim();
+    return name && name !== agentName ? name : "";
+  } catch {
+    return "";
+  }
+}
+
 export async function guestStatus(wallet: string, agentId: string): Promise<{ status: string; name?: string }> {
   const idToken = await token(wallet);
   const r = await perkosRequest<{ status?: string; name?: string }>(`/agents/${encodeURIComponent(agentId)}`, { idToken, timeoutMs: 12_000 });

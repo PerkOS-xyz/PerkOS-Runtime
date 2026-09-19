@@ -73,9 +73,9 @@ function Shell() {
   const [guestSeat, setGuestSeat] = useState<{ invited: boolean; ready: boolean; name?: string } | null>(null);
   const readGuestSeat = useCallback(async () => {
     try {
-      const j = (await fetch("/api/fleet/guest").then((r) => r.json())) as { invited?: boolean; status?: string; agentName?: string };
+      const j = (await fetch("/api/fleet/guest").then((r) => r.json())) as { invited?: boolean; status?: string; agentName?: string; displayName?: string };
       const invited = j.invited === true;
-      setGuestSeat({ invited, ready: invited && (j.status || "").toLowerCase() === "ready", name: j.agentName });
+      setGuestSeat({ invited, ready: invited && (j.status || "").toLowerCase() === "ready", name: j.displayName || j.agentName });
       if (invited) setGuest(true);
     } catch {
       /* deja el ultimo estado conocido */
@@ -2747,7 +2747,7 @@ function Shell() {
         <Orb className="auditor" label="Auditor" on={awake} state={orbState("auditor")} talking={talking.has("auditor")} refCb={(el) => { orbRefs.current.auditor = el; }} />
         <Orb
           className={`guest${guestSeat?.invited ? "" : " dim"}`}
-          label={guestSeat?.invited ? "Grok Bot" : "Guest"}
+          label={guestSeat?.name || (guestSeat?.invited ? "Grok Bot" : "Guest")}
           on={guestSeat?.ready === true}
           state={guestSeat?.ready ? "ready" : guestSeat?.invited ? "waking" : ""}
           talking={talking.has("guest")}
