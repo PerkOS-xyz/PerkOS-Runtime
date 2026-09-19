@@ -322,7 +322,13 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
                   ) : null}
 
                   {phase === "ready" ? (
-                    <p className="hint-line ok">{name} is on the desk. Its drafts land with the rest of the team, and nothing it writes moves until you approve it.</p>
+                    <>
+                      <p className="hint-line ok">{name} is on the desk. Its drafts land with the rest of the team, and nothing it writes moves until you approve it.</p>
+                      {/* Still reachable once connected: a second bot, a reinstall
+                          or a machine swap all need the same setup again. */}
+                      <button type="button" className="gb-go" onClick={() => void copyGuest()}>{copied ? "Copied" : "Copy setup"}</button>
+                      {setup}
+                    </>
                   ) : null}
                 </div>
               );
