@@ -387,17 +387,6 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
               {seats.length && !canInviteMore ? <p className="hint-line">This desk is full: four guests is the limit.</p> : null}
               {guest !== null && !seats.length ? <p className="hint-line">One paste in your bot and it takes a seat on this desk. It installs <a href="https://github.com/PerkOS-xyz/PerkOS-Grok-Plugin" target="_blank" rel="noreferrer">the PerkOS plugin</a> and checks the desk on a schedule.</p> : null}
             </div>
-            {railText ? (
-              <div className="srow rail-row">
-                <span><img className="rail-mark" src="/1claw.svg" alt="" />1Claw</span>
-                <span className="v">
-                  {railText}
-                  {rail?.status === "linked" ? <a className="pill" href={railUrl} target="_blank" rel="noreferrer" title="Chains, allowlists, per-trade and daily caps, approval policy. Opens your 1Claw account in the browser.">Edit rails ↗</a> : null}
-                  {rail && rail.status !== "linked" && rail.status !== "not_configured" && onLinkRail ? <button type="button" onClick={onLinkRail}>Link 1Claw</button> : null}
-                </span>
-              </div>
-            ) : null}
-            {rail?.status === "linked" && rail.lockUsd ? <p className="hint-line">The Trader spends only through 1Claw. Above ${rail.lockUsd} every spend waits for you.</p> : null}
             <TraderAccessCard connected={perkos.connected} />
             <div className="srow rail-row">
               <span>Bankr</span>
