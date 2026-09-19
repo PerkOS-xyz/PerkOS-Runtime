@@ -105,7 +105,10 @@ export const AGENT_ROLES: Record<string, { accent: string; symbol: AgentSymbol; 
   scout: { accent: "#3d8bff", symbol: "search", label: "Scout" },
   risk: { accent: "#ffb020", symbol: "shield", label: "Risk" },
   auditor: { accent: "#22d3c5", symbol: "check", label: "Auditor" },
-  guest: { accent: "#9aabc8", symbol: "dot", label: "Guest" }
+  // El invitado no es de la casa y tiene que verse: acento del bot que lo trae
+  // (Grok) en vez del gris neutro, para que en la mesa se lea de un vistazo
+  // quien es plantilla y quien viene de fuera.
+  guest: { accent: "#ff4d8d", symbol: "dot", label: "Guest" }
 };
 /** La hoja dice Marketing; en PerkOS ese rol se llama Growth. */
 export const ROLE_ALIASES: Record<string, string> = { marketing: "growth" };
