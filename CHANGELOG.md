@@ -4,6 +4,7 @@ All notable changes to the PerkOS desktop app. Versions follow [Semantic Version
 
 ## [Unreleased]
 
+- An explicit order ("buy $1 of NVIDIA") paid with the delegated wallet executes on its own once Risk says GO: you gave the order and set the limits in Dynamic, so there is no second approval. The Trader waits 5 seconds first; Stop or any new message cancels it and the card stays on the table. Questions ("what should I buy?") still end in a card you hold to approve.
 - A desk turn asked while the team was asleep no longer hangs after "The team is up.": the wake job never cleared itself, so the turn waited for it forever.
 - Trader access: you can delegate a Dynamic wallet you own to the desk's Trader. Settings › Trader access opens a PerkOS page in your browser where you sign in, approve the delegation and set the Trader's limit. Back on the desk the card shows the wallet, its funds on Base and every limit, each marked with who enforces it: Dynamic's enclave, PerkOS, or your Hold.
 - Switch "Pays for buys" to Delegated wallet and an approved buy is signed through that wallet after you hold Approve: no wallet popup, and the shares land back in the same wallet. Edit limits and Revoke are one press away. Your connected wallet stays the default, and sells always use it.
