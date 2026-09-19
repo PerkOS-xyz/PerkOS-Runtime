@@ -27,6 +27,15 @@ let historyThread = "";
 
 // Contexto hibrido: estas reglas + brief estatico (knowledge/perkos.md) +
 // contexto vivo de PerkOS Knowledge por turno (lib/knowledge.ts).
+// Invitados: bots de fuera sentados en esta mesa. Sparky tiene que saber que
+// existen, porque si no niega que haya ninguno cuando la persona pregunta, y
+// tiene que saber que no son el modelo que le da voz a el.
+function guestLine(guests: { agentName: string; status?: string }[]): string {
+  if (!guests.length) return "";
+  const who = guests.map((g) => `${g.agentName}${g.status ? ` (${g.status})` : ""}`).join(", ");
+  return `\n\n## Invited guests on this desk\nThis desk has invited bots sitting with the team: ${who}. They are Grok Bots the owner invited from outside PerkOS, not the model that gives you your voice and not house agents. They join a desk turn like the others and they draft only: they never spend, never sign and never give a verdict. When the person asks whether there is a Grok Bot here, say yes and name it. If they want it to work on something, say you will put it in the next desk turn, which is how work reaches it.`;
+}
+
 // El desk activo (header) da el contexto: nombre y roles del template.
 function deskLine(desk?: { name?: string; roles?: string[] }): string {
   const roles = desk?.roles?.length ? desk.roles.join(", ") : "Scout, Risk, Trader, Auditor";
@@ -112,6 +121,7 @@ export async function POST(req: Request) {
     ? fleet.map((f) => `- ${f.role}: ${f.ok && f.reply ? f.reply.replace(/\s+/g, " ").slice(0, 900) : `(no answer: ${f.detail || "unavailable"})`}`).join("\n")
     : "";
   const base = BASE_INSTRUCTIONS.replace(/^You are Sparky,[^.]*\./, deskLine(body.desk));
+  const guests = (s.guests ?? []).map((g) => ({ agentName: g.agentName, status: undefined as string | undefined }));
   const factLines = Array.isArray(body.brief) ? body.brief.filter((l) => typeof l === "string").slice(0, 12).map((l) => l.slice(0, 300)) : [];
   const factsCtx = factLines.length
     ? "\n\n## Market facts the desk verified this turn (Uniswap, Chainlink, Base RPC). Lead with the price and the 24h move; these override anything older:\n" + factLines.map((l) => `- ${l}`).join("\n") + (typeof body.news === "string" && body.news.trim() ? `\n- News (with sources on screen): ${body.news.trim().slice(0, 700)}` : "")
@@ -146,7 +156,7 @@ export async function POST(req: Request) {
   const warmCtx = body.warming === true
     ? "\n\n## The team is waking in the background (one to two minutes)\nYou stay with the person. Talk. Use the market facts if you have them. Ask what they want: size, names to skip, pair, risk. Do not stall, do not say you are waiting, do not address @Scout @Risk @Trader @Auditor. They will join when they are up. Keep it to a short spoken paragraph plus one question.\n"
     : "";
-  const instructions = buildInstructions(base, brief, live?.context ?? "") + factsCtx + localCtx + launchCtx + pulseCtx + pairCtx + styleCtx + sideCtx + warmCtx + (fleetCtx
+  const instructions = buildInstructions(base, brief, live?.context ?? "") + guestLine(guests) + factsCtx + localCtx + launchCtx + pulseCtx + pairCtx + styleCtx + sideCtx + warmCtx + (fleetCtx
     ? "\n\n## Your teammates just answered this turn (Hermes agents on PerkOS infra). Speak for the desk: summarize what they found, name who said what when it matters, flag disagreements and what needs the human's approval. Do not invent what they did not say.\n" + fleetCtx
     : body.warming === true || body.mode === "pair" || body.side === true
       ? ""
