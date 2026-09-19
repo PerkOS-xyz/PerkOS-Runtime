@@ -24,6 +24,9 @@ export type Settings = {
   fleetTemplateId: string;
   guestAgentId: string;
   guestName: string;
+  /** Every invited bot, in the order they were invited. Seat 1 is also mirrored
+   *  in guestAgentId/guestName so an older build still finds its guest. */
+  guests: { agentId: string; agentName: string; seat: number }[];
   // Voz de Floor (xAI TTS voice_id). Sparky habla con "rex"; las voces validas
   // se probaron contra /v1/tts el 2026-09-16 (mika y valentin no existen).
   voice: Voice;
@@ -75,10 +78,20 @@ export async function loadSettings(): Promise<Settings> {
       fleetTemplateId: typeof raw.fleetTemplateId === "string" && /^[a-z][a-z0-9-]{0,63}$/.test(raw.fleetTemplateId) ? raw.fleetTemplateId : DEFAULT_FLEET_TEMPLATE,
       guestAgentId: typeof raw.guestAgentId === "string" ? raw.guestAgentId : "",
       guestName: typeof raw.guestName === "string" ? raw.guestName : "",
+      guests: Array.isArray(raw.guests)
+        ? (raw.guests as unknown[]).flatMap((g) => {
+            const row = g as { agentId?: unknown; agentName?: unknown; seat?: unknown };
+            return typeof row.agentId === "string" && typeof row.agentName === "string"
+              ? [{ agentId: row.agentId, agentName: row.agentName, seat: typeof row.seat === "number" ? row.seat : 1 }]
+              : [];
+          })
+        : typeof raw.guestAgentId === "string" && raw.guestAgentId
+          ? [{ agentId: raw.guestAgentId, agentName: typeof raw.guestName === "string" ? raw.guestName : "", seat: 1 }]
+          : [],
       voice: isVoice(raw.voice) ? raw.voice : DEFAULT_VOICE
     };
   } catch {
-    return { provider: "xai-oauth", model: DEFAULT_MODELS["xai-oauth"], effort: "low", apiKey: "", baseUrl: "", onboarded: false, wallet: "", fleetTemplateId: DEFAULT_FLEET_TEMPLATE, guestAgentId: "", guestName: "", voice: DEFAULT_VOICE };
+    return { provider: "xai-oauth", model: DEFAULT_MODELS["xai-oauth"], effort: "low", apiKey: "", baseUrl: "", onboarded: false, wallet: "", fleetTemplateId: DEFAULT_FLEET_TEMPLATE, guestAgentId: "", guestName: "", guests: [], voice: DEFAULT_VOICE };
   }
 }
 

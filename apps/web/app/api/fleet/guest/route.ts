@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { loadSettings, saveSettings } from "../../../lib/settingsStore";
-import { inviteFloorGuest, guestStatus, readGuestInvitePrompt } from "../../../lib/guest";
+import { inviteFloorGuest, guestStatus, readGuestInvitePrompt, MAX_GUESTS } from "../../../lib/guest";
 import { PerkosApiError } from "../../../lib/perkosApi";
 
 export const dynamic = "force-dynamic";
@@ -9,27 +9,71 @@ export const dynamic = "force-dynamic";
 const complete = (prompt: string) =>
   prompt.includes("PERKOS_RELAY_KEY=") && prompt.includes("PERKOS_AGENT_ID=");
 
+type Seat = {
+  seat: number;
+  agentId: string;
+  agentName: string;
+  status: string;
+  prompt?: string;
+  complete: boolean;
+};
+
 export async function GET() {
   const s = await loadSettings();
   if (!s.wallet) return NextResponse.json({ error: "perkos_session_required" }, { status: 401 });
-  const prompt = await readGuestInvitePrompt();
-  if (!s.guestAgentId) return NextResponse.json({ invited: false, prompt: prompt || undefined, complete: complete(prompt) });
-  try {
-    const st = await guestStatus(s.wallet, s.guestAgentId);
-    return NextResponse.json({ invited: true, agentId: s.guestAgentId, agentName: s.guestName || st.name, status: st.status, prompt: prompt || undefined, complete: complete(prompt) });
-  } catch {
-    return NextResponse.json({ invited: true, agentId: s.guestAgentId, agentName: s.guestName, status: "unknown", prompt: prompt || undefined, complete: complete(prompt) });
-  }
+  const rows = s.guests.length ? s.guests : [];
+  const seats: Seat[] = await Promise.all(
+    rows.map(async (g) => {
+      const prompt = await readGuestInvitePrompt(g.seat);
+      let status = "unknown";
+      let name = g.agentName;
+      try {
+        const st = await guestStatus(s.wallet, g.agentId);
+        status = st.status;
+        name = g.agentName || st.name || "";
+      } catch {
+        /* the row still shows, with what we know */
+      }
+      return { seat: g.seat, agentId: g.agentId, agentName: name, status, prompt: prompt || undefined, complete: complete(prompt) };
+    })
+  );
+  const first = seats[0];
+  return NextResponse.json({
+    // The single-guest shape stays for anything still reading it.
+    invited: seats.length > 0,
+    agentId: first?.agentId,
+    agentName: first?.agentName,
+    status: first?.status,
+    prompt: first?.prompt,
+    complete: first?.complete ?? false,
+    seats,
+    canInviteMore: seats.length < MAX_GUESTS
+  });
 }
 
 export async function POST() {
   const s = await loadSettings();
   if (!s.wallet) return NextResponse.json({ error: "perkos_session_required" }, { status: 401 });
+  if (s.guests.length >= MAX_GUESTS) {
+    return NextResponse.json({ error: `This desk already has ${MAX_GUESTS} guests`, code: "GUEST_LIMIT" }, { status: 409 });
+  }
+  // Seats are numbered, never reused while another one holds the number: two
+  // bots on the same name would knock each other off the relay.
+  const seat = (s.guests.reduce((max, g) => Math.max(max, g.seat), 0) || 0) + 1;
   try {
-    const g = await inviteFloorGuest(s.wallet);
-    await saveSettings({ ...s, guestAgentId: g.agentId, guestName: g.agentName });
-    const prompt = g.prompt || (await readGuestInvitePrompt());
-    return NextResponse.json({ ok: true, agentId: g.agentId, agentName: g.agentName, status: g.status, prompt: prompt || undefined, complete: g.complete ?? complete(prompt) });
+    const g = await inviteFloorGuest(s.wallet, seat);
+    const guests = [...s.guests.filter((x) => x.seat !== seat), { agentId: g.agentId, agentName: g.agentName, seat }];
+    await saveSettings({ ...s, guests, guestAgentId: guests[0].agentId, guestName: guests[0].agentName });
+    const prompt = g.prompt || (await readGuestInvitePrompt(seat));
+    return NextResponse.json({
+      ok: true,
+      seat,
+      agentId: g.agentId,
+      agentName: g.agentName,
+      status: g.status,
+      prompt: prompt || undefined,
+      complete: g.complete ?? complete(prompt)
+    });
   } catch (e) {
     const err = e as PerkosApiError;
     return NextResponse.json({ error: err.message, code: err.code }, { status: err.status || 500 });

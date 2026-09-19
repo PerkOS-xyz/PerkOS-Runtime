@@ -76,7 +76,11 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
   // Bankr: segunda cotizacion, token launches y automatizaciones. La key vive
   // en el env del install; aqui se ve la wallet Bankr, su ETH en Base y el cupo.
   const [bankr, setBankr] = useState<{ configured: boolean; wallet?: { evm: string; ethBase: number; club: boolean; x?: string } | null; last24h?: number } | null>(null);
+  type Seat = { seat: number; agentId: string; agentName: string; status: string; prompt?: string; complete: boolean };
   const [guest, setGuest] = useState<{ invited: boolean; agentName?: string; status?: string; prompt?: string; complete?: boolean } | null>(null);
+  const [seats, setSeats] = useState<Seat[]>([]);
+  const [canInviteMore, setCanInviteMore] = useState(true);
+  const [copiedSeat, setCopiedSeat] = useState(0);
   const [guestBusy, setGuestBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -88,7 +92,7 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
       fetch("/api/llm/status").then((r) => r.json()).then((s: Llm) => { setLlm(s); setModel(s.model); }),
       fetch("/api/settings").then((r) => r.json()).then((s: { voice?: Voice; version?: string; build?: string }) => { if (s.voice && (VOICES as readonly string[]).includes(s.voice)) setVoice(s.voice); setVer({ version: s.version ?? "", build: s.build ?? "" }); }).catch(() => undefined),
       fetch("/api/launch/quotes").then((r) => r.json()).then((j: { configured?: boolean; wallet?: { evm: string; ethBase: number; club: boolean; x?: string } | null; last24h?: number }) => setBankr({ configured: j.configured === true, wallet: j.wallet ?? null, last24h: j.last24h ?? 0 })).catch(() => setBankr({ configured: false })),
-      fetch("/api/fleet/guest").then((r) => r.json()).then((j: { invited?: boolean; agentName?: string; status?: string; prompt?: string; complete?: boolean }) => setGuest({ invited: j.invited === true, agentName: j.agentName, status: j.status, prompt: j.prompt, complete: j.complete })).catch(() => setGuest({ invited: false }))
+      fetch("/api/fleet/guest").then((r) => r.json()).then((j: { invited?: boolean; agentName?: string; status?: string; prompt?: string; complete?: boolean; seats?: Seat[]; canInviteMore?: boolean }) => { setGuest({ invited: j.invited === true, agentName: j.agentName, status: j.status, prompt: j.prompt, complete: j.complete }); setSeats(j.seats ?? []); setCanInviteMore(j.canInviteMore !== false); }).catch(() => setGuest({ invited: false }))
     ]);
 
   // La voz se guarda al elegirla y se puede escuchar antes de cerrar.
@@ -116,6 +120,7 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
       const j = (await r.json().catch(() => ({}))) as { error?: string; invited?: boolean; agentName?: string; status?: string; prompt?: string; complete?: boolean; already?: boolean; ok?: boolean };
       if (!r.ok) { setGuest({ invited: false }); return; }
       setGuest({ invited: true, agentName: j.agentName, status: j.status, prompt: j.prompt, complete: j.complete });
+      await refreshGuest();
     } finally { setGuestBusy(false); }
   };
   // Copying can be refused by the shell, and a button that says "Copied" when
@@ -124,6 +129,14 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
   // the setup and selects it, which always works.
   const [copyFailed, setCopyFailed] = useState(false);
   const promptRef = useRef<HTMLTextAreaElement>(null);
+  const copySeat = async (seat: Seat) => {
+    if (!seat.prompt) return;
+    let ok = false;
+    try { await navigator.clipboard.writeText(seat.prompt); ok = true; } catch { ok = false; }
+    setCopyFailed(!ok);
+    setCopiedSeat(ok ? seat.seat : 0);
+    window.setTimeout(() => setCopiedSeat(0), 1500);
+  };
   const copyGuest = async () => {
     if (!guest?.prompt) return;
     let ok = false;
@@ -147,8 +160,10 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
   const refreshGuest = async () => {
     setRefreshing(true);
     try {
-      const j = (await fetch("/api/fleet/guest").then((r) => r.json())) as { invited?: boolean; agentName?: string; status?: string; prompt?: string; complete?: boolean };
+      const j = (await fetch("/api/fleet/guest").then((r) => r.json())) as { invited?: boolean; agentName?: string; status?: string; prompt?: string; complete?: boolean; seats?: Seat[]; canInviteMore?: boolean };
       setGuest({ invited: j.invited === true, agentName: j.agentName, status: j.status, prompt: j.prompt, complete: j.complete });
+      setSeats(j.seats ?? []);
+      setCanInviteMore(j.canInviteMore !== false);
     } catch {
       /* leave the last known state; the row says when it cannot confirm */
     } finally { setRefreshing(false); }
@@ -286,73 +301,52 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
             <div className="sec">Desk · {desk.name}</div>
             <div className="srow"><span>Chain</span><span className="v">{desk.chain} · {desk.builtOn}</span></div>
             <div className="srow"><span>Team</span><span className="v">{desk.agents.join(", ")} · template r{desk.revision}{desk.fleetStatus ? ` · ${desk.fleetStatus}` : ""}</span></div>
-            {(() => {
-              const phase = grokBotPhase(guest);
-              const name = guest?.agentName || "your Grok Bot";
-              const setup = (
-                <details className="gb-reveal">
-                  <summary>Show setup</summary>
-                  <textarea ref={promptRef} className="invite-prompt" readOnly value={guest?.prompt ?? ""} aria-label="Grok Bot setup" />
-                  <p className="hint-line">This carries a key for {name}. Treat it like a password: it goes into your Grok Bot and nowhere else.</p>
-                </details>
-              );
-              return (
-                <div className="gb-card" aria-live="polite">
-                  <div className="gb-head">
-                    <span className="gb-title">Grok Bot</span>
-                    <span className="gb-headright">
-                      {guest !== null && phase !== "none" ? <em className={`gb-pill gb-${phase}`} title={GB_PILL[phase].title}>{GB_PILL[phase].label}</em> : null}
-                      <button type="button" className={`gb-refresh${refreshing ? " spin" : ""}`} onClick={() => void refreshGuest()} disabled={refreshing || guest === null} aria-label="Refresh Grok Bot status" title="Refresh status">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7" /><path d="M21 3v6h-6" /></svg>
-                      </button>
-                    </span>
+            <div className="gb-card" aria-live="polite">
+              <div className="gb-head">
+                <span className="gb-title">Grok Bot guests</span>
+                <span className="gb-headright">
+                  {seats.length ? <em className="gb-pill gb-ready">{seats.length} invited</em> : null}
+                  <button type="button" className={`gb-refresh${refreshing ? " spin" : ""}`} onClick={() => void refreshGuest()} disabled={refreshing} aria-label="Refresh guest status" title="Refresh status">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7" /><path d="M21 3v6h-6" /></svg>
+                  </button>
+                </span>
+              </div>
+              <p className="hint-line">Bots you invited from outside. They draft with your team. They never spend, never sign.</p>
+              {copyFailed ? <p className="hint-line err">Copying was refused here. Open the setup below and copy it with your keyboard.</p> : null}
+
+              {seats.map((seat) => {
+                const phase = grokBotPhase({ invited: true, status: seat.status, complete: seat.complete, prompt: seat.prompt });
+                return (
+                  <div key={seat.seat} className="gb-seat">
+                    <div className="gb-seat-head">
+                      <span className="gb-seat-name">{seat.agentName || `Guest ${seat.seat}`}</span>
+                      <em className={`gb-pill gb-${phase}`} title={GB_PILL[phase].title}>{GB_PILL[phase].label}</em>
+                    </div>
+                    {phase === "waiting" ? <p className="hint-line">Paste this setup once into that bot. The seat lights up on its own.</p> : null}
+                    {phase === "lost" ? <p className="hint-line err">Lost touch with this one. The setup you pasted is still good.</p> : null}
+                    {phase === "incomplete" ? <p className="hint-line err">This setup is missing the key or the id. Invite again to get a fresh one.</p> : null}
+                    {phase === "ready" ? <p className="hint-line ok">On the desk and drafting with the team.</p> : null}
+                    {seat.prompt ? (
+                      <>
+                        <button type="button" className="gb-go" onClick={() => void copySeat(seat)}>{copiedSeat === seat.seat ? "Copied" : "Copy setup"}</button>
+                        <details className="gb-reveal">
+                          <summary>Show setup</summary>
+                          <textarea className="invite-prompt" readOnly value={seat.prompt} aria-label={`Setup for ${seat.agentName || `guest ${seat.seat}`}`} />
+                          <p className="hint-line">This carries a key. Treat it like a password: it goes into that bot and nowhere else.</p>
+                        </details>
+                      </>
+                    ) : null}
                   </div>
-                  <p className="hint-line">Drafts with your team from outside. Never spends, never signs.</p>
-                  {copyFailed ? <p className="hint-line err">Copying was refused here. The setup is open below and selected, copy it with your keyboard.</p> : null}
+                );
+              })}
 
-                  {phase === "none" ? (
-                    <>
-                      <button type="button" className="gb-go" onClick={() => void mintGuest()} disabled={guestBusy || !perkos.connected} title={!perkos.connected ? "Connect your PerkOS account first" : undefined}>{guestBusy ? "Inviting…" : "Invite my Grok Bot"}</button>
-                      <p className="hint-line">One paste in your bot and it takes the fifth seat on this desk.</p>
-                    </>
-                  ) : null}
-
-                  {phase === "incomplete" ? (
-                    <>
-                      <p className="hint-line err">This setup is missing the key or the agent id, so a bot cannot connect with it. Get a fresh one and paste that instead.</p>
-                      <button type="button" className="gb-go" onClick={() => void mintGuest()} disabled={guestBusy}>{guestBusy ? "Inviting…" : "Get a new invite"}</button>
-                    </>
-                  ) : null}
-
-                  {phase === "waiting" ? (
-                    <>
-                      <p className="hint-line">Invited as {name}. Paste the setup once into your Grok Bot. It connects out to PerkOS and this seat lights up on its own.</p>
-                      <button type="button" className="gb-go" onClick={() => void copyGuest()}>{copied ? "Copied" : "Copy setup"}</button>
-                      {setup}
-                      <p className="hint-line">The bot installs <a href="https://github.com/PerkOS-xyz/PerkOS-Grok-Plugin" target="_blank" rel="noreferrer">the PerkOS plugin</a> and checks this desk on a schedule.</p>
-                    </>
-                  ) : null}
-
-                  {phase === "lost" ? (
-                    <>
-                      <p className="hint-line err">Lost touch with {name}. Usually the bot stopped or its connection dropped. The setup you already pasted is still good, no need to invite again.</p>
-                      <button type="button" className="gb-go" onClick={() => void refreshGuest()} disabled={refreshing}>{refreshing ? "Checking…" : "Check again"}</button>
-                      {setup}
-                    </>
-                  ) : null}
-
-                  {phase === "ready" ? (
-                    <>
-                      <p className="hint-line ok">{name} is on the desk. Its drafts land with the rest of the team, and nothing it writes moves until you approve it.</p>
-                      {/* Still reachable once connected: a second bot, a reinstall
-                          or a machine swap all need the same setup again. */}
-                      <button type="button" className="gb-go" onClick={() => void copyGuest()}>{copied ? "Copied" : "Copy setup"}</button>
-                      {setup}
-                    </>
-                  ) : null}
-                </div>
-              );
-            })()}
+              {canInviteMore ? (
+                <button type="button" className="gb-go" onClick={() => void mintGuest()} disabled={guestBusy || !perkos.connected} title={!perkos.connected ? "Connect your PerkOS account first" : undefined}>
+                  {guestBusy ? "Inviting…" : seats.length ? "Invite another Grok Bot" : "Invite my Grok Bot"}
+                </button>
+              ) : <p className="hint-line">This desk is full: four guests is the limit.</p>}
+              {!seats.length ? <p className="hint-line">One paste in your bot and it takes a seat on this desk. It installs <a href="https://github.com/PerkOS-xyz/PerkOS-Grok-Plugin" target="_blank" rel="noreferrer">the PerkOS plugin</a> and checks the desk on a schedule.</p> : null}
+            </div>
             {railText ? (
               <div className="srow rail-row">
                 <span><img className="rail-mark" src="/1claw.svg" alt="" />1Claw</span>

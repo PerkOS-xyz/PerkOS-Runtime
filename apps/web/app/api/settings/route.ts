@@ -36,7 +36,7 @@ export async function POST(req: Request) {
   const voice = isVoice(body.voice) ? body.voice : cur.voice;
   // The guest identity is minted by the invite route, so carry it through
   // untouched: a settings save must never orphan an invited bot.
-  const next: Settings = { provider, model, effort, apiKey, baseUrl, wallet, onboarded, fleetTemplateId, guestAgentId: cur.guestAgentId, guestName: cur.guestName, voice };
+  const next: Settings = { provider, model, effort, apiKey, baseUrl, wallet, onboarded, fleetTemplateId, guestAgentId: cur.guestAgentId, guestName: cur.guestName, guests: cur.guests, voice };
   await saveSettings(next);
   return Response.json(publicSettings(next));
 }
