@@ -4,6 +4,9 @@ All notable changes to the PerkOS desktop app. Versions follow [Semantic Version
 
 ## [Unreleased]
 
+### Fixed
+- The desk stops warning about a lost wallet link while the connector is still resuming the session. The check now needs three answers in a row before it says the link is gone, and it waits a few seconds after connecting before asking at all. A wallet that signs normally no longer raises the warning.
+
 ### Changed
 - Wallet sign in opens a new connector. The window offers the same two ways in, a wallet on your phone through WalletConnect and email or Google, and the app talks to it through the same internal contract as before, so nothing else in the app changed. Relinking a wallet after the phone drops the session is now a single step, and the app asks the connector whether the link is alive instead of assuming it from the session. The previous connector stays in the build: without `NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID` nothing changes, and `NEXT_PUBLIC_WALLET_CONNECTOR=legacy` forces it back.
 
