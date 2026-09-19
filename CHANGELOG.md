@@ -4,6 +4,8 @@ All notable changes to the PerkOS desktop app. Versions follow [Semantic Version
 
 ## [Unreleased]
 
+- The Trader wears a blue "Dynamic · delegated" badge while it buys from the wallet you delegated; the tooltip shows your per-order limit. It only shows while delegation is active.
+- Wake team in the header wakes Scout, Risk, Trader and Auditor ahead of time, so the first turn does not wait; it reads Waking… and then Team up.
 - 1Claw no longer shows anywhere: no badge under the Trader, no row in Settings, and new wallets skip the spend-rail step in onboarding. The Trader's limits now live in Trader access (Dynamic).
 - An explicit order ("buy $1 of NVIDIA") paid with the delegated wallet executes on its own once Risk says GO: you gave the order and set the limits in Dynamic, so there is no second approval. The Trader waits 5 seconds first; Stop or any new message cancels it and the card stays on the table. Questions ("what should I buy?") still end in a card you hold to approve.
 - A desk turn asked while the team was asleep no longer hangs after "The team is up.": the wake job never cleared itself, so the turn waited for it forever.
