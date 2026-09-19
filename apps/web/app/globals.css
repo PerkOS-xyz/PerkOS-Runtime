@@ -1712,6 +1712,15 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .settings-dock .gb-go { align-self: flex-start; margin-top: 6px; padding: 5px 12px; border-radius: 999px; border: 1px solid rgba(236, 27, 105, 0.55); background: rgba(236, 27, 105, 0.12); color: var(--ink); font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; }
 .settings-dock .gb-go:hover:not(:disabled) { background: rgba(236, 27, 105, 0.2); }
 .settings-dock .gb-go:disabled { opacity: 0.45; cursor: default; }
+/* La lista de invitados se desplaza dentro de la tarjeta: con tres o cuatro
+   asientos la tarjeta crecia mas que la ventana y el boton de invitar al
+   siguiente quedaba fuera de alcance. */
+.settings-dock .gb-seats { max-height: 260px; overflow-y: auto; overscroll-behavior: contain; margin: 0 -2px; padding: 0 2px; }
+.settings-dock .gb-seats::-webkit-scrollbar { width: 5px; }
+.settings-dock .gb-seats::-webkit-scrollbar-thumb { background: rgba(120, 160, 255, 0.22); border-radius: 999px; }
+.settings-dock .gb-add { padding: 3px 9px; border-radius: 999px; border: 1px solid rgba(236, 27, 105, 0.5); background: rgba(236, 27, 105, 0.1); color: var(--ink); font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; }
+.settings-dock .gb-add:hover:not(:disabled) { background: rgba(236, 27, 105, 0.18); }
+.settings-dock .gb-add:disabled { opacity: 0.45; cursor: default; }
 .settings-dock .gb-seat { margin-top: 8px; padding: 9px 10px; border-radius: 11px; border: 1px solid rgba(120, 160, 255, 0.14); background: rgba(255, 255, 255, 0.015); }
 .settings-dock .gb-seat-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .settings-dock .gb-seat-name { font-size: 11px; color: var(--ink); }

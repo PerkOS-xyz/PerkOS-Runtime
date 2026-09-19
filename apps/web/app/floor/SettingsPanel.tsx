@@ -306,6 +306,12 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
                 <span className="gb-title">Grok Bot guests</span>
                 <span className="gb-headright">
                   {seats.length ? <em className="gb-pill gb-ready">{seats.length} invited</em> : null}
+                  {/* Inviting the next bot lives in the header on purpose: with
+                      three seats the card grows past the window and a button at
+                      the bottom becomes unreachable. */}
+                  {seats.length && canInviteMore ? (
+                    <button type="button" className="gb-add" onClick={() => void mintGuest()} disabled={guestBusy || !perkos.connected} title="Invite another Grok Bot">{guestBusy ? "…" : "+ Invite"}</button>
+                  ) : null}
                   <button type="button" className={`gb-refresh${refreshing ? " spin" : ""}`} onClick={() => void refreshGuest()} disabled={refreshing} aria-label="Refresh guest status" title="Refresh status">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7" /><path d="M21 3v6h-6" /></svg>
                   </button>
@@ -314,6 +320,7 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
               <p className="hint-line">Bots you invited from outside. They draft with your team. They never spend, never sign.</p>
               {copyFailed ? <p className="hint-line err">Copying was refused here. Open the setup below and copy it with your keyboard.</p> : null}
 
+              <div className="gb-seats">
               {seats.map((seat) => {
                 const phase = grokBotPhase({ invited: true, status: seat.status, complete: seat.complete, prompt: seat.prompt });
                 return (
@@ -339,12 +346,14 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
                   </div>
                 );
               })}
+              </div>
 
-              {canInviteMore ? (
+              {!seats.length && canInviteMore ? (
                 <button type="button" className="gb-go" onClick={() => void mintGuest()} disabled={guestBusy || !perkos.connected} title={!perkos.connected ? "Connect your PerkOS account first" : undefined}>
-                  {guestBusy ? "Inviting…" : seats.length ? "Invite another Grok Bot" : "Invite my Grok Bot"}
+                  {guestBusy ? "Inviting…" : "Invite my Grok Bot"}
                 </button>
-              ) : <p className="hint-line">This desk is full: four guests is the limit.</p>}
+              ) : null}
+              {seats.length && !canInviteMore ? <p className="hint-line">This desk is full: four guests is the limit.</p> : null}
               {!seats.length ? <p className="hint-line">One paste in your bot and it takes a seat on this desk. It installs <a href="https://github.com/PerkOS-xyz/PerkOS-Grok-Plugin" target="_blank" rel="noreferrer">the PerkOS plugin</a> and checks the desk on a schedule.</p> : null}
             </div>
             {railText ? (
