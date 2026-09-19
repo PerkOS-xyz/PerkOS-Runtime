@@ -1547,7 +1547,7 @@ function Shell() {
     const limitPx = px > 0 ? Math.round(px * 0.96) : 0;
     const usd = 20;
     const options: Array<{ value: string; label: string; note?: string; rec?: number }> = [
-      { value: `scale:${spot}:${usd}`, label: `Hold $${usd} ${spot} now + $${usd} every week`, note: "Spot + DCA · 1Claw lock · nothing spends until you hold", rec: 1 }
+      { value: `scale:${spot}:${usd}`, label: `Hold $${usd} ${spot} now + $${usd} every week`, note: "Spot + DCA · within your limits · nothing spends until you hold", rec: 1 }
     ];
     if (limitPx) options.push({ value: `limit:${limitSym}:${limitPx}`, label: `Limit ${limitSym} at $${limitPx.toLocaleString("en-US")}`, note: "Buy the dip · Hold to create in Bankr" });
     options.push({ value: "skip", label: "Skip", note: "No order" });
@@ -2411,8 +2411,8 @@ function Shell() {
       if (fleet && fleet.status === "none") { setWizard(false); setSplash(false); setHome(true); return; }
     }
     if (has) {
-      const railed = fleet.agents.find((a) => a.rail);
-      if (railed && !railed.railLinked && !railSkipped) { setWizardStart(4); void railStatus(); return; }
+      // El paso del rail (1Claw) ya no se ofrece: el Trader opera con la wallet que la
+      // persona delega en Settings > Trader access.
       setWizard(false);
       setSplash(false);
     }
@@ -2802,7 +2802,7 @@ function Shell() {
         <Beams beams={beams} orbitRef={orbitRef} orbRefs={orbRefs} />
         <Orb className="scout" label="Scout" on={awake} state={orbState("scout")} talking={talking.has("scout")} refCb={(el) => { orbRefs.current.scout = el; }} />
         <Orb className="risk" label="Risk" on={awake} state={orbState("risk")} talking={talking.has("risk")} verdict={verdict} refCb={(el) => { orbRefs.current.risk = el; }} />
-        <Orb className="trader" label="Trader" on={awake} state={orbState("trader")} rail={orbRail("trader")} onRail={openRailStep} talking={talking.has("trader")} refCb={(el) => { orbRefs.current.trader = el; }} />
+        <Orb className="trader" label="Trader" on={awake} state={orbState("trader")} talking={talking.has("trader")} refCb={(el) => { orbRefs.current.trader = el; }} />
         <Orb className="auditor" label="Auditor" on={awake} state={orbState("auditor")} talking={talking.has("auditor")} refCb={(el) => { orbRefs.current.auditor = el; }} />
         {(guestSeats.length
           ? guestSeats
