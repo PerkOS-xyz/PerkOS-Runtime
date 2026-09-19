@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import XaiConnect from "./XaiConnect";
 import { VOICES, VOICE_LABEL, type Voice } from "../lib/voices";
 import { useWallet } from "./wallet/context";
@@ -21,6 +21,34 @@ type PerkosState = { connected: boolean; busy: boolean; fundingUrl: string; note
 // la persona en su cuenta (1claw.co/agents/<id>); Floor solo enlaza con una fila
 // propia, con el logo, para que la opcion se vea. Sin flota con rail no se muestra.
 type RailState = { status: string; oneclawAgentId?: string; vaultId?: string; linkedRoles?: string[]; lockUsd?: number; hasRail: boolean };
+
+/**
+ * The guest seat has five honest states and they need different words. The
+ * platform only gives a status string, so the classifier lives here: anything
+ * it does not recognise counts as lost, because claiming a guest is working
+ * when it is not is the failure that costs a person a turn.
+ */
+type GbPhase = "none" | "waiting" | "ready" | "lost" | "incomplete";
+
+const GB_LOST = new Set(["unknown", "offline", "disconnected", "error", "failed", "revoked"]);
+const GB_WAITING = new Set(["", "invited", "pending", "queued", "provisioning", "starting"]);
+
+function grokBotPhase(guest: { invited: boolean; status?: string; complete?: boolean; prompt?: string } | null): GbPhase {
+  if (!guest || !guest.invited) return "none";
+  if (guest.complete === false || !guest.prompt) return "incomplete";
+  const s = (guest.status || "").toLowerCase();
+  if (GB_WAITING.has(s)) return "waiting";
+  if (GB_LOST.has(s)) return "lost";
+  return "ready";
+}
+
+const GB_PILL: Record<GbPhase, { label: string; title: string }> = {
+  none: { label: "", title: "" },
+  incomplete: { label: "Incomplete setup", title: "This setup is missing a key or id and cannot connect." },
+  waiting: { label: "Waiting", title: "Invited. Waiting for your Grok Bot to connect." },
+  lost: { label: "Connection lost", title: "PerkOS could not confirm the connection." },
+  ready: { label: "Connected", title: "Connected. Drafting with the team." }
+};
 
 export default function SettingsPanel({ onClose, debug, onDebug, perkos, onReconnectPerkos, rail, onLinkRail, desk, onLogout }: {
   onClose: () => void;
@@ -51,6 +79,9 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
   const [guest, setGuest] = useState<{ invited: boolean; agentName?: string; status?: string; prompt?: string; complete?: boolean } | null>(null);
   const [guestBusy, setGuestBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const dockRef = useRef<HTMLFormElement>(null);
+  const [hasMore, setHasMore] = useState(false);
 
   const refresh = () =>
     Promise.all([
@@ -94,7 +125,51 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
     window.setTimeout(() => setCopied(false), 1500);
   };
 
+  const refreshGuest = async () => {
+    setRefreshing(true);
+    try {
+      const j = (await fetch("/api/fleet/guest").then((r) => r.json())) as { invited?: boolean; agentName?: string; status?: string; prompt?: string; complete?: boolean };
+      setGuest({ invited: j.invited === true, agentName: j.agentName, status: j.status, prompt: j.prompt, complete: j.complete });
+    } catch {
+      /* leave the last known state; the row says when it cannot confirm */
+    } finally { setRefreshing(false); }
+  };
+
   useEffect(() => { void refresh(); }, []);
+
+  // While a bot is expected to connect, the panel checks for it, because the
+  // row saying "waiting" after the seat went live is the thing that makes
+  // people paste the invite twice. It backs off and then stops: every check is
+  // a read on the platform, and a panel left open all afternoon must not turn
+  // into a poll. The Check again button is always there.
+  useEffect(() => {
+    if (grokBotPhase(guest) !== "waiting") return;
+    let delay = 8000;
+    let checks = 0;
+    let timer = 0;
+    const tick = () => {
+      if (document.visibilityState === "hidden") { timer = window.setTimeout(tick, delay); return; }
+      void refreshGuest();
+      checks += 1;
+      if (checks >= 12) return;           // about four minutes of watching
+      delay = Math.min(Math.round(delay * 1.5), 60_000);
+      timer = window.setTimeout(tick, delay);
+    };
+    timer = window.setTimeout(tick, delay);
+    return () => window.clearTimeout(timer);
+  }, [guest?.invited, guest?.status, guest?.complete]);
+
+  // The dock scrolls, and it has to look like it does: the fade only appears
+  // when there is something below.
+  useEffect(() => {
+    const el = dockRef.current;
+    if (!el) return;
+    const check = () => setHasMore(el.scrollHeight - el.scrollTop - el.clientHeight > 8);
+    check();
+    el.addEventListener("scroll", check, { passive: true });
+    window.addEventListener("resize", check);
+    return () => { el.removeEventListener("scroll", check); window.removeEventListener("resize", check); };
+  }, [guest, llm, bankr, rail, desk]);
 
   async function saveModel(e: React.FormEvent) {
     e.preventDefault();
@@ -119,7 +194,7 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
   // no cambia al cambiar de desk; lo del desk viene del manifiesto y la flota.
   return (
     <div className="settings" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <form className="settings-dock" onSubmit={saveModel} aria-label="Settings">
+      <form className={`settings-dock${hasMore ? " has-more" : ""}`} ref={dockRef} onSubmit={saveModel} aria-label="Settings">
         <header>
           <b>Settings</b>
           <button type="button" className="close" onClick={onClose} aria-label="Close">×</button>
@@ -192,6 +267,66 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
             <div className="sec">Desk · {desk.name}</div>
             <div className="srow"><span>Chain</span><span className="v">{desk.chain} · {desk.builtOn}</span></div>
             <div className="srow"><span>Team</span><span className="v">{desk.agents.join(", ")} · template r{desk.revision}{desk.fleetStatus ? ` · ${desk.fleetStatus}` : ""}</span></div>
+            {(() => {
+              const phase = grokBotPhase(guest);
+              const name = guest?.agentName || "your Grok Bot";
+              const setup = (
+                <details className="gb-reveal">
+                  <summary>Show setup</summary>
+                  <textarea className="invite-prompt" readOnly value={guest?.prompt ?? ""} aria-label="Grok Bot setup" />
+                  <p className="hint-line">This carries a key for {name}. Treat it like a password: it goes into your Grok Bot and nowhere else.</p>
+                </details>
+              );
+              return (
+                <div className="gb-card" aria-live="polite">
+                  <div className="gb-head">
+                    <span className="gb-title">Grok Bot</span>
+                    <span className="gb-headright">
+                      {guest !== null && phase !== "none" ? <em className={`gb-pill gb-${phase}`} title={GB_PILL[phase].title}>{GB_PILL[phase].label}</em> : null}
+                      <button type="button" className={`gb-refresh${refreshing ? " spin" : ""}`} onClick={() => void refreshGuest()} disabled={refreshing || guest === null} aria-label="Refresh Grok Bot status" title="Refresh status">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7" /><path d="M21 3v6h-6" /></svg>
+                      </button>
+                    </span>
+                  </div>
+                  <p className="hint-line">Drafts with your team from outside. Never spends, never signs.</p>
+
+                  {phase === "none" ? (
+                    <>
+                      <button type="button" className="gb-go" onClick={() => void mintGuest()} disabled={guestBusy || !perkos.connected} title={!perkos.connected ? "Connect your PerkOS account first" : undefined}>{guestBusy ? "Inviting…" : "Invite my Grok Bot"}</button>
+                      <p className="hint-line">One paste in your bot and it takes the fifth seat on this desk.</p>
+                    </>
+                  ) : null}
+
+                  {phase === "incomplete" ? (
+                    <>
+                      <p className="hint-line err">This setup is missing the key or the agent id, so a bot cannot connect with it. Get a fresh one and paste that instead.</p>
+                      <button type="button" className="gb-go" onClick={() => void mintGuest()} disabled={guestBusy}>{guestBusy ? "Inviting…" : "Get a new invite"}</button>
+                    </>
+                  ) : null}
+
+                  {phase === "waiting" ? (
+                    <>
+                      <p className="hint-line">Invited as {name}. Paste the setup once into your Grok Bot. It connects out to PerkOS and this seat lights up on its own.</p>
+                      <button type="button" className="gb-go" onClick={() => void copyGuest()}>{copied ? "Copied" : "Copy setup"}</button>
+                      {setup}
+                      <p className="hint-line">The bot installs <a href="https://github.com/PerkOS-xyz/PerkOS-Grok-Plugin" target="_blank" rel="noreferrer">the PerkOS plugin</a> and checks this desk on a schedule.</p>
+                    </>
+                  ) : null}
+
+                  {phase === "lost" ? (
+                    <>
+                      <p className="hint-line err">Lost touch with {name}. Usually the bot stopped or its connection dropped. The setup you already pasted is still good, no need to invite again.</p>
+                      <button type="button" className="gb-go" onClick={() => void refreshGuest()} disabled={refreshing}>{refreshing ? "Checking…" : "Check again"}</button>
+                      {setup}
+                    </>
+                  ) : null}
+
+                  {phase === "ready" ? (
+                    <p className="hint-line ok">{name} is on the desk. Its drafts land with the rest of the team, and nothing it writes moves until you approve it.</p>
+                  ) : null}
+                </div>
+              );
+            })()}
             {railText ? (
               <div className="srow rail-row">
                 <span><img className="rail-mark" src="/1claw.svg" alt="" />1Claw</span>
@@ -212,17 +347,6 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
             </div>
             <p className="hint-line">Second quote, token launches paired with tokenized stocks, and automations (DCA, stop, limit). Launch fees pay to the wallet connected here.</p>
             <div className="srow"><span>Knowledge</span><span className="v">Bundled notes · PerkOS Knowledge · local vault</span></div>
-            <div className="srow rail-row">
-              <span>Grok Bot</span>
-              <span className="v">
-                {guest === null ? "…" : !guest.invited ? "Not invited" : `${guest.agentName || "guest"} · ${guest.status || "invited"}`}
-                <button type="button" onClick={() => void mintGuest()} disabled={guestBusy || !perkos.connected}>{guestBusy ? "…" : guest?.invited ? "Show prompt" : "Invite my Grok Bot"}</button>
-                {guest?.prompt ? <button type="button" onClick={() => void copyGuest()}>{copied ? "Copied" : "Copy"}</button> : null}
-              </span>
-            </div>
-            {guest?.prompt ? <textarea className="invite-prompt" readOnly value={guest.prompt} aria-label="Grok Bot invite prompt" /> : null}
-            {guest?.prompt && guest.complete === false ? <p className="hint-line warn">This copy is missing the key or the id, so the bot cannot connect with it. Press Invite my Grok Bot again to mint a fresh one.</p> : null}
-            <p className="hint-line">Invite your Grok Bot onto this desk. Copy the six lines, paste them into Grok Bot once. It connects out to PerkOS and drafts work with the team. It never spends, and nothing moves until you hold.</p>
           </>
         ) : null}
 
