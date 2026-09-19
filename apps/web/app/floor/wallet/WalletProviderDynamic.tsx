@@ -67,21 +67,33 @@ function Bridge({ children }: { children: ReactNode }) {
   const address = primaryWallet?.address ?? "";
   const isEvm = /^0x[0-9a-fA-F]{40}$/.test(address);
 
+  // Una sola respuesta negativa no basta: el conector contesta que no mientras
+  // reanuda la sesion de WalletConnect, y con eso se encendia el aviso de enlace
+  // perdido en una wallet que firmaba sin problemas. Hacen falta tres seguidas,
+  // y no se pregunta nada durante los primeros segundos tras conectar.
   useEffect(() => {
     let dropped = false;
+    let misses = 0;
+    if (!primaryWallet) { setLive(false); return; }
+    setLive(true);
     const check = async () => {
-      if (!primaryWallet) { if (!dropped) setLive(false); return; }
       try {
         const ask = (primaryWallet as { isConnected?: () => Promise<boolean> }).isConnected;
         const ok = typeof ask === "function" ? await ask.call(primaryWallet) : true;
-        if (!dropped) setLive(Boolean(ok));
+        if (dropped) return;
+        if (ok) { misses = 0; setLive(true); return; }
+        misses += 1;
+        if (misses >= 3) {
+          setLive(false);
+          flog("warn", "wallet: the connector reported no link three times in a row");
+        }
       } catch {
-        if (!dropped) setLive(true); // el conector no sabe responder: no se acusa de caido
+        misses = 0; // el conector no sabe responder: no se acusa de caido
       }
     };
-    void check();
+    const settle = setTimeout(() => void check(), 8000);
     const t = setInterval(() => void check(), 5000);
-    return () => { dropped = true; clearInterval(t); };
+    return () => { dropped = true; clearTimeout(settle); clearInterval(t); };
   }, [primaryWallet]);
 
   const logout = useCallback(() => {
