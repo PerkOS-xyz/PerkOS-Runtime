@@ -643,6 +643,7 @@ function Shell() {
                   flog("warn", `desk ${ev.role}: ${ev.detail || "no answer"}`);
                 }
               } else if (ev.step === "done") {
+                void readGuestSeat();
                 fleetReplies = ev.replies ?? [];
                 lastRepliesRef.current = fleetReplies;
                 if (ev.flags && ev.flags.length) flog("warn", `desk quality: ${ev.flags.join(" · ")}`); else flog("info", "desk quality: clean");
@@ -2727,7 +2728,7 @@ function Shell() {
       ) : null}
       {settings ? (
         <SettingsPanel
-          onClose={() => setSettings(false)}
+          onClose={() => { setSettings(false); void readGuestSeat(); }}
           debug={debug}
           onDebug={setDebug}
           perkos={perkos}
