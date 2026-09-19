@@ -2,7 +2,7 @@
 
 All notable changes to the PerkOS desktop app. Versions follow [Semantic Versioning](https://semver.org); the version lives in `apps/desktop/package.json` and shows in Settings › About with the git short SHA of the build.
 
-## [Unreleased]
+## [0.5.8] - 2026-09-19
 
 ### Fixed
 - The desk stops warning about a lost wallet link while the connector is still resuming the session. The check now needs three answers in a row before it says the link is gone, and it waits a few seconds after connecting before asking at all. A wallet that signs normally no longer raises the warning.
