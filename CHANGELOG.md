@@ -1,13 +1,13 @@
 # Changelog
 
-## 0.5.9
+All notable changes to the PerkOS desktop app. Versions follow [Semantic Versioning](https://semver.org); the version lives in `apps/desktop/package.json` and shows in Settings › About with the git short SHA of the build.
+
+## [0.5.9] - 2026-09-19
 
 - A desk can invite more than one Grok Bot. Seats are numbered, up to four, each with its own name and its own setup to paste, and the turn asks them all at once.
 - The guest seat shows on the stage with the rest of the desk, reading its real state from the platform, and a guest can say the name it wants on its seat.
 - Inviting stays reachable when the card fills up, and the setup is reachable again after a guest connects.
 - Copy setup actually copies: the shell refused clipboard writes and the button said Copied anyway.
-
-All notable changes to the PerkOS desktop app. Versions follow [Semantic Versioning](https://semver.org); the version lives in `apps/desktop/package.json` and shows in Settings › About with the git short SHA of the build.
 
 ## [0.5.8] - 2026-09-19
 
