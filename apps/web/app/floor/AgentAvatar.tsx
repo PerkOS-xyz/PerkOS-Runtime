@@ -172,6 +172,41 @@ function Detail({ kind, shell, head }: { kind: AvatarDetail; shell: string; head
   return <g id="secondary-detail" className="aa-detail" transform={`translate(${b.x} ${b.y})`}><circle r="32" fill={dark} /><circle r="18" fill="none" stroke="currentColor" strokeWidth="7" /><circle cx="-9" cy="-9" r="5" fill="#ffffff" opacity="0.7" /></g>;
 }
 
+/**
+ * Cara de invitado. Los Grok Bots no son del kit de PerkOS y no deben parecerlo:
+ * llevan su propia forma, una gota redondeada con dos ojos, en vez de casco y
+ * visor. Asi se sabe de un vistazo que ese asiento vino de fuera.
+ */
+function GuestMark({ accent, px, dim }: { accent: string; px: number; dim: boolean }) {
+  return (
+    <svg viewBox="0 0 1000 1000" width={px} height={px} aria-hidden style={{ opacity: dim ? 0.55 : 1 }}>
+      <defs>
+        <radialGradient id="gm-body" cx="38%" cy="26%" r="86%">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.55" />
+          <stop offset="55%" stopColor={accent} />
+          <stop offset="100%" stopColor="#12131b" stopOpacity="0.55" />
+        </radialGradient>
+      </defs>
+      {/* La gota: ancha abajo, hombros altos, sin simetria perfecta. */}
+      <path
+        d="M500 120c214 0 330 138 330 330 0 142-58 250-162 306-52 28-106 42-168 42s-116-14-168-42C228 700 170 592 170 450c0-192 116-330 330-330z"
+        fill="url(#gm-body)"
+      />
+      <path
+        d="M500 120c214 0 330 138 330 330 0 142-58 250-162 306-52 28-106 42-168 42s-116-14-168-42C228 700 170 592 170 450c0-192 116-330 330-330z"
+        fill="none"
+        stroke="#0b0d14"
+        strokeOpacity="0.35"
+        strokeWidth="14"
+      />
+      <ellipse cx="392" cy="452" rx="56" ry="74" fill="#0b0d14" />
+      <ellipse cx="608" cy="452" rx="56" ry="74" fill="#0b0d14" />
+      <ellipse cx="374" cy="424" rx="18" ry="22" fill="#ffffff" opacity="0.8" />
+      <ellipse cx="590" cy="424" rx="18" ry="22" fill="#ffffff" opacity="0.8" />
+    </svg>
+  );
+}
+
 export default function AgentAvatar({ agent, identity: identityProp, role, seed, state: stateProp, expression: expressionProp, size = "lg", indicator, label, className = "" }: {
   /** Preferido: el componente resuelve identidad, rol y estado del agente. */
   agent?: AgentLike;
@@ -191,6 +226,7 @@ export default function AgentAvatar({ agent, identity: identityProp, role, seed,
   const uid = useId().replace(/[:]/g, "");
   const id = identityProp ?? (agent ? resolveIdentity(agent) : resolveIdentity({ id: seed ?? role ?? "guest", role: role ?? "guest" }));
   const accent = agent?.custody === "1claw" ? accentFor(id.role, { custody: "1claw" }) : id.accent;
+  const isGuest = id.role === "guest";
   const cfg = roleConfig(id.role);
   const state: AgentAvatarState = stateProp ?? agent?.runtimeState ?? "idle";
   const st = AGENT_STATES[state];
@@ -204,6 +240,13 @@ export default function AgentAvatar({ agent, identity: identityProp, role, seed,
   const head = HEAD[id.head], visor = VISOR[id.visor];
   const shell = `url(#sh-${uid})`, clip = `hc-${uid}`, clipLow = `lc-${uid}`;
   const gap = 100;
+  if (isGuest) {
+    return (
+      <span className={`agent-avatar guest-mark ${className}`} data-role="guest" data-state={state} data-mode={st.mode} role="img" aria-label={`${name}, invited Grok Bot guest, ${state}`} style={{ width: px, height: px, color: accent }}>
+        <GuestMark accent={accent} px={px} dim={state === "offline"} />
+      </span>
+    );
+  }
   return (
     <span className={`agent-avatar ${className}`} data-role={id.role} data-state={state} data-mode={st.mode} data-expression={expression} role="img" aria-label={`${name}, ${cfg.label} agent, ${state}`} style={{ width: px, height: px, color: accent }}>
       <svg viewBox="0 0 1000 1000" width={px} height={px} aria-hidden>
