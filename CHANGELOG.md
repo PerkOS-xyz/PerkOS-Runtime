@@ -2,6 +2,11 @@
 
 All notable changes to the PerkOS desktop app. Versions follow [Semantic Versioning](https://semver.org); the version lives in `apps/desktop/package.json` and shows in Settings › About with the git short SHA of the build.
 
+## [Unreleased]
+
+### Fixed
+- The desk vault is per wallet. Until now every wallet that signed in on the same Mac read and wrote the same journal, orders, decisions and memory, so a new wallet opened onto the history of the previous one and added to it. Chats were already separate and encrypted by wallet; the notes are now too, and each wallet starts with the bundled desk notes. Notes written before this version stay where they are, in `~/.perkos-xyz/knowledge/app` and `~/.perkos-xyz/knowledge/<desk>`, and a wallet adopts them by moving those folders into `~/.perkos-xyz/knowledge/<wallet>/`.
+
 ## [0.5.7] - 2026-09-18
 
 ### Added
