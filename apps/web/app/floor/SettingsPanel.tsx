@@ -376,13 +376,15 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
               })}
               </div>
 
-              {!seats.length && canInviteMore ? (
+              {guest === null ? <p className="hint-line">Reading the desk…</p> : null}
+
+              {guest !== null && !seats.length && canInviteMore ? (
                 <button type="button" className="gb-go" onClick={() => void mintGuest()} disabled={guestBusy || !perkos.connected} title={!perkos.connected ? "Connect your PerkOS account first" : undefined}>
                   {guestBusy ? "Inviting…" : "Invite my Grok Bot"}
                 </button>
               ) : null}
               {seats.length && !canInviteMore ? <p className="hint-line">This desk is full: four guests is the limit.</p> : null}
-              {!seats.length ? <p className="hint-line">One paste in your bot and it takes a seat on this desk. It installs <a href="https://github.com/PerkOS-xyz/PerkOS-Grok-Plugin" target="_blank" rel="noreferrer">the PerkOS plugin</a> and checks the desk on a schedule.</p> : null}
+              {guest !== null && !seats.length ? <p className="hint-line">One paste in your bot and it takes a seat on this desk. It installs <a href="https://github.com/PerkOS-xyz/PerkOS-Grok-Plugin" target="_blank" rel="noreferrer">the PerkOS plugin</a> and checks the desk on a schedule.</p> : null}
             </div>
             {railText ? (
               <div className="srow rail-row">
