@@ -76,11 +76,21 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
   // Bankr: segunda cotizacion, token launches y automatizaciones. La key vive
   // en el env del install; aqui se ve la wallet Bankr, su ETH en Base y el cupo.
   const [bankr, setBankr] = useState<{ configured: boolean; wallet?: { evm: string; ethBase: number; club: boolean; x?: string } | null; last24h?: number } | null>(null);
-  type Seat = { seat: number; agentId: string; agentName: string; status: string; prompt?: string; complete: boolean; displayName?: string };
+  type Seat = { seat: number; agentId: string; agentName: string; status: string; prompt?: string; complete: boolean; displayName?: string; accent?: string; style?: string };
   const [guest, setGuest] = useState<{ invited: boolean; agentName?: string; status?: string; prompt?: string; complete?: boolean } | null>(null);
   const [seats, setSeats] = useState<Seat[]>([]);
   const [canInviteMore, setCanInviteMore] = useState(true);
   const [copiedSeat, setCopiedSeat] = useState(0);
+  const [syncedSeat, setSyncedSeat] = useState(0);
+  const syncSeat = async (seat: Seat) => {
+    setSyncedSeat(seat.seat);
+    try {
+      await fetch("/api/fleet/guest/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ seat: seat.seat }) });
+      await refreshGuest();
+    } finally {
+      window.setTimeout(() => setSyncedSeat(0), 2500);
+    }
+  };
   const [guestBusy, setGuestBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -326,13 +336,27 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
                 return (
                   <div key={seat.seat} className="gb-seat">
                     <div className="gb-seat-head">
-                      <span className="gb-seat-name">{seat.displayName || seat.agentName || `Guest ${seat.seat}`}{seat.displayName ? <small className="gb-seat-id"> {seat.agentName}</small> : null}</span>
+                      <span className="gb-seat-name">
+                        {seat.accent ? <i className="gb-dot" style={{ background: seat.accent }} /> : null}
+                        {seat.displayName || seat.agentName || `Guest ${seat.seat}`}
+                        {seat.displayName ? <small className="gb-seat-id"> {seat.agentName}</small> : null}
+                      </span>
                       <em className={`gb-pill gb-${phase}`} title={GB_PILL[phase].title}>{GB_PILL[phase].label}</em>
                     </div>
+                    <p className="hint-line gb-seat-what">
+                      {seat.displayName ? `Introduced itself as ${seat.displayName}` : "Has not said its name yet"}
+                      {seat.style ? ` · ${seat.style}` : ""}
+                      {seat.accent ? ` · ${seat.accent}` : ""}
+                    </p>
                     {phase === "waiting" ? <p className="hint-line">Paste this setup once into that bot. The seat lights up on its own.</p> : null}
                     {phase === "lost" ? <p className="hint-line err">Lost touch with this one. The setup you pasted is still good.</p> : null}
                     {phase === "incomplete" ? <p className="hint-line err">This setup is missing the key or the id. Invite again to get a fresh one.</p> : null}
                     {phase === "ready" ? <p className="hint-line ok">On the desk and drafting with the team.</p> : null}
+                    <div className="gb-seat-acts">
+                      {phase === "ready" ? (
+                        <button type="button" className="gb-add" onClick={() => void syncSeat(seat)} disabled={syncedSeat === seat.seat} title="Ask this bot to say its name, colour and shape on its next check">{syncedSeat === seat.seat ? "Asked" : "Sync"}</button>
+                      ) : null}
+                    </div>
                     {seat.prompt ? (
                       <>
                         <button type="button" className="gb-go" onClick={() => void copySeat(seat)}>{copiedSeat === seat.seat ? "Copied" : "Copy setup"}</button>

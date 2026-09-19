@@ -167,6 +167,23 @@ export async function guestLook(seat: number, agentName: string, agentId: string
   }
 }
 
+/** Pide al asiento que el bot se presente en su proxima consulta. */
+export async function nudgeGuest(seat: number, agentName: string, agentId: string): Promise<boolean> {
+  try {
+    const invite = await readGuestInvitePrompt(seat);
+    const key = invite.match(/PERKOS_RELAY_KEY=(\S+)/)?.[1] ?? "";
+    if (!key) return false;
+    const r = await fetch(`${PERKOS_API_URL}/guest-mcp/nudge`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${key}`, "x-perkos-agent-name": agentName, "x-perkos-agent-id": agentId },
+      signal: AbortSignal.timeout(6_000)
+    });
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function guestStatus(wallet: string, agentId: string): Promise<{ status: string; name?: string }> {
   const idToken = await token(wallet);
   const r = await perkosRequest<{ status?: string; name?: string }>(`/agents/${encodeURIComponent(agentId)}`, { idToken, timeoutMs: 12_000 });
