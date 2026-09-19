@@ -2,13 +2,14 @@ import { guard } from "../../../lib/guard";
 import { loadSettings } from "../../../lib/settingsStore";
 import { draftTrade, TradeError } from "../../../lib/uniswap";
 import { bankrQuote } from "../../../lib/bankr";
-import { traderWalletState } from "../../../lib/agentWallet";
+import { traderAccess } from "../../../lib/agentWallet";
 
 // POST /api/trade/draft { side?, stock?, amountUsd?, amountToken?, fraction? } -> TradeDraft
 // side default "buy", stock default NVDAc. Nada se firma aqui: la wallet de la
-// persona firma en Floor (Approve orb). Con Settings "Pay with: Trader" una
-// compra se arma para la wallet Dynamic del Trader (recipient = esa wallet) y la
-// firma PerkOS despues del Hold. Una venta sigue siendo de la persona.
+// persona firma en Floor (Approve orb). Con Settings "Pays for buys: Delegated
+// wallet" la compra se arma para la wallet Dynamic que la persona delego al
+// Trader (recipient = esa wallet) y PerkOS firma despues del Hold. Una venta
+// sigue siendo de la wallet conectada.
 export async function POST(req: Request) {
   const denied = guard(req);
   if (denied) return denied;
@@ -26,12 +27,12 @@ export async function POST(req: Request) {
   let recipient = s.wallet as `0x${string}`;
   let payer: { kind: "trader"; address: `0x${string}`; provider: "dynamic"; maxUsd: number } | undefined;
   if (s.payWith === "trader" && side === "buy") {
-    const tw = await traderWalletState(s.wallet, s.fleetTemplateId).catch(() => null);
-    if (!tw?.wallet) return Response.json({ error: "trader_wallet_missing", detail: "Create the Trader wallet in Settings first, or pay with your own wallet." }, { status: 409 });
-    const maxUsd = tw.wallet.limits.maxStablePerOrder;
-    // La API rechazaria la orden de todas formas; mejor que la tarjeta nunca la muestre.
-    if (amountUsd !== undefined && amountUsd > maxUsd) return Response.json({ error: "amount", detail: `The Trader wallet pays up to $${maxUsd} per order.` }, { status: 400 });
-    recipient = tw.wallet.address as `0x${string}`;
+    const ta = await traderAccess(s.wallet, s.fleetTemplateId).catch(() => null);
+    if (!ta?.delegated || !ta.walletAddress) return Response.json({ error: "trader_access_missing", detail: "Delegate a wallet to the Trader in Settings first, or pay with your own wallet." }, { status: 409 });
+    const maxUsd = ta.limits?.maxUsdc ?? 25;
+    // Dynamic's enclave and the PerkOS policy would refuse it anyway; the card should never offer it.
+    if (amountUsd !== undefined && amountUsd > maxUsd) return Response.json({ error: "amount", detail: `Your limit for the Trader is $${maxUsd} per order. Edit it in Settings.` }, { status: 400 });
+    recipient = ta.walletAddress as `0x${string}`;
     payer = { kind: "trader", address: recipient, provider: "dynamic", maxUsd };
   }
   try {

@@ -5,10 +5,10 @@ import { PerkosApiError } from "../../../../lib/perkosApi";
 
 export const dynamic = "force-dynamic";
 
-// POST /api/fleet/trader-wallet/call { to, data, value?, label, reason }
-// One step of a buy the person just approved (Hold), signed from the Trader's
-// Dynamic wallet. The API checks it against the agent policy before signing;
-// a refusal comes back as 403 with the reason, and nothing is sent.
+// POST /api/fleet/trader-access/call { to, data, value?, label, reason }
+// One step of a buy the person just approved (Hold). PerkOS signs it through
+// the wallet the person delegated to the Trader, after checking it against the
+// agent policy; a refusal comes back as 403 with the reason and nothing is sent.
 export async function POST(req: Request) {
   const denied = guard(req);
   if (denied) return denied;

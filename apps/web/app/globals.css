@@ -1757,6 +1757,33 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .settings-dock .gb-reveal summary:hover { color: var(--ink); }
 .settings-dock .gb-reveal .invite-prompt { margin-top: 6px; min-height: 110px; }
 .settings-dock .gb-card a { color: #ff5a6a; text-decoration: none; }
+/* Trader access: la wallet que la persona delega al Trader en Dynamic. Cada limite
+   lleva quien lo hace cumplir (Dynamic, PerkOS o la persona): eso es lo que se ensena. */
+.settings-dock .ta-card { margin: 12px 0 0; padding: 12px 14px 13px; border-radius: 14px; border: 1px solid rgba(236, 27, 105, 0.28); background: linear-gradient(180deg, rgba(236, 27, 105, 0.06), rgba(255, 255, 255, 0.015)); display: flex; flex-direction: column; gap: 6px; }
+.settings-dock .ta-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.settings-dock .ta-head b { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); }
+.settings-dock .ta-state { font-style: normal; font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(232, 238, 255, 0.2); color: var(--mute); }
+.settings-dock .ta-state.st-active { color: #7fe0a8; border-color: rgba(127, 224, 168, 0.45); box-shadow: 0 0 10px rgba(127, 224, 168, 0.18); }
+.settings-dock .ta-state.st-waiting { color: #ffd27a; border-color: rgba(255, 210, 122, 0.45); }
+.settings-dock .ta-lead { margin: 0; font-size: 12px; line-height: 1.45; color: var(--ink); }
+.settings-dock .ta-wallet { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.settings-dock .ta-addr { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--ink); }
+.settings-dock .ta-funds { font-size: 11.5px; color: var(--mute); }
+.settings-dock .ta-actions { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.settings-dock .ta-actions button, .settings-dock .ta-link { padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(232, 238, 255, 0.2); background: transparent; color: var(--ink); font: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; }
+.settings-dock .ta-actions button:disabled { opacity: 0.5; cursor: default; }
+.settings-dock .ta-actions a.pill { padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(236, 27, 105, 0.55); color: #ff5a6a; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; text-decoration: none; }
+.settings-dock .ta-foot { margin-top: 2px; }
+.settings-dock .ta-actions .ta-revoke { border-color: rgba(255, 90, 106, 0.45); color: #ff8a96; }
+.settings-dock .ta-limits { display: grid; grid-template-columns: max-content 1fr; gap: 5px 12px; margin: 4px 0 0; padding: 9px 11px; border-radius: 10px; background: rgba(5, 7, 12, 0.55); border: 1px solid rgba(120, 160, 255, 0.14); }
+.settings-dock .ta-limits dt { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--mute); align-self: center; }
+.settings-dock .ta-limits dd { margin: 0; font-size: 12px; color: var(--ink); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.settings-dock .ta-limits .by { font-style: normal; flex: none; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; padding: 1px 7px; border-radius: 999px; border: 1px solid; }
+.settings-dock .ta-limits .by.dyn { color: #9db8ff; border-color: rgba(157, 184, 255, 0.45); background: rgba(157, 184, 255, 0.08); }
+.settings-dock .ta-limits .by.perkos { color: #ff5a6a; border-color: rgba(236, 27, 105, 0.5); background: rgba(236, 27, 105, 0.08); }
+.settings-dock .ta-limits .by.you { color: #7fe0a8; border-color: rgba(127, 224, 168, 0.45); background: rgba(127, 224, 168, 0.08); }
+.settings-dock .ta-proof { font-size: 11px; }
+.settings-dock .ta-card .tw-pay { margin-top: 2px; }
 .settings-dock .gb-card a:hover { text-decoration: underline; }
 @media (prefers-reduced-motion: reduce) { .settings-dock .gb-refresh.spin svg { animation: none; } }
 .settings-dock .invite-prompt { display: block; width: 100%; min-height: 140px; margin: 8px 0 0; padding: 8px 10px; background: #05070c; border: 1px solid #1a2233; border-radius: 10px; color: var(--ink); font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }

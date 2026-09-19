@@ -4,8 +4,8 @@ All notable changes to the PerkOS desktop app. Versions follow [Semantic Version
 
 ## [Unreleased]
 
-- The Trader can pay from its own wallet. Settings › Trader wallet creates a Dynamic server wallet assigned to the desk's Trader and shows its address and funds on Base. Switch "Pays for buys" to Trader wallet and an approved buy is signed by PerkOS through Dynamic after you hold Approve: no wallet popup, the shares land in the Trader's wallet, and the card says who paid.
-- PerkOS checks each step before Dynamic signs: USDC approved only to a known router, the swap paid in USDC with its output pinned to the Trader's wallet, up to $25 per order. Sells and everything else stay with your own wallet, which remains the default.
+- Trader access: you can delegate a Dynamic wallet you own to the desk's Trader. Settings › Trader access opens a PerkOS page in your browser where you sign in, approve the delegation and set the Trader's limit. Back on the desk the card shows the wallet, its funds on Base and every limit, each marked with who enforces it: Dynamic's enclave, PerkOS, or your Hold.
+- Switch "Pays for buys" to Delegated wallet and an approved buy is signed through that wallet after you hold Approve: no wallet popup, and the shares land back in the same wallet. Edit limits and Revoke are one press away. Your connected wallet stays the default, and sells always use it.
 
 ## [0.5.9] - 2026-09-19
 
