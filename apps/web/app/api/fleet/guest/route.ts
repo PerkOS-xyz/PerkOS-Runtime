@@ -20,6 +20,8 @@ type Seat = {
   displayName?: string;
   accent?: string;
   style?: string;
+  /** El asiento esta en pie ahora mismo, no lo que la plataforma recuerde. */
+  live?: boolean;
 };
 
 export async function GET() {
@@ -39,7 +41,7 @@ export async function GET() {
         /* the row still shows, with what we know */
       }
       const look = await guestLook(g.seat, g.agentName, g.agentId);
-      return { seat: g.seat, agentId: g.agentId, agentName: name, status, prompt: prompt || undefined, complete: complete(prompt), displayName: look.displayName || undefined, accent: look.accent || undefined, style: look.style || undefined };
+      return { seat: g.seat, agentId: g.agentId, agentName: name, status, prompt: prompt || undefined, complete: complete(prompt), displayName: look.displayName || undefined, accent: look.accent || undefined, style: look.style || undefined, live: look.live };
     })
   );
   const first = seats[0];

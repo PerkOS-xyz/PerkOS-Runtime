@@ -28,17 +28,19 @@ type RailState = { status: string; oneclawAgentId?: string; vaultId?: string; li
  * it does not recognise counts as lost, because claiming a guest is working
  * when it is not is the failure that costs a person a turn.
  */
-type GbPhase = "none" | "waiting" | "ready" | "lost" | "incomplete";
+type GbPhase = "none" | "waiting" | "ready" | "away" | "lost" | "incomplete";
 
 const GB_LOST = new Set(["unknown", "offline", "disconnected", "error", "failed", "revoked"]);
 const GB_WAITING = new Set(["", "invited", "pending", "queued", "provisioning", "starting"]);
 
-function grokBotPhase(guest: { invited: boolean; status?: string; complete?: boolean; prompt?: string } | null): GbPhase {
+function grokBotPhase(guest: { invited: boolean; status?: string; complete?: boolean; prompt?: string; live?: boolean } | null): GbPhase {
   if (!guest || !guest.invited) return "none";
   if (guest.complete === false || !guest.prompt) return "incomplete";
   const s = (guest.status || "").toLowerCase();
   if (GB_WAITING.has(s)) return "waiting";
   if (GB_LOST.has(s)) return "lost";
+  // La plataforma recuerda el ultimo latido; el asiento dice si esta ahi ahora.
+  if (guest.live === false) return "away";
   return "ready";
 }
 
@@ -47,6 +49,7 @@ const GB_PILL: Record<GbPhase, { label: string; title: string }> = {
   incomplete: { label: "Incomplete setup", title: "This setup is missing a key or id and cannot connect." },
   waiting: { label: "Waiting", title: "Invited. Waiting for your Grok Bot to connect." },
   lost: { label: "Connection lost", title: "PerkOS could not confirm the connection." },
+  away: { label: "Away", title: "It connected before and checks in every few minutes. Nothing to do." },
   ready: { label: "Connected", title: "Connected. Drafting with the team." }
 };
 
@@ -76,7 +79,7 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
   // Bankr: segunda cotizacion, token launches y automatizaciones. La key vive
   // en el env del install; aqui se ve la wallet Bankr, su ETH en Base y el cupo.
   const [bankr, setBankr] = useState<{ configured: boolean; wallet?: { evm: string; ethBase: number; club: boolean; x?: string } | null; last24h?: number } | null>(null);
-  type Seat = { seat: number; agentId: string; agentName: string; status: string; prompt?: string; complete: boolean; displayName?: string; accent?: string; style?: string };
+  type Seat = { seat: number; agentId: string; agentName: string; status: string; prompt?: string; complete: boolean; displayName?: string; accent?: string; style?: string; live?: boolean };
   const [guest, setGuest] = useState<{ invited: boolean; agentName?: string; status?: string; prompt?: string; complete?: boolean } | null>(null);
   const [seats, setSeats] = useState<Seat[]>([]);
   const [canInviteMore, setCanInviteMore] = useState(true);
@@ -332,7 +335,7 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
 
               <div className="gb-seats">
               {seats.map((seat) => {
-                const phase = grokBotPhase({ invited: true, status: seat.status, complete: seat.complete, prompt: seat.prompt });
+                const phase = grokBotPhase({ invited: true, status: seat.status, complete: seat.complete, prompt: seat.prompt, live: seat.live });
                 return (
                   <div key={seat.seat} className="gb-seat">
                     <div className="gb-seat-head">
@@ -352,8 +355,9 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
                     {phase === "lost" ? <p className="hint-line err">Lost touch with this one. The setup you pasted is still good.</p> : null}
                     {phase === "incomplete" ? <p className="hint-line err">This setup is missing the key or the id. Invite again to get a fresh one.</p> : null}
                     {phase === "ready" ? <p className="hint-line ok">On the desk and drafting with the team.</p> : null}
+                    {phase === "away" ? <p className="hint-line">Connected earlier and checks the desk every few minutes. It will be back on its own.</p> : null}
                     <div className="gb-seat-acts">
-                      {phase === "ready" ? (
+                      {phase === "ready" || phase === "away" ? (
                         <button type="button" className="gb-add" onClick={() => void syncSeat(seat)} disabled={syncedSeat === seat.seat} title="Ask this bot to say its name, colour and shape on its next check">{syncedSeat === seat.seat ? "Asked" : "Sync"}</button>
                       ) : null}
                     </div>
