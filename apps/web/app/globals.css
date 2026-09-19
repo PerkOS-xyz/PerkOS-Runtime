@@ -989,6 +989,17 @@ button.cta:disabled { animation: none; opacity: 0.45; cursor: default; box-shado
 .orb em.rail:not(.on) { cursor: pointer; }
 .orb em.rail:not(.on):hover { opacity: 0.9; }
 
+/* Insignia del Trader mientras opera con la wallet que la persona le delego en Dynamic.
+   Azul, para leerse aparte del rojo del desk. */
+.orb em.dyn-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-top: -2px; padding: 3px 10px; border-radius: 999px;
+  font-style: normal; font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: #b9ccff; border: 1px solid rgba(71, 121, 254, 0.7); background: rgba(71, 121, 254, 0.16);
+  box-shadow: 0 0 12px rgba(71, 121, 254, 0.35); white-space: nowrap;
+}
+.orb em.dyn-badge i { width: 6px; height: 6px; border-radius: 50%; background: #4779fe; box-shadow: 0 0 8px #4779fe; }
+
 /* Carta del draft del Trader (transcript) + orb Approve. */
 .turn.draft { align-items: flex-start; }
 .turn.draft .turn-k { color: #ffb347; }
@@ -2157,6 +2168,11 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .sign-notice.lost b { color: #ffc2c7; }
 .sign-notice.lost span { color: #e7c3c6; }
 .who button.relink { border-color: rgba(255, 179, 71, 0.6); color: #ffd08a; }
+/* Wake team: se lee como accion mientras la mesa duerme; en verde apagado cuando ya esta arriba. */
+.who button.wake { padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(236, 27, 105, 0.6); color: #ff5a6a; box-shadow: 0 0 10px rgba(236, 27, 105, 0.3); }
+.who button.wake:hover:not(:disabled) { background: rgba(236, 27, 105, 0.12); }
+.who button.wake.busy { border-color: rgba(255, 210, 122, 0.55); color: #ffd27a; box-shadow: none; cursor: default; }
+.who button.wake.up { border-color: rgba(127, 224, 168, 0.45); color: #7fe0a8; box-shadow: none; cursor: default; }
 /* Tipo de wallet en la cabecera y estado del enlace en Settings. */
 .who .wk { font-style: normal; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); color: var(--mute); }
 .settings-dock .linkdot { font-style: normal; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); color: var(--mute); margin-left: 8px; }

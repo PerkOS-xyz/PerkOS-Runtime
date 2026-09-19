@@ -87,14 +87,27 @@ function Shell() {
       /* deja el ultimo estado conocido */
     }
   }, []);
-  useEffect(() => { void readGuestSeat(); }, [readGuestSeat]);
+  // El Trader lleva la insignia de Dynamic solo mientras la delegacion esta activa:
+  // nunca promete una wallet que no esta.
+  const [traderDelegated, setTraderDelegated] = useState<{ maxUsdc: number } | null>(null);
+  const readTraderAccess = useCallback(async () => {
+    try {
+      const r = await fetch("/api/fleet/trader-access");
+      if (!r.ok) return;
+      const j = (await r.json()) as { delegated?: boolean; limits?: { maxUsdc?: number } | null };
+      setTraderDelegated(j.delegated ? { maxUsdc: j.limits?.maxUsdc ?? 25 } : null);
+    } catch {
+      /* deja el ultimo estado conocido */
+    }
+  }, []);
+  useEffect(() => { void readGuestSeat(); void readTraderAccess(); }, [readGuestSeat, readTraderAccess]);
   // Un invitado puede entrar mientras la ventana esta en segundo plano: al
   // volver a ella se relee, que es barato y evita una mesa desactualizada.
   useEffect(() => {
-    const onFocus = () => { void readGuestSeat(); };
+    const onFocus = () => { void readGuestSeat(); void readTraderAccess(); };
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
-  }, [readGuestSeat]);
+  }, [readGuestSeat, readTraderAccess]);
   const [docs, setDocs] = useState(false);
   const [market, setMarket] = useState(false);
   // Pantallas propias del desk (Market / Portfolio) y el activo enfocado.
@@ -2779,6 +2792,18 @@ function Shell() {
             </em>
           ) : null}
           {linkLost || (wallet.loaded && !wallet.connected && !wallet.busy) ? <button type="button" className="relink" onClick={relink} title="You are signed in, but no wallet is linked to this window. Sign in again in Privy and scan the QR; the scene stays.">Wallet not linked · sign in again</button> : null}
+          {/* Despertar la mesa antes de hablar: el primer turno no espera a que ECS la levante. */}
+          {fleet && fleet.agents.length ? (
+            <button
+              type="button"
+              className={`wake${team === "ready" ? " up" : team === "waking" ? " busy" : ""}`}
+              onClick={() => { flog("info", "wake: requested from the header"); void kickWake(); }}
+              disabled={team !== "hibernated"}
+              title={team === "ready" ? "Scout, Risk, Trader and Auditor are awake" : team === "waking" ? "Waking the team on PerkOS" : "Wake Scout, Risk, Trader and Auditor now, so the first turn does not wait"}
+            >
+              {team === "ready" ? "Team up" : team === "waking" ? "Waking…" : "Wake team"}
+            </button>
+          ) : null}
           <button type="button" onClick={logout}>
             Log out
           </button>
@@ -2786,7 +2811,7 @@ function Shell() {
       ) : null}
       {settings ? (
         <SettingsPanel
-          onClose={() => { setSettings(false); void readGuestSeat(); }}
+          onClose={() => { setSettings(false); void readGuestSeat(); void readTraderAccess(); }}
           debug={debug}
           onDebug={setDebug}
           perkos={perkos}
@@ -2802,7 +2827,7 @@ function Shell() {
         <Beams beams={beams} orbitRef={orbitRef} orbRefs={orbRefs} />
         <Orb className="scout" label="Scout" on={awake} state={orbState("scout")} talking={talking.has("scout")} refCb={(el) => { orbRefs.current.scout = el; }} />
         <Orb className="risk" label="Risk" on={awake} state={orbState("risk")} talking={talking.has("risk")} verdict={verdict} refCb={(el) => { orbRefs.current.risk = el; }} />
-        <Orb className="trader" label="Trader" on={awake} state={orbState("trader")} talking={talking.has("trader")} refCb={(el) => { orbRefs.current.trader = el; }} />
+        <Orb className="trader" label="Trader" on={awake} state={orbState("trader")} badge={traderDelegated ? { label: "Dynamic · delegated", title: `Buys from the wallet you delegated on Dynamic · up to $${traderDelegated.maxUsdc} per order · revoke anytime in Settings` } : undefined} talking={talking.has("trader")} refCb={(el) => { orbRefs.current.trader = el; }} />
         <Orb className="auditor" label="Auditor" on={awake} state={orbState("auditor")} talking={talking.has("auditor")} refCb={(el) => { orbRefs.current.auditor = el; }} />
         {(guestSeats.length
           ? guestSeats
@@ -3208,7 +3233,7 @@ function avatarState(state: string, talking?: boolean, verdict?: "GO" | "BLOCK" 
   return "offline"; // planned / not created
 }
 
-function Orb({ className, label, on, state = "", rail, onRail, talking, verdict, look, refCb }: { className: string; label: string; on: boolean; state?: string; rail?: { linked: boolean; lockUsd: number }; onRail?: () => void; talking?: boolean; verdict?: "GO" | "BLOCK" | ""; look?: { accent?: string; style?: string }; refCb?: (el: HTMLDivElement | null) => void }) {
+function Orb({ className, label, on, state = "", rail, onRail, badge, talking, verdict, look, refCb }: { className: string; label: string; on: boolean; state?: string; rail?: { linked: boolean; lockUsd: number }; onRail?: () => void; badge?: { label: string; title: string }; talking?: boolean; verdict?: "GO" | "BLOCK" | ""; look?: { accent?: string; style?: string }; refCb?: (el: HTMLDivElement | null) => void }) {
   const sub = talking ? "Thinking" : state === "ready" ? "Online" : state === "provisioning" ? "Provisioning" : state === "waking" ? "Waking" : state === "hibernated" ? "Hibernating" : state === "failed" ? "Failed" : state === "planned" ? "Not created" : "";
   const role = className.split(" ")[0];
   const desk = role === "scout" || role === "risk" || role === "trader" || role === "auditor";
@@ -3221,6 +3246,7 @@ function Orb({ className, label, on, state = "", rail, onRail, talking, verdict,
       <span>{label}</span>
       {sub ? <small>{sub}</small> : null}
       {verdict ? <em className={`verdict ${verdict.toLowerCase()}`}>{verdict}</em> : null}
+      {badge ? <em className="dyn-badge" title={badge.title}><i aria-hidden="true" />{badge.label}</em> : null}
       {rail ? (
         // Rail de gasto 1Claw (patron EQLTY): a color cuando esta vinculado; atenuado
         // cuando el template lo exige y aun no se conecto. Solo Trader lo tiene.
