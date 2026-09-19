@@ -22,6 +22,21 @@ type PerkosState = { connected: boolean; busy: boolean; fundingUrl: string; note
 // propia, con el logo, para que la opcion se vea. Sin flota con rail no se muestra.
 type RailState = { status: string; oneclawAgentId?: string; vaultId?: string; linkedRoles?: string[]; lockUsd?: number; hasRail: boolean };
 
+// La wallet del Trader en Dynamic, como la devuelve /api/fleet/trader-wallet.
+type TraderWallet = {
+  enabled: boolean;
+  agentId: string | null;
+  wallet: { address: string; limits: { maxStablePerOrder: number } } | null;
+  chains: Array<{ chain: string; balances: Array<{ symbol: string; formatted: string }> }>;
+  payWith: "me" | "trader";
+  error?: string;
+};
+function twFunds(t: TraderWallet): { usdc: number; eth: number } {
+  const b = t.chains.find((c) => c.chain === "base");
+  const of = (sym: string) => Number(b?.balances.find((x) => x.symbol === sym)?.formatted ?? 0);
+  return { usdc: of("USDC"), eth: of("ETH") };
+}
+
 /**
  * The guest seat has five honest states and they need different words. The
  * platform only gives a status string, so the classifier lives here: anything
@@ -99,13 +114,39 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
   const [refreshing, setRefreshing] = useState(false);
   const dockRef = useRef<HTMLFormElement>(null);
   const [hasMore, setHasMore] = useState(false);
+  // La wallet Dynamic del Trader: PerkOS la firma despues del Hold. Floor nunca ve su key.
+  const [tw, setTw] = useState<TraderWallet | null>(null);
+  const [twBusy, setTwBusy] = useState(false);
+  const [twCopied, setTwCopied] = useState(false);
+  const loadTraderWallet = () =>
+    fetch("/api/fleet/trader-wallet").then((r) => r.json()).then((j: TraderWallet & { error?: string }) => setTw(j.error ? { enabled: false, agentId: null, wallet: null, chains: [], payWith: "me", error: j.error } : j)).catch(() => setTw({ enabled: false, agentId: null, wallet: null, chains: [], payWith: "me", error: "unreachable" }));
+  const createTraderWallet = async () => {
+    setTwBusy(true);
+    try {
+      const r = await fetch("/api/fleet/trader-wallet", { method: "POST" });
+      const j = (await r.json().catch(() => ({}))) as { error?: string };
+      if (!r.ok) setTw((t) => (t ? { ...t, error: j.error ?? `HTTP ${r.status}` } : t));
+      await loadTraderWallet();
+    } finally {
+      setTwBusy(false);
+    }
+  };
+  const pickPayer = (payWith: "me" | "trader") => {
+    setTw((t) => (t ? { ...t, payWith } : t));
+    void fetch("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ payWith }) });
+  };
+  const copyTraderAddress = async () => {
+    if (!tw?.wallet) return;
+    try { await navigator.clipboard.writeText(tw.wallet.address); setTwCopied(true); window.setTimeout(() => setTwCopied(false), 1600); } catch { /* the address is on screen */ }
+  };
 
   const refresh = () =>
     Promise.all([
       fetch("/api/llm/status").then((r) => r.json()).then((s: Llm) => { setLlm(s); setModel(s.model); }),
       fetch("/api/settings").then((r) => r.json()).then((s: { voice?: Voice; version?: string; build?: string }) => { if (s.voice && (VOICES as readonly string[]).includes(s.voice)) setVoice(s.voice); setVer({ version: s.version ?? "", build: s.build ?? "" }); }).catch(() => undefined),
       fetch("/api/launch/quotes").then((r) => r.json()).then((j: { configured?: boolean; wallet?: { evm: string; ethBase: number; club: boolean; x?: string } | null; last24h?: number }) => setBankr({ configured: j.configured === true, wallet: j.wallet ?? null, last24h: j.last24h ?? 0 })).catch(() => setBankr({ configured: false })),
-      fetch("/api/fleet/guest").then((r) => r.json()).then((j: { invited?: boolean; agentName?: string; status?: string; prompt?: string; complete?: boolean; seats?: Seat[]; canInviteMore?: boolean }) => { setGuest({ invited: j.invited === true, agentName: j.agentName, status: j.status, prompt: j.prompt, complete: j.complete }); setSeats(j.seats ?? []); setCanInviteMore(j.canInviteMore !== false); }).catch(() => setGuest({ invited: false }))
+      fetch("/api/fleet/guest").then((r) => r.json()).then((j: { invited?: boolean; agentName?: string; status?: string; prompt?: string; complete?: boolean; seats?: Seat[]; canInviteMore?: boolean }) => { setGuest({ invited: j.invited === true, agentName: j.agentName, status: j.status, prompt: j.prompt, complete: j.complete }); setSeats(j.seats ?? []); setCanInviteMore(j.canInviteMore !== false); }).catch(() => setGuest({ invited: false })),
+      loadTraderWallet()
     ]);
 
   // La voz se guarda al elegirla y se puede escuchar antes de cerrar.
@@ -397,6 +438,33 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
               </div>
             ) : null}
             {rail?.status === "linked" && rail.lockUsd ? <p className="hint-line">The Trader spends only through 1Claw. Above ${rail.lockUsd} every spend waits for you.</p> : null}
+            <div className="srow rail-row tw-row">
+              <span>Trader wallet</span>
+              <span className="v">
+                {tw === null ? "…"
+                  : tw.wallet ? `${tw.wallet.address.slice(0, 6)}…${tw.wallet.address.slice(-4)} · ${twFunds(tw).usdc.toFixed(2)} USDC · ${twFunds(tw).eth.toFixed(4)} ETH on Base`
+                  : !tw.agentId ? "Start the desk first: this wallet belongs to its Trader"
+                  : !tw.enabled ? "Not switched on for this PerkOS account yet"
+                  : "Not created yet"}
+                {tw?.wallet ? <button type="button" onClick={() => void copyTraderAddress()} title="Copy the address to fund it with USDC and a little ETH for gas on Base">{twCopied ? "Copied" : "Copy address"}</button> : null}
+                {tw?.wallet ? <a className="pill" href={`https://basescan.org/address/${tw.wallet.address}`} target="_blank" rel="noreferrer">Basescan ↗</a> : null}
+                {tw && !tw.wallet && tw.enabled && tw.agentId ? <button type="button" onClick={() => void createTraderWallet()} disabled={twBusy}>{twBusy ? "Creating…" : "Create"}</button> : null}
+              </span>
+            </div>
+            {tw?.wallet ? (
+              <div className="srow tw-pay" role="radiogroup" aria-label="Who pays for an approved buy">
+                <span>Pays for buys</span>
+                <span className="v">
+                  <button type="button" role="radio" aria-checked={tw.payWith === "me"} className={tw.payWith === "me" ? "on" : ""} onClick={() => pickPayer("me")}>My wallet</button>
+                  <button type="button" role="radio" aria-checked={tw.payWith === "trader"} className={tw.payWith === "trader" ? "on" : ""} onClick={() => pickPayer("trader")}>Trader wallet</button>
+                </span>
+              </div>
+            ) : null}
+            <p className="hint-line">{tw?.wallet
+              ? tw.payWith === "trader"
+                ? `A Dynamic server wallet assigned to the Trader. You still hold Approve; then PerkOS signs through Dynamic: USDC to a known router only, the shares back to this wallet, up to $${tw.wallet.limits.maxStablePerOrder} per order.`
+                : "A Dynamic server wallet assigned to the Trader. Switch it on and the Trader pays for buys you approve, with no wallet popup."
+              : "The Trader gets its own wallet on Dynamic. PerkOS signs for it only after you hold Approve."}{tw?.error && !tw.wallet ? ` (${tw.error})` : ""}</p>
             <div className="srow rail-row">
               <span>Bankr</span>
               <span className="v">

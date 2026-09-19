@@ -2,6 +2,11 @@
 
 All notable changes to the PerkOS desktop app. Versions follow [Semantic Versioning](https://semver.org); the version lives in `apps/desktop/package.json` and shows in Settings › About with the git short SHA of the build.
 
+## [Unreleased]
+
+- The Trader can pay from its own wallet. Settings › Trader wallet creates a Dynamic server wallet assigned to the desk's Trader and shows its address and funds on Base. Switch "Pays for buys" to Trader wallet and an approved buy is signed by PerkOS through Dynamic after you hold Approve: no wallet popup, the shares land in the Trader's wallet, and the card says who paid.
+- PerkOS checks each step before Dynamic signs: USDC approved only to a known router, the swap paid in USDC with its output pinned to the Trader's wallet, up to $25 per order. Sells and everything else stay with your own wallet, which remains the default.
+
 ## [0.5.9] - 2026-09-19
 
 - A desk can invite more than one Grok Bot. Seats are numbered, up to four, each with its own name and its own setup to paste, and the turn asks them all at once.
