@@ -2,24 +2,25 @@ import { getPerkosIdToken, perkosRequest, PerkosApiError } from "./perkosApi";
 import { fleetStatus } from "./fleet";
 
 /**
- * The Trader's own wallet: a Dynamic server wallet that PerkOS assigns to the
- * desk's Trader. Floor never holds its key and never sees one. The person
- * approves on the desk (Hold), Floor asks the PerkOS API to sign that step,
- * and the API checks it against the agent policy before Dynamic signs:
- * USDC approved only to a known router, the swap paid in USDC, the output
- * pinned back to the Trader's wallet, under the per-order cap.
+ * Trader access: the person keeps a Dynamic embedded wallet and delegates a
+ * limited, revocable share of it to the desk's Trader. Floor never sees that
+ * share or any key. The person grants, edits limits or revokes on a PerkOS page
+ * that opens in the system browser; on the desk they still hold Approve on
+ * every order, and PerkOS signs that one step through Dynamic.
+ *
+ * Limits live in three places, and the card says which is which: Dynamic's
+ * enclave (a rule the person sets on the delegated share), the PerkOS policy
+ * (the swap pays back into the same wallet), and the Hold.
  */
 
-export type AgentWalletView = {
-  agentId: string;
-  address: string;
-  provider: "dynamic";
-  pattern: "server-wallet";
-  createdAt: string | null;
-  limits: { maxStablePerOrder: number; maxNativePerOrder: number; enforcedBy: "perkos" };
+export type TraderLimits = {
+  maxUsdc: number;
+  ruleId: string | null;
+  /** Read back from Dynamic when it was set, not just what the page reported. */
+  verified: boolean;
+  setAt: string;
 };
 
-/** Same shape as the API's `GET /wallet/agents/:id` chains. */
 export type ChainBalances = {
   chain: string;
   chainId: number;
@@ -27,20 +28,17 @@ export type ChainBalances = {
   balances: Array<{ symbol: string; address: string | null; decimals: number; raw: string; formatted: string }>;
 };
 
-/** One number for the card: what the Trader can spend, and what pays its gas. */
-export function baseFunds(chains: ChainBalances[]): { usdc: number; eth: number } {
-  const b = chains.find((c) => c.chain === "base");
-  const of = (sym: string) => Number(b?.balances.find((x) => x.symbol === sym)?.formatted ?? 0);
-  return { usdc: of("USDC"), eth: of("ETH") };
-}
-
-export type TraderWalletState = {
-  /** The API has Dynamic credentials; without them the card says so. */
+export type TraderAccess = {
+  /** Delegated access is switched on for this PerkOS deployment. */
   enabled: boolean;
-  /** The desk has a Trader to hold the wallet. */
+  /** The desk's Trader, or null before the desk exists. */
   agentId: string | null;
-  wallet: AgentWalletView | null;
+  linked: boolean;
+  delegated: boolean;
+  walletAddress: string | null;
+  limits: TraderLimits | null;
   chains: ChainBalances[];
+  allowlist: Array<{ address: string; label: string }>;
 };
 
 async function token(wallet: string): Promise<string> {
@@ -55,25 +53,38 @@ export async function traderAgentId(wallet: string, templateId?: string): Promis
   return fleet.agents.find((a) => a.role === "trader")?.agentId ?? null;
 }
 
-export async function traderWalletState(wallet: string, templateId?: string): Promise<TraderWalletState> {
-  const agentId = await traderAgentId(wallet, templateId);
-  if (!agentId) return { enabled: false, agentId: null, wallet: null, chains: [] };
-  const r = await perkosRequest<{ enabled?: boolean; wallet?: AgentWalletView | null; chains?: ChainBalances[] }>(
-    `/wallet/agents/${encodeURIComponent(agentId)}`,
-    { idToken: await token(wallet), timeoutMs: 20_000 }
-  );
-  return { enabled: Boolean(r.enabled), agentId, wallet: r.wallet ?? null, chains: r.chains ?? [] };
+export async function traderAccess(wallet: string, templateId?: string): Promise<TraderAccess> {
+  const [agentId, r] = await Promise.all([
+    traderAgentId(wallet, templateId).catch(() => null),
+    perkosRequest<Omit<TraderAccess, "agentId">>("/delegation/status", { idToken: await token(wallet), timeoutMs: 20_000 })
+  ]);
+  return {
+    enabled: Boolean(r.enabled),
+    agentId,
+    linked: Boolean(r.linked),
+    delegated: Boolean(r.delegated),
+    walletAddress: r.walletAddress ?? null,
+    limits: r.limits ?? null,
+    chains: r.chains ?? [],
+    allowlist: r.allowlist ?? []
+  };
 }
 
-export async function ensureTraderWallet(wallet: string, templateId?: string): Promise<AgentWalletView> {
+/** A one-shot link to the PerkOS page where the person grants or edits access. */
+export async function traderAccessLink(wallet: string, mode: "grant" | "edit", templateId?: string): Promise<string> {
   const agentId = await traderAgentId(wallet, templateId);
-  if (!agentId) throw new PerkosApiError(409, "NO_TRADER", "Start the desk first: the wallet belongs to its Trader");
-  const r = await perkosRequest<{ wallet: AgentWalletView }>(`/wallet/agents/${encodeURIComponent(agentId)}/ensure`, {
+  if (!agentId) throw new PerkosApiError(409, "NO_TRADER", "Start the desk first: access is delegated to its Trader");
+  const r = await perkosRequest<{ url: string }>("/delegation/link-token", {
     idToken: await token(wallet),
     method: "POST",
-    timeoutMs: 45_000
+    body: JSON.stringify({ agentId, mode }),
+    timeoutMs: 15_000
   });
-  return r.wallet;
+  return r.url;
+}
+
+export async function revokeTraderAccess(wallet: string): Promise<void> {
+  await perkosRequest("/delegation/revoke", { idToken: await token(wallet), method: "POST", timeoutMs: 20_000 });
 }
 
 export type AgentCallResult = {
@@ -81,10 +92,12 @@ export type AgentCallResult = {
   chainId: number;
   explorerUrl: string | null;
   executionId: string;
+  signer: "delegated" | "agent";
+  from: string;
   summary: { kind: "approve" | "swap"; venue: string; usdc: number; tokenOut?: string };
 };
 
-/** Ask the API to sign one approved step from the Trader's wallet. */
+/** Ask PerkOS to sign one approved step; it signs through the delegated wallet. */
 export async function traderWalletCall(
   wallet: string,
   agentId: string,
@@ -97,4 +110,11 @@ export async function traderWalletCall(
     // MPC signing is a relay round trip plus the broadcast; give it room.
     timeoutMs: 60_000
   });
+}
+
+/** One number for the card: what the Trader can spend, and what pays its gas. */
+export function baseFunds(chains: ChainBalances[]): { usdc: number; eth: number } {
+  const b = chains.find((c) => c.chain === "base");
+  const of = (sym: string) => Number(b?.balances.find((x) => x.symbol === sym)?.formatted ?? 0);
+  return { usdc: of("USDC"), eth: of("ETH") };
 }
