@@ -165,6 +165,12 @@ function Shell() {
   const turnLiveRef = useRef(false);
   // Modo del turno: orden / analisis de un activo / asesoria abierta / charla (sin mesa).
   const modeRef = useRef<"order" | "analyze" | "advise" | "launch" | "pair" | "chat">("chat");
+  // Una orden explicita ("buy $1 of NVIDIA") pagada con la wallet delegada ya esta aprobada:
+  // la persona la dio y fijo los limites en Dynamic. Con Risk en GO, el Trader la ejecuta sola
+  // tras 5 s en los que Stop (o cualquier mensaje nuevo) la cancela.
+  const verdictRef = useRef("");
+  const autoExecRef = useRef(0);
+  const approveDraftRef = useRef<(msgId: number) => Promise<void>>(async () => undefined);
   const lastRepliesRef = useRef<Array<{ role: string; ok: boolean; reply: string }>>([]);
   const [openTurns, setOpenTurns] = useState<number[]>([]);
   const decisionRef = useRef<{ turnId: number; noteId?: string; draftId?: number } | null>(null);
@@ -396,6 +402,12 @@ function Shell() {
   // Hermes Desktop. El chat avisa beginTurn/endTurn; la voz avisa onInterrupt
   // (barge-in) para abortar el stream en curso.
   const abortChat = useCallback(() => {
+    if (autoExecRef.current) {
+      window.clearTimeout(autoExecRef.current);
+      autoExecRef.current = 0;
+      flog("info", "auto-execute: cancelled");
+      setCaption("Cancelled. The order stays on the table: hold to approve it.");
+    }
     chatAbort.current?.abort();
     chatAbort.current = null;
     setThinking(false);
@@ -565,6 +577,7 @@ function Shell() {
         setCaption("The desk is working…");
         setBeams([]);
         setVerdict("");
+        verdictRef.current = "";
         const t1 = Date.now();
         const quote = quoteRef.current;
         // Agent graph: una card por rol bajo su esfera, movida por los eventos reales.
@@ -647,6 +660,7 @@ function Shell() {
                   if (r === "trader" || r === "auditor") setBeams((b) => b.map((x) => (x.to === r ? { ...x, done: true } : x)));
                   if (ev.verdict) {
                     setVerdict(ev.verdict);
+                    verdictRef.current = ev.verdict;
                     if (ev.verdict === "BLOCK") {
                       const why = ev.reply!.replace(/^\s*VERDICT\s*[:\-]\s*BLOCK\s*/i, "").trim();
                       if (heldDraftRef.current?.tx?.stage === "idle") heldDraftRef.current = { ...heldDraftRef.current, tx: { ...heldDraftRef.current.tx, stage: "blocked", note: `Risk blocked: ${why.slice(0, 200)}` } };
@@ -763,7 +777,18 @@ function Shell() {
       setFloor(full, false);
       flog("info", `chat <- ${full.length} chars`);
       // La tarjeta de decision cierra el turno: entra cuando Floor termino su evaluacion.
+      const heldForAuto = heldDraftRef.current;
       releaseDraft(youId);
+      if (heldForAuto?.draft?.payer?.kind === "trader" && modeRef.current === "order" && verdictRef.current === "GO" && (!heldForAuto.tx || heldForAuto.tx.stage === "idle")) {
+        const d = heldForAuto.draft;
+        const autoId = heldForAuto.id;
+        flog("info", `auto-execute: ${d.side} $${d.amountInUsd} ${d.stock.symbol} in 5 s from the delegated wallet (explicit order, Risk GO)`);
+        setCaption(`The Trader buys $${d.amountInUsd} of ${d.stock.symbol} in 5 s from your delegated wallet. Press Stop to cancel.`);
+        autoExecRef.current = window.setTimeout(() => {
+          autoExecRef.current = 0;
+          void approveDraftRef.current(autoId);
+        }, 5000);
+      }
       // Diario del desk: la pregunta, lo que dijo el equipo y la respuesta.
       const teamLines = fleetReplies.filter((r) => r.ok && r.reply).map((r) => `- **${cap(r.role)}**: ${r.reply.replace(/\s+/g, " ").slice(0, 600)}`).join("\n");
       kbWriteRef.current({ journal: true, body: `**You**: ${text}\n${teamLines ? `${teamLines}\n` : ""}- **Sparky**: ${full.replace(/\s+/g, " ").slice(0, 900)}` });
@@ -1777,6 +1802,7 @@ function Shell() {
       setCaption(/reject|denied|4001/i.test(m) ? "Trade cancelled in the wallet." : timedOut ? "The wallet did not answer. Nothing was traded." : "Trade failed.");
     }
   }, [wallet, speak, touch, signHint, signShort]);
+  approveDraftRef.current = approveDraft;
 
   // Cotizacion inmediata (sin agentes): "price of Apple".
   const quoteAsset = useCallback(async (asset: string) => {
@@ -3401,7 +3427,7 @@ function DraftCard({ draft, tx, onApprove, signHint, onPhone, onReconnect, linkL
             {tx.stage === "done" ? "Done" : tx.stage === "blocked" ? "Blocked" : tx.stage === "signing" ? `Sign ${tx.step}…` : tx.stage === "pending" ? `${cap(tx.step ?? "")} on Base…` : tx.stage === "failed" ? "Retry" : "Hold to approve"}
           </span>
         </button>
-        <small>{tx.stage === "done" ? "Receipt on Base. Your keys, your trade." : tx.stage === "blocked" ? "Risk said no. Nothing to sign." : tx.stage === "signing" && signHint ? signHint : "They draft. You sign in your wallet."}</small>
+        <small>{tx.stage === "done" ? "Receipt on Base. Your keys, your trade." : tx.stage === "blocked" ? "Risk said no. Nothing to sign." : tx.stage === "signing" && signHint && !byTrader ? signHint : byTrader ? "They draft. The Trader signs through the wallet you delegated." : "They draft. You sign in your wallet."}</small>
       </div>
     </div>
   );
