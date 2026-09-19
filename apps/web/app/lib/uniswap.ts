@@ -79,6 +79,9 @@ export type TradeDraft = {
   /** Venta de un token lanzado: lo que entra a la wallet es ETH. */
   receive?: { symbol: string; amountHuman: string; minHuman: string; usd: number };
   route?: string;
+  /** Quien firma. Ausente: la wallet de la persona. "trader": la wallet Dynamic del
+   *  Trader, que PerkOS firma despues del Hold; el swap le paga a ella. */
+  payer?: { kind: "trader"; address: `0x${string}`; provider: "dynamic"; maxUsd: number };
 };
 
 export class TradeError extends Error {

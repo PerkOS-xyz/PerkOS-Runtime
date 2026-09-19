@@ -30,7 +30,12 @@ export type Settings = {
   // Voz de Floor (xAI TTS voice_id). Sparky habla con "rex"; las voces validas
   // se probaron contra /v1/tts el 2026-09-16 (mika y valentin no existen).
   voice: Voice;
+  /** Who signs an approved buy: the person's own wallet (default, unchanged),
+   *  or the Trader's Dynamic server wallet through the PerkOS API. */
+  payWith: PayWith;
 };
+
+export type PayWith = "me" | "trader";
 
 import { DEFAULT_VOICE, isVoice, type Voice } from "./voices";
 import { ensureHome, HOME_DIR } from "./home";
@@ -88,10 +93,11 @@ export async function loadSettings(): Promise<Settings> {
         : typeof raw.guestAgentId === "string" && raw.guestAgentId
           ? [{ agentId: raw.guestAgentId, agentName: typeof raw.guestName === "string" ? raw.guestName : "", seat: 1 }]
           : [],
-      voice: isVoice(raw.voice) ? raw.voice : DEFAULT_VOICE
+      voice: isVoice(raw.voice) ? raw.voice : DEFAULT_VOICE,
+      payWith: raw.payWith === "trader" ? "trader" : "me"
     };
   } catch {
-    return { provider: "xai-oauth", model: DEFAULT_MODELS["xai-oauth"], effort: "low", apiKey: "", baseUrl: "", onboarded: false, wallet: "", fleetTemplateId: DEFAULT_FLEET_TEMPLATE, guestAgentId: "", guestName: "", guests: [], voice: DEFAULT_VOICE };
+    return { provider: "xai-oauth", model: DEFAULT_MODELS["xai-oauth"], effort: "low", apiKey: "", baseUrl: "", onboarded: false, wallet: "", fleetTemplateId: DEFAULT_FLEET_TEMPLATE, guestAgentId: "", guestName: "", guests: [], voice: DEFAULT_VOICE, payWith: "me" };
   }
 }
 
@@ -122,6 +128,7 @@ export function publicSettings(s: Settings) {
     baseUrl: s.baseUrl,
     onboarded: s.onboarded,
     wallet: maskWallet(s.wallet),
-    voice: s.voice
+    voice: s.voice,
+    payWith: s.payWith
   };
 }
