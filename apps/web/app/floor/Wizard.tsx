@@ -91,7 +91,7 @@ export default function Wizard({ onDone, start = 0, team, rail }: { onDone: () =
                   ("Your business just hired its first team") volvera a tener sentido cuando
                   el app ofrezca varios desks para elegir. */}
               <h1 className="hero-title">They draft.<br /><span>You approve.</span></h1>
-              <p className="hero-sub">PerkOS Floor Desk puts four agents on tokenized stocks on Base. Scout reads the market, Risk says go or block, Trader drafts the order, Auditor checks it. Nothing moves until you sign in your own wallet.</p>
+              <p className="hero-sub">PerkOS Floor Desk puts a desk of agents on tokenized stocks on Base. Scout reads the market, Risk says go or block, Trader drafts the order, Auditor checks it. Nothing moves until you sign in your own wallet.</p>
               <div className="hero-cta">
                 <button className="hero-primary" type="button" disabled={!wallet.enabled || wallet.busy} onClick={meet}>{wallet.busy ? "Opening…" : "Meet the Floor Desk"} <span aria-hidden>&rarr;</span></button>
               </div>
@@ -324,7 +324,7 @@ const WAIT_SLIDES: Array<{ k: string; t: string; d: string }> = [
   // la sala del demo, donde la banda gira en bucle. Arco: control, equipo, precios,
   // creacion, permanencia, propiedad. Abre y cierra en la wallet.
   { k: "YOUR CALL", t: "They draft. You approve.", d: "Every order stays a draft until you hold to approve it, and it is signed with your own wallet." },
-  { k: "THE TEAM", t: "Four agents, one job each.", d: "Scout finds opportunities, Risk sets limits, Trader drafts the orders, and Auditor reconciles what happened against what was asked." },
+  { k: "THE TEAM", t: "One job each, no overlap.", d: "Scout finds opportunities, Risk sets limits, Trader drafts the orders, and Auditor reconciles what happened against what was asked." },
   { k: "PRICE CHECK", t: "Every price is checked twice.", d: "Routes come from Uniswap and Aerodrome on Base, and a second quote from Bankr checks them before a draft." },
   { k: "NEW TOKEN", t: "Launch a token from one sentence.", d: "A name, symbol, description and an AI logo become a live pool, with the trading fees paid to your wallet." },
   { k: "ON REPEAT", t: "Recurring buys, limits and stops.", d: "You approve the rule once, then it runs on a schedule or a trigger while the team hibernates between tasks." },
