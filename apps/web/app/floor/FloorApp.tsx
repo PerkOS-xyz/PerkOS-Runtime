@@ -71,11 +71,15 @@ function Shell() {
   // trabajando en la mesa.
   const [guest, setGuest] = useState(false);
   const [guestSeat, setGuestSeat] = useState<{ invited: boolean; ready: boolean; name?: string } | null>(null);
+  // Un asiento por bot invitado: la mesa puede tener varios y cada uno es una
+  // orb propia en su fila, no un unico hueco compartido.
+  const [guestSeats, setGuestSeats] = useState<{ seat: number; name: string; ready: boolean }[]>([]);
   const readGuestSeat = useCallback(async () => {
     try {
-      const j = (await fetch("/api/fleet/guest").then((r) => r.json())) as { invited?: boolean; status?: string; agentName?: string; displayName?: string };
+      const j = (await fetch("/api/fleet/guest").then((r) => r.json())) as { invited?: boolean; status?: string; agentName?: string; displayName?: string; seats?: { seat: number; agentName: string; displayName?: string; status: string }[] };
       const invited = j.invited === true;
       setGuestSeat({ invited, ready: invited && (j.status || "").toLowerCase() === "ready", name: j.displayName || j.agentName });
+      setGuestSeats((j.seats ?? []).map((x) => ({ seat: x.seat, name: x.displayName || x.agentName, ready: (x.status || "").toLowerCase() === "ready" })));
       if (invited) setGuest(true);
     } catch {
       /* deja el ultimo estado conocido */
@@ -2740,20 +2744,26 @@ function Shell() {
         />
       ) : null}
 
-      <div className="orbit" ref={orbitRef} data-guests={guestSeat?.invited ? 1 : 0}>
+      <div className="orbit" ref={orbitRef} data-guests={guestSeats.length || (guestSeat?.invited ? 1 : 0)}>
         <Beams beams={beams} orbitRef={orbitRef} orbRefs={orbRefs} />
         <Orb className="scout" label="Scout" on={awake} state={orbState("scout")} talking={talking.has("scout")} refCb={(el) => { orbRefs.current.scout = el; }} />
         <Orb className="risk" label="Risk" on={awake} state={orbState("risk")} talking={talking.has("risk")} verdict={verdict} refCb={(el) => { orbRefs.current.risk = el; }} />
         <Orb className="trader" label="Trader" on={awake} state={orbState("trader")} rail={orbRail("trader")} onRail={openRailStep} talking={talking.has("trader")} refCb={(el) => { orbRefs.current.trader = el; }} />
         <Orb className="auditor" label="Auditor" on={awake} state={orbState("auditor")} talking={talking.has("auditor")} refCb={(el) => { orbRefs.current.auditor = el; }} />
-        <Orb
-          className={`guest gi-1${guestSeat?.invited ? "" : " dim"}`}
-          label={guestSeat?.name || (guestSeat?.invited ? "Grok Bot" : "Guest")}
-          on={guestSeat?.ready === true}
-          state={guestSeat?.ready ? "ready" : guestSeat?.invited ? "waking" : ""}
-          talking={talking.has("guest")}
-          refCb={(el) => { orbRefs.current.guest = el; }}
-        />
+        {(guestSeats.length
+          ? guestSeats
+          : [{ seat: 1, name: guestSeat?.name || "Guest", ready: guestSeat?.ready === true }]
+        ).slice(0, 4).map((g, i) => (
+          <Orb
+            key={g.seat}
+            className={`guest gi-${i + 1}${guestSeats.length || guestSeat?.invited ? "" : " dim"}`}
+            label={g.name}
+            on={g.ready}
+            state={g.ready ? "ready" : guestSeats.length || guestSeat?.invited ? "waking" : ""}
+            talking={talking.has("guest")}
+            refCb={(el) => { orbRefs.current[`guest${g.seat}`] = el; }}
+          />
+        ))}
       </div>
       {turn && awake ? (
         <div className={`ag-layer${turn.collapsed ? " chips" : ""}`}>

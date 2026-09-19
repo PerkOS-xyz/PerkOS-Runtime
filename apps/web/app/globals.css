@@ -363,21 +363,21 @@ button, input, select, a, .wizard-card, .gear, .mark {
 .risk { left: 46.7%; top: 21%; }
 .trader { left: 59.3%; top: 21%; }
 .auditor { left: 72%; top: 21%; }
-.guest { left: 50%; top: 44%; }
+.guest { left: 34%; top: 46%; }
 
-/* Los invitados van en su propia linea, centrada bajo los cuatro de casa: son
-   de fuera y tienen que leerse como una fila aparte, no como un quinto puesto
-   de la plantilla. Con varios, se reparten alrededor del centro. */
-.guest.gi-1 { left: 50%; }
-.orbit[data-guests="2"] .guest.gi-1 { left: 44%; }
-.orbit[data-guests="2"] .guest.gi-2 { left: 56%; }
-.orbit[data-guests="3"] .guest.gi-1 { left: 38%; }
-.orbit[data-guests="3"] .guest.gi-2 { left: 50%; }
-.orbit[data-guests="3"] .guest.gi-3 { left: 62%; }
-.orbit[data-guests="4"] .guest.gi-1 { left: 33%; }
-.orbit[data-guests="4"] .guest.gi-2 { left: 44%; }
-.orbit[data-guests="4"] .guest.gi-3 { left: 56%; }
-.orbit[data-guests="4"] .guest.gi-4 { left: 67%; }
+/* Los invitados van en su propia linea, bajo la fila de casa: son de fuera y
+   tienen que leerse aparte, no como un quinto puesto del equipo. Las plazas
+   dejan libre el centro, que es donde vive Sparky. */
+.orbit[data-guests="1"] .guest.gi-1 { left: 34%; }
+.orbit[data-guests="2"] .guest.gi-1 { left: 34%; }
+.orbit[data-guests="2"] .guest.gi-2 { left: 66%; }
+.orbit[data-guests="3"] .guest.gi-1 { left: 22%; }
+.orbit[data-guests="3"] .guest.gi-2 { left: 34%; }
+.orbit[data-guests="3"] .guest.gi-3 { left: 66%; }
+.orbit[data-guests="4"] .guest.gi-1 { left: 22%; }
+.orbit[data-guests="4"] .guest.gi-2 { left: 34%; }
+.orbit[data-guests="4"] .guest.gi-3 { left: 66%; }
+.orbit[data-guests="4"] .guest.gi-4 { left: 78%; }
 
 .slab {
   position: absolute;
@@ -1297,7 +1297,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 /* Fila del equipo (decision de producto 2026-09-16): los 4 agentes en linea
    arriba de la esfera, de izquierda a derecha en el orden del proceso
    Scout -> Risk -> Trader -> Auditor, cada uno con su tag de estado. */
-.guest { left: 50%; top: 44%; }
+.guest { left: 34%; top: 46%; }
 .orb.st-hibernated .ball { filter: saturate(0.35) brightness(0.7); opacity: 0.85; }
 .orb.dim.on { opacity: 0.45; }
 .stage.split .scout { left: 60%; top: 10%; }
