@@ -454,8 +454,12 @@ function Shell() {
       }
       return f0;
     })();
-    wakeJobRef.current = job.finally(() => { if (wakeJobRef.current === job) wakeJobRef.current = null; });
-    return wakeJobRef.current;
+    // La ref guarda la promesa del finally, no `job`: comparar con `job` nunca
+    // coincidia, la ref no se limpiaba y un turno pedido con la mesa dormida se
+    // quedaba esperando para siempre despues de "The team is up."
+    const tracked: Promise<Fleet | null | undefined> = job.finally(() => { if (wakeJobRef.current === tracked) wakeJobRef.current = null; });
+    wakeJobRef.current = tracked;
+    return tracked;
   }, [act]);
   const chat = useCallback(async (text: string, opts: { youId?: number } = {}) => {
     abortChat();
