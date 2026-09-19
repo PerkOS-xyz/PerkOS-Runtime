@@ -66,7 +66,22 @@ function Shell() {
   // tras entrar solo esta Sparky. Cuando vuelven a dormir, se quedan (ya se conocen).
   const [teamSeen, setTeamSeen] = useState(false);
   useEffect(() => { if (team !== "hibernated") setTeamSeen(true); }, [team]);
+  // El asiento invitado: lo que diga la plataforma, no lo que se haya tecleado
+  // en esta sesion. Sin esto la orb se quedaba apagada aunque el bot estuviera
+  // trabajando en la mesa.
   const [guest, setGuest] = useState(false);
+  const [guestSeat, setGuestSeat] = useState<{ invited: boolean; ready: boolean; name?: string } | null>(null);
+  const readGuestSeat = useCallback(async () => {
+    try {
+      const j = (await fetch("/api/fleet/guest").then((r) => r.json())) as { invited?: boolean; status?: string; agentName?: string };
+      const invited = j.invited === true;
+      setGuestSeat({ invited, ready: invited && (j.status || "").toLowerCase() === "ready", name: j.agentName });
+      if (invited) setGuest(true);
+    } catch {
+      /* deja el ultimo estado conocido */
+    }
+  }, []);
+  useEffect(() => { void readGuestSeat(); }, [readGuestSeat]);
   const [docs, setDocs] = useState(false);
   const [market, setMarket] = useState(false);
   // Pantallas propias del desk (Market / Portfolio) y el activo enfocado.
@@ -2142,6 +2157,7 @@ function Shell() {
           return;
         }
         setCaption("Guest invited. Settings → Grok Bot → Copy. Paste it into your Grok Bot.");
+        void readGuestSeat();
         setMessages((m) => [...m, { id: Date.now(), role: "floor", text: j.already ? `Your Grok Bot is already invited (${j.agentName || "guest"}, ${j.status || "invited"}). Open Settings → Grok Bot to copy the prompt if you still need it. Nothing spends.` : "Your Grok Bot is invited. Open Settings → Grok Bot, copy the prompt, paste it into Grok Bot. It connects out to PerkOS. Nothing spends." }]);
       }).catch(() => setCaption("Invite failed."));
       return;
@@ -2729,7 +2745,14 @@ function Shell() {
         <Orb className="risk" label="Risk" on={awake} state={orbState("risk")} talking={talking.has("risk")} verdict={verdict} refCb={(el) => { orbRefs.current.risk = el; }} />
         <Orb className="trader" label="Trader" on={awake} state={orbState("trader")} rail={orbRail("trader")} onRail={openRailStep} talking={talking.has("trader")} refCb={(el) => { orbRefs.current.trader = el; }} />
         <Orb className="auditor" label="Auditor" on={awake} state={orbState("auditor")} talking={talking.has("auditor")} refCb={(el) => { orbRefs.current.auditor = el; }} />
-        <Orb className={`guest${guest ? "" : " dim"}`} label={guest ? "Grok Bot" : "Guest"} on={guest} />
+        <Orb
+          className={`guest${guestSeat?.invited ? "" : " dim"}`}
+          label={guestSeat?.invited ? "Grok Bot" : "Guest"}
+          on={guestSeat?.ready === true}
+          state={guestSeat?.ready ? "ready" : guestSeat?.invited ? "waking" : ""}
+          talking={talking.has("guest")}
+          refCb={(el) => { orbRefs.current.guest = el; }}
+        />
       </div>
       {turn && awake ? (
         <div className={`ag-layer${turn.collapsed ? " chips" : ""}`}>
