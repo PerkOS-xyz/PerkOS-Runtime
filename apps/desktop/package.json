@@ -55,18 +55,18 @@
       "icon": "build/icon.icns",
       "background": "build/dmg-background.png",
       "window": {
-        "width": 600,
-        "height": 420
+        "width": 800,
+        "height": 560
       },
-      "iconSize": 112,
+      "iconSize": 128,
       "contents": [
         {
-          "x": 170,
-          "y": 210
+          "x": 227,
+          "y": 280
         },
         {
-          "x": 430,
-          "y": 210,
+          "x": 573,
+          "y": 280,
           "type": "link",
           "path": "/Applications"
         }
