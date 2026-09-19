@@ -1680,6 +1680,8 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .settings-dock .srow .v a.pill { padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(236, 27, 105, 0.55); color: #ff5a6a; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; box-shadow: 0 0 10px rgba(236, 27, 105, 0.22); }
 .settings-dock .srow .v a.pill:hover { background: rgba(236, 27, 105, 0.12); }
 .settings-dock .srow .v em { font-style: normal; color: #7fe0a8; font-size: 10px; }
+.settings-dock .hint-line.warn { color: #ffd18a; }
+.settings-dock .invite-prompt { display: block; width: 100%; min-height: 140px; margin: 8px 0 0; padding: 8px 10px; background: #05070c; border: 1px solid #1a2233; border-radius: 10px; color: var(--ink); font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }
 .settings-dock .hint-line { margin: 8px 0 0; font-size: 10.5px; color: var(--mute); }
 .settings-dock .xai-connect { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .settings-dock .xai-connect .device-code { font-size: 18px; letter-spacing: 0.2em; color: var(--ink); }
