@@ -1715,6 +1715,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .settings-dock .gb-pill { font-style: normal; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(160, 180, 220, 0.3); color: var(--mute); }
 .settings-dock .gb-pill.gb-waiting { color: #ffd08a; border-color: rgba(255, 179, 71, 0.55); }
 .settings-dock .gb-pill.gb-ready { color: #7fe0a8; border-color: rgba(61, 200, 120, 0.55); }
+.settings-dock .gb-pill.gb-away { color: #9aabc8; border-color: rgba(154, 171, 200, 0.45); }
 .settings-dock .gb-pill.gb-lost, .settings-dock .gb-pill.gb-incomplete { color: #ff8a92; border-color: rgba(255, 90, 106, 0.55); }
 .settings-dock .gb-refresh { width: 22px; height: 22px; padding: 0; display: grid; place-items: center; border-radius: 50%; border: 1px solid rgba(232, 238, 255, 0.18); background: transparent; color: var(--mute); cursor: pointer; }
 .settings-dock .gb-refresh:hover:not(:disabled) { color: var(--ink); border-color: rgba(120, 160, 255, 0.4); }
