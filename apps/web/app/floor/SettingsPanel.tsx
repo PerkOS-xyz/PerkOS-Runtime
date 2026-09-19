@@ -76,7 +76,7 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
   // Bankr: segunda cotizacion, token launches y automatizaciones. La key vive
   // en el env del install; aqui se ve la wallet Bankr, su ETH en Base y el cupo.
   const [bankr, setBankr] = useState<{ configured: boolean; wallet?: { evm: string; ethBase: number; club: boolean; x?: string } | null; last24h?: number } | null>(null);
-  type Seat = { seat: number; agentId: string; agentName: string; status: string; prompt?: string; complete: boolean };
+  type Seat = { seat: number; agentId: string; agentName: string; status: string; prompt?: string; complete: boolean; displayName?: string };
   const [guest, setGuest] = useState<{ invited: boolean; agentName?: string; status?: string; prompt?: string; complete?: boolean } | null>(null);
   const [seats, setSeats] = useState<Seat[]>([]);
   const [canInviteMore, setCanInviteMore] = useState(true);
@@ -326,7 +326,7 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
                 return (
                   <div key={seat.seat} className="gb-seat">
                     <div className="gb-seat-head">
-                      <span className="gb-seat-name">{seat.agentName || `Guest ${seat.seat}`}</span>
+                      <span className="gb-seat-name">{seat.displayName || seat.agentName || `Guest ${seat.seat}`}{seat.displayName ? <small className="gb-seat-id"> {seat.agentName}</small> : null}</span>
                       <em className={`gb-pill gb-${phase}`} title={GB_PILL[phase].title}>{GB_PILL[phase].label}</em>
                     </div>
                     {phase === "waiting" ? <p className="hint-line">Paste this setup once into that bot. The seat lights up on its own.</p> : null}

@@ -1724,6 +1724,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .settings-dock .gb-seat { margin-top: 8px; padding: 9px 10px; border-radius: 11px; border: 1px solid rgba(120, 160, 255, 0.14); background: rgba(255, 255, 255, 0.015); }
 .settings-dock .gb-seat-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .settings-dock .gb-seat-name { font-size: 11px; color: var(--ink); }
+.settings-dock .gb-seat-id { color: var(--mute); font-size: 9.5px; letter-spacing: 0.04em; }
 .settings-dock .gb-seat .gb-go { margin-top: 5px; }
 .settings-dock .gb-reveal { margin-top: 6px; font-size: 10.5px; }
 .settings-dock .gb-reveal summary { cursor: pointer; list-style: none; letter-spacing: 0.06em; color: var(--mute); }
