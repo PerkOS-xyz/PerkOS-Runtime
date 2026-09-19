@@ -1,6 +1,6 @@
 {
   "name": "perkos-xyz-desktop",
-  "version": "0.5.8",
+  "version": "0.5.9",
   "private": true,
   "main": "main.cjs",
   "scripts": {
