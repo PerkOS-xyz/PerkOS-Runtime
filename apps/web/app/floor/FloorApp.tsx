@@ -2740,14 +2740,14 @@ function Shell() {
         />
       ) : null}
 
-      <div className="orbit" ref={orbitRef}>
+      <div className="orbit" ref={orbitRef} data-guests={guestSeat?.invited ? 1 : 0}>
         <Beams beams={beams} orbitRef={orbitRef} orbRefs={orbRefs} />
         <Orb className="scout" label="Scout" on={awake} state={orbState("scout")} talking={talking.has("scout")} refCb={(el) => { orbRefs.current.scout = el; }} />
         <Orb className="risk" label="Risk" on={awake} state={orbState("risk")} talking={talking.has("risk")} verdict={verdict} refCb={(el) => { orbRefs.current.risk = el; }} />
         <Orb className="trader" label="Trader" on={awake} state={orbState("trader")} rail={orbRail("trader")} onRail={openRailStep} talking={talking.has("trader")} refCb={(el) => { orbRefs.current.trader = el; }} />
         <Orb className="auditor" label="Auditor" on={awake} state={orbState("auditor")} talking={talking.has("auditor")} refCb={(el) => { orbRefs.current.auditor = el; }} />
         <Orb
-          className={`guest${guestSeat?.invited ? "" : " dim"}`}
+          className={`guest gi-1${guestSeat?.invited ? "" : " dim"}`}
           label={guestSeat?.name || (guestSeat?.invited ? "Grok Bot" : "Guest")}
           on={guestSeat?.ready === true}
           state={guestSeat?.ready ? "ready" : guestSeat?.invited ? "waking" : ""}

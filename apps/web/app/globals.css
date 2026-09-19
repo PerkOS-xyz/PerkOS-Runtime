@@ -363,7 +363,21 @@ button, input, select, a, .wizard-card, .gear, .mark {
 .risk { left: 46.7%; top: 21%; }
 .trader { left: 59.3%; top: 21%; }
 .auditor { left: 72%; top: 21%; }
-.guest { left: 84%; top: 21%; }
+.guest { left: 50%; top: 44%; }
+
+/* Los invitados van en su propia linea, centrada bajo los cuatro de casa: son
+   de fuera y tienen que leerse como una fila aparte, no como un quinto puesto
+   de la plantilla. Con varios, se reparten alrededor del centro. */
+.guest.gi-1 { left: 50%; }
+.orbit[data-guests="2"] .guest.gi-1 { left: 44%; }
+.orbit[data-guests="2"] .guest.gi-2 { left: 56%; }
+.orbit[data-guests="3"] .guest.gi-1 { left: 38%; }
+.orbit[data-guests="3"] .guest.gi-2 { left: 50%; }
+.orbit[data-guests="3"] .guest.gi-3 { left: 62%; }
+.orbit[data-guests="4"] .guest.gi-1 { left: 33%; }
+.orbit[data-guests="4"] .guest.gi-2 { left: 44%; }
+.orbit[data-guests="4"] .guest.gi-3 { left: 56%; }
+.orbit[data-guests="4"] .guest.gi-4 { left: 67%; }
 
 .slab {
   position: absolute;
@@ -1283,14 +1297,14 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 /* Fila del equipo (decision de producto 2026-09-16): los 4 agentes en linea
    arriba de la esfera, de izquierda a derecha en el orden del proceso
    Scout -> Risk -> Trader -> Auditor, cada uno con su tag de estado. */
-.guest { left: 84%; top: 21%; }
+.guest { left: 50%; top: 44%; }
 .orb.st-hibernated .ball { filter: saturate(0.35) brightness(0.7); opacity: 0.85; }
 .orb.dim.on { opacity: 0.45; }
 .stage.split .scout { left: 60%; top: 10%; }
 .stage.split .risk { left: 69%; top: 10%; }
 .stage.split .trader { left: 78%; top: 10%; }
 .stage.split .auditor { left: 87%; top: 10%; }
-.stage.split .guest { left: 96%; top: 10%; }
+.stage.split .guest { left: 73%; top: 26%; }
 .stage.split .orb { transform: translate(-50%, 0) scale(0.85); }
 .stage.split .orb.on { transform: translate(-50%, 0) scale(0.85); }
 .orb { transition: opacity 0.7s ease, transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), left var(--split-ms) var(--split-ease), top var(--split-ms) var(--split-ease); }
@@ -1349,7 +1363,7 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .stage.split .risk { left: 69.5%; top: 10%; }
 .stage.split .trader { left: 80.5%; top: 10%; }
 .stage.split .auditor { left: 91.5%; top: 10%; }
-.stage.split .guest { left: 97%; top: 24%; }
+.stage.split .guest { left: 73%; top: 40%; }
 /* Chat: la etiqueta de cada agente lleva su punto de color; Floor el coral. */
 .turn-k::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; vertical-align: middle; background: #6f7d99; }
 .turn.you .turn-k::before { display: none; }
@@ -1576,11 +1590,11 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .stage.split .risk { left: 69.5%; top: 40%; }
 .stage.split .trader { left: 80.5%; top: 40%; }
 .stage.split .auditor { left: 91.5%; top: 40%; }
-.stage.split .guest { left: 97%; top: 54%; }
+.stage.split .guest { left: 73%; top: 70%; }
 .stage.split .ag-layer { top: calc(40% + 175px); transition: top var(--split-ms) var(--split-ease); }
 .stage.split .ag-layer.chips { top: calc(40% + 175px); }
 .stage.split.turn-live .scout, .stage.split.turn-live .risk, .stage.split.turn-live .trader, .stage.split.turn-live .auditor { top: 16%; }
-.stage.split.turn-live .guest { top: 30%; }
+.stage.split.turn-live .guest { top: 46%; }
 .stage.split.turn-live .ag-layer { top: calc(16% + 175px); }
 .stage.split.turn-live .ag-layer.chips { top: calc(16% + 175px); }
 /* Con un panel abierto la esfera se queda arriba del chat, como antes. */
@@ -1878,7 +1892,8 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 @media (max-height: 760px) {
   .core { max-width: 24vh; max-height: 24vh; }
   .stage:not(.split):not(.desk-open):not(.turn-live) .core-wrap { top: 50%; }
-  .scout, .risk, .trader, .auditor, .guest { top: 18%; }
+  .scout, .risk, .trader, .auditor { top: 18%; }
+  .guest { top: 40%; }
   /* Sin altura para la linea de estado bajo la fila: va abajo a la izquierda,
      en el lugar de la linea de venues. */
   .stage:not(.split):not(.desk-open):not(.turn-live) .caption { top: auto; bottom: 22px; left: 28px; transform: none; text-align: left; max-width: 46%; }
