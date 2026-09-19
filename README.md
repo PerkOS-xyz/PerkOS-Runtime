@@ -109,7 +109,9 @@ cd ../.. && npm start                                      # Electron shell; it 
 
 | Variable | Where | What |
 |---|---|---|
-| `NEXT_PUBLIC_PRIVY_APP_ID`, `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | build time | public ids for wallet login |
+| `NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID` | build time | public id for wallet login; without it the app uses the previous connector |
+| `NEXT_PUBLIC_WALLET_CONNECTOR` | build time, optional | `legacy` keeps the previous connector even when the id above is set |
+| `NEXT_PUBLIC_PRIVY_APP_ID`, `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | build time | public ids for the previous wallet login |
 | `BASE_RPC_URL` | run time, optional | Base JSON-RPC; default public node |
 | `BANKR_API_KEY` | run time, optional | Bankr key: read-only is enough for the second quote; Token Launch API and read-write for launches and automations |
 | `PERKOS_API_URL`, `PERKOS_OAUTH_URL`, `PERKOS_FLEET_TEMPLATE` | run time, optional | PerkOS endpoints and desk template |

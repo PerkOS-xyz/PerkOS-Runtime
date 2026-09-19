@@ -4,6 +4,9 @@ All notable changes to the PerkOS desktop app. Versions follow [Semantic Version
 
 ## [Unreleased]
 
+### Changed
+- Wallet sign in opens a new connector. The window offers the same two ways in, a wallet on your phone through WalletConnect and email or Google, and the app talks to it through the same internal contract as before, so nothing else in the app changed. Relinking a wallet after the phone drops the session is now a single step, and the app asks the connector whether the link is alive instead of assuming it from the session. The previous connector stays in the build: without `NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID` nothing changes, and `NEXT_PUBLIC_WALLET_CONNECTOR=legacy` forces it back.
+
 ### Fixed
 - The desk vault is per wallet. Until now every wallet that signed in on the same Mac read and wrote the same journal, orders, decisions and memory, so a new wallet opened onto the history of the previous one and added to it. Chats were already separate and encrypted by wallet; the notes are now too, and each wallet starts with the bundled desk notes. Notes written before this version stay where they are, in `~/.perkos-xyz/knowledge/app` and `~/.perkos-xyz/knowledge/<desk>`, and a wallet adopts them by moving those folders into `~/.perkos-xyz/knowledge/<wallet>/`.
 

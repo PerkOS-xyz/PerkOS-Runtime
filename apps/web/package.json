@@ -8,6 +8,8 @@
     "start": "next start --hostname 127.0.0.1 --port 3000"
   },
   "dependencies": {
+    "@dynamic-labs/ethereum": "^4.91.6",
+    "@dynamic-labs/sdk-react-core": "^4.91.6",
     "@huggingface/transformers": "^4.2.0",
     "@privy-io/react-auth": "^3.42.0",
     "@tanstack/react-query": "^5.102.8",
