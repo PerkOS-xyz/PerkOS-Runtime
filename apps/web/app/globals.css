@@ -1591,6 +1591,19 @@ button.approve .lbl { position: relative; display: block; padding: 0 6px; }
 .stage.split .trader { left: 80.5%; top: 40%; }
 .stage.split .auditor { left: 91.5%; top: 40%; }
 .stage.split .guest { left: 73%; top: 70%; }
+/* En split la columna izquierda es el chat: las plazas de reposo (22/34/66/78 %) son mas
+   especificas que la regla de arriba y dejaban a un invitado debajo del chat. Aqui van en la
+   fila de invitados, alineados con las columnas de Scout, Risk, Trader y Auditor. */
+.stage.split .orbit[data-guests="1"] .guest.gi-1 { left: 75%; }
+.stage.split .orbit[data-guests="2"] .guest.gi-1 { left: 64%; }
+.stage.split .orbit[data-guests="2"] .guest.gi-2 { left: 86%; }
+.stage.split .orbit[data-guests="3"] .guest.gi-1 { left: 58.5%; }
+.stage.split .orbit[data-guests="3"] .guest.gi-2 { left: 75%; }
+.stage.split .orbit[data-guests="3"] .guest.gi-3 { left: 91.5%; }
+.stage.split .orbit[data-guests="4"] .guest.gi-1 { left: 58.5%; }
+.stage.split .orbit[data-guests="4"] .guest.gi-2 { left: 69.5%; }
+.stage.split .orbit[data-guests="4"] .guest.gi-3 { left: 80.5%; }
+.stage.split .orbit[data-guests="4"] .guest.gi-4 { left: 91.5%; }
 .stage.split .ag-layer { top: calc(40% + 175px); transition: top var(--split-ms) var(--split-ease); }
 .stage.split .ag-layer.chips { top: calc(40% + 175px); }
 .stage.split.turn-live .scout, .stage.split.turn-live .risk, .stage.split.turn-live .trader, .stage.split.turn-live .auditor { top: 16%; }
