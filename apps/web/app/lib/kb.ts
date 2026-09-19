@@ -3,9 +3,10 @@ import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import MiniSearch from "minisearch";
 import { createHash } from "node:crypto";
 import { homePath } from "./home";
+import { loadSettings } from "./settingsStore";
 
 // Conocimiento local del desk: un vault Markdown (Obsidian-compatible) en
-// ~/.perkos-xyz/knowledge/<desk>/... que Floor escribe en cada turno y lee
+// ~/.perkos-xyz/knowledge/<wallet>/<desk>/... que Floor escribe en cada turno y lee
 // indexado (MiniSearch, BM25 en memoria, reconstruido desde los archivos al
 // arrancar) para dar contexto a la esfera y a la mesa. Nunca secretos.
 //
@@ -20,7 +21,43 @@ import { homePath } from "./home";
 // ~23 MB en ~/.perkos-xyz/models) en .index/vectors.json; busqueda hibrida
 // BM25 + coseno (fusion RRF). Resumenes del diario a memory.md via Grok.
 
-export const KB_DIR = process.env.PERKOS_KB_DIR?.trim() || homePath("knowledge");
+// El vault es POR WALLET: ~/.perkos-xyz/knowledge/<wallet>/... Hasta 0.5.7 era
+// una sola carpeta por computadora, asi que dos wallets en la misma Mac leian
+// y escribian el mismo diario, las mismas ordenes y la misma memoria: quien
+// entraba con una wallet nueva veia el historial de la anterior. Los chats ya
+// estaban separados (chats/<wallet>, cifrados); el vault no.
+// PERKOS_KB_DIR sigue apuntando a una carpeta fija (pruebas aisladas).
+const KB_ROOT = process.env.PERKOS_KB_DIR?.trim() || homePath("knowledge");
+const KB_FIXED = Boolean(process.env.PERKOS_KB_DIR?.trim());
+const SIGNED_OUT = "_signed-out";
+const ADDR = /^0x[0-9a-f]{40}$/;
+let KB_DIR = KB_FIXED ? KB_ROOT : join(KB_ROOT, SIGNED_OUT);
+const seenVaults = new Set<string>();
+
+/** Carpeta activa. Al cambiar de wallet se tira el indice en memoria. */
+async function useVault(): Promise<string> {
+  if (KB_FIXED) return KB_DIR;
+  let who = SIGNED_OUT;
+  try {
+    const w = (await loadSettings()).wallet.trim().toLowerCase();
+    if (ADDR.test(w)) who = w;
+  } catch {}
+  const dir = join(KB_ROOT, who);
+  if (dir !== KB_DIR) {
+    KB_DIR = dir;
+    ROOT = resolve(dir);
+    index = null;
+    docs = new Map();
+    vectors = null;
+    scannedAt = 0;
+    seeded = false;
+  }
+  if (!seenVaults.has(dir)) {
+    seenVaults.add(dir);
+    console.info(`[kb] vault ${who === SIGNED_OUT ? "(signed out)" : who}`);
+  }
+  return KB_DIR;
+}
 
 export type NoteKind = "journal" | "analysis" | "order" | "memory" | "decision" | "app" | "profile" | "launch" | "automation";
 export type Note = {
@@ -41,7 +78,7 @@ let scannedAt = 0;
 
 // ---- vectores ------------------------------------------------------------
 type Vec = { hash: string; vec: number[] };
-const VEC_FILE = join(KB_DIR, ".index", "vectors.json");
+const vecFile = () => join(KB_DIR, ".index", "vectors.json");
 let vectors: Map<string, Vec> | null = null;
 let extractorP: Promise<((texts: string[]) => Promise<number[][]>) | null> | null = null;
 let embedding = false;
@@ -49,7 +86,7 @@ let embedding = false;
 async function loadVectors(): Promise<Map<string, Vec>> {
   if (vectors) return vectors;
   try {
-    const raw = JSON.parse(await readFile(VEC_FILE, "utf8")) as Record<string, Vec>;
+    const raw = JSON.parse(await readFile(vecFile(), "utf8")) as Record<string, Vec>;
     vectors = new Map(Object.entries(raw));
   } catch {
     vectors = new Map();
@@ -59,7 +96,7 @@ async function loadVectors(): Promise<Map<string, Vec>> {
 async function saveVectors() {
   if (!vectors) return;
   await mkdir(join(KB_DIR, ".index"), { recursive: true, mode: 0o700 });
-  await writeFile(VEC_FILE, JSON.stringify(Object.fromEntries(vectors)), { mode: 0o600 });
+  await writeFile(vecFile(), JSON.stringify(Object.fromEntries(vectors)), { mode: 0o600 });
 }
 /** Modelo local, perezoso; null si no se puede cargar (la busqueda sigue con BM25). */
 function extractor() {
@@ -141,7 +178,7 @@ const safe = (s: string) => s.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace
 // dentro de KB_DIR: un id o un ticker con ../ no puede salir de la carpeta.
 export const TICKER_RE = /^[A-Z0-9.]{1,12}$/;
 const tick = (t?: string) => { const u = (t ?? "").trim().toUpperCase(); return TICKER_RE.test(u) ? u : "ASSET"; };
-const ROOT = resolve(KB_DIR);
+let ROOT = resolve(KB_DIR);
 function inside(full: string): string {
   const abs = resolve(full);
   if (abs !== ROOT && !abs.startsWith(ROOT + sep)) throw new Error("path escapes the vault");
@@ -192,6 +229,7 @@ async function walk(dir: string, base = ""): Promise<string[]> {
 
 /** Reconstruye el indice desde los archivos (barato: cientos de notas). */
 export async function reindex(force = false): Promise<number> {
+  await useVault();
   if (index && !force && Date.now() - scannedAt < 60_000) return docs.size;
   await mkdir(KB_DIR, { recursive: true, mode: 0o700 });
   const files = await walk(KB_DIR);
@@ -257,6 +295,7 @@ const scrub = (s: string) => s.replace(SECRET, "[redacted]");
 
 /** Crea o reemplaza una nota. Devuelve la ruta relativa. */
 export async function writeNote(n: { desk: string; kind: NoteKind; title: string; body: string; ticker?: string; id?: string }): Promise<string> {
+  await useVault();
   const desk = safe(n.desk);
   let rel: string;
   if (n.id) { if (!validId(n.id)) throw new Error("bad note id"); rel = n.id; }
@@ -280,6 +319,7 @@ export async function writeNote(n: { desk: string; kind: NoteKind; title: string
 
 /** Agrega una entrada al diario del dia del desk (crea el archivo si no existe). */
 export async function appendJournal(desk: string, entry: string): Promise<string> {
+  await useVault();
   const rel = `${safe(desk)}/journal/${today()}.md`;
   const full = join(KB_DIR, rel);
   await mkdir(join(full, ".."), { recursive: true, mode: 0o700 });
@@ -369,6 +409,7 @@ export async function listNotes(opts: { desk?: string; kind?: NoteKind; limit?: 
 }
 
 export async function readNoteBody(id: string): Promise<Note | null> {
+  await useVault();
   if (/\.\./.test(id) || !id.endsWith(".md")) return null;
   const d = await readNote(id);
   if (!d) return null;
@@ -383,6 +424,7 @@ export function notePath(id: string): string {
 
 /** Diario de una fecha (o hoy) del desk, crudo. */
 export async function readJournal(desk: string, date = today()): Promise<{ id: string; body: string; summarized: boolean } | null> {
+  await useVault();
   const rel = `${safe(desk)}/journal/${date}.md`;
   try {
     const raw = await readFile(join(KB_DIR, rel), "utf8");
@@ -393,6 +435,7 @@ export async function readJournal(desk: string, date = today()): Promise<{ id: s
   }
 }
 export async function markSummarized(desk: string, date: string): Promise<void> {
+  await useVault();
   const rel = `${safe(desk)}/journal/${date}.md`;
   const full = join(KB_DIR, rel);
   let raw = "";
@@ -404,6 +447,7 @@ export async function markSummarized(desk: string, date: string): Promise<void> 
 }
 /** Agrega una seccion fechada a memory.md del desk (crea si no existe). */
 export async function appendMemory(desk: string, heading: string, body: string): Promise<string> {
+  await useVault();
   const rel = `${safe(desk)}/memory.md`;
   const full = join(KB_DIR, rel);
   await mkdir(join(full, ".."), { recursive: true, mode: 0o700 });
@@ -417,6 +461,7 @@ export async function appendMemory(desk: string, heading: string, body: string):
 }
 /** Reemplaza el cuerpo completo de una nota existente (editor de Notes). */
 export async function replaceNote(id: string, body: string): Promise<boolean> {
+  await useVault();
   if (!validId(id)) return false;
   let full: string;
   try { full = inside(join(KB_DIR, id)); } catch { return false; }
