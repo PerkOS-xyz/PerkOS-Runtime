@@ -76,10 +76,12 @@ function Shell() {
   const [guestSeats, setGuestSeats] = useState<{ seat: number; name: string; ready: boolean; accent?: string; style?: string }[]>([]);
   const readGuestSeat = useCallback(async () => {
     try {
-      const j = (await fetch("/api/fleet/guest").then((r) => r.json())) as { invited?: boolean; status?: string; agentName?: string; displayName?: string; seats?: { seat: number; agentName: string; displayName?: string; status: string; accent?: string; style?: string }[] };
+      const j = (await fetch("/api/fleet/guest").then((r) => r.json())) as { invited?: boolean; status?: string; agentName?: string; displayName?: string; seats?: { seat: number; agentName: string; displayName?: string; status: string; accent?: string; style?: string; live?: boolean }[] };
       const invited = j.invited === true;
       setGuestSeat({ invited, ready: invited && (j.status || "").toLowerCase() === "ready", name: j.displayName || j.agentName });
-      setGuestSeats((j.seats ?? []).map((x) => ({ seat: x.seat, name: x.displayName || x.agentName, ready: (x.status || "").toLowerCase() === "ready", accent: x.accent, style: x.style })));
+      // Online en la mesa significa que el asiento esta en pie ahora, no que la
+      // plataforma recuerde un latido de hace rato.
+      setGuestSeats((j.seats ?? []).map((x) => ({ seat: x.seat, name: x.displayName || x.agentName, ready: (x.status || "").toLowerCase() === "ready" && x.live !== false, accent: x.accent, style: x.style })));
       if (invited) setGuest(true);
     } catch {
       /* deja el ultimo estado conocido */
