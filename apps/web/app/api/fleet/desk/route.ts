@@ -1,6 +1,7 @@
 import { guard } from "../../../lib/guard";
 import { loadSettings } from "../../../lib/settingsStore";
 import { askOne, type FleetReply, type FleetRole } from "../../../lib/fleet";
+import { askGuest } from "../../../lib/guest";
 import { contextFor, kbBusy } from "../../../lib/kb";
 import { queryDeskKnowledge } from "../../../lib/knowledge";
 import { homePath } from "../../../lib/home";
@@ -168,6 +169,12 @@ export async function POST(req: Request) {
         ]);
         const scoutSaid = scout?.ok ? clip(scout.reply) : "(Scout did not answer)";
         const riskSaid = risk?.ok ? clip(risk.reply) : "(Risk did not answer)";
+        if (s.guestAgentId) {
+          send({ step: "start", role: "guest" });
+          const gp = `${head}\nScout said: ${scoutSaid}\nRisk said: ${riskSaid}\nYou are the owner's invited Grok Bot on this Floor. Do useful work: an extra angle, a better name, a challenge, research. Open with "@Sparky". Never write VERDICT (that is house Risk). Never spend, swap, launch, or sign.`;
+          const g = await askGuest(wallet, s.guestAgentId, gp, 40_000, req.signal);
+          send({ step: "reply", role: "guest", ok: g.ok, reply: g.reply, detail: g.detail, ms: g.ms });
+        }
         const verdict = gated ? (risk?.ok ? verdictOf(risk.reply) ?? "BLOCK" : "BLOCK") : undefined;
         const tail = `${head}\nScout said: ${scoutSaid}\nRisk said: ${riskSaid}${verdict ? ` (verdict ${verdict})` : ""}.`;
         const T = mode === "pair"

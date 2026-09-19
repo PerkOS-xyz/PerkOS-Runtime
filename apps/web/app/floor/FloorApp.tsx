@@ -573,7 +573,10 @@ function Shell() {
               if (!line) continue;
               let ev: { step?: string; role?: string; ok?: boolean; reply?: string; detail?: string; ms?: number; verdict?: "GO" | "BLOCK"; replies?: typeof fleetReplies; flags?: string[] };
               try { ev = JSON.parse(line); } catch { continue; }
-              const phId = (role: string) => youId + 100 + ["scout", "risk", "trader", "auditor"].indexOf(role);
+              const phId = (role: string) => {
+                const i = ["scout", "risk", "trader", "auditor", "guest"].indexOf(role);
+                return youId + 100 + (i < 0 ? 9 : i);
+              };
               if (ev.step === "start" || ev.step === "reply" || ev.step === "done") {
                 turnLocal = applyTurnEvent(turnLocal, ev);
                 const snap = turnLocal;
@@ -2131,7 +2134,17 @@ function Shell() {
     }
     if (cmd === "invite") {
       setGuest(true);
-      setCaption("Guest on the floor. No spend.");
+      setCaption("Inviting Grok Bot on PerkOS…");
+      void fetch("/api/fleet/guest", { method: "POST" }).then(async (r) => {
+        const j = (await r.json().catch(() => ({}))) as { error?: string; already?: boolean; agentName?: string; status?: string };
+        if (!r.ok) {
+          setCaption(j.error || "Invite failed. Sign in to PerkOS.");
+          return;
+        }
+        setCaption("Guest invited. Settings → Grok Bot → Copy. Paste it into your Grok Bot.");
+        setMessages((m) => [...m, { id: Date.now(), role: "floor", text: j.already ? `Your Grok Bot is already invited (${j.agentName || "guest"}, ${j.status || "invited"}). Open Settings → Grok Bot to copy the prompt if you still need it. Nothing spends.` : "Your Grok Bot is invited. Open Settings → Grok Bot, copy the prompt, paste it into Grok Bot. It connects out to PerkOS. Nothing spends." }]);
+      }).catch(() => setCaption("Invite failed."));
+      return;
     }
     if (cmd === "market") {
       setDeskScreen("market");

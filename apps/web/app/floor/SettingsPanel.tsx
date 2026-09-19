@@ -48,12 +48,16 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
   // Bankr: segunda cotizacion, token launches y automatizaciones. La key vive
   // en el env del install; aqui se ve la wallet Bankr, su ETH en Base y el cupo.
   const [bankr, setBankr] = useState<{ configured: boolean; wallet?: { evm: string; ethBase: number; club: boolean; x?: string } | null; last24h?: number } | null>(null);
+  const [guest, setGuest] = useState<{ invited: boolean; agentName?: string; status?: string; prompt?: string; complete?: boolean } | null>(null);
+  const [guestBusy, setGuestBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const refresh = () =>
     Promise.all([
       fetch("/api/llm/status").then((r) => r.json()).then((s: Llm) => { setLlm(s); setModel(s.model); }),
       fetch("/api/settings").then((r) => r.json()).then((s: { voice?: Voice; version?: string; build?: string }) => { if (s.voice && (VOICES as readonly string[]).includes(s.voice)) setVoice(s.voice); setVer({ version: s.version ?? "", build: s.build ?? "" }); }).catch(() => undefined),
-      fetch("/api/launch/quotes").then((r) => r.json()).then((j: { configured?: boolean; wallet?: { evm: string; ethBase: number; club: boolean; x?: string } | null; last24h?: number }) => setBankr({ configured: j.configured === true, wallet: j.wallet ?? null, last24h: j.last24h ?? 0 })).catch(() => setBankr({ configured: false }))
+      fetch("/api/launch/quotes").then((r) => r.json()).then((j: { configured?: boolean; wallet?: { evm: string; ethBase: number; club: boolean; x?: string } | null; last24h?: number }) => setBankr({ configured: j.configured === true, wallet: j.wallet ?? null, last24h: j.last24h ?? 0 })).catch(() => setBankr({ configured: false })),
+      fetch("/api/fleet/guest").then((r) => r.json()).then((j: { invited?: boolean; agentName?: string; status?: string; prompt?: string; complete?: boolean }) => setGuest({ invited: j.invited === true, agentName: j.agentName, status: j.status, prompt: j.prompt, complete: j.complete })).catch(() => setGuest({ invited: false }))
     ]);
 
   // La voz se guarda al elegirla y se puede escuchar antes de cerrar.
@@ -71,6 +75,23 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
       a.onended = () => URL.revokeObjectURL(url);
       await a.play().catch(() => undefined);
     } finally { setPreviewing(false); }
+  };
+
+  const mintGuest = async () => {
+    setGuestBusy(true);
+    setCopied(false);
+    try {
+      const r = await fetch("/api/fleet/guest", { method: "POST" });
+      const j = (await r.json().catch(() => ({}))) as { error?: string; invited?: boolean; agentName?: string; status?: string; prompt?: string; complete?: boolean; already?: boolean; ok?: boolean };
+      if (!r.ok) { setGuest({ invited: false }); return; }
+      setGuest({ invited: true, agentName: j.agentName, status: j.status, prompt: j.prompt, complete: j.complete });
+    } finally { setGuestBusy(false); }
+  };
+  const copyGuest = async () => {
+    if (!guest?.prompt) return;
+    await navigator.clipboard.writeText(guest.prompt).catch(() => undefined);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
   };
 
   useEffect(() => { void refresh(); }, []);
@@ -191,6 +212,17 @@ export default function SettingsPanel({ onClose, debug, onDebug, perkos, onRecon
             </div>
             <p className="hint-line">Second quote, token launches paired with tokenized stocks, and automations (DCA, stop, limit). Launch fees pay to the wallet connected here.</p>
             <div className="srow"><span>Knowledge</span><span className="v">Bundled notes · PerkOS Knowledge · local vault</span></div>
+            <div className="srow rail-row">
+              <span>Grok Bot</span>
+              <span className="v">
+                {guest === null ? "…" : !guest.invited ? "Not invited" : `${guest.agentName || "guest"} · ${guest.status || "invited"}`}
+                <button type="button" onClick={() => void mintGuest()} disabled={guestBusy || !perkos.connected}>{guestBusy ? "…" : guest?.invited ? "Show prompt" : "Invite my Grok Bot"}</button>
+                {guest?.prompt ? <button type="button" onClick={() => void copyGuest()}>{copied ? "Copied" : "Copy"}</button> : null}
+              </span>
+            </div>
+            {guest?.prompt ? <textarea className="invite-prompt" readOnly value={guest.prompt} aria-label="Grok Bot invite prompt" /> : null}
+            {guest?.prompt && guest.complete === false ? <p className="hint-line warn">This copy is missing the key or the id, so the bot cannot connect with it. Press Invite my Grok Bot again to mint a fresh one.</p> : null}
+            <p className="hint-line">Invite your Grok Bot onto this desk. Copy the six lines, paste them into Grok Bot once. It connects out to PerkOS and drafts work with the team. It never spends, and nothing moves until you hold.</p>
           </>
         ) : null}
 
