@@ -9,12 +9,15 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@dynamic-labs/ethereum": "^4.100.3",
+    "@dynamic-labs/sdk-react-core": "^4.100.3",
     "@perkos/ai": "*",
     "@perkos/client": "*",
     "@perkos/desk-contract": "*",
     "next": "16.3.5",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "viem": "^2.56.9"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
