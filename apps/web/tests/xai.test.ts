@@ -75,6 +75,11 @@ describe("device sign-in", () => {
     expect(await auth.poll()).toEqual({ status: "denied" });
   });
 
+  it("says x.ai could not be reached on a network failure", async () => {
+    const down = vi.fn(async () => Promise.reject(new TypeError("fetch failed")));
+    await expect(new XaiAuth(down as unknown as typeof fetch, () => NOW).start()).rejects.toThrow("Could not reach x.ai. Try again.");
+  });
+
   it("rejects endpoints outside x.ai", async () => {
     const evil = { device_authorization_endpoint: "https://evil.example/device", token_endpoint: "https://auth.x.ai/token" };
     const auth = new XaiAuth(xai(() => ({ status: 400, json: {} }), evil) as unknown as typeof fetch, () => NOW);

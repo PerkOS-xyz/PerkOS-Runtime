@@ -59,6 +59,8 @@ const seconds = (v: unknown, fallbackMs: number) => {
 
 const form = (body: Record<string, string>) => new URLSearchParams(body).toString();
 
+const UNREACHABLE = "Could not reach x.ai. Try again.";
+
 export class XaiAuth {
   private endpoints: Endpoints | null = null;
 
@@ -69,7 +71,9 @@ export class XaiAuth {
 
   private async discover(): Promise<Endpoints> {
     if (this.endpoints) return this.endpoints;
-    const res = await this.http(DISCOVERY_URL, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+    const res = await this.http(DISCOVERY_URL, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(TIMEOUT_MS) }).catch(() => {
+      throw new Error(UNREACHABLE);
+    });
     if (!res.ok) throw new Error(`xAI discovery failed: ${res.status}`);
     const j = (await res.json()) as Record<string, unknown>;
     this.endpoints = {
@@ -85,6 +89,8 @@ export class XaiAuth {
       headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
       body: form(body),
       signal: AbortSignal.timeout(TIMEOUT_MS),
+    }).catch(() => {
+      throw new Error(UNREACHABLE);
     });
     return { ok: res.ok, status: res.status, json: ((await res.json().catch(() => ({}))) ?? {}) as Record<string, unknown> };
   }
