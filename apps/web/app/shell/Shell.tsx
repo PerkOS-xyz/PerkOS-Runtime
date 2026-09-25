@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 
 import { DeskView } from "../desks/DeskView";
 import { DesksScreen, type Desk } from "../desks/DesksScreen";
@@ -8,6 +8,7 @@ import { useWallet } from "../wallet/context";
 import { WalletProvider } from "../wallet/WalletProvider";
 import { AppHeader } from "./AppHeader";
 import { ModelCard } from "./ModelCard";
+import { SettingsPanel } from "./SettingsPanel";
 import { useLogin } from "./useLogin";
 import { useModel } from "./useModel";
 import { usePerkosSession } from "./usePerkosSession";
@@ -35,7 +36,12 @@ function Stages() {
   const afterSignIn = () => setStage(model.choice ? "desks" : "model");
   const login = useLogin(wallet, session, afterSignIn);
 
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const openSettings = () => setSettingsOpen(true);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
+
   const logout = async () => {
+    setSettingsOpen(false);
     await session.signOut();
     setStage("welcome");
   };
@@ -43,27 +49,45 @@ function Stages() {
   if (stage === "welcome") {
     return <Welcome login={login} busy={session.loading || model.loading} walletError={wallet.error} />;
   }
+
+  let screen: ReactNode;
   if (stage === "model") {
-    return (
+    screen = (
       <ModelCard
         state={model}
-        header={<AppHeader section="Setup" onLogout={logout} />}
+        header={<AppHeader section="Setup" onLogout={logout} onSettings={openSettings} />}
         onDone={() => setStage("desks")}
       />
     );
-  }
-  if (stage === "desk" && desk) {
-    return <DeskView desk={desk} onBack={() => setStage("desks")} onLogout={logout} />;
+  } else if (stage === "desk" && desk) {
+    screen = <DeskView desk={desk} onBack={() => setStage("desks")} onLogout={logout} onSettings={openSettings} />;
+  } else {
+    screen = (
+      <DesksScreen
+        model={model.choice?.model ?? null}
+        onChangeModel={() => setStage("model")}
+        onOpen={(d) => {
+          setDesk(d);
+          setStage("desk");
+        }}
+        onLogout={logout}
+        onSettings={openSettings}
+      />
+    );
   }
   return (
-    <DesksScreen
-      model={model.choice?.model ?? null}
-      onChangeModel={() => setStage("model")}
-      onOpen={(d) => {
-        setDesk(d);
-        setStage("desk");
-      }}
-      onLogout={logout}
-    />
+    <>
+      {screen}
+      <SettingsPanel
+        open={settingsOpen}
+        onClose={closeSettings}
+        model={model}
+        onChangeModel={() => {
+          setSettingsOpen(false);
+          setStage("model");
+        }}
+        onLogout={logout}
+      />
+    </>
   );
 }

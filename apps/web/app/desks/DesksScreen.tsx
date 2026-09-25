@@ -13,12 +13,14 @@ export function DesksScreen({
   model,
   onChangeModel,
   onOpen,
-  onLogout
+  onLogout,
+  onSettings
 }: {
   model: string | null;
   onChangeModel: () => void;
   onOpen: (desk: Desk) => void;
   onLogout: () => Promise<void>;
+  onSettings: () => void;
 }) {
   const [desks, setDesks] = useState<Desk[] | null>(null);
   const [error, setError] = useState("");
@@ -46,6 +48,7 @@ export function DesksScreen({
       <AppHeader
         section="Desks"
         onLogout={onLogout}
+        onSettings={onSettings}
         actions={
           model ? (
             <button type="button" className="ai-chip" onClick={onChangeModel} title="Change the model">
