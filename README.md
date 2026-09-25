@@ -26,9 +26,10 @@ apps/web                the client: screens and the local server
 packages/ai             model providers: local first, cloud optional
 packages/desk-contract  the contract a Desk fulfils
 packages/perkos-client  typed client for api.perkos.xyz
+packages/vault          encrypted local knowledge: wallet-derived key, sealed values
 ```
 
-Planned: packaging for `apps/desktop`, and `packages/vault` (local notes and encrypted chats).
+Planned: packaging for `apps/desktop`.
 
 A package never imports from `apps/`, so any client can use them.
 
