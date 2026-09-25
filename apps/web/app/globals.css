@@ -457,3 +457,21 @@ button { font: inherit; }
 .composer { display: flex; align-items: flex-end; gap: 10px; padding: 14px; border-top: 1px solid var(--hair); background: rgba(6, 8, 16, 0.6); }
 .composer textarea { flex: 1; resize: none; padding: 11px 14px; border-radius: 14px; border: 1px solid var(--hair-strong); background: rgba(3, 4, 10, 0.8); color: var(--ink); font: inherit; font-size: 13px; }
 .composer textarea:focus { outline: none; border-color: rgba(236, 27, 105, 0.55); }
+
+/* Pasting an API key inside a provider row. */
+.key-form { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.key-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--hair-strong);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+}
+.key-form input:focus { outline: none; border-color: rgba(236, 27, 105, 0.55); }
+.key-link { font-size: 11px; color: #ff9fbf; text-decoration: none; }
+.key-link:hover { text-decoration: underline; }
+.key-remove { align-self: flex-start; padding: 0; font-size: 11px; }

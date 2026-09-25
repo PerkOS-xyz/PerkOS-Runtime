@@ -2,15 +2,19 @@
 
 import { useState, type ReactNode } from "react";
 
+import { AnthropicKeyForm } from "./AnthropicKeyForm";
 import { GrokSignIn } from "./GrokSignIn";
 import type { ModelSource, ModelState } from "./useModel";
 import { WizardFrame } from "./WizardFrame";
 
-/** Grok first: most people have it; a local runner second. */
-const order = (sources: ModelSource[]) => [...sources].sort((a, b) => (a.id === "xai" ? -1 : b.id === "xai" ? 1 : 0));
+/** Subscriptions and keys first, a local runner last. */
+const RANK: Record<string, number> = { xai: 0, anthropic: 1, local: 9 };
+const order = (sources: ModelSource[]) => [...sources].sort((a, b) => (RANK[a.id] ?? 5) - (RANK[b.id] ?? 5));
 
 /** Step 2: the model Sparky and the desks talk through. */
 export function ModelCard({ state, header, onDone }: { state: ModelState; header: ReactNode; onDone: () => void }) {
+  // A saved choice only counts while its source still answers (a Grok session can expire).
+  const usable = Boolean(state.choice && state.sources.find((s) => s.id === state.choice?.provider)?.ok);
   return (
     <WizardFrame step={2} header={header}>
       <span className="kicker">Step 2 of 3</span>
@@ -27,7 +31,7 @@ export function ModelCard({ state, header, onDone }: { state: ModelState; header
       )}
       {state.error ? <p className="wz-note err">{state.error}</p> : null}
       <div className="wz-actions">
-        <button type="button" className="pill" disabled={!state.choice} onClick={onDone}>
+        <button type="button" className="pill" disabled={!usable} onClick={onDone}>
           Continue <span className="arrow" aria-hidden>&rarr;</span>
         </button>
         <button type="button" className="link-btn" disabled={state.loading} onClick={() => void state.reload()}>
@@ -39,7 +43,7 @@ export function ModelCard({ state, header, onDone }: { state: ModelState; header
 }
 
 function Provider({ source, state }: { source: ModelSource; state: ModelState }) {
-  const inUse = state.choice?.provider === source.id ? state.choice.model : undefined;
+  const inUse = source.ok && state.choice?.provider === source.id ? state.choice.model : undefined;
   const [model, setModel] = useState(inUse ?? source.models[0] ?? "");
   const current = source.models.includes(model) ? model : (source.models[0] ?? "");
   return (
@@ -73,7 +77,19 @@ function Provider({ source, state }: { source: ModelSource; state: ModelState })
         </div>
       ) : source.id === "xai" ? (
         <GrokSignIn onSignedIn={() => void state.reload()} />
+      ) : source.id === "anthropic" ? (
+        <AnthropicKeyForm onSaved={() => void state.reload()} />
+      ) : null}
+      {source.ok && source.id === "anthropic" ? (
+        <button type="button" className="link-btn key-remove" onClick={() => void removeKey(state)}>
+          Remove key
+        </button>
       ) : null}
     </li>
   );
+}
+
+async function removeKey(state: ModelState) {
+  await fetch("/api/anthropic", { method: "DELETE" }).catch(() => undefined);
+  await state.reload();
 }
