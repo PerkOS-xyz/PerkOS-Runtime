@@ -2,9 +2,9 @@
 
 The app where Desks run.
 
-A **Desk** is a solution: its own market, its own team of agents, its own screens. PerkOS Floor (tokenized stocks on Base) was the first one; EQLTY (Robinhood Chain) is the second. Runtime is what they run inside.
+A **Desk** is a solution: its own market, its own team of agents, its own screens. PerkOS Floor was the first one, EQLTY is the second. Runtime is what they run inside.
 
-Runtime brings the window, the account, Sparky and the voice, the local knowledge, the screens every desk shares, a model that can run on your own machine, and the client for the PerkOS services. It does not know what a stock is, which venue quotes it, or how an order is routed. That belongs to a Desk.
+Runtime brings the window, the account, Sparky and the voice, the local knowledge, the screens every desk shares, a model that can run on your own machine, and the client for the PerkOS services. It does not know what an asset is, where it trades, or how an order is routed. That belongs to a Desk.
 
 ## Layout
 
