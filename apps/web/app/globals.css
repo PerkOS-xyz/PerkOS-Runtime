@@ -107,3 +107,14 @@ button { font: inherit; }
 .hint.err { color: var(--err); }
 .link { background: none; border: 0; padding: 0; color: var(--mute); text-decoration: underline; cursor: pointer; }
 .link:hover { color: var(--ink); }
+
+/* Drag region for the desktop window (hidden title bar). Ignored by browsers. */
+.dragbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 36px;
+  z-index: 10;
+  -webkit-app-region: drag;
+}

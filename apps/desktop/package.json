@@ -1,0 +1,13 @@
+{
+  "name": "@perkos/runtime-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PerkOS Runtime for the desktop.",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^37.2.0"
+  }
+}
