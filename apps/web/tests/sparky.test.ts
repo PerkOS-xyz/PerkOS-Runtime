@@ -83,6 +83,12 @@ describe("sparkyPrompt", () => {
     expect(prompt).toContain("Recommend only desks from this list");
   });
 
+  it("names the open desk so \"this desk\" resolves", () => {
+    const eqlty = { name: "EQLTY Desk", module: "stocks-robinhood", description: "Stocks on Robinhood Chain." };
+    expect(sparkyPrompt([eqlty], eqlty)).toContain("The person has EQLTY Desk open now.");
+    expect(sparkyPrompt([eqlty])).not.toContain("open now");
+  });
+
   it("says there are no desks when the list is empty", () => {
     expect(sparkyPrompt([])).toContain("No desks are available right now");
   });

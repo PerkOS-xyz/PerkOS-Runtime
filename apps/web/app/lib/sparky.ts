@@ -21,14 +21,17 @@ export interface DeskBrief {
 const MAX_DESKS = 20;
 const MAX_DESK_TEXT = 300;
 
-/** Sparky's system prompt, with the desks the person can open. */
-export function sparkyPrompt(desks: DeskBrief[]): string {
+/** Sparky's system prompt, with the desks the person can open and the one open now, if any. */
+export function sparkyPrompt(desks: DeskBrief[], open?: DeskBrief): string {
   if (!desks.length) return `${SPARKY_PROMPT} No desks are available right now; say so if someone asks for one.`;
   const list = desks
     .slice(0, MAX_DESKS)
     .map((d) => `- ${d.name.slice(0, 80)}${d.module ? ` (${d.module})` : ""}: ${d.description.slice(0, MAX_DESK_TEXT)}`)
     .join("\n");
-  return `${SPARKY_PROMPT}\n\nDesks available:\n${list}\n\nRecommend only desks from this list, by name. If none fits, say so.`;
+  const here = open
+    ? `\n\nThe person has ${open.name.slice(0, 80)} open now. Questions about "this desk" are about ${open.name.slice(0, 80)}.`
+    : "";
+  return `${SPARKY_PROMPT}\n\nDesks available:\n${list}${here}\n\nRecommend only desks from this list, by name. If none fits, say so.`;
 }
 
 const MAX_MESSAGES = 20;
