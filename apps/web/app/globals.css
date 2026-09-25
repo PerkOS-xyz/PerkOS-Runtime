@@ -118,3 +118,17 @@ button { font: inherit; }
   z-index: 10;
   -webkit-app-region: drag;
 }
+
+.source { display: grid; gap: 4px; padding: 10px 0; border-top: 1px solid var(--line); }
+.source:first-child { border-top: 0; padding-top: 0; }
+.source small.err { color: var(--err); }
+.source .row { display: flex; gap: 8px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
+.source select {
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  font: inherit;
+  min-width: 200px;
+}

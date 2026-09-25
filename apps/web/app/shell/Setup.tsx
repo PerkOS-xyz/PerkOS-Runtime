@@ -1,6 +1,8 @@
 "use client";
 
 import { useWallet } from "../wallet/context";
+import { ModelStep } from "./ModelStep";
+import { useModel } from "./useModel";
 import { usePerkosSession, type PerkosSessionState } from "./usePerkosSession";
 
 const short = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -8,6 +10,7 @@ const short = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)
 export function Setup({ onBack }: { onBack: () => void }) {
   const wallet = useWallet();
   const session = usePerkosSession(wallet);
+  const model = useModel();
   return (
     <main className="setup">
       <header className="brand">
@@ -25,11 +28,12 @@ export function Setup({ onBack }: { onBack: () => void }) {
               <WalletStep session={session} />
             </div>
           </li>
-          <li className={session.signedIn ? "active" : ""}>
+          <li className={model.choice ? "done" : session.signedIn ? "active" : ""}>
             <span className="n">2</span>
             <div>
               <b>Choose a model</b>
               <small>Ollama or LM Studio on this machine, or a model you already pay for.</small>
+              <ModelStep state={model} enabled={session.signedIn} />
             </div>
           </li>
         </ol>
