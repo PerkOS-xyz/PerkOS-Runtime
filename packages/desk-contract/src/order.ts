@@ -12,7 +12,7 @@
 
 import { z } from "zod";
 
-import { AddressSchema, TickerSchema } from "./market.js";
+import { AddressSchema, TickerSchema } from "./market.ts";
 
 export const DeskPositionSchema = z
   .object({

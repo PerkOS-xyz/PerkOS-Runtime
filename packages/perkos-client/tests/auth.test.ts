@@ -4,7 +4,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { PerkosApiError, PerkosAuth, WALLET_GRANT, type PerkosSession } from "../src/index.js";
+import { PerkosApiError, PerkosAuth, WALLET_GRANT, type PerkosSession } from "../src/index.ts";
 
 const ADDRESS = "0xAbC0000000000000000000000000000000000001";
 const NOW = 1_800_000_000_000;

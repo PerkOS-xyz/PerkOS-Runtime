@@ -5,7 +5,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { CloudAiProvider } from "../src/cloud.js";
+import { CloudAiProvider } from "../src/cloud.ts";
 
 const res = (status: number, body: unknown = {}) =>
   ({ ok: status >= 200 && status < 300, status, json: async () => body }) as unknown as Response;

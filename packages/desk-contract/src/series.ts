@@ -9,7 +9,7 @@
 
 import { z } from "zod";
 
-import { TickerSchema } from "./market.js";
+import { TickerSchema } from "./market.ts";
 
 export const DeskSeriesPointSchema = z
   .object({ at: z.string().datetime(), value: z.number().positive() })

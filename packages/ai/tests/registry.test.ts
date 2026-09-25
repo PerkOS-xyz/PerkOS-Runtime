@@ -6,8 +6,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import { AiRegistry } from "../src/registry.js";
-import type { AiProvider, ProviderHealth } from "../src/types.js";
+import { AiRegistry } from "../src/registry.ts";
+import type { AiProvider, ProviderHealth } from "../src/types.ts";
 
 const provider = (id: string, health: ProviderHealth): AiProvider => ({
   id,

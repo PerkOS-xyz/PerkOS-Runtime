@@ -10,8 +10,8 @@
  * `health()`, and never part of an error message.
  */
 
-import { readSse } from "./local.js";
-import { AiProviderError, type AiProvider, type ChatRequest, type ModelInfo, type ProviderHealth } from "./types.js";
+import { readSse } from "./local.ts";
+import { AiProviderError, type AiProvider, type ChatRequest, type ModelInfo, type ProviderHealth } from "./types.ts";
 
 export interface CloudProviderOptions {
   /** Stable id stored in settings: `xai`, `perkos`, `byok`. */
