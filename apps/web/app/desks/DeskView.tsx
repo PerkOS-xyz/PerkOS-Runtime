@@ -6,13 +6,24 @@ import { CHAIN_LABEL, chainOf } from "./chains";
 import type { Desk } from "./DesksScreen";
 
 /** An open desk: its card on the left, the full chat with Sparky on the right. */
-export function DeskView({ desk, onBack, onLogout }: { desk: Desk; onBack: () => void; onLogout: () => Promise<void> }) {
+export function DeskView({
+  desk,
+  onBack,
+  onLogout,
+  onSettings
+}: {
+  desk: Desk;
+  onBack: () => void;
+  onLogout: () => Promise<void>;
+  onSettings: () => void;
+}) {
   const chain = chainOf(desk.module);
   return (
     <main className="desk-view">
       <AppHeader
         section={desk.name}
         onLogout={onLogout}
+        onSettings={onSettings}
         actions={
           <button type="button" className="ah-out" onClick={onBack}>
             All desks

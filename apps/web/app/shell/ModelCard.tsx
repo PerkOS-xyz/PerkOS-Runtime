@@ -4,12 +4,9 @@ import { useState, type ReactNode } from "react";
 
 import { AnthropicKeyForm } from "./AnthropicKeyForm";
 import { DeviceSignIn } from "./DeviceSignIn";
-import type { ModelSource, ModelState } from "./useModel";
+import { orderSources, type ModelSource, type ModelState } from "./useModel";
 import { WizardFrame } from "./WizardFrame";
 
-/** Subscriptions and keys first, a local runner last. */
-const RANK: Record<string, number> = { xai: 0, openai: 1, anthropic: 2, local: 9 };
-const order = (sources: ModelSource[]) => [...sources].sort((a, b) => (RANK[a.id] ?? 5) - (RANK[b.id] ?? 5));
 
 /** Screen 2: the model Sparky and the desks talk through. */
 export function ModelCard({ state, header, onDone }: { state: ModelState; header: ReactNode; onDone: () => void }) {
@@ -24,7 +21,7 @@ export function ModelCard({ state, header, onDone }: { state: ModelState; header
         <p className="wz-note">Looking for models…</p>
       ) : (
         <ul className="providers">
-          {order(state.sources).map((source) => (
+          {orderSources(state.sources).map((source) => (
             <Provider key={source.id} source={source} state={state} />
           ))}
         </ul>

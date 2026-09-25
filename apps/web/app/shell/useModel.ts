@@ -72,3 +72,7 @@ export function useModel(): ModelState {
 
   return { loading, sources, choice, busy, error, reload, choose };
 }
+
+/** Display order: subscriptions and keys first, a local runner last. */
+const RANK: Record<string, number> = { xai: 0, openai: 1, anthropic: 2, local: 9 };
+export const orderSources = (sources: ModelSource[]) => [...sources].sort((a, b) => (RANK[a.id] ?? 5) - (RANK[b.id] ?? 5));
