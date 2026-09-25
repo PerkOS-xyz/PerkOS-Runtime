@@ -3,21 +3,44 @@
 import { useState } from "react";
 
 import { Dashboard } from "../dashboard/Dashboard";
+import { useWallet } from "../wallet/context";
 import { WalletProvider } from "../wallet/WalletProvider";
 import { Setup } from "./Setup";
+import { SignIn } from "./SignIn";
+import { usePerkosSession } from "./usePerkosSession";
 import { Welcome } from "./Welcome";
 
-type Stage = "welcome" | "setup" | "dashboard";
+type Stage = "welcome" | "signin" | "setup" | "dashboard";
 
-/** Welcome screen first, then the setup steps, then the dashboard. */
 export function Shell() {
-  const [stage, setStage] = useState<Stage>("welcome");
   return (
     <WalletProvider>
       <div className="dragbar" aria-hidden />
-      {stage === "welcome" ? <Welcome onStart={() => setStage("setup")} /> : null}
-      {stage === "setup" ? <Setup onBack={() => setStage("welcome")} onDone={() => setStage("dashboard")} /> : null}
-      {stage === "dashboard" ? <Dashboard onSetup={() => setStage("setup")} /> : null}
+      <Stages />
     </WalletProvider>
   );
+}
+
+/** Welcome screen, then sign-in, then the remaining setup and the dashboard. */
+function Stages() {
+  const wallet = useWallet();
+  const session = usePerkosSession(wallet);
+  const [stage, setStage] = useState<Stage>("welcome");
+
+  function start() {
+    if (session.signedIn) {
+      setStage("setup");
+      return;
+    }
+    // Opened from the click itself, so the wallet window is not treated as a popup.
+    if (wallet.enabled && !wallet.connected) wallet.open();
+    setStage("signin");
+  }
+
+  if (stage === "welcome") return <Welcome busy={session.loading} onStart={start} />;
+  if (stage === "signin") {
+    return <SignIn wallet={wallet} session={session} onDone={() => setStage("setup")} onBack={() => setStage("welcome")} />;
+  }
+  if (stage === "setup") return <Setup onBack={() => setStage("welcome")} onDone={() => setStage("dashboard")} />;
+  return <Dashboard onSetup={() => setStage("setup")} />;
 }
