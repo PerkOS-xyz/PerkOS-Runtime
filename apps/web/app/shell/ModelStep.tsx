@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { GrokSignIn } from "./GrokSignIn";
 import type { ModelState } from "./useModel";
 
 export function ModelStep({ state, enabled }: { state: ModelState; enabled: boolean }) {
@@ -33,6 +34,7 @@ export function ModelStep({ state, enabled }: { state: ModelState; enabled: bool
             await state.choose({ provider: source.id, model });
             setChanging(false);
           }}
+          onSignedIn={() => void state.reload()}
         />
       ))}
       <button type="button" className="link" disabled={state.loading} onClick={() => void state.reload()}>
@@ -47,12 +49,14 @@ function SourceRow({
   source,
   busy,
   selected,
-  onChoose
+  onChoose,
+  onSignedIn
 }: {
   source: { id: string; label: string; ok: boolean; detail: string; models: string[] };
   busy: boolean;
   selected: string | undefined;
   onChoose: (model: string) => Promise<void>;
+  onSignedIn: () => void;
 }) {
   const [model, setModel] = useState(selected ?? source.models[0] ?? "");
   return (
@@ -72,6 +76,8 @@ function SourceRow({
             Use this model
           </button>
         </div>
+      ) : source.id === "xai" ? (
+        <GrokSignIn onSignedIn={onSignedIn} />
       ) : null}
     </div>
   );

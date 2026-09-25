@@ -175,3 +175,7 @@ button { font: inherit; }
   .board { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
   .desks { max-height: 40vh; }
 }
+
+.grok { margin-top: 6px; }
+.grok .code { display: inline; color: var(--ink); letter-spacing: 0.08em; }
+.grok a { color: var(--cobalt); }
