@@ -1,18 +1,21 @@
 "use client";
 
+import { AppHeader } from "../shell/AppHeader";
 import { DeskList } from "./DeskList";
 import { SparkyChat } from "./SparkyChat";
 
-export function Dashboard({ onSetup }: { onSetup: () => void }) {
+export function Dashboard({ onSetup, onLogout }: { onSetup: () => void; onLogout: () => Promise<void> }) {
   return (
     <main className="dashboard">
-      <header className="brand">
-        <img src="/sparky.png" alt="" width={32} height={32} />
-        <span>PerkOS Runtime</span>
-        <button type="button" className="link push" onClick={onSetup}>
-          Setup
-        </button>
-      </header>
+      <AppHeader
+        section="Desks"
+        onLogout={onLogout}
+        actions={
+          <button type="button" className="ah-out" onClick={onSetup}>
+            Setup
+          </button>
+        }
+      />
       <div className="board">
         <SparkyChat />
         <DeskList />
