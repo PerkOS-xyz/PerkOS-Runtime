@@ -6,7 +6,7 @@ type Message = { role: "user" | "assistant"; content: string };
 
 const GREETING = "Hi! Ask me anything, or tell me what you want to get done and I will point you to the right desk.";
 
-export function SparkyChat({ greeting = GREETING, desk }: { greeting?: string; desk?: string }) {
+export function SparkyChat({ greeting = GREETING, desk, compact = false }: { greeting?: string; desk?: string; compact?: boolean }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -62,7 +62,7 @@ export function SparkyChat({ greeting = GREETING, desk }: { greeting?: string; d
   }
 
   return (
-    <section className="chat">
+    <section className={`chat${compact ? " compact" : ""}`}>
       <div className="messages">
         <div className="msg assistant">
           <img src="/sparky.png" alt="" width={28} height={28} />

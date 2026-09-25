@@ -459,3 +459,77 @@ button { font: inherit; }
 /* The model screen holds several sources: a wider card with a two-column grid. */
 .wz-card:has(.providers) { width: min(700px, 100%); }
 .providers { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); align-items: start; }
+
+/* Sparky in the corner of the desks screen. */
+.bubble { position: fixed; right: 24px; bottom: 24px; z-index: 40; display: flex; flex-direction: column; align-items: flex-end; gap: 14px; }
+.bubble-button {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(236, 27, 105, 0.5);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(245, 106, 87, 0.35), rgba(236, 27, 105, 0.18) 55%, rgba(10, 12, 22, 0.92));
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5), 0 0 0 0 rgba(236, 27, 105, 0.45);
+  cursor: pointer;
+  animation: ember-ring 3.2s ease-out infinite;
+  transition: transform 200ms var(--ease);
+}
+.bubble-button:hover { transform: translateY(-2px) scale(1.04); }
+.bubble-button img { filter: drop-shadow(0 4px 10px rgba(236, 27, 105, 0.5)); }
+.bubble.open .bubble-button { animation: none; }
+@keyframes ember-ring {
+  0% { box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5), 0 0 0 0 rgba(236, 27, 105, 0.45); }
+  70% { box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5), 0 0 0 16px rgba(236, 27, 105, 0); }
+  100% { box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5), 0 0 0 0 rgba(236, 27, 105, 0); }
+}
+.bubble-tip {
+  position: absolute;
+  right: 76px;
+  white-space: nowrap;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--hair-strong);
+  background: rgba(10, 12, 22, 0.92);
+  font-size: 12px;
+  color: var(--ink-2);
+  opacity: 0;
+  transform: translateX(6px);
+  transition: opacity 160ms var(--ease), transform 160ms var(--ease);
+  pointer-events: none;
+}
+.bubble-button:hover .bubble-tip { opacity: 1; transform: none; }
+.bubble-panel {
+  width: min(380px, calc(100vw - 48px));
+  height: min(540px, calc(100vh - 140px));
+  display: flex;
+  flex-direction: column;
+  border-radius: 22px;
+  border: 1px solid var(--hair-strong);
+  background:
+    radial-gradient(120% 50% at 50% -10%, rgba(236, 27, 105, 0.18), transparent 60%),
+    linear-gradient(170deg, rgba(22, 26, 44, 0.97), rgba(6, 8, 18, 0.98));
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  transform-origin: bottom right;
+  opacity: 0;
+  transform: translateY(12px) scale(0.96);
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity 220ms var(--ease), transform 220ms var(--ease), visibility 0s linear 220ms;
+}
+.bubble.open .bubble-panel { opacity: 1; transform: none; pointer-events: auto; visibility: visible; transition-delay: 0s; }
+.bubble-panel > header { display: flex; align-items: center; gap: 10px; padding: 14px 14px 12px 16px; border-bottom: 1px solid var(--hair); }
+.bubble-panel > header b { display: block; font-family: var(--display); font-size: 15px; font-weight: 650; }
+.bubble-panel > header small { font-size: 11px; color: var(--mute); }
+.bubble-close { margin-left: auto; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--hair); background: none; color: var(--ink-2); font-size: 18px; line-height: 1; cursor: pointer; }
+.bubble-close:hover { color: #ffd3e1; border-color: rgba(236, 27, 105, 0.5); }
+.chat.compact { flex: 1; border: 0; border-radius: 0; background: none; }
+.chat.compact .messages { padding: 14px; }
+.chat.compact .msg p { font-size: 12.5px; }
+.chat.compact .composer { padding: 10px; }
+@media (prefers-reduced-motion: reduce) {
+  .bubble-button { animation: none; }
+  .bubble-panel { transition: none; }
+}

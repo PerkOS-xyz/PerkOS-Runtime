@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { SparkyBubble } from "../chat/SparkyBubble";
 import { AppHeader } from "../shell/AppHeader";
 import { CHAIN_LABEL, chainOf } from "./chains";
 
@@ -90,6 +91,7 @@ export function DesksScreen({
         })}
       </ul>
       {desks && !desks.length && !error ? <p className="wz-note dh-note">No desks are published yet.</p> : null}
+      <SparkyBubble model={model} />
     </main>
   );
 }
