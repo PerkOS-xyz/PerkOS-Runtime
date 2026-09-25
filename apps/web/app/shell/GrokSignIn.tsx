@@ -65,7 +65,7 @@ export function GrokSignIn({ onSignedIn }: { onSignedIn: () => void }) {
   }
   return (
     <div className="grok">
-      <button type="button" className="cta" disabled={busy} onClick={() => void begin()}>
+      <button type="button" className="chip-btn" disabled={busy} onClick={() => void begin()}>
         Sign in with Grok
       </button>
       {error ? <p className="hint err">{error}</p> : null}
