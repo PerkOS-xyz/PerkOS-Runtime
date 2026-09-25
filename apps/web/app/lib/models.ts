@@ -1,6 +1,8 @@
 /** Model sources available to this app, and validation of the person's choice. */
 
-import { AiRegistry, LocalAiProvider } from "@perkos/ai";
+import { AiRegistry, LocalAiProvider, XaiProvider } from "@perkos/ai";
+
+import { xaiAuth } from "./xai";
 
 import type { ModelChoice } from "./settings";
 
@@ -13,7 +15,7 @@ export interface ModelSource {
 }
 
 export function defaultRegistry(): AiRegistry {
-  return new AiRegistry([new LocalAiProvider()]);
+  return new AiRegistry([new LocalAiProvider(), new XaiProvider({ token: () => xaiAuth.accessToken() })]);
 }
 
 export async function listSources(registry: AiRegistry): Promise<ModelSource[]> {
