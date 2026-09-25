@@ -90,7 +90,7 @@ export class XaiProvider implements AiProvider {
 }
 
 /** Text deltas from a Responses API event stream. A failure event ends it with an error. */
-export async function* readResponsesStream(body: ReadableStream<Uint8Array>): AsyncIterable<string> {
+export async function* readResponsesStream(body: ReadableStream<Uint8Array>, errorCode = "AI_XAI_UPSTREAM"): AsyncIterable<string> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -115,7 +115,7 @@ export async function* readResponsesStream(body: ReadableStream<Uint8Array>): As
       if (event.type === "response.output_text.delta" && typeof event.delta === "string" && event.delta) {
         yield event.delta;
       } else if (event.type === "response.failed" || event.type === "error") {
-        throw new AiProviderError(event.error?.message ?? "Grok reported an error", "AI_XAI_UPSTREAM");
+        throw new AiProviderError(event.error?.message ?? "The model reported an error", errorCode);
       }
     }
   }
