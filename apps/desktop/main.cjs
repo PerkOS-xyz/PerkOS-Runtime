@@ -157,7 +157,8 @@ if (!app.requestSingleInstanceLock()) {
         app.dock.setIcon(path.join(__dirname, "icon.png"));
       } catch {}
     }
-    const allowed = new Set(["clipboard-read", "clipboard-write", "clipboard-sanitized-write"]);
+    // Microphone for voice conversations with Sparky; clipboard for copy buttons.
+    const allowed = new Set(["media", "clipboard-read", "clipboard-write", "clipboard-sanitized-write"]);
     session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(allowed.has(permission)));
     session.defaultSession.setPermissionCheckHandler((_wc, permission) => allowed.has(permission));
     return create();
