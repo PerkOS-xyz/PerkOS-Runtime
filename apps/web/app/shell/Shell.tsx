@@ -13,6 +13,7 @@ export function Shell() {
   const [stage, setStage] = useState<Stage>("welcome");
   return (
     <WalletProvider>
+      <div className="dragbar" aria-hidden />
       {stage === "welcome" ? <Welcome onStart={() => setStage("setup")} /> : <Setup onBack={() => setStage("welcome")} />}
     </WalletProvider>
   );

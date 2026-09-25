@@ -10,23 +10,25 @@ Runtime provides the account, Sparky, the screens every desk shares, a model tha
 
 Working today:
 
-- `apps/web`: the landing page, served on this machine only.
+- `apps/desktop`: the desktop app. Starts the web app's server on this machine and opens it in a window.
+- `apps/web`: the screens and the local server: welcome screen with Sparky, then wallet connect.
 - `packages/ai`: model providers. Detects Ollama and LM Studio on this machine, and supports any OpenAI-compatible endpoint.
 - `packages/desk-contract`: the contract a Desk answers with (version 1): market, series, orders.
 - `packages/perkos-client`: wallet sign-in to PerkOS, the desk catalogue, and a desk's market and series.
 
-In progress: connecting a wallet and choosing a model on the landing page, then a dashboard where Sparky answers and helps pick a desk.
+In progress: signing in to PerkOS and choosing a model, then a dashboard where Sparky answers and helps pick a desk.
 
 ## Layout
 
 ```
+apps/desktop            desktop window (Electron)
 apps/web                the client: screens and the local server
 packages/ai             model providers: local first, cloud optional
 packages/desk-contract  the contract a Desk fulfils
 packages/perkos-client  typed client for api.perkos.xyz
 ```
 
-Planned: `apps/desktop` (desktop window and packaging) and `packages/vault` (local notes and encrypted chats).
+Planned: packaging for `apps/desktop`, and `packages/vault` (local notes and encrypted chats).
 
 A package never imports from `apps/`, so any client can use them.
 
@@ -37,10 +39,12 @@ Requirements: Node 22 or later, and npm. A local model is optional: [Ollama](htt
 ```
 npm install
 cp apps/web/.env.example apps/web/.env.local   # then set the values
-npm run dev
+npm start
 ```
 
-Then open http://127.0.0.1:3100.
+`npm start` opens the desktop app. The first launch compiles the screens and takes a moment.
+
+To work on the screens in a browser instead, run `npm run dev` and open http://127.0.0.1:3100.
 
 `NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID` enables wallet connect. The Dynamic environment must list the app's origin (for example `http://127.0.0.1:3100`) in its allowed origins.
 
