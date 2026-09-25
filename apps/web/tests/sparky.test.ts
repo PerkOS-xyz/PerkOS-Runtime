@@ -68,6 +68,10 @@ describe("startReply", () => {
 });
 
 describe("sparkyPrompt", () => {
+  it("asks for plain text, since the chat does not render markdown", () => {
+    expect(SPARKY_PROMPT).toContain("plain text without markdown");
+  });
+
   it("lists the desks by name and module and asks to recommend only those", () => {
     const prompt = sparkyPrompt([
       { name: "EQLTY Desk", module: "stocks-robinhood", description: "Tokenized stocks on Robinhood Chain." },
