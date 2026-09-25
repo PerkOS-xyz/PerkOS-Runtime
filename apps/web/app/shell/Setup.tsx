@@ -7,7 +7,7 @@ import { usePerkosSession, type PerkosSessionState } from "./usePerkosSession";
 
 const short = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)}`;
 
-export function Setup({ onBack }: { onBack: () => void }) {
+export function Setup({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
   const wallet = useWallet();
   const session = usePerkosSession(wallet);
   const model = useModel();
@@ -37,6 +37,11 @@ export function Setup({ onBack }: { onBack: () => void }) {
             </div>
           </li>
         </ol>
+        {session.signedIn && model.choice ? (
+          <button type="button" className="cta ready" onClick={onDone}>
+            Open dashboard
+          </button>
+        ) : null}
         <button type="button" className="back" onClick={onBack}>
           Back
         </button>
