@@ -11,13 +11,13 @@ import { WizardFrame } from "./WizardFrame";
 const RANK: Record<string, number> = { xai: 0, anthropic: 1, local: 9 };
 const order = (sources: ModelSource[]) => [...sources].sort((a, b) => (RANK[a.id] ?? 5) - (RANK[b.id] ?? 5));
 
-/** Step 2: the model Sparky and the desks talk through. */
+/** Screen 2: the model Sparky and the desks talk through. */
 export function ModelCard({ state, header, onDone }: { state: ModelState; header: ReactNode; onDone: () => void }) {
   // A saved choice only counts while its source still answers (a Grok session can expire).
   const usable = Boolean(state.choice && state.sources.find((s) => s.id === state.choice?.provider)?.ok);
   return (
-    <WizardFrame step={2} header={header}>
-      <span className="kicker">Step 2 of 3</span>
+    <WizardFrame header={header}>
+      <span className="kicker">AI</span>
       <h2>Choose Sparky&apos;s model.</h2>
       <p className="lead">Sparky and your desks think with it. It stays on this machine, and logging out keeps it.</p>
       {state.loading && !state.sources.length ? (
