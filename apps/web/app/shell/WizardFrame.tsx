@@ -3,9 +3,10 @@ import type { ReactNode } from "react";
 const STEPS = ["Sign in", "AI", "Desk"];
 
 /** Card layout shared by the setup steps, with the progress rail on top. */
-export function WizardFrame({ step, children }: { step: 1 | 2 | 3; children: ReactNode }) {
+export function WizardFrame({ step, header, children }: { step: 1 | 2 | 3; header?: ReactNode; children: ReactNode }) {
   return (
     <main className="wizard">
+      {header ? <div className="wz-top">{header}</div> : null}
       <ol className="wz-rail" aria-label="Setup progress">
         {STEPS.map((label, i) => {
           const n = i + 1;
