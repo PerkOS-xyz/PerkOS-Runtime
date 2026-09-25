@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 
-import { Dashboard } from "../dashboard/Dashboard";
+import { DeskView } from "../desks/DeskView";
+import { DesksScreen, type Desk } from "../desks/DesksScreen";
 import { useWallet } from "../wallet/context";
 import { WalletProvider } from "../wallet/WalletProvider";
 import { AppHeader } from "./AppHeader";
@@ -12,7 +13,7 @@ import { useModel } from "./useModel";
 import { usePerkosSession } from "./usePerkosSession";
 import { Welcome } from "./Welcome";
 
-type Stage = "welcome" | "signin" | "model" | "dashboard";
+type Stage = "welcome" | "signin" | "model" | "desks" | "desk";
 
 export function Shell() {
   return (
@@ -23,14 +24,15 @@ export function Shell() {
   );
 }
 
-/** Welcome screen, then sign-in and the model, then the desks. */
+/** Welcome screen, then sign-in and the model, then the desks and an open desk. */
 function Stages() {
   const wallet = useWallet();
   const session = usePerkosSession(wallet);
   const model = useModel();
   const [stage, setStage] = useState<Stage>("welcome");
+  const [desk, setDesk] = useState<Desk | null>(null);
 
-  const afterSignIn = () => setStage(model.choice ? "dashboard" : "model");
+  const afterSignIn = () => setStage(model.choice ? "desks" : "model");
 
   function start() {
     if (session.signedIn) {
@@ -56,9 +58,22 @@ function Stages() {
       <ModelCard
         state={model}
         header={<AppHeader section="Setup" onLogout={logout} />}
-        onDone={() => setStage("dashboard")}
+        onDone={() => setStage("desks")}
       />
     );
   }
-  return <Dashboard onSetup={() => setStage("model")} onLogout={logout} />;
+  if (stage === "desk" && desk) {
+    return <DeskView desk={desk} onBack={() => setStage("desks")} onLogout={logout} />;
+  }
+  return (
+    <DesksScreen
+      model={model.choice?.model ?? null}
+      onChangeModel={() => setStage("model")}
+      onOpen={(d) => {
+        setDesk(d);
+        setStage("desk");
+      }}
+      onLogout={logout}
+    />
+  );
 }

@@ -6,7 +6,7 @@ type Message = { role: "user" | "assistant"; content: string };
 
 const GREETING = "Hi! Ask me anything, or tell me what you want to get done and I will point you to the right desk.";
 
-export function SparkyChat() {
+export function SparkyChat({ greeting = GREETING, desk }: { greeting?: string; desk?: string }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -26,7 +26,7 @@ export function SparkyChat() {
       const res = await fetch("/api/sparky", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ messages: history })
+        body: JSON.stringify({ messages: history, ...(desk ? { desk } : {}) })
       });
       if (!res.ok || !res.body) {
         const body = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
@@ -66,7 +66,7 @@ export function SparkyChat() {
       <div className="messages">
         <div className="msg assistant">
           <img src="/sparky.png" alt="" width={28} height={28} />
-          <p>{GREETING}</p>
+          <p>{greeting}</p>
         </div>
         {messages.map((m, i) => (
           <div key={i} className={`msg ${m.role}`}>
@@ -86,7 +86,7 @@ export function SparkyChat() {
           rows={2}
           disabled={busy}
         />
-        <button type="submit" className="cta" disabled={busy || !draft.trim()}>
+        <button type="submit" className="pill small" disabled={busy || !draft.trim()}>
           Send
         </button>
       </form>
