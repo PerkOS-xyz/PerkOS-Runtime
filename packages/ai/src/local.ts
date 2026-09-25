@@ -12,7 +12,7 @@
  * does nothing is worse than an option that is not offered.
  */
 
-import { AiProviderError, type AiProvider, type ChatRequest, type ModelInfo, type ProviderHealth } from "./types.js";
+import { AiProviderError, type AiProvider, type ChatRequest, type ModelInfo, type ProviderHealth } from "./types.ts";
 
 /** Where a local runner usually listens, in the order we try them. */
 export const LOCAL_CANDIDATES = [

@@ -10,7 +10,7 @@
 
 import { DeskMarketSchema, DeskSeriesSchema, type DeskMarket, type DeskSeries } from "@perkos/desk-contract";
 
-import { PerkosApiError, type PerkosClient } from "./client.js";
+import { PerkosApiError, type PerkosClient } from "./client.ts";
 
 /** A desk as listed by the catalogue. */
 export interface DeskSummary {

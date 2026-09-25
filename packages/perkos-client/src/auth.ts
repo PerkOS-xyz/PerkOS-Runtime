@@ -9,7 +9,7 @@
  * held here; access decisions are made by PerkOS on each request.
  */
 
-import { PerkosApiError } from "./client.js";
+import { PerkosApiError } from "./client.ts";
 
 export const WALLET_GRANT = "urn:perkos:oauth:grant-type:wallet-signature";
 export const DEFAULT_SCOPE = "board:read board:write agent:read";

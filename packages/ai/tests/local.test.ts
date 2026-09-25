@@ -6,7 +6,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { LocalAiProvider, readSse } from "../src/local.js";
+import { LocalAiProvider, readSse } from "../src/local.ts";
 
 const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as unknown as Response;
 const dead = () => Promise.reject(new Error("connection refused"));

@@ -1,3 +1,3 @@
-export * from "./auth.js";
-export * from "./client.js";
-export * from "./desks.js";
+export * from "./auth.ts";
+export * from "./client.ts";
+export * from "./desks.ts";

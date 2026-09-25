@@ -7,7 +7,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { Desks, PerkosApiError, PerkosClient } from "../src/index.js";
+import { Desks, PerkosApiError, PerkosClient } from "../src/index.ts";
 
 const market = {
   ok: true,

@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { DeskDraftSchema, DeskMarketSchema, DeskQuoteReplySchema, DeskSeriesSchema } from "../src/index.js";
+import { DeskDraftSchema, DeskMarketSchema, DeskQuoteReplySchema, DeskSeriesSchema } from "../src/index.ts";
 
 const asset = {
   ticker: "NVDA",

@@ -9,6 +9,6 @@
 
 export const DESK_CONTRACT_VERSION = "1";
 
-export * from "./market.js";
-export * from "./series.js";
-export * from "./order.js";
+export * from "./market.ts";
+export * from "./series.ts";
+export * from "./order.ts";

@@ -8,7 +8,7 @@
  * the answer, or the choice was decoration.
  */
 
-import { AiProviderError, type AiProvider, type ProviderHealth } from "./types.js";
+import { AiProviderError, type AiProvider, type ProviderHealth } from "./types.ts";
 
 export interface Pick {
   provider: AiProvider;
