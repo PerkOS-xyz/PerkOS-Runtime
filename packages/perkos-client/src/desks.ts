@@ -12,16 +12,23 @@ import { DeskMarketSchema, DeskSeriesSchema, type DeskMarket, type DeskSeries } 
 
 import { PerkosApiError, type PerkosClient } from "./client.js";
 
-/** A desk as the catalogue lists it. Everything past the id is for the screen. */
+/** A desk as listed by the catalogue. */
 export interface DeskSummary {
   id: string;
   name: string;
   description: string;
+  /** Desk module, used to open its market. Absent on older templates. */
   module?: string;
-  chain?: string;
-  tagline?: string;
-  screens?: string[];
 }
+
+/** Template text, keyed by locale. */
+type Localized = string | Record<string, string | undefined> | undefined;
+
+const inLocale = (value: Localized, locale: string): string => {
+  if (typeof value === "string") return value;
+  if (!value) return "";
+  return value[locale] ?? value.en ?? Object.values(value).find((v) => v) ?? "";
+};
 
 const parseOrFail = <T>(schema: { safeParse: (v: unknown) => { success: boolean; data?: T } }, value: unknown, what: string): T => {
   const parsed = schema.safeParse(value);
@@ -34,10 +41,19 @@ const parseOrFail = <T>(schema: { safeParse: (v: unknown) => { success: boolean;
 export class Desks {
   constructor(private readonly client: PerkosClient) {}
 
-  /** Every desk published by PerkOS, for the dashboard and for Sparky. */
-  async catalogue(): Promise<DeskSummary[]> {
-    const body = await this.client.request<{ templates?: DeskSummary[] }>("/project-templates");
-    return body.templates ?? [];
+  /** Published desks (templates of kind `fleet`), with text in `locale`. */
+  async catalogue(locale = "en"): Promise<DeskSummary[]> {
+    const body = await this.client.request<{ templates?: Array<Record<string, unknown>> }>("/project-templates");
+    return (body.templates ?? []).flatMap((t) => {
+      if (t.kind !== "fleet" || typeof t.id !== "string") return [];
+      const summary: DeskSummary = {
+        id: t.id,
+        name: inLocale(t.name as Localized, locale) || t.id,
+        description: inLocale(t.description as Localized, locale),
+      };
+      if (typeof t.module === "string" && t.module) summary.module = t.module;
+      return [summary];
+    });
   }
 
   /** What this desk can trade, priced. */

@@ -39,6 +39,41 @@ const reply = (status: number, body: unknown) =>
 const clientWith = (http: typeof fetch, token: string | null = "session-token") =>
   new PerkosClient({ fetchImpl: http, token: () => token ?? undefined });
 
+describe("desk catalogue", () => {
+  // Shape returned by GET /project-templates.
+  const listed = {
+    templates: [
+      { id: "artizen-creator-update", kind: "artizen", module: null, name: { en: "Artizen Creator Update" }, description: { en: "One project" } },
+      {
+        id: "eqlty-desk",
+        kind: "fleet",
+        module: "stocks-robinhood",
+        name: { en: "EQLTY Desk", es: "Mesa EQLTY" },
+        description: { en: "Scout, Risk, Trader and Auditor on Robinhood Chain.", es: "Scout, Risk, Trader y Auditor en Robinhood Chain." },
+      },
+      { id: "old-desk", kind: "fleet", name: { en: "Old Desk" }, description: { en: "Published without a module." } },
+    ],
+  };
+
+  it("lists fleet templates with localized text", async () => {
+    const out = await new Desks(clientWith(vi.fn(async () => reply(200, listed)) as unknown as typeof fetch)).catalogue();
+    expect(out.map((d) => d.id)).toEqual(["eqlty-desk", "old-desk"]);
+    expect(out[0]).toEqual({
+      id: "eqlty-desk",
+      name: "EQLTY Desk",
+      description: "Scout, Risk, Trader and Auditor on Robinhood Chain.",
+      module: "stocks-robinhood",
+    });
+    expect(out[1]?.module).toBeUndefined();
+  });
+
+  it("uses the requested locale and falls back to English", async () => {
+    const out = await new Desks(clientWith(vi.fn(async () => reply(200, listed)) as unknown as typeof fetch)).catalogue("es");
+    expect(out[0]?.name).toBe("Mesa EQLTY");
+    expect(out[1]?.name).toBe("Old Desk");
+  });
+});
+
 describe("asking PerkOS for a desk's market", () => {
   it("sends the session and drops the envelope", async () => {
     const http = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
