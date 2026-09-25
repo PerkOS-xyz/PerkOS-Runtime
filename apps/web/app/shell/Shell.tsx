@@ -41,6 +41,12 @@ function Stages() {
   if (stage === "signin") {
     return <SignIn wallet={wallet} session={session} onDone={() => setStage("setup")} onBack={() => setStage("welcome")} />;
   }
-  if (stage === "setup") return <Setup onBack={() => setStage("welcome")} onDone={() => setStage("dashboard")} />;
-  return <Dashboard onSetup={() => setStage("setup")} />;
+  const logout = async () => {
+    await session.signOut();
+    setStage("welcome");
+  };
+  if (stage === "setup") {
+    return <Setup onBack={() => setStage("welcome")} onDone={() => setStage("dashboard")} onLogout={logout} />;
+  }
+  return <Dashboard onSetup={() => setStage("setup")} onLogout={logout} />;
 }
