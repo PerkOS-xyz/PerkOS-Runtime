@@ -1,6 +1,19 @@
-const CHECKS = ["Your wallet signs, nobody else", "Your model: Grok or local", "They draft. You approve."];
+import type { LoginState } from "./useLogin";
 
-export function Welcome({ onStart, busy }: { onStart: () => void; busy: boolean }) {
+const CHECKS = ["Your wallet signs, nobody else", "Your model: Grok, Claude, ChatGPT or local", "They draft. You approve."];
+
+/** Screen 1: welcome and login. The wallet window opens from here and the signature is asked here too. */
+export function Welcome({ login, busy, walletError }: { login: LoginState; busy: boolean; walletError: string }) {
+  const label =
+    login.phase === "connecting"
+      ? "Open the wallet window"
+      : login.phase === "signing"
+        ? "Waiting for your signature…"
+        : login.phase === "error"
+          ? "Try again"
+          : "Get started";
+  const onClick = login.phase === "error" ? login.retry : login.start;
+
   return (
     <main className="hero">
       <div className="hero-copy">
@@ -14,10 +27,11 @@ export function Welcome({ onStart, busy }: { onStart: () => void; busy: boolean 
           I answer your questions and point you to the right desk. Each desk brings its own team, its own market and its
           own screens.
         </p>
-        <div>
-          <button type="button" className="pill" disabled={busy} onClick={onStart}>
-            {busy ? "Loading…" : "Get started"} <span className="arrow" aria-hidden>&rarr;</span>
+        <div className="hero-cta">
+          <button type="button" className="pill" disabled={busy || login.phase === "signing"} onClick={onClick}>
+            {busy ? "Loading…" : label} <span className="arrow" aria-hidden>&rarr;</span>
           </button>
+          <LoginStatus login={login} walletError={walletError} />
         </div>
         <ul className="hero-checks">
           {CHECKS.map((c) => (
@@ -36,4 +50,35 @@ export function Welcome({ onStart, busy }: { onStart: () => void; busy: boolean 
       </div>
     </main>
   );
+}
+
+function LoginStatus({ login, walletError }: { login: LoginState; walletError: string }) {
+  if (login.phase === "connecting") {
+    return (
+      <p className="hero-status" role="status">
+        {walletError || "Choose your wallet in the window that opened. Connecting does not spend anything."}
+      </p>
+    );
+  }
+  if (login.phase === "signing") {
+    return (
+      <div className="hero-status" role="status">
+        <div className="wz-wait" aria-hidden>
+          <i />
+        </div>
+        Approve the signature in your wallet. It proves the wallet is yours; nothing is spent.
+      </div>
+    );
+  }
+  if (login.phase === "error") {
+    return (
+      <p className="hero-status err" role="alert">
+        {login.message}{" "}
+        <button type="button" className="link-btn" onClick={() => void login.switchWallet()}>
+          Use another wallet
+        </button>
+      </p>
+    );
+  }
+  return null;
 }

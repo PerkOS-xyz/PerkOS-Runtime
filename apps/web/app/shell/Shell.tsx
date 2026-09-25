@@ -8,12 +8,12 @@ import { useWallet } from "../wallet/context";
 import { WalletProvider } from "../wallet/WalletProvider";
 import { AppHeader } from "./AppHeader";
 import { ModelCard } from "./ModelCard";
-import { SignIn } from "./SignIn";
+import { useLogin } from "./useLogin";
 import { useModel } from "./useModel";
 import { usePerkosSession } from "./usePerkosSession";
 import { Welcome } from "./Welcome";
 
-type Stage = "welcome" | "signin" | "model" | "desks" | "desk";
+type Stage = "welcome" | "model" | "desks" | "desk";
 
 export function Shell() {
   return (
@@ -24,7 +24,7 @@ export function Shell() {
   );
 }
 
-/** Welcome screen, then sign-in and the model, then the desks and an open desk. */
+/** Two screens to get in (welcome with login, then the model), then the desks and an open desk. */
 function Stages() {
   const wallet = useWallet();
   const session = usePerkosSession(wallet);
@@ -33,25 +33,15 @@ function Stages() {
   const [desk, setDesk] = useState<Desk | null>(null);
 
   const afterSignIn = () => setStage(model.choice ? "desks" : "model");
-
-  function start() {
-    if (session.signedIn) {
-      afterSignIn();
-      return;
-    }
-    // Opened from the click itself, so the wallet window is not treated as a popup.
-    if (wallet.enabled && !wallet.connected) wallet.open();
-    setStage("signin");
-  }
+  const login = useLogin(wallet, session, afterSignIn);
 
   const logout = async () => {
     await session.signOut();
     setStage("welcome");
   };
 
-  if (stage === "welcome") return <Welcome busy={session.loading || model.loading} onStart={start} />;
-  if (stage === "signin") {
-    return <SignIn wallet={wallet} session={session} onDone={afterSignIn} onBack={() => setStage("welcome")} />;
+  if (stage === "welcome") {
+    return <Welcome login={login} busy={session.loading || model.loading} walletError={wallet.error} />;
   }
   if (stage === "model") {
     return (
