@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { AiRegistry, type AiProvider, type ChatRequest } from "@perkos/ai";
 
-import { cleanMessages, SPARKY_PROMPT, startReply } from "../app/lib/sparky";
+import { cleanMessages, SPARKY_PROMPT, sparkyPrompt, startReply } from "../app/lib/sparky";
 
 function provider(chat: (r: ChatRequest) => AsyncIterable<string>): AiProvider {
   return { id: "local", label: "Local", health: async () => ({ ok: true, detail: "" }), models: async () => [], chat };
@@ -64,5 +64,30 @@ describe("startReply", () => {
     await expect(startReply(registry, { provider: "local", model: "m" }, [{ role: "user", content: "hi" }])).rejects.toThrow(
       "model is down",
     );
+  });
+});
+
+describe("sparkyPrompt", () => {
+  it("lists the desks by name and module and asks to recommend only those", () => {
+    const prompt = sparkyPrompt([
+      { name: "EQLTY Desk", module: "stocks-robinhood", description: "Tokenized stocks on Robinhood Chain." },
+      { name: "Old Desk", description: "No module yet." },
+    ]);
+    expect(prompt.startsWith(SPARKY_PROMPT)).toBe(true);
+    expect(prompt).toContain("- EQLTY Desk (stocks-robinhood): Tokenized stocks on Robinhood Chain.");
+    expect(prompt).toContain("- Old Desk: No module yet.");
+    expect(prompt).toContain("Recommend only desks from this list");
+  });
+
+  it("says there are no desks when the list is empty", () => {
+    expect(sparkyPrompt([])).toContain("No desks are available right now");
+  });
+
+  it("caps the number of desks and the length of each description", () => {
+    const many = Array.from({ length: 30 }, (_, i) => ({ name: `Desk ${i}`, description: "d".repeat(500) }));
+    const prompt = sparkyPrompt(many);
+    expect(prompt).toContain("Desk 19");
+    expect(prompt).not.toContain("Desk 20");
+    expect(prompt).not.toContain("d".repeat(301));
   });
 });
