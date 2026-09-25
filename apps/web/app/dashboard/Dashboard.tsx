@@ -1,5 +1,6 @@
 "use client";
 
+import { DeskList } from "./DeskList";
 import { SparkyChat } from "./SparkyChat";
 
 export function Dashboard({ onSetup }: { onSetup: () => void }) {
@@ -12,7 +13,10 @@ export function Dashboard({ onSetup }: { onSetup: () => void }) {
           Setup
         </button>
       </header>
-      <SparkyChat />
+      <div className="board">
+        <SparkyChat />
+        <DeskList />
+      </div>
     </main>
   );
 }
