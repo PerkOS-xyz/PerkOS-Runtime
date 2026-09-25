@@ -1,8 +1,9 @@
 /** Model sources available to this app, and validation of the person's choice. */
 
-import { AiRegistry, AnthropicProvider, LocalAiProvider, XaiProvider } from "@perkos/ai";
+import { AiRegistry, AnthropicProvider, ChatgptProvider, LocalAiProvider, XaiProvider } from "@perkos/ai";
 
 import { anthropicKey } from "./anthropicKey";
+import { chatgptAuth } from "./chatgpt";
 import { xaiAuth } from "./xai";
 
 import type { ModelChoice } from "./settings";
@@ -20,6 +21,7 @@ export function defaultRegistry(): AiRegistry {
     new LocalAiProvider(),
     new XaiProvider({ token: () => xaiAuth.accessToken() }),
     new AnthropicProvider({ apiKey: () => anthropicKey.load() }),
+    new ChatgptProvider({ token: () => chatgptAuth.accessToken() }),
   ]);
 }
 

@@ -3,12 +3,12 @@
 import { useState, type ReactNode } from "react";
 
 import { AnthropicKeyForm } from "./AnthropicKeyForm";
-import { GrokSignIn } from "./GrokSignIn";
+import { DeviceSignIn } from "./DeviceSignIn";
 import type { ModelSource, ModelState } from "./useModel";
 import { WizardFrame } from "./WizardFrame";
 
 /** Subscriptions and keys first, a local runner last. */
-const RANK: Record<string, number> = { xai: 0, anthropic: 1, local: 9 };
+const RANK: Record<string, number> = { xai: 0, openai: 1, anthropic: 2, local: 9 };
 const order = (sources: ModelSource[]) => [...sources].sort((a, b) => (RANK[a.id] ?? 5) - (RANK[b.id] ?? 5));
 
 /** Screen 2: the model Sparky and the desks talk through. */
@@ -76,7 +76,9 @@ function Provider({ source, state }: { source: ModelSource; state: ModelState })
           </button>
         </div>
       ) : source.id === "xai" ? (
-        <GrokSignIn onSignedIn={() => void state.reload()} />
+        <DeviceSignIn api="/api/xai" label="Sign in with Grok" site="x.ai" onSignedIn={() => void state.reload()} />
+      ) : source.id === "openai" ? (
+        <DeviceSignIn api="/api/chatgpt" label="Sign in with ChatGPT" site="openai.com" onSignedIn={() => void state.reload()} />
       ) : source.id === "anthropic" ? (
         <AnthropicKeyForm onSaved={() => void state.reload()} />
       ) : null}
