@@ -83,9 +83,12 @@ async function waitFor(target, tries = 200) {
 
 function startServer(port) {
   const web = path.join(__dirname, "../web");
-  server = spawn("npx", ["next", "dev", "--hostname", "127.0.0.1", "--port", String(port)], {
+  // Next runs on Electron's own Node instead of npx, which fails on Windows
+  // without a shell. Same command on macOS, Windows and Linux.
+  const nextBin = require.resolve("next/dist/bin/next", { paths: [web] });
+  server = spawn(process.execPath, [nextBin, "dev", "--hostname", "127.0.0.1", "--port", String(port)], {
     cwd: web,
-    env: { ...process.env, PERKOS_API_TOKEN: API_TOKEN },
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", PERKOS_API_TOKEN: API_TOKEN },
     stdio: ["ignore", "pipe", "pipe"]
   });
   server.stdout?.on("data", (b) => process.stdout.write(b));
@@ -165,7 +168,12 @@ if (!app.requestSingleInstanceLock()) {
   });
 }
 
-app.on("before-quit", () => {
-  if (server && !server.killed) server.kill();
-});
+/** Stops the server and the processes it started (Windows needs the whole tree). */
+function stopServer() {
+  if (!server || server.killed) return;
+  if (process.platform === "win32") spawn("taskkill", ["/pid", String(server.pid), "/T", "/F"], { stdio: "ignore" });
+  else server.kill();
+}
+
+app.on("before-quit", stopServer);
 app.on("window-all-closed", () => app.quit());
