@@ -36,10 +36,13 @@ Requirements: Node 22 or later, and npm. A local model is optional: [Ollama](htt
 
 ```
 npm install
+cp apps/web/.env.example apps/web/.env.local   # then set the values
 npm run dev
 ```
 
 Then open http://127.0.0.1:3100.
+
+`NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID` enables wallet connect. The Dynamic environment must list the app's origin (for example `http://127.0.0.1:3100`) in its allowed origins.
 
 The local API accepts requests from this machine only. Set `PERKOS_API_TOKEN` to also require a per-launch token in the `x-perkos-token` header.
 

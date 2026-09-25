@@ -1,0 +1,43 @@
+"use client";
+
+import { createContext, useContext, type ReactNode } from "react";
+
+export type Wallet = {
+  /** A wallet connector is configured. */
+  enabled: boolean;
+  /** The connector has finished loading. */
+  loaded: boolean;
+  connected: boolean;
+  /** Checksummed address, empty when not connected. */
+  address: string;
+  busy: boolean;
+  error: string;
+  open: () => void;
+  logout: () => Promise<void>;
+  /** personal_sign with the connected wallet. */
+  signMessage: (message: string) => Promise<string>;
+};
+
+export const disabledWallet: Wallet = {
+  enabled: false,
+  loaded: true,
+  connected: false,
+  address: "",
+  busy: false,
+  error: "",
+  open: () => undefined,
+  logout: async () => undefined,
+  signMessage: async () => {
+    throw new Error("No wallet connector configured");
+  }
+};
+
+const Ctx = createContext<Wallet>(disabledWallet);
+
+export function WalletContext({ value, children }: { value: Wallet; children: ReactNode }) {
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+
+export function useWallet(): Wallet {
+  return useContext(Ctx);
+}
