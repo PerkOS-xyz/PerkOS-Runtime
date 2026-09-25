@@ -1,7 +1,5 @@
 /**
- * The landing. Same order as PerkOS Floor: the wallet first, because it is who
- * you are to PerkOS, then the model, because it is who answers you. The steps
- * are listed here and light up as each one is built.
+ * Landing: connect a wallet, then choose a model.
  */
 
 const STEPS = [

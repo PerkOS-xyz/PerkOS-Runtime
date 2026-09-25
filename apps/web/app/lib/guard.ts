@@ -1,15 +1,13 @@
 /**
- * The door to the local API.
+ * Access check for the local API.
  *
- * The server listens on 127.0.0.1 with no session of its own, so without this
- * any page open on the machine could call /api/*: a cross-site POST with a
- * text/plain body, or DNS rebinding to read the answers. Three layers, the
- * same ones PerkOS Floor keeps:
+ * The server listens on 127.0.0.1 without its own session. Without this check,
+ * any page open on the machine could call /api/* (cross-site POST with a
+ * text/plain body, or DNS rebinding). Checks:
  *
- *   1. Host: loopback only (rebinding arrives with the attacker's host).
- *   2. Sec-Fetch-Site: browsers mark cross-site requests.
- *   3. A per-launch token (PERKOS_API_TOKEN), when a shell starts the server
- *      and hands the token to its window. Plain `next dev` has none.
+ *   1. Host: loopback only.
+ *   2. Sec-Fetch-Site: same-origin or none.
+ *   3. Per-launch token (PERKOS_API_TOKEN), when the server is started with one.
  */
 
 const TOKEN = process.env.PERKOS_API_TOKEN?.trim() || "";
