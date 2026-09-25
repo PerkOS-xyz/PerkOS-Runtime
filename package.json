@@ -10,6 +10,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "dev": "npm run dev -w @perkos/runtime-web",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

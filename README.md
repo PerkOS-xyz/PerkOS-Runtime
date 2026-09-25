@@ -29,6 +29,14 @@ npm run typecheck
 npm test
 ```
 
+Run it:
+
+```
+npm run dev
+```
+
+Then open http://127.0.0.1:3100. The server listens on this machine only.
+
 ## License
 
 MIT for the code. Marks and the Sparky mascot are excluded.
