@@ -30,8 +30,8 @@ button { font: inherit; }
   padding: 28px 16px;
 }
 .sparky {
-  width: 200px;
-  height: 200px;
+  width: auto;
+  height: min(48vh, 420px);
   filter: drop-shadow(0 0 32px rgba(255, 90, 60, 0.35));
   animation: float 5s ease-in-out infinite;
 }
