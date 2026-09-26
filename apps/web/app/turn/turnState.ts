@@ -195,3 +195,48 @@ export function workingView(view: TurnView, now = Date.now()): WorkingView {
     line: view.live ? `${seconds} s · ${plural(count, "step")}` : `Worked ${seconds} s · ${plural(count, "step")}`,
   };
 }
+
+/** The first step the window shows while the route reads the desk's market, before the turn opens. */
+export const FIRST_STEP = "Reading the market";
+
+/**
+ * The turn the window just asked for, before the route opens it: live, with
+ * the first step on screen. The route's `open` replaces it.
+ */
+export function pendingTurn(question: string, kind: TurnKind, now = Date.now()): TurnView {
+  return { ...idleTurn, kind, question, live: true, startedAt: now, steps: [{ at: now, text: FIRST_STEP }] };
+}
+
+/**
+ * The person stopped waiting. A role still thinking is marked stopped and one
+ * not asked yet is skipped. This ends the wait only: PerkOS cannot cancel a
+ * task, so an agent already asked may still finish on PerkOS.
+ */
+export function stopLocally(view: TurnView, now = Date.now()): TurnView {
+  if (!view.live) return view;
+  const roles: Record<string, RoleView> = {};
+  for (const [role, r] of Object.entries(view.roles)) {
+    if (r.status === "thinking") {
+      roles[role] = { ...r, status: "failed", failure: "stopped", label: failureLabel("stopped"), ...(r.startedAt !== undefined ? { ms: Math.max(0, now - r.startedAt) } : {}) };
+    } else roles[role] = r.status === "waiting" ? { ...r, status: "skipped" } : r;
+  }
+  return { ...view, roles, live: false, waking: false, waiting: [], stopped: true, endedAt: now };
+}
+
+/** The stream closed before the turn ended: nothing more will arrive for it. */
+export function cutTurn(view: TurnView, message: string, now = Date.now()): TurnView {
+  if (!view.live) return view;
+  const roles: Record<string, RoleView> = {};
+  for (const [role, r] of Object.entries(view.roles)) roles[role] = r.status === "waiting" || r.status === "thinking" ? { ...r, status: "skipped" } : r;
+  return { ...view, roles, live: false, waking: false, waiting: [], endedAt: now, error: view.error ?? { code: "INTERNAL", message } };
+}
+
+/** How a finished turn's checklist folds onto Sparky's message: "Worked 71 s · 9 steps", and every step. */
+export interface TurnWork {
+  line: string;
+  steps: string[];
+}
+
+export function workOf(view: TurnView, now = Date.now()): TurnWork {
+  return { line: workingView({ ...view, live: false }, now).line, steps: view.steps.map((s) => s.text) };
+}
