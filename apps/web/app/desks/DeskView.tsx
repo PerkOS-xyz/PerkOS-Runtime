@@ -13,6 +13,7 @@ import { CHAIN_LABEL, chainOf } from "./chains";
 import type { Desk } from "./DesksScreen";
 import { Embers } from "./Embers";
 import { MarketSheet } from "./MarketSheet";
+import { TraderSheet } from "./TraderSheet";
 import { coreState, DEFAULT_STARTERS, isAnswering, whisper } from "./stage";
 import { useDeskManifest } from "./useDeskManifest";
 
@@ -36,6 +37,8 @@ export function DeskView({
   const chat = useSparkyChat({ desk: desk.id });
   const [market, setMarket] = useState(false);
   const closeMarket = useCallback(() => setMarket(false), []);
+  const [trader, setTrader] = useState(false);
+  const closeTrader = useCallback(() => setTrader(false), []);
   const { voice, talk } = useTalk(chat);
   const manifest = useDeskManifest(desk.module);
   const team = useTeam(desk.id);
@@ -81,7 +84,7 @@ export function DeskView({
   }
 
   return (
-    <main className={`stage ${chain}${split ? " split" : ""}${market ? " panel" : ""}`}>
+    <main className={`stage ${chain}${split ? " split" : ""}${market || trader ? " panel" : ""}`}>
       <div className="st-ambient" aria-hidden>
         <i className="st-blob" />
         <Embers />
@@ -95,6 +98,19 @@ export function DeskView({
             {desk.module ? (
               <button type="button" className="ah-out" aria-pressed={market} onClick={() => setMarket((v) => !v)}>
                 Market
+              </button>
+            ) : null}
+            {desk.module && manifest?.screens.includes("trader") ? (
+              <button
+                type="button"
+                className="ah-out"
+                aria-pressed={trader}
+                onClick={() => {
+                  setMarket(false);
+                  setTrader((v) => !v);
+                }}
+              >
+                Trader
               </button>
             ) : null}
             <button type="button" className="ah-out" onClick={() => openMemory({ scope: desk.id, name: desk.name })}>
@@ -245,6 +261,7 @@ export function DeskView({
       </div>
 
       {market && desk.module ? <MarketSheet title={desk.name} module={desk.module} chain={chain} onAsk={send} onClose={closeMarket} /> : null}
+      {trader && !market && desk.module ? <TraderSheet title={desk.name} module={desk.module} chain={chain} onClose={closeTrader} /> : null}
     </main>
   );
 }

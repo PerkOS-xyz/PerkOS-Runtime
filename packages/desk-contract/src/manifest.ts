@@ -31,7 +31,7 @@ export const DeskManifestSchema = z
     tagline: z.string().trim().min(1).max(120),
     starters: z.array(DeskStarterSchema).max(6),
     /** The desk's own screens, in the order the app shows them. */
-    screens: z.array(z.enum(["market", "portfolio", "history"])).max(6),
+    screens: z.array(z.enum(["market", "portfolio", "history", "trader"])).max(6),
     /** What every member of the team keeps in every turn on this desk. */
     rules: z.string().trim().min(1).max(1600),
     /** A kind of turn the desk leaves out is one it does not run. */
