@@ -70,7 +70,7 @@ describe("a desk turn", () => {
       "reply:auditor",
     ]);
     expect(asked.map((a) => a.id)).toEqual(["id-scout", "id-risk", "id-trader", "id-auditor"]);
-    expect(asked.every((a) => a.prompt.startsWith("HEAD\n\n") && a.timeoutMs === 55_000)).toBe(true);
+    expect(asked.every((a) => a.prompt.startsWith("HEAD\n\n") && a.timeoutMs === 85_000)).toBe(true);
     for (const a of asked.slice(2)) {
       expect(a.prompt).toContain('Scout said: "@Trader @Auditor NVDA holds its range [F1]."');
       expect(a.prompt).toContain('Risk said: "RISK: medium @Trader @Auditor Keep it to 50 USDG." (risk medium).');

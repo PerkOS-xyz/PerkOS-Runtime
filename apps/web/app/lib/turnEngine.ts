@@ -18,8 +18,8 @@ import { classifyAnswer, classifyError, failureLabel, stillStarting } from "./tu
 import { fullPrompt, handoff, roleTail } from "./turnPrompts";
 import { roleName, type FailureKind, type RiskLevel, type RoleReply, type TurnEvent, type TurnKind, type Verdict } from "./turnRecord";
 
-/** How long PerkOS waits for one agent in a turn. */
-export const TASK_MS = 55_000;
+/** How long PerkOS waits for one agent in a turn, under the 90 s PerkOS allows a task. */
+export const TASK_MS = 85_000;
 /** How long an agent that is still starting after a wake is asked again, and how often. */
 export const STARTING_WINDOW_MS = 90_000;
 export const STARTING_RETRY_MS = 8_000;
