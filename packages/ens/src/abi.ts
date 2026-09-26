@@ -13,9 +13,12 @@ export const registryAbi = parseAbi([
   "function setSubregistry(uint256 anyId, address registry)",
   "function setResolver(uint256 anyId, address resolver)",
   "function hasRootRoles(uint256 roleBitmap, address account) view returns (bool)",
+  "function hasRoles(uint256 anyId, uint256 roleBitmap, address account) view returns (bool)",
   "function revokeRootRoles(uint256 roleBitmap, address account)",
 ]);
 export const resolverAbi = parseAbi([
+  "function getRecordId(bytes32 node) view returns (uint256)",
+  "function linkToRecord(bytes sourceName, uint256 recordId)",
   "function initialize((address account, uint256 roleBitmap)[] grants, bytes[] calls)",
   "function setText(bytes name, string key, string value)",
   "function grantSetterRoles(bytes data, address account) returns (bool)",
@@ -41,6 +44,7 @@ export const factoryAbi = parseAbi([
   "function verifyContract(address proxy) view returns (address implementation)",
 ]);
 export const identityRegistryAbi = parseAbi([
+  "function setAgentURI(uint256 agentId, string newURI)",
   "function register(string agentURI) returns (uint256 agentId)",
   "function tokenURI(uint256 agentId) view returns (string)",
   "function ownerOf(uint256 agentId) view returns (address)",

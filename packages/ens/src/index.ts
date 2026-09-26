@@ -6,3 +6,6 @@ export * from "./descriptor.js";
 export * from "./provision.js";
 export * from "./record.js";
 export * from "./status.js";
+export * from "./discovery.js";
+export * from "./move.js";
+export * from "./evidence.js";

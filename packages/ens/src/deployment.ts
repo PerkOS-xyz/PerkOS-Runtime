@@ -23,6 +23,8 @@ export const REGISTRY_ROLES = {
 } as const;
 export const TEXT_ROLE = 1n << 4n;
 export const TEXT_ADMIN = admin(TEXT_ROLE);
+/** Only the operator may relink names; agents never receive this role. */
+export const LINK_ROLE = 1n << 28n;
 export const PARENT_ROLES = REGISTRY_ROLES.setParent | admin(REGISTRY_ROLES.setParent);
 /** Provisioning may register and renew entries, never override their resolver or child pointers. */
 export const PROVISIONER_ROLES = REGISTRY_ROLES.register | REGISTRY_ROLES.renew | PARENT_ROLES;
