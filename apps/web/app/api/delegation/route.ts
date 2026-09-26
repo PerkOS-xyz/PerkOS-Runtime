@@ -20,3 +20,19 @@ export async function POST(req: Request) {
     return errorResponse(err);
   }
 }
+
+// DELETE -> { revoked }: takes the Trader's access back from the desk. PerkOS
+// revokes the delegated share in Dynamic and forgets its copy; the wallet and
+// what it holds stay the person's.
+export async function DELETE(req: Request) {
+  const denied = guard(req);
+  if (denied) return denied;
+  const client = await perkosClient();
+  if (!client) return Response.json({ error: "signed_out", message: "Sign in to PerkOS first." }, { status: 401 });
+  try {
+    const res = await client.request<{ revoked?: boolean }>("/delegation/revoke", { method: "POST", body: {} });
+    return Response.json({ revoked: res.revoked !== false });
+  } catch (err) {
+    return errorResponse(err);
+  }
+}
