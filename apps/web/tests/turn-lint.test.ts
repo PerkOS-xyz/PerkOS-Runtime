@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { largestSize, lintTurn, wordLimit, type LintInput } from "../app/lib/turnLint";
+import { largestSize, lintTurn, sizesIn, wordLimit, type LintInput } from "../app/lib/turnLint";
 import type { RoleReply } from "../app/lib/turnRecord";
 
 const rolePrompts = {
@@ -120,5 +120,26 @@ describe("reading limits from the desk's words", () => {
     expect(largestSize("Buy up to 90 USDG.", "USDG")).toBe(90);
     // "Go up to" reads as a size as often as a target, so it stays a size.
     expect(largestSize("I would go up to 150 USDG.", "USDG")).toBe(150);
+  });
+
+  it("reads every size in the order the answer says them, and where each one begins", () => {
+    const text = "@Sparky Buy 40 USDG of AAPL now; add 30 USDG of NVDA if it holds 180.";
+    const sizes = sizesIn(text, "USDG");
+    expect(sizes.map((s) => s.value)).toEqual([40, 30]);
+    expect(text.slice(sizes[0]!.at)).toMatch(/^Buy 40 USDG/);
+    expect(text.slice(sizes[1]!.at)).toMatch(/^add 30 USDG/);
+    expect(text.slice(sizes[0]!.at, sizes[0]!.end)).toBe("Buy 40 USDG");
+    expect(sizesIn("Take profit at 190 USDG, stop at 172 USDG.", "USDG")).toEqual([]);
+  });
+
+  it("reads sizes said in Spanish, and leaves Spanish price levels alone", () => {
+    expect(largestSize("Plan de entrada para NVDA: 50 USDG, toma de ganancias en 190 USDG.", "USDG")).toBe(50);
+    expect(largestSize("Posición de 250 USDG en NVDA.", "USDG")).toBe(250);
+    expect(largestSize("Compra por debajo de 175 USDG y entrada de 80 USDG.", "USDG")).toBe(80);
+    expect(largestSize("Compraría AAPL con 40 dólares.", "USDG")).toBe(40);
+    expect(largestSize("Compra NVDA a 175 USDG.", "USDG")).toBe(0);
+    expect(largestSize("Entrada de 50,5 USDG.", "USDG")).toBe(50.5);
+    // In English "a" is an article, not a level.
+    expect(largestSize("Buy a 50 USDG position.", "USDG")).toBe(50);
   });
 });
