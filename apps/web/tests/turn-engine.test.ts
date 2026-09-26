@@ -6,7 +6,7 @@
 import { PerkosApiError, type AgentAnswer } from "@perkos/client";
 import { describe, expect, it, vi } from "vitest";
 
-import { riskLevelOf, runTurn, verdictOf, type AskAgent, type RunTurnInput, type TurnSeat } from "../app/lib/turnEngine";
+import { riskLevelOf, runTurn, STARTING_RETRY_MS, verdictOf, type AskAgent, type RunTurnInput, type TurnSeat } from "../app/lib/turnEngine";
 import { TURN_PHASES, type TurnEvent } from "../app/lib/turnRecord";
 
 const rolePrompts = {
@@ -26,6 +26,8 @@ const answers: Record<string, string> = {
   "id-auditor": "@Sparky Thesis: NVDA holds [F1].",
 };
 const answer = (agentId: string, text = answers[agentId] ?? "ok"): AgentAnswer => ({ ok: true, reply: text, detail: `reply len=${text.length}`, agentId, agentName: "", ms: 5 });
+/** What PerkOS sends back when the agent's bridge is up and its runtime is not listening yet. */
+const starting = (agentId: string, detail = "Runtime delivery failed: fetch failed"): AgentAnswer => ({ ok: false, reply: "", detail, agentId, agentName: "", ms: 5 });
 
 function setup(ask: AskAgent, extra: Partial<RunTurnInput> = {}) {
   const events: TurnEvent[] = [];
@@ -146,6 +148,65 @@ describe("a desk turn", () => {
     expect(risk.detail).toBe("Stopped waiting for Risk. Risk may still finish the task on PerkOS; that answer is not kept.");
     expect(out.replies.find((r) => r.role === "trader")).toMatchObject({ ok: false, failure: "stopped", ms: 0, detail: "Stopped before Trader was asked." });
     expect(out.replies.find((r) => r.role === "scout")?.ok).toBe(true);
+  });
+
+  it("asks an agent that is still starting again until it answers", async () => {
+    let scoutAsks = 0;
+    const ask: AskAgent = async (id) => (id === "id-scout" && ++scoutAsks < 3 ? starting(id) : answer(id));
+    const pauses: number[] = [];
+    const { input, events } = setup(ask, {
+      pause: async (ms) => {
+        pauses.push(ms);
+      },
+    });
+    const out = await runTurn(input);
+    expect(scoutAsks).toBe(3);
+    expect(pauses).toEqual([STARTING_RETRY_MS, STARTING_RETRY_MS]);
+    expect(out.replies.find((r) => r.role === "scout")).toMatchObject({ ok: true, reply: answers["id-scout"] });
+    const working = events.filter((e) => e.step === "working").map((e) => (e as { text: string }).text);
+    expect(working.filter((t) => t === "Scout is still starting up; asking again")).toHaveLength(1);
+  });
+
+  it("gives up on an agent still starting after a while, and does not ask again after the runtime's own error", async () => {
+    let clock = 0;
+    const asks: Record<string, number> = {};
+    const ask: AskAgent = async (id) => {
+      asks[id] = (asks[id] ?? 0) + 1;
+      if (id === "id-scout") return starting(id);
+      if (id === "id-risk") return starting(id, "Runtime delivery failed: Hermes API delivery failed (500) at http://127.0.0.1:8642/v1/responses: boom");
+      return answer(id);
+    };
+    const { input } = setup(ask, {
+      now: () => clock,
+      pause: async (ms) => {
+        clock += ms;
+      },
+    });
+    const out = await runTurn(input);
+    // Asked right away, then every 8 s while under 90 s had passed: at 0, 8, ... 88 s, and once more at 96 s.
+    expect(asks["id-scout"]).toBe(13);
+    expect(out.replies.find((r) => r.role === "scout")).toMatchObject({ ok: false, failure: "offline", detail: "Runtime delivery failed: fetch failed", ms: 96_000 });
+    expect(asks["id-risk"]).toBe(1);
+    expect(out.replies.find((r) => r.role === "risk")).toMatchObject({ ok: false, failure: "model" });
+  });
+
+  it("stops asking an agent still starting when the person stops", async () => {
+    const asked: string[] = [];
+    const ask: AskAgent = async (id) => {
+      asked.push(id);
+      return id === "id-scout" ? starting(id) : answer(id);
+    };
+    const holder: { stop?: AbortController } = {};
+    const { input, stop } = setup(ask, {
+      pause: async () => {
+        holder.stop?.abort();
+      },
+    });
+    holder.stop = stop;
+    const out = await runTurn(input);
+    expect(asked.filter((a) => a === "id-scout")).toHaveLength(1);
+    expect(out.stopped).toBe(true);
+    expect(out.replies.find((r) => r.role === "scout")).toMatchObject({ ok: false, failure: "stopped", detail: "Stopped while Scout was still starting." });
   });
 
   it("reads Risk's verdict on an order turn, and blocks when there is none", async () => {

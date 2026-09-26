@@ -27,11 +27,19 @@ const RUNTIME_FAILURES: Array<[RegExp, FailureKind]> = [
   [/^Session is shutting down\b/i, "offline"],
 ];
 
+/**
+ * The bridge took the task but could not reach its runtime at all: an agent
+ * just woken, whose runtime is still starting. A runtime that answered with an
+ * error is not this.
+ */
+const STARTING = /^runtime delivery failed:\s*(?:fetch failed|(?:connect\s+)?ECONNREFUSED|ECONNRESET|socket hang up|other side closed)/i;
+
 /** PerkOS's reasons for a task that came back without an answer. */
 const DETAILS: Array<[RegExp, FailureKind]> = [
   [/^timed out after \d+\s*ms\b/i, "timeout"],
   [/not connected to relay/i, "offline"],
   [/^agent is not ready\b/i, "offline"],
+  [STARTING, "offline"],
   [/^runtime delivery failed\b/i, "model"],
   [/upstream_failed/i, "model"],
   [/^runtime task (?:failed|canceled|cancelled|rejected)\b/i, "model"],
@@ -80,6 +88,15 @@ export interface Classified {
   failure?: FailureKind;
   /** The verbatim reason, when there is no answer. */
   detail?: string;
+}
+
+/**
+ * An agent that was just woken can have its bridge up while its runtime is
+ * still starting: the task reaches the bridge and the bridge cannot hand it on.
+ * Asked again a few seconds later, it answers.
+ */
+export function stillStarting(detail: string | undefined): boolean {
+  return STARTING.test(detail?.trim() ?? "");
 }
 
 /** The runtime failure a reply is, or null when it reads as an answer. */

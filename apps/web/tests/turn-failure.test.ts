@@ -6,7 +6,7 @@
 import { PerkosApiError } from "@perkos/client";
 import { describe, expect, it } from "vitest";
 
-import { classifyAnswer, classifyError, failureLabel, runtimeFailure } from "../app/lib/turnFailure";
+import { classifyAnswer, classifyError, failureLabel, runtimeFailure, stillStarting } from "../app/lib/turnFailure";
 import { newTurnId, turnBody, turnTitle, withoutFactTags, type TurnRecord } from "../app/lib/turnRecord";
 
 describe("a task that came back", () => {
@@ -59,6 +59,15 @@ describe("a task that came back", () => {
     ];
     for (const [detail, kind] of cases) {
       expect([detail, classifyAnswer({ ok: false, reply: "", detail })]).toEqual([detail, { ok: false, reply: "", failure: kind, detail }]);
+    }
+  });
+
+  it("tells a runtime still starting from a runtime that answered with an error", () => {
+    for (const detail of ["Runtime delivery failed: fetch failed", "Runtime delivery failed: connect ECONNREFUSED 127.0.0.1:8642", "Runtime delivery failed: socket hang up"]) {
+      expect([detail, stillStarting(detail), classifyAnswer({ ok: false, reply: "", detail }).failure]).toEqual([detail, true, "offline"]);
+    }
+    for (const detail of ["Runtime delivery failed: 503", "Runtime delivery failed: Hermes API delivery failed (500) at http://127.0.0.1:8642/v1/responses: boom", "Agent is not ready", "", undefined]) {
+      expect([detail, stillStarting(detail)]).toEqual([detail, false]);
     }
   });
 
