@@ -1114,3 +1114,33 @@ button.mk-row { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .mk-detail { animation: none; }
 }
+
+/* Desk agents' avatars: the state moves the ring, the eyes and the glow, never the identity. */
+.agent-avatar { display: inline-block; position: relative; line-height: 0; transition: filter 600ms ease, opacity 600ms ease; }
+.agent-avatar svg { display: block; overflow: visible; }
+.agent-avatar .aa-ring { transform-origin: 500px 500px; transform-box: view-box; opacity: 0.9; }
+.agent-avatar .aa-accent, .agent-avatar .aa-eyes, .agent-avatar .aa-eyes-glow, .agent-avatar .aa-accent-glow, .agent-avatar .aa-module-glow { transition: opacity 500ms ease; }
+.agent-avatar[data-state="idle"] svg { animation: aa-breathe 3.6s ease-in-out infinite; transform-origin: 50% 60%; }
+.agent-avatar[data-state="idle"] .aa-ring { opacity: 0.45; }
+.agent-avatar[data-state="working"] .aa-ring { animation: aa-spin 5s linear infinite; }
+.agent-avatar[data-state="thinking"] .aa-ring { animation: aa-spin 9s linear infinite; }
+.agent-avatar[data-state="thinking"] .aa-eyes { animation: aa-scan 2.6s ease-in-out infinite; }
+.agent-avatar[data-state="listening"] .aa-module, .agent-avatar[data-state="listening"] .aa-ring { animation: aa-pulse 1.5s ease-in-out infinite; }
+.agent-avatar[data-state="waiting"] .aa-ring, .agent-avatar[data-state="waiting"] .aa-accent { animation: aa-pulse 2.4s ease-in-out infinite; }
+.agent-avatar[data-state="working"] .aa-accent-glow, .agent-avatar[data-state="listening"] .aa-module-glow { animation: aa-pulse 2.2s ease-in-out infinite; }
+.agent-avatar[data-state="error"] svg { animation: aa-shake 420ms ease-in-out 2; }
+.agent-avatar[data-mode="offline"] { filter: saturate(0.35) brightness(0.62); }
+.agent-avatar[data-mode="hibernating"] { filter: grayscale(0.8) saturate(0.3) brightness(0.75); opacity: 0.9; }
+.agent-avatar[data-mode="hibernating"] svg { animation: aa-breathe 9s ease-in-out infinite; transform-origin: 50% 60%; }
+.agent-avatar[data-mode="hibernating"] .aa-accent { opacity: 0.2; }
+.agent-avatar[data-mode="hibernating"] .aa-eyes { opacity: 0.7; }
+.agent-avatar[data-mode="offline"] .aa-eyes-glow, .agent-avatar[data-mode="hibernating"] .aa-eyes-glow, .agent-avatar[data-mode="offline"] .aa-accent-glow,
+.agent-avatar[data-mode="hibernating"] .aa-accent-glow, .agent-avatar[data-mode="hibernating"] .aa-module-glow { opacity: 0; }
+@keyframes aa-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.015); } }
+@keyframes aa-spin { to { transform: rotate(360deg); } }
+@keyframes aa-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@keyframes aa-scan { 0%, 100% { transform: translateX(-2.2px); } 50% { transform: translateX(2.2px); } }
+@keyframes aa-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-2px); } 75% { transform: translateX(2px); } }
+@media (prefers-reduced-motion: reduce) {
+  .agent-avatar svg, .agent-avatar .aa-ring, .agent-avatar .aa-eyes, .agent-avatar .aa-module, .agent-avatar .aa-accent, .agent-avatar .aa-accent-glow, .agent-avatar .aa-module-glow { animation: none !important; }
+}
