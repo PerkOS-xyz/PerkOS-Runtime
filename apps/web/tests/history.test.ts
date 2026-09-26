@@ -8,6 +8,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { clockOf, dayOf, factParts, failureText, partsOf, replayView, secondsOf, whyOf, WHY_CHARS } from "../app/desks/history";
+import { TurnReplay } from "../app/desks/HistorySheet";
 import type { RoleReply, TurnRecord } from "../app/lib/turnRecord";
 import { TurnCard } from "../app/turn/TurnCards";
 import { cardLook, metricFor, metricText } from "../app/turn/turnLook";
@@ -159,5 +160,43 @@ describe("why the turn went that way", () => {
   it("reads a fact line as its number and its text", () => {
     expect(factParts(FACTS[0]!)).toEqual({ n: 1, text: "NVDA (NVIDIA): 181.20 USDG at 14:30, +1.20% in 24h, tradeable." });
     expect(factParts("A line without a tag")).toEqual({ n: null, text: "A line without a tag" });
+  });
+});
+
+describe("a turn opened in History", () => {
+  const html = (r: TurnRecord) => renderToStaticMarkup(createElement(TurnReplay, { record: r })).replace(/<!-- -->/g, "");
+
+  it("shows the replay cards, the total, why, each agent's words and the failure verbatim", () => {
+    const out = html(record());
+    expect(out.match(/class="st-card /g)).toHaveLength(4);
+    expect(out).not.toContain("<button");
+    expect(out).toContain("71.4 s total");
+    expect(out).toContain("unsigned");
+    expect(out).toContain(">Why</h4>");
+    for (const label of ["Trader&#x27;s plan", "Auditor&#x27;s record", "Sparky&#x27;s summary"]) expect(out).toContain(label);
+    expect(out).toContain("Model failed: API call failed after 3 retries: HTTP 502: upstream_failed");
+    // Mentions and fact tags read as in the chat.
+    expect(out).toContain('<span class="st-at" style="--role:#35e08a">@Trader</span>');
+    expect(out).toContain('<abbr class="st-fact" title="NVDA (NVIDIA): 181.20 USDG at 14:30, +1.20% in 24h, tradeable.">F1</abbr>');
+  });
+
+  it("folds away the facts given and what the team was asked", () => {
+    const out = html(record());
+    expect(out).toMatch(/<details class="hs-fold"><summary>Facts given<span>2<\/span><\/summary>/);
+    expect(out).toContain("<details class=\"hs-fold\"><summary>What the team was asked</summary>");
+    expect(out).toContain("<pre>Request to the desk: &quot;What should I buy this month?&quot;.</pre>");
+    expect(out).toContain("Then Auditor got");
+    expect(out.indexOf("Then Scout got")).toBeLessThan(out.indexOf("Then Auditor got"));
+  });
+
+  it("says a turn was signed, stopped or ended early", () => {
+    const signed = html(record({ receipt: { hash: "0x12", status: "success", ticker: "NVDA", amount: "40", at: "2026-09-26T14:40:00.000Z" } }));
+    expect(signed).toContain('<span class="hs-sign on">signed · NVDA 40</span>');
+    const stopped = html(record({ stopped: true }));
+    expect(stopped).toContain("You stopped waiting for this turn. Agents already asked may still have finished on PerkOS");
+    const ended = html(record({ replies: [], error: { code: "TEAM_ASLEEP", message: "The team is asleep." } }));
+    expect(ended).toContain("Ended early: The team is asleep.");
+    expect(ended).toContain("The team was not asked in this turn.");
+    expect(ended).not.toContain("st-card ");
   });
 });

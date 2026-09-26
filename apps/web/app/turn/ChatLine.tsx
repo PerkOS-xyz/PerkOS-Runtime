@@ -9,7 +9,7 @@ import { agentLabel, factFor, lineParts, missedLine } from "./mentions";
 const roleStyle = (role: string) => ({ "--role": sphereAccent(role) }) as CSSProperties;
 
 /** A team line as written, with @mentions as chips in each role's color and [Fn] tags pointing at the turn's facts. */
-function Rich({ text, facts }: { text: string; facts?: readonly string[] | undefined }) {
+export function Rich({ text, facts }: { text: string; facts?: readonly string[] | undefined }) {
   return (
     <>
       {lineParts(text).map((part, i) => {
