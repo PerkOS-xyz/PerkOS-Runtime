@@ -183,6 +183,27 @@ export interface TurnRecord {
   receipt?: TurnReceipt;
 }
 
+/** A turn as History lists it; the whole record comes when the person opens it. */
+export interface TurnRow {
+  id: string;
+  kind: TurnKind;
+  question: string;
+  startedAt: string;
+  ms: number;
+  riskLevel?: RiskLevel;
+  verdict?: Verdict;
+  /** How many checks flagged the answers. */
+  flags: number;
+  /** The roles that gave no answer. */
+  failed: string[];
+  /** The person signed an order after the turn. */
+  signed: boolean;
+  /** The person stopped waiting; the agents were not cancelled. */
+  stopped?: boolean;
+  /** Why the turn ended early, when it did. */
+  error?: TurnErrorCode;
+}
+
 const KIND_LABEL: Record<TurnKind, string> = { analyze: "Analyze", advise: "Advise", order: "Order" };
 
 /** "Scout" for "scout". */

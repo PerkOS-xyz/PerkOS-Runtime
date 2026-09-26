@@ -125,6 +125,22 @@ async function update(wallet: string, id: string, notes: NoteStore | null, chang
   return next;
 }
 
+/**
+ * Forgets a turn for good: this session's copy, and the sealed one when memory
+ * is on. With memory off, a copy sealed earlier stays in the vault, locked,
+ * until memory is on again. False when there is no such turn.
+ */
+export async function forgetTurn(wallet: string, id: string, notes: NoteStore | null): Promise<boolean> {
+  const turn = await getTurn(wallet, id, notes);
+  if (!turn) return false;
+  const { session } = shared();
+  const w = wallet.toLowerCase();
+  const kept = session.get(w);
+  if (kept) session.set(w, kept.filter((r) => r.id !== id));
+  if (notes) await notes.remove(`${turn.desk}/turns/${id}`);
+  return true;
+}
+
 /** Adds Sparky's closing message to a turn. */
 export function setTurnSummary(wallet: string, id: string, summary: string, notes: NoteStore | null): Promise<TurnRecord | null> {
   return update(wallet, id, notes, (r) => ({ ...r, summary: summary.trim().slice(0, 4_000) }));
