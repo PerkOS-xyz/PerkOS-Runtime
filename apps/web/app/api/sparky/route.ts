@@ -5,9 +5,9 @@ import { journalEntry } from "../../lib/journal";
 import { memoryFor, recallScopes, scopeFor } from "../../lib/memory";
 import { defaultRegistry } from "../../lib/models";
 import { askedAbout, marketFacts } from "../../lib/marketFacts";
-import { cachedDesks, cachedMarket, deskSeries } from "../../lib/perkos";
+import { cachedDesks, cachedMarket, deskSeries, knownManifest } from "../../lib/perkos";
 import { settings } from "../../lib/settings";
-import { answering, cleanMessages, sparkyPrompt, startReply, tapReply, withMemory, withTeam, withTeamNotes, withWarmUp } from "../../lib/sparky";
+import { answering, cleanMessages, planToPoint, sparkyPrompt, startReply, tapReply, withMemory, withPlan, withTeam, withTeamNotes, withWarmUp } from "../../lib/sparky";
 import { isTurnId, type TurnRecord } from "../../lib/turnRecord";
 import { getTurn, setTurnSummary } from "../../lib/turnStore";
 import { sessionWallet } from "../../lib/vault";
@@ -38,7 +38,8 @@ async function deskTurn(wallet: string | null, id: unknown, desk: string | undef
 // the relevant notes and the exchange is added to the journal of the open desk, or of the person when no desk is open.
 //   turn: a desk turn of the open desk that just ended. Sparky sums up what the team said, and the summary is
 //         kept with the turn, with memory on or off. The turn's question is the one answered, whatever the
-//         person asked Sparky meanwhile. An unknown turn is ignored.
+//         person asked Sparky meanwhile. An unknown turn is ignored. After an advise turn whose Trader left
+//         a plan the desk can buy, he closes by pointing to Buy in Trader.
 //   about: the desk's last turn, for questions about what the team said.
 //   ask: the question Sparky answers when the conversation may not end with it.
 //   warm: with `ask`, Sparky's first words while the team wakes. They are not added to the journal.
@@ -72,6 +73,9 @@ export async function POST(req: Request) {
     if (summary) prompt = withTeam(prompt, summary);
     else if (warm) prompt = withWarmUp(prompt);
     else if (recent) prompt = withTeamNotes(prompt, recent);
+    // After an advise turn that left a plan, Sparky's closing line points to Buy in Trader.
+    const plan = summary ? planToPoint(summary, knownManifest(summary.module)) : null;
+    if (plan) prompt = withPlan(prompt, plan);
     const stream = await startReply(defaultRegistry(), model, messages, prompt);
     const journal = warm ? null : notes;
     const reply =

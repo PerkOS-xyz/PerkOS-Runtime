@@ -1,7 +1,7 @@
 /** PerkOS API client for the signed-in wallet. */
 
 import { Desks, PerkosClient, type DeskSummary } from "@perkos/client";
-import type { DeskMarket, DeskSeries } from "@perkos/desk-contract";
+import type { DeskManifest, DeskMarket, DeskSeries } from "@perkos/desk-contract";
 
 import { sessions } from "./session";
 
@@ -66,6 +66,18 @@ export async function cachedMarket(module: string): Promise<DeskMarket | null> {
 /** Keeps a market the app just read, so Sparky's next answer in that desk does not wait for it. */
 export function rememberMarket(module: string, market: DeskMarket): void {
   markets.set(module, { at: Date.now(), market });
+}
+
+const manifests = new Map<string, DeskManifest>();
+
+/** Keeps the manifest a desk turn runs with, so Sparky's summary of the turn reads the same desk without asking again. */
+export function rememberManifest(module: string, manifest: DeskManifest): void {
+  manifests.set(module, manifest);
+}
+
+/** The manifest this process last ran a turn of the desk with, or null. */
+export function knownManifest(module: string): DeskManifest | null {
+  return manifests.get(module) ?? null;
 }
 
 /** Price history of a few tickers, for the facts Sparky cites. Empty when the desk does not answer. */
