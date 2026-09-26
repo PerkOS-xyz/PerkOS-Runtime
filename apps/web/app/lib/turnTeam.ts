@@ -2,8 +2,9 @@
  * The desk's team, made ready for a turn.
  *
  * A turn wakes the team only when part of it is asleep, and only when the
- * whole team exists: waking also creates missing agents, and a question must
- * never create billed agents. A team that is not set up is sent back to the
+ * whole team exists: waking also creates missing agents, the turn's roles and
+ * any specialist the desk seats beside them, and a question must never create
+ * billed agents. A team that is not set up is sent back to the
  * person's "Set up the team" button. The turn waits while agents are waking,
  * and never for one that is still being created or that failed.
  */
@@ -45,11 +46,25 @@ export const TURN_ERRORS: Record<TurnErrorCode, string> = {
   INFRA_APPROVAL_REQUIRED: "PerkOS infrastructure for this wallet needs an admin's approval. Desk time alone does not unlock it.",
   LLM_BYOK_REQUIRED: "The team's model needs your own model key. PerkOS's shared model is kept for approved testers.",
   TEAM_ASLEEP: "The team did not wake in time. Sparky answers on its own this time.",
+  TEAM_SETTING_UP: "The team is still being set up on PerkOS. Ask again in a minute.",
+  TEAM_FAILED: "The team's agents failed to start on PerkOS. Sparky answers on its own this time.",
   TEAM_UNREACHABLE: "PerkOS did not answer about the team. Try again in a moment.",
   DESK_MARKET: "The desk's market did not answer, and the team only answers from the desk's facts. Try again in a moment.",
   SIGNED_OUT: "Sign in to PerkOS first.",
   INTERNAL: "The turn stopped on an error.",
 };
+
+/** Some of the turn's roles are asleep, and others of the desk's agents do not exist yet. */
+export const TEAM_PARTLY_SET_UP =
+  "Part of the desk's team is not set up yet, so the team was not woken: waking it would set up the rest. Set up the team, then ask again.";
+
+/** Why no role could take part, once the team is known to be set up. */
+function teamDown(seats: TurnSeat[]): TurnErrorCode {
+  if (seats.some((s) => s.failure === "offline")) return "TEAM_ASLEEP";
+  if (seats.some((s) => s.failure === "setting_up")) return "TEAM_SETTING_UP";
+  if (seats.some((s) => s.failure === "start_failed")) return "TEAM_FAILED";
+  return "TEAM_ASLEEP";
+}
 
 /** The turn error a refusal from PerkOS stands for. */
 export function turnErrorFor(err: unknown): { code: TurnErrorCode; message: string } {
@@ -87,8 +102,8 @@ function seatFor(role: string, agent: TeamAgent | undefined, note: { waitedS: nu
   if (agent.state === "ready") {
     return agent.agentId ? { ...base, ready: true } : { ...base, ready: false, failure: "offline", detail: "PerkOS gave no id for this agent." };
   }
-  if (agent.state === "provisioning") return { ...base, ready: false, failure: "offline", detail: "Still being set up on PerkOS." };
-  if (agent.state === "failed") return { ...base, ready: false, failure: "offline", detail: agent.detail || "The agent failed to start on PerkOS." };
+  if (agent.state === "provisioning") return { ...base, ready: false, failure: "setting_up", detail: "Still being set up on PerkOS." };
+  if (agent.state === "failed") return { ...base, ready: false, failure: "start_failed", detail: agent.detail || "The agent failed to start on PerkOS." };
   const detail = note.heldBack
     ? "Asleep. The team was not woken, because part of it is not set up yet."
     : note.woke
@@ -132,10 +147,13 @@ export async function readyTeam(input: ReadyInput): Promise<ReadyTeam> {
     return !a || a.state === "planned";
   });
   if (team.status === "none" || planned.length === input.roles.length) return fail("TEAM_NOT_SET_UP", seatsOf(team, false, false));
+  // Waking sets up every agent of the desk's template that does not exist yet, the turn's roles
+  // or not (a desk can seat specialists beside them). Any of them missing holds the wake back.
+  const unbuilt = planned.length > 0 || team.agents.some((a) => a.state === "planned");
 
   const sleeping = (t: DeskTeam) => input.roles.filter((r) => asleep(agentOf(t, r)));
   const readyRoles = (t: DeskTeam) => input.roles.filter((r) => agentOf(t, r)?.state === "ready");
-  const heldBack = planned.length > 0 && input.roles.some((r) => agentOf(team, r)?.state === "hibernated");
+  const heldBack = unbuilt && input.roles.some((r) => agentOf(team, r)?.state === "hibernated");
   let woke = false;
 
   if (!heldBack && input.roles.some((r) => agentOf(team, r)?.state === "hibernated") && !input.signal.aborted) {
@@ -183,7 +201,9 @@ export async function readyTeam(input: ReadyInput): Promise<ReadyTeam> {
 
   const seats = seatsOf(team, woke, heldBack);
   if (!input.signal.aborted && !Object.values(seats).some((s) => s.ready)) {
-    return fail(planned.length ? "TEAM_NOT_SET_UP" : "TEAM_ASLEEP", seats);
+    if (heldBack) return fail("TEAM_NOT_SET_UP", seats, TEAM_PARTLY_SET_UP);
+    if (planned.length) return fail("TEAM_NOT_SET_UP", seats);
+    return fail(teamDown(Object.values(seats)), seats);
   }
   return { ok: true, seats, waitedMs: now() - started };
 }

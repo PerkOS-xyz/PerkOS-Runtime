@@ -56,6 +56,8 @@ const LABELS: Record<FailureKind, string> = {
   timeout: "timed out",
   offline: "asleep",
   not_set_up: "not set up",
+  setting_up: "still being set up",
+  start_failed: "failed to start",
   model: "model failed",
   no_time: "no desk time",
   approval: "needs admin approval",

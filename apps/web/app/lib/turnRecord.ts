@@ -29,6 +29,10 @@ export type FailureKind =
   | "timeout"
   | "offline"
   | "not_set_up"
+  /** PerkOS is still creating the agent. */
+  | "setting_up"
+  /** The agent exists and failed to start. */
+  | "start_failed"
   | "model"
   | "no_time"
   | "approval"
@@ -67,6 +71,8 @@ export type TurnErrorCode =
   | "INFRA_APPROVAL_REQUIRED"
   | "LLM_BYOK_REQUIRED"
   | "TEAM_ASLEEP"
+  | "TEAM_SETTING_UP"
+  | "TEAM_FAILED"
   | "TEAM_UNREACHABLE"
   | "DESK_MARKET"
   | "SIGNED_OUT"

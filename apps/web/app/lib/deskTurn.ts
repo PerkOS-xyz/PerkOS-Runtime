@@ -67,6 +67,8 @@ const TEAM_FAILURE: Partial<Record<TurnErrorCode, FailureKind>> = {
   INFRA_APPROVAL_REQUIRED: "approval",
   LLM_BYOK_REQUIRED: "byok",
   TEAM_ASLEEP: "offline",
+  TEAM_SETTING_UP: "setting_up",
+  TEAM_FAILED: "start_failed",
   TEAM_UNREACHABLE: "network",
   SIGNED_OUT: "other",
 };
@@ -181,7 +183,7 @@ export async function runDeskTurn(input: DeskTurnInput): Promise<TurnRecord | nu
       emit({ step: "error", code: team.code, message: team.message });
       const failure = TEAM_FAILURE[team.code] ?? "other";
       // Where the team was read, each role keeps its own reason; otherwise they share the turn's.
-      const perSeat = team.code === "TEAM_NOT_SET_UP" || team.code === "TEAM_ASLEEP";
+      const perSeat = team.code === "TEAM_NOT_SET_UP" || team.code === "TEAM_ASLEEP" || team.code === "TEAM_SETTING_UP" || team.code === "TEAM_FAILED";
       const replies: RoleReply[] = roles.map((role) => {
         const seat = team.seats[role];
         const phase: 1 | 2 = (phases[0] ?? []).includes(role) ? 1 : 2;

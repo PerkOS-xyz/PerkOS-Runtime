@@ -87,6 +87,9 @@ describe("a task that did not come back", () => {
     expect(failureLabel("byok")).toBe("needs its own model key");
     expect(failureLabel("no_time")).toBe("no desk time");
     expect(failureLabel("stopped")).toBe("stopped waiting");
+    expect(failureLabel("offline")).toBe("asleep");
+    expect(failureLabel("setting_up")).toBe("still being set up");
+    expect(failureLabel("start_failed")).toBe("failed to start");
   });
 });
 

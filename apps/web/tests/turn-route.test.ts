@@ -54,9 +54,11 @@ const replies: Record<string, string> = {
   auditor: "@Sparky Thesis: NVDA holds its range [F1]. Check the next close.",
 };
 
-type State = "ready" | "hibernated" | "waking" | "planned";
+type State = "ready" | "hibernated" | "waking" | "planned" | "provisioning" | "failed";
 interface Fake {
   states: Record<string, State>;
+  /** Agents the desk's template seats beside the turn's roles. */
+  specialists?: Record<string, State>;
   status: string;
   wake?: () => Response;
   task?: (role: string, prompt: string, signal: AbortSignal | undefined) => Promise<Response> | Response;
@@ -68,7 +70,10 @@ let calls: Array<{ method: string; path: string; body?: unknown }> = [];
 const teamBody = () => ({
   templateId: "eqlty-desk",
   status: fake.status,
-  agents: ROLES.map((role) => ({ role, name: `eqlty-${role}-1234abcd`, state: fake.states[role] ?? "ready", ...(fake.states[role] === "planned" ? {} : { agentId: `id-${role}` }) })),
+  agents: [
+    ...ROLES.map((role) => ({ role, name: `eqlty-${role}-1234abcd`, state: fake.states[role] ?? "ready", ...(fake.states[role] === "planned" ? {} : { agentId: `id-${role}` }) })),
+    ...Object.entries(fake.specialists ?? {}).map(([role, state]) => ({ role, name: `eqlty-${role}-1234abcd`, state, ...(state === "planned" ? {} : { agentId: `id-${role}` }) })),
+  ],
 });
 
 async function perkos(url: string, init?: RequestInit): Promise<Response> {
@@ -87,6 +92,8 @@ async function perkos(url: string, init?: RequestInit): Promise<Response> {
   if (p === "/project-templates/eqlty-desk/instantiate") {
     if (fake.wake) return fake.wake();
     for (const r of ROLES) if (fake.states[r] === "hibernated") fake.states[r] = "ready";
+    // Like PerkOS, waking also sets up every agent of the template that does not exist yet.
+    for (const [r, state] of Object.entries(fake.specialists ?? {})) if (state === "hibernated" || state === "planned") fake.specialists![r] = "ready";
     fake.status = "ready";
     return Response.json(teamBody());
   }
@@ -254,6 +261,49 @@ describe("POST /api/desks/turn: a turn", () => {
     expect(events.find((e) => e.step === "error")).toMatchObject({ code: "TEAM_NOT_SET_UP" });
     expect(calls.some((c) => c.path.endsWith("/instantiate"))).toBe(false);
     expect(tasks()).toEqual([]);
+  });
+
+  it("never sets up the specialists a desk seats beside the turn's roles", async () => {
+    fake.states = { scout: "hibernated", risk: "hibernated", trader: "hibernated", auditor: "hibernated" };
+    fake.specialists = { hooks: "planned", quote: "planned", treasury: "planned" };
+    fake.status = "partial";
+    const events = await turn();
+    expect(calls.some((c) => c.path.endsWith("/instantiate"))).toBe(false);
+    expect(fake.specialists).toEqual({ hooks: "planned", quote: "planned", treasury: "planned" });
+    expect(events.find((e) => e.step === "error")).toMatchObject({ code: "TEAM_NOT_SET_UP", message: expect.stringContaining("Part of the desk's team") });
+    const done = events.at(-1) as Extract<TurnEvent, { step: "done" }>;
+    expect(done.replies.map((r) => [r.role, r.failure])).toEqual(ROLES.map((r) => [r, "offline"]));
+    expect(tasks()).toEqual([]);
+  });
+
+  it("runs with the turn's roles awake while the specialists are not set up, and wakes nothing", async () => {
+    fake.specialists = { hooks: "planned", quote: "planned", treasury: "planned" };
+    fake.status = "partial";
+    const events = await turn();
+    expect(calls.some((c) => c.path.endsWith("/instantiate"))).toBe(false);
+    expect(tasks().map((c) => c.path).sort()).toEqual(ROLES.map((r) => `/agents/id-${r}/task`).sort());
+    expect((events.at(-1) as Extract<TurnEvent, { step: "done" }>).replies.every((r) => r.ok)).toBe(true);
+  });
+
+  it("wakes a whole seven-agent team that is set up and asleep, and asks only the turn's roles", async () => {
+    fake.states = { scout: "hibernated", risk: "hibernated", trader: "hibernated", auditor: "hibernated" };
+    fake.specialists = { hooks: "hibernated", quote: "hibernated", treasury: "hibernated" };
+    fake.status = "hibernated";
+    const events = await turn();
+    expect(calls.filter((c) => c.path.endsWith("/instantiate"))).toHaveLength(1);
+    expect(tasks()).toHaveLength(4);
+    expect((events.at(-1) as Extract<TurnEvent, { step: "done" }>).replies.every((r) => r.ok)).toBe(true);
+  });
+
+  it("says the team failed to start, not that it is asleep, when every role failed", async () => {
+    fake.states = { scout: "failed", risk: "failed", trader: "failed", auditor: "failed" };
+    fake.status = "partial";
+    const events = await turn();
+    expect(calls.some((c) => c.path.endsWith("/instantiate"))).toBe(false);
+    expect(events.find((e) => e.step === "error")).toMatchObject({ code: "TEAM_FAILED", message: expect.stringContaining("failed to start") });
+    const done = events.at(-1) as Extract<TurnEvent, { step: "done" }>;
+    expect(new Set(done.replies.map((r) => r.failure))).toEqual(new Set(["start_failed"]));
+    expect(done.error).toBe("TEAM_FAILED");
   });
 
   it("stops before it opens when the desk's market does not answer", async () => {

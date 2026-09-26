@@ -20,6 +20,18 @@ const team = (states: Record<string, TeamAgentState>, status: DeskTeam["status"]
     ...(states[role] === "planned" ? {} : { agentId: `id-${role}` }),
   })),
 });
+/** A desk that seats three specialists beside the turn's four roles. */
+const seven = (states: Record<string, TeamAgentState>, specialists: TeamAgentState, status: DeskTeam["status"] = "partial"): DeskTeam => {
+  const four = team(states, status);
+  return {
+    ...four,
+    agents: [
+      ...four.agents,
+      ...["hooks", "quote", "treasury"].map((role) => ({ role, name: `eqlty-${role}-1234abcd`, state: specialists, ...(specialists === "planned" ? {} : { agentId: `id-${role}` }) })),
+    ],
+  };
+};
+const sleepingFour = { scout: "hibernated", risk: "hibernated", trader: "hibernated", auditor: "hibernated" } as const;
 
 /** A fake clock the fake sleep moves forward. */
 function run(calls: TeamCalls, extra: { maxWaitMs?: number } = {}) {
@@ -83,8 +95,65 @@ describe("making the team ready", () => {
     expect(calls.status).toHaveBeenCalledTimes(1);
     expect(calls.wake).not.toHaveBeenCalled();
     expect(out.ok).toBe(true);
-    expect(out.seats.risk).toMatchObject({ ready: false, failure: "offline", detail: "Still being set up on PerkOS." });
-    expect(out.seats.auditor).toMatchObject({ ready: false, failure: "offline", detail: "The agent failed to start on PerkOS." });
+    expect(out.seats.risk).toMatchObject({ ready: false, failure: "setting_up", detail: "Still being set up on PerkOS." });
+    expect(out.seats.auditor).toMatchObject({ ready: false, failure: "start_failed", detail: "The agent failed to start on PerkOS." });
+  });
+
+  it("says why no role can take part when none is asleep: still being set up, or failed to start", async () => {
+    const cases: Array<[Record<string, TeamAgentState>, string]> = [
+      [{ scout: "failed", risk: "failed", trader: "failed", auditor: "failed" }, "TEAM_FAILED"],
+      [{ scout: "provisioning", risk: "provisioning", trader: "provisioning", auditor: "provisioning" }, "TEAM_SETTING_UP"],
+      [{ scout: "failed", risk: "provisioning", trader: "failed", auditor: "failed" }, "TEAM_SETTING_UP"],
+    ];
+    for (const [states, code] of cases) {
+      const calls = { status: vi.fn(async () => team(states)), wake: vi.fn() };
+      const out = await run(calls).promise;
+      expect(out).toMatchObject({ ok: false, code });
+      expect(calls.wake).not.toHaveBeenCalled();
+      expect(calls.status).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("never wakes a desk whose specialists are not set up, since waking would set them up", async () => {
+    const calls = { status: vi.fn(async () => seven(sleepingFour, "planned")), wake: vi.fn() };
+    const { promise, steps } = run(calls);
+    const out = await promise;
+    expect(calls.wake).not.toHaveBeenCalled();
+    expect(out).toMatchObject({ ok: false, code: "TEAM_NOT_SET_UP", message: expect.stringContaining("Part of the desk's team is not set up yet") });
+    expect(out.seats.scout).toMatchObject({ ready: false, failure: "offline", detail: "Asleep. The team was not woken, because part of it is not set up yet." });
+    expect(steps()).toContain("Part of the team is not set up, so the team was not woken");
+
+    const oneAwake = { status: vi.fn(async () => seven({ ...sleepingFour, scout: "ready" }, "planned")), wake: vi.fn() };
+    const partly = await run(oneAwake).promise;
+    expect(oneAwake.wake).not.toHaveBeenCalled();
+    expect(partly.ok).toBe(true);
+    expect(partly.seats.scout?.ready).toBe(true);
+    expect(partly.seats.risk).toMatchObject({ ready: false, failure: "offline" });
+  });
+
+  it("names the turn's roles' own trouble on a seven-agent desk whose specialists are not set up", async () => {
+    const failed = { scout: "failed", risk: "failed", trader: "failed", auditor: "failed" } as const;
+    const calls = { status: vi.fn(async () => seven(failed, "planned")), wake: vi.fn() };
+    expect(await run(calls).promise).toMatchObject({ ok: false, code: "TEAM_FAILED" });
+    expect(calls.wake).not.toHaveBeenCalled();
+  });
+
+  it("runs a seven-agent desk as it is when the turn's roles are awake", async () => {
+    const calls = { status: vi.fn(async () => seven({}, "planned")), wake: vi.fn() };
+    const out = await run(calls).promise;
+    expect(calls.wake).not.toHaveBeenCalled();
+    expect(out.ok).toBe(true);
+    expect(Object.keys(out.seats)).toEqual(ROLES);
+  });
+
+  it("wakes a seven-agent desk once every agent of it exists", async () => {
+    const calls = {
+      status: vi.fn(async () => seven(sleepingFour, "hibernated", "hibernated")),
+      wake: vi.fn(async () => seven({}, "ready", "ready")),
+    };
+    const out = await run(calls).promise;
+    expect(calls.wake).toHaveBeenCalledTimes(1);
+    expect(out.ok).toBe(true);
   });
 
   it("never creates agents: a team that is not set up is sent back to be set up", async () => {
