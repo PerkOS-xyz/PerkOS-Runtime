@@ -796,3 +796,74 @@ button { font: inherit; }
 }
 .mem-edit textarea:focus { border-color: rgba(236, 27, 105, 0.6); box-shadow: 0 0 0 4px rgba(236, 27, 105, 0.12); }
 @media (prefers-reduced-motion: reduce) { .mem-confirm { animation: none; } }
+
+/* The desk's market: a quiet board of what it can trade. */
+.mk { --accent: var(--coral); --accent-soft: rgba(236, 27, 105, 0.08); position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid var(--hair); }
+.mk.robinhood { --accent: #00c805; --accent-soft: rgba(0, 200, 5, 0.07); }
+.mk.base { --accent: #3d7eff; --accent-soft: rgba(0, 82, 255, 0.08); }
+.mk-head { display: flex; align-items: center; gap: 14px; padding: 14px 22px 12px; }
+.mk-title { flex: 1; min-width: 0; }
+.mk-meta { margin: 4px 0 0; font-size: 11.5px; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mk-head .link-btn { flex: none; font-size: 11.5px; }
+.mk-find { display: flex; align-items: center; gap: 8px; width: 210px; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--hair-strong); background: rgba(3, 4, 10, 0.6); transition: border-color 160ms var(--ease); }
+.mk-find:focus-within { border-color: var(--accent); }
+.mk-find svg { width: 14px; height: 14px; flex: none; color: var(--mute); }
+.mk-find input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: var(--ink); font: inherit; font-size: 12px; }
+.mk-find input::placeholder { color: var(--mute); }
+.mk-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 22px 10px; padding: 10px 14px; border-radius: 12px; border: 1px solid rgba(255, 107, 107, 0.4); background: rgba(255, 107, 107, 0.06); font-size: 12px; color: #ffc9c9; }
+.mk-error .chip-btn { flex: none; padding: 5px 11px; font-size: 11px; }
+.mk-cols, .mk-row { display: grid; align-items: center; gap: 14px; padding: 0 22px; }
+.mk-cols { padding-bottom: 8px; border-bottom: 1px solid var(--hair); font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--mute); }
+.mk-cols span:not(:first-child) { text-align: right; }
+.mk-rows { flex: 1; min-height: 0; overflow-y: auto; list-style: none; margin: 0; padding: 4px 0 12px; }
+.mk-li { opacity: 0; animation: rise 360ms var(--ease) forwards; animation-delay: calc(var(--i, 0) * 22ms); }
+.mk-row { position: relative; width: 100%; min-height: 50px; border: 0; border-bottom: 1px solid rgba(120, 160, 255, 0.06); background: none; color: inherit; font: inherit; text-align: left; transition: background 140ms var(--ease); }
+.mk-row::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 2px; border-radius: 2px; background: var(--accent); opacity: 0; transition: opacity 140ms var(--ease); }
+.mk-row:hover { background: var(--accent-soft); }
+.mk-row:hover::before { opacity: 1; }
+.mk-asset { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.mk-asset > span { min-width: 0; display: flex; flex-direction: column; }
+.mk-asset b { font-family: var(--display); font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+.mk-asset small { font-size: 11px; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mk-logo { flex: none; width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background: rgba(255, 255, 255, 0.06); display: grid; place-items: center; font-style: normal; font-size: 10px; font-weight: 600; color: var(--ink-2); box-shadow: 0 0 0 1px var(--hair); }
+.mk-price, .mk-chg, .mk-vol { text-align: right; font-variant-numeric: tabular-nums; }
+.mk-price { font-size: 13.5px; color: var(--ink); }
+.mk-chg { font-size: 12px; color: var(--mute); }
+.mk-chg.up { color: var(--ok); }
+.mk-chg.down { color: var(--err); }
+.mk-vol { font-size: 12px; color: var(--ink-2); }
+.mk-trade { justify-self: end; display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--mute); }
+.mk-trade::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.mk-trade.yes { color: #7fe0a8; }
+.mk-trade.no { color: #ff9f9f; }
+.mk-skel { height: 50px; margin: 0 22px; border-bottom: 1px solid rgba(120, 160, 255, 0.06); background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.04) 50%, transparent 100%) 0 0 / 200% 100%; animation: shimmer 1.4s linear infinite; }
+.mk-empty { padding: 28px 22px; font-size: 12.5px; color: var(--mute); text-align: center; }
+
+/* The market opens from the right, over the desk. */
+.mk-sheet {
+  position: fixed;
+  z-index: 30;
+  right: clamp(20px, 4vw, 48px);
+  top: 104px;
+  bottom: 28px;
+  width: min(560px, 44vw);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 22px;
+  border: 1px solid var(--hair-strong);
+  background: linear-gradient(170deg, rgba(20, 24, 42, 0.97), rgba(5, 7, 14, 0.98));
+  box-shadow: -20px 0 60px rgba(0, 0, 0, 0.5);
+  animation: mk-sheet-in 360ms var(--ease);
+}
+.mk-sheet.robinhood { border-color: rgba(0, 200, 5, 0.3); background: radial-gradient(90% 30% at 0% 0%, rgba(0, 200, 5, 0.1), transparent 62%), linear-gradient(170deg, rgba(14, 26, 18, 0.97), rgba(3, 8, 5, 0.98)); }
+.mk-sheet.base { border-color: rgba(0, 82, 255, 0.35); }
+.mk-sheet-bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 0 22px; }
+@keyframes mk-sheet-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+@media (max-width: 900px) {
+  .mk-sheet { left: clamp(20px, 4vw, 48px); width: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mk-li, .mk-sheet { animation: none; opacity: 1; }
+  .mk-skel { animation: none; }
+}

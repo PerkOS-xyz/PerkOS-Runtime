@@ -1,11 +1,14 @@
 "use client";
 
+import { useCallback, useState } from "react";
+
 import { SparkyChat } from "../chat/SparkyChat";
 import { useSparkyChat } from "../chat/useSparkyChat";
 import { openMemory } from "../memory/open";
 import { AppHeader } from "../shell/AppHeader";
 import { CHAIN_LABEL, chainOf } from "./chains";
 import type { Desk } from "./DesksScreen";
+import { MarketSheet } from "./MarketSheet";
 
 /** An open desk: its card on the left, the full chat with Sparky on the right. */
 export function DeskView({
@@ -21,6 +24,8 @@ export function DeskView({
 }) {
   const chain = chainOf(desk.module);
   const chat = useSparkyChat({ desk: desk.id });
+  const [market, setMarket] = useState(false);
+  const closeMarket = useCallback(() => setMarket(false), []);
   return (
     <main className="desk-view">
       <AppHeader
@@ -28,9 +33,16 @@ export function DeskView({
         onLogout={onLogout}
         onSettings={onSettings}
         actions={
-          <button type="button" className="ah-out" onClick={onBack}>
-            All desks
-          </button>
+          <>
+            {desk.module ? (
+              <button type="button" className="ah-out" aria-pressed={market} onClick={() => setMarket((v) => !v)}>
+                Market
+              </button>
+            ) : null}
+            <button type="button" className="ah-out" onClick={onBack}>
+              All desks
+            </button>
+          </>
         }
       />
       <div className="dv-body">
@@ -46,6 +58,7 @@ export function DeskView({
         </aside>
         <SparkyChat chat={chat} greeting={`You are in ${desk.name}. Ask me about it, or tell me what you want to do here.`} />
       </div>
+      {market && desk.module ? <MarketSheet title={desk.name} module={desk.module} chain={chain} onClose={closeMarket} /> : null}
     </main>
   );
 }
