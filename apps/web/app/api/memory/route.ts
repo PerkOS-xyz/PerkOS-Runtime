@@ -1,5 +1,6 @@
 import type { Note, NoteStore } from "@perkos/vault";
 
+import { asTurnRecord, decisionOf, decisionRow } from "../../lib/decisions";
 import { guard } from "../../lib/guard";
 import { parseJournal } from "../../lib/journal";
 import { dropSummary, hasSummary, MEMORY_SLUG, parseMemory } from "../../lib/memoryNote";
@@ -20,6 +21,7 @@ function row(n: Note) {
   const exchanges = n.kind === "journal" ? parseJournal(n.body) : [];
   const latest = n.kind === "note" ? parseMemory(n.body)[0]?.sections.flatMap((s) => s.items) : undefined;
   const text = n.kind === "turn" ? turnQuestion(n.body) : (exchanges[0]?.person ?? (latest?.length ? latest.join(" · ") : n.body));
+  const decided = n.kind === "turn" ? asTurnRecord(n.data) : null;
   return {
     id: n.id,
     scope: n.scope,
@@ -28,6 +30,8 @@ function row(n: Note) {
     updatedAt: n.updatedAt,
     exchanges: exchanges.length,
     preview: text.length > PREVIEW ? `${text.slice(0, PREVIEW).trimEnd()}…` : text,
+    // A desk turn is listed as a decision: its kind, its risk and what came of it.
+    ...(decided ? { decision: decisionRow(decided) } : {}),
   };
 }
 
@@ -41,10 +45,10 @@ async function opened(req: Request): Promise<NoteStore | Response> {
 }
 
 // What Sparky remembers, for the memory panel.
-//   GET               -> { scopes: [{ id, name, notes }] }   "user" first, then each desk
-//   GET ?scope=<id>   -> { notes: [row] }                    newest first
+//   GET               -> { scopes: [{ id, name, notes, turns? }] }   "user" first, then each desk; `turns` counts a desk's decisions
+//   GET ?scope=<id>   -> { notes: [row] }                    newest first; a desk turn's row carries its `decision`
 //   GET ?q=<words>    -> { hits: [{ id, scope, name, title, snippet, updatedAt }] }
-//   GET ?id=<note id> -> { note }
+//   GET ?id=<note id> -> { note, decision? }                  a desk turn comes with its readable `decision`
 export async function GET(req: Request) {
   const notes = await opened(req);
   if (notes instanceof Response) return notes;
@@ -53,6 +57,8 @@ export async function GET(req: Request) {
   const id = params.get("id");
   if (id) {
     const note = await notes.read(id);
+    const decided = note?.kind === "turn" ? asTurnRecord(note.data) : null;
+    if (note && decided) return Response.json({ note, decision: decisionOf(decided) });
     return note ? Response.json({ note }) : Response.json({ error: "not_found" }, { status: 404 });
   }
   const scope = params.get("scope");
@@ -61,6 +67,8 @@ export async function GET(req: Request) {
   const all = await notes.list();
   const counts = new Map<string, number>([["user", 0]]);
   for (const n of all) counts.set(n.scope, (counts.get(n.scope) ?? 0) + 1);
+  const turns = new Map<string, number>();
+  for (const n of all) if (n.kind === "turn") turns.set(n.scope, (turns.get(n.scope) ?? 0) + 1);
   const names = new Map((await cachedDesks()).map((d) => [d.id, d.name]));
   const nameOf = (s: string) => (s === "user" ? "You" : (names.get(s) ?? s));
 
@@ -69,7 +77,7 @@ export async function GET(req: Request) {
     const hits = await notes.search(q, { scopes: [...counts.keys()], k: 20 });
     return Response.json({ hits: hits.map((h) => ({ ...h, name: nameOf(h.scope) })) });
   }
-  return Response.json({ scopes: [...counts].map(([s, n]) => ({ id: s, name: nameOf(s), notes: n })) });
+  return Response.json({ scopes: [...counts].map(([s, n]) => ({ id: s, name: nameOf(s), notes: n, ...(turns.has(s) ? { turns: turns.get(s) } : {}) })) });
 }
 
 // PUT { id, body } -> { note }. Replaces the text of a note, such as the Memory note. A day's conversations stay as they were said.

@@ -12,7 +12,7 @@ import { deriveVaultKey, NoteStore } from "@perkos/vault";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { journalEntry } from "../app/lib/journal";
-import { teamMemory } from "../app/lib/memory";
+import { recallScopes, teamMemory } from "../app/lib/memory";
 import type { TurnRecord } from "../app/lib/turnRecord";
 import { claimTurn, clearSessionTurns, getTurn, listTurns, liveTurn, releaseTurn, saveTurn, SESSION_TURNS, setTurnSummary } from "../app/lib/turnStore";
 
@@ -129,5 +129,19 @@ describe("what the team may be told from memory", () => {
     expect(told).not.toContain("favourite");
     expect(told.length).toBeLessThanOrEqual(900);
     expect(await teamMemory(notes, "user", "NVDA")).toBe("");
+  });
+});
+
+describe("what Sparky may recall of a desk's turns", () => {
+  it("finds them inside the desk and from the general chat, while the team still gets none of the person's words", async () => {
+    const notes = notesFor();
+    await notes.appendJournal("eqlty-desk", journalEntry("My NVDA position is secret, 40 shares.", "Noted."));
+    await saveTurn(WALLET, record("20260926-141000-ab12", { summary: "The desk reads NVDA as steady." }), notes);
+    const inDesk = await notes.contextFor("What did the desk say about NVDA?", recallScopes("eqlty-desk", ["eqlty-desk", "base-desk"]));
+    expect(inDesk).toContain("How is NVDA doing today?");
+    const general = await notes.contextFor("NVDA", recallScopes(undefined, ["eqlty-desk", "base-desk"]));
+    expect(general).toContain("How is NVDA doing today?");
+    expect(await notes.contextFor("NVDA", recallScopes("base-desk", ["eqlty-desk", "base-desk"]))).toBe("");
+    expect(await teamMemory(notes, "eqlty-desk", "What did the desk say about NVDA?")).not.toContain("secret");
   });
 });
