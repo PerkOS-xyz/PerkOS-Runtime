@@ -6,9 +6,13 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { vaultKeyMessage } from "@perkos/vault";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { GET } from "../app/api/desks/turns/route";
+import { DELETE, GET } from "../app/api/desks/turns/route";
+import { DELETE as LOCK, POST as UNLOCK } from "../app/api/vault/route";
+import { closeMemory, memoryFor } from "../app/lib/memory";
 import type { TurnRecord } from "../app/lib/turnRecord";
 import { claimTurn, clearSessionTurns, saveTurn } from "../app/lib/turnStore";
 
@@ -17,6 +21,11 @@ const get = async (query: string, host = "127.0.0.1:3100") => {
   const res = await GET(new Request(`http://127.0.0.1:3100/api/desks/turns${query}`, { headers: { host } }));
   return { status: res.status, body: await res.json() };
 };
+const forget = async (query: string, host = "127.0.0.1:3100") => {
+  const res = await DELETE(new Request(`http://127.0.0.1:3100/api/desks/turns${query}`, { method: "DELETE", headers: { host } }));
+  return { status: res.status, body: await res.json() };
+};
+const ids = (body: { turns: Array<{ id: string }> }) => body.turns.map((t) => t.id);
 const record = (id: string, extra: Partial<TurnRecord> = {}): TurnRecord => ({
   v: 1,
   id,
@@ -87,5 +96,74 @@ describe("/api/desks/turns", () => {
     expect((await get("?desk=eqlty-desk", "evil.example")).status).toBe(403);
     await rm(join(home, "session.json"));
     expect((await get("?desk=eqlty-desk")).status).toBe(401);
+  });
+});
+
+describe("forgetting a turn", () => {
+  it("forgets this session's copy, so History no longer lists or opens it", async () => {
+    await saveTurn(WALLET, record("20260926-141000-ab12"), null);
+    await saveTurn(WALLET, record("20260926-142000-cd34"), null);
+    expect(await forget("?id=20260926-141000-ab12")).toEqual({ status: 200, body: { ok: true } });
+    expect((await get("?id=20260926-141000-ab12")).status).toBe(404);
+    expect(ids((await get("?desk=eqlty-desk")).body)).toEqual(["20260926-142000-cd34"]);
+  });
+
+  it("answers 404 for a turn it does not know, refuses outside callers and answers 401 signed out", async () => {
+    expect((await forget("?id=20260926-000000-0000")).status).toBe(404);
+    expect((await forget("?id=../../session")).status).toBe(404);
+    expect((await forget("")).status).toBe(404);
+    expect((await forget("?id=20260926-141000-ab12", "evil.example")).status).toBe(403);
+    await rm(join(home, "session.json"));
+    expect((await forget("?id=20260926-141000-ab12")).status).toBe(401);
+  });
+});
+
+describe("/api/desks/turns with memory on", () => {
+  const account = privateKeyToAccount(generatePrivateKey());
+  const wallet = account.address.toLowerCase();
+  const vault = (method: string, body?: unknown) =>
+    new Request("http://127.0.0.1:3100/api/vault", {
+      method,
+      headers: { host: "127.0.0.1:3100", "content-type": "application/json" },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+  /** The app closes: this process's turns and the open vault are gone, the sealed notes stay. */
+  const restart = () => {
+    clearSessionTurns();
+    closeMemory(wallet);
+  };
+
+  beforeEach(async () => {
+    process.env.PERKOS_DEVICE_SECRET = "cd".repeat(32);
+    await writeFile(
+      join(home, "session.json"),
+      JSON.stringify({ wallet, accessToken: "t", refreshToken: "r", expiresAt: Date.now() + 3_600_000, refreshExpiresAt: Date.now() + 86_400_000 }),
+    );
+    const signature = await account.signMessage({ message: vaultKeyMessage(wallet) });
+    expect((await UNLOCK(vault("POST", { signature }))).status).toBe(200);
+  });
+  afterEach(async () => {
+    await LOCK(vault("DELETE"));
+    delete process.env.PERKOS_DEVICE_SECRET;
+  });
+
+  it("keeps every turn across a restart, newest first, and says memory is on", async () => {
+    const notes = await memoryFor(wallet);
+    await saveTurn(wallet, record("20260926-141000-ab12"), notes);
+    await saveTurn(wallet, record("20260926-142000-cd34", { summary: "The desk would start with NVDA." }), notes);
+    restart();
+    const { body } = await get("?desk=eqlty-desk");
+    expect(body.memory).toBe("on");
+    expect(ids(body)).toEqual(["20260926-142000-cd34", "20260926-141000-ab12"]);
+    expect((await get("?id=20260926-142000-cd34")).body.turn).toMatchObject({ summary: "The desk would start with NVDA.", riskLevel: "medium" });
+  });
+
+  it("forgets the sealed copy too, so the turn does not come back after a restart", async () => {
+    await saveTurn(wallet, record("20260926-141000-ab12"), await memoryFor(wallet));
+    expect((await forget("?id=20260926-141000-ab12")).status).toBe(200);
+    restart();
+    expect((await get("?id=20260926-141000-ab12")).status).toBe(404);
+    expect((await get("?desk=eqlty-desk")).body.turns).toEqual([]);
+    expect(await (await memoryFor(wallet))?.list("eqlty-desk", "turn")).toEqual([]);
   });
 });
