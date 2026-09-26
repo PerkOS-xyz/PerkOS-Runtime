@@ -4,12 +4,15 @@
  * A turn wakes the team only when part of it is asleep, and only when the
  * whole team exists: waking also creates missing agents, the turn's roles and
  * any specialist the desk seats beside them, and a question must never create
- * billed agents. A team that is not set up is sent back to the
- * person's "Set up the team" button. The turn waits while agents are waking,
+ * billed agents. A team that is not set up is sent back to the desk's own
+ * button, named as it reads for that team: "Set up the team" while none of it
+ * exists, "Wake team" once part of it does. The turn waits while agents are waking,
  * and never for one that is still being created or that failed.
  */
 
-import { PerkosApiError, type DeskTeam, type TeamAgent } from "@perkos/client";
+import { PerkosApiError, type DeskTeam, type TeamAgent, type TeamStatus } from "@perkos/client";
+
+import { wakeAction } from "../team/look";
 
 import type { TurnSeat } from "./turnEngine";
 import { roleName, type TurnErrorCode, type TurnEvent } from "./turnRecord";
@@ -55,8 +58,21 @@ export const TURN_ERRORS: Record<TurnErrorCode, string> = {
 };
 
 /** Some of the turn's roles are asleep, and others of the desk's agents do not exist yet. */
-export const TEAM_PARTLY_SET_UP =
-  "Part of the desk's team is not set up yet, so the team was not woken: waking it would set up the rest. Set up the team, then ask again.";
+export const TEAM_PARTLY_SET_UP = "Part of the desk's team is not set up yet, so the team was not woken: waking it also creates the missing agents.";
+
+/**
+ * What to tell the person when agents the turn would need are missing,
+ * naming the button the desk shows for this team, since that button is
+ * what creates them.
+ */
+export function notSetUpMessage(status: TeamStatus, heldBack: boolean): string {
+  if (status === "none") return TURN_ERRORS.TEAM_NOT_SET_UP;
+  if (status === "waking" || status === "provisioning") return "Part of the desk's team is still being set up on PerkOS. Ask again once the whole team is up.";
+  const button = wakeAction(status, false);
+  const lead = heldBack ? TEAM_PARTLY_SET_UP : "Part of the desk's team is not set up yet.";
+  if (!button.enabled) return `${lead} Ask again once PerkOS shows the whole team.`;
+  return `${lead} Press ${button.label} to create them, then ask again.`;
+}
 
 /** Why no role could take part, once the team is known to be set up. */
 function teamDown(seats: TurnSeat[]): TurnErrorCode {
@@ -146,7 +162,9 @@ export async function readyTeam(input: ReadyInput): Promise<ReadyTeam> {
     const a = agentOf(team, r);
     return !a || a.state === "planned";
   });
-  if (team.status === "none" || planned.length === input.roles.length) return fail("TEAM_NOT_SET_UP", seatsOf(team, false, false));
+  if (team.status === "none" || planned.length === input.roles.length) {
+    return fail("TEAM_NOT_SET_UP", seatsOf(team, false, false), notSetUpMessage(team.status, false));
+  }
   // Waking sets up every agent of the desk's template that does not exist yet, the turn's roles
   // or not (a desk can seat specialists beside them). Any of them missing holds the wake back.
   const unbuilt = planned.length > 0 || team.agents.some((a) => a.state === "planned");
@@ -201,8 +219,8 @@ export async function readyTeam(input: ReadyInput): Promise<ReadyTeam> {
 
   const seats = seatsOf(team, woke, heldBack);
   if (!input.signal.aborted && !Object.values(seats).some((s) => s.ready)) {
-    if (heldBack) return fail("TEAM_NOT_SET_UP", seats, TEAM_PARTLY_SET_UP);
-    if (planned.length) return fail("TEAM_NOT_SET_UP", seats);
+    if (heldBack) return fail("TEAM_NOT_SET_UP", seats, notSetUpMessage(team.status, true));
+    if (planned.length) return fail("TEAM_NOT_SET_UP", seats, notSetUpMessage(team.status, false));
     return fail(teamDown(Object.values(seats)), seats);
   }
   return { ok: true, seats, waitedMs: now() - started };

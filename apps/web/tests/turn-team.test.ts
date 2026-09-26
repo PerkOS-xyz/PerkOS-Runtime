@@ -7,7 +7,8 @@ import { PerkosApiError, type DeskTeam, type TeamAgentState } from "@perkos/clie
 import { describe, expect, it, vi } from "vitest";
 
 import type { TurnEvent } from "../app/lib/turnRecord";
-import { readyTeam, turnErrorFor, type TeamCalls } from "../app/lib/turnTeam";
+import { wakeAction } from "../app/team/look";
+import { notSetUpMessage, readyTeam, TURN_ERRORS, turnErrorFor, type TeamCalls } from "../app/lib/turnTeam";
 
 const ROLES = ["scout", "risk", "trader", "auditor"];
 const team = (states: Record<string, TeamAgentState>, status: DeskTeam["status"] = "partial"): DeskTeam => ({
@@ -129,6 +130,23 @@ describe("making the team ready", () => {
     expect(partly.ok).toBe(true);
     expect(partly.seats.scout?.ready).toBe(true);
     expect(partly.seats.risk).toMatchObject({ ready: false, failure: "offline" });
+  });
+
+  it("names the button the desk actually shows, which is Wake team once part of the team exists", async () => {
+    for (const status of ["hibernated", "partial"] as const) {
+      const calls = { status: vi.fn(async () => seven(sleepingFour, "planned", status)), wake: vi.fn() };
+      const out = await run(calls).promise;
+      expect(out.ok).toBe(false);
+      if (out.ok) continue;
+      expect(out.message).toContain(`Press ${wakeAction(status, false).label} to create them`);
+      expect(out.message).toContain("waking it also creates the missing agents");
+      expect(out.message).not.toContain("Set up the team");
+    }
+    expect(notSetUpMessage("none", false)).toBe(TURN_ERRORS.TEAM_NOT_SET_UP);
+    expect(TURN_ERRORS.TEAM_NOT_SET_UP).toContain(wakeAction("none", false).label);
+    expect(notSetUpMessage("waking", true)).toContain("still being set up");
+    expect(notSetUpMessage("provisioning", false)).toContain("still being set up");
+    expect(notSetUpMessage("hibernated", false)).toBe("Part of the desk's team is not set up yet. Press Wake team to create them, then ask again.");
   });
 
   it("names the turn's roles' own trouble on a seven-agent desk whose specialists are not set up", async () => {
