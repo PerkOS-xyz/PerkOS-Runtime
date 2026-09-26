@@ -44,6 +44,10 @@ const KINDS: Record<string, NoteKind> = { journal: "journal", notes: "note" };
 
 export const isScope = (scope: string) => SCOPE.test(scope);
 
+/** The calendar day on this machine, as YYYY-MM-DD. */
+export const localDay = (at: Date) =>
+  `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}-${String(at.getDate()).padStart(2, "0")}`;
+
 const CHECK = "perkos-vault-check-v1";
 
 /** Words too common to tell notes apart, in English and Spanish. */
@@ -167,7 +171,7 @@ export class NoteStore {
     if (!isScope(scope)) throw new Error(`Not a scope: ${scope}`);
     return this.serial(async () => {
       const now = this.now();
-      const date = now.toISOString().slice(0, 10);
+      const date = localDay(now);
       const id = `${scope}/journal/${date}`;
       const existing = await this.read(id);
       const body = existing ? `${existing.body}\n\n${entry.trim()}` : entry.trim();
@@ -250,7 +254,7 @@ export class NoteStore {
     const hits = await this.search(query, { scopes });
     let out = "";
     for (const h of hits) {
-      const line = `- ${h.title} (${h.updatedAt.slice(0, 10)}): ${h.snippet}\n`;
+      const line = `- ${h.title} (${localDay(new Date(h.updatedAt))}): ${h.snippet}\n`;
       if (out.length + line.length > maxChars) break;
       out += line;
     }
