@@ -1,4 +1,4 @@
-import { readWorldRequest, readWorldStatus, worldTerminal, type WorldRequest, type WorldStatus } from "@perkos/client";
+import { readWorldRequest, readWorldStatus, worldTerminal, type WorldProvider, type WorldRequest, type WorldStatus } from "@perkos/client";
 
 export class WorldFlowError extends Error { constructor(readonly code: string) { super(code); } }
 export async function worldFetch(path: string, body?: unknown, signal?: AbortSignal): Promise<unknown> {
@@ -48,7 +48,7 @@ export async function createWorldBridge(request: WorldRequest): Promise<ProofBri
   if (!request.appId || !request.rpContext || !request.signal || request.provider !== "idkit") throw new WorldFlowError("WORLD_SHAPE");
   const { IDKit, CredentialRequest } = await import("@worldcoin/idkit-core");
   const config = { app_id: request.appId, rp_context: request.rpContext, environment: "sandbox" as const, require_user_presence: true,
-    action_description: request.purpose === "enroll" ? "Connect your identity to PerkOS Runtime" : "Approve this PerkOS permission change" };
+    action_description: request.purpose === "enroll" ? "Connect your identity to PerkOS Runtime" : request.purpose === "link-provider" ? "Approve adding a World sign-in method to PerkOS Runtime" : "Approve this PerkOS permission change" };
   const builder = request.sessionId ? IDKit.proveSession(request.sessionId, config) : IDKit.createSession(config);
   return builder.constraints(CredentialRequest("selfie", { signal: request.signal }));
 }
@@ -71,12 +71,59 @@ export function requireEnrollmentCompletion(request: WorldRequest, completed: Wo
   if (completed.status !== "enrolled") throw new WorldFlowError(completed.status);
 }
 
+/** A second credential is only a candidate until the already linked human approves that exact request. */
+export async function finishWorldEnrollment(candidate: WorldRequest, proved: WorldRequest, signal: AbortSignal, steps: {
+  status(): Promise<WorldStatus>;
+  startLink(provider: WorldProvider, candidateId: string): Promise<WorldRequest>;
+  confirm(request: WorldRequest): Promise<WorldRequest>;
+  read(id: string): Promise<WorldRequest>;
+  cancel(id: string): Promise<unknown>;
+  onLink(request: WorldRequest): void;
+}): Promise<WorldRequest> {
+  const live = () => { if (signal.aborted) throw new WorldFlowError("cancelled"); };
+  live();
+  if (candidate.id !== proved.id || candidate.provider !== proved.provider || candidate.purpose !== "enroll" || proved.purpose !== "enroll") throw new WorldFlowError("WORLD_REQUEST_MISMATCH");
+  if (proved.status === "enrolled") return proved;
+  if (proved.status !== "awaiting_link_approval") throw new WorldFlowError(proved.status);
+  const status = await steps.status(); live();
+  const provider = (["idkit", "oidc"] as const).find((p) => p !== candidate.provider && status.enrolled[p] && status.providers[p]);
+  if (!status.enabled || !provider) throw new WorldFlowError("link_approval_required");
+  const linking = await steps.startLink(provider, candidate.id);
+  if (signal.aborted) {
+    await steps.cancel(candidate.id).catch(() => undefined);
+    await steps.cancel(linking.id).catch(() => undefined);
+    throw new WorldFlowError("cancelled");
+  }
+  steps.onLink(linking);
+  if (linking.purpose !== "link-provider" || linking.provider !== provider || linking.id === candidate.id) throw new WorldFlowError("WORLD_REQUEST_MISMATCH");
+  // A server IDKit continuity request must name the existing session. Never fall back to creating another identity.
+  if (provider === "idkit" && !linking.sessionId) throw new WorldFlowError("link_approval_required");
+  const approval = await steps.confirm(linking); live();
+  if (approval.id !== linking.id || approval.provider !== provider || approval.purpose !== "link-provider") throw new WorldFlowError("WORLD_REQUEST_MISMATCH");
+  if (approval.status !== "consumed") throw new WorldFlowError(approval.status);
+  const completed = await steps.read(candidate.id); live();
+  requireEnrollmentCompletion(candidate, completed);
+  return completed;
+}
+
+/** Candidate first: cancellation invalidates its association before cancelling the companion approval. */
+export async function cancelWorldRequests(ids: string[], cancel: (id: string) => Promise<WorldRequest>): Promise<WorldRequest[]> {
+  const results: WorldRequest[] = [];
+  let failed = false;
+  for (const id of [...new Set(ids)]) {
+    try { results.push(await cancel(id)); } catch { failed = true; }
+  }
+  if (failed) throw new WorldFlowError("cancellation_unconfirmed");
+  return results;
+}
+
 export function worldMessage(error: unknown): string {
   const code = error instanceof WorldFlowError ? error.code : "WORLD_REQUEST_FAILED";
   if (code === "cancelled") return "Verification was cancelled. No new permission was approved.";
   if (code === "timeout" || code === "expired") return "This verification timed out. Start again for a new code.";
   if (code === "denied" || code === "provider_rejected") return "World verification was declined. You can start again.";
   if (code === "stale") return "The account or permission changed. Start a new verification.";
+  if (code === "awaiting_link_approval" || code === "link_approval_required") return "The new method is not connected yet. Approval from your already connected World method is required.";
   if (/ENROLLED|enrolled/i.test(code)) return "This provider is already connected. Refresh the status.";
   return "World could not complete this verification. Retry, or refresh the status before starting again.";
 }

@@ -42,4 +42,15 @@ describe("World API client boundary", () => {
     await new World(new PerkosClient({ token: () => "owner-session", fetchImpl: http })).proof(request.id, result);
     expect(http.mock.calls[0]?.[0]).toBe("https://api.perkos.xyz/world/requests/request-1/proof");
   });
+  it("links only an explicit candidate using the existing provider and preserves its intermediate state", async () => {
+    expect(readWorldRequest({ ...request, status: "awaiting_link_approval" }).status).toBe("awaiting_link_approval");
+    const http = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      expect(JSON.parse(init?.body as string)).toEqual({ provider: "oidc", purpose: "link-provider", candidateId: "candidate-1", mode: "authorization_code" });
+      return Response.json({ ...request, purpose: "link-provider", candidateSubject: "must-not-reach-client" });
+    });
+    const client = new World(new PerkosClient({ token: () => "owner-session", fetchImpl: http }));
+    expect(await client.linkProvider("oidc", "candidate-1")).toEqual({ ...request, purpose: "link-provider" });
+    await expect(client.linkProvider("idkit", "../candidate")).rejects.toThrow();
+    expect(http).toHaveBeenCalledTimes(1);
+  });
 });

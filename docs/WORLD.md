@@ -8,7 +8,10 @@ of World ID for Agents** journey. Backend activation is controlled by API's
 
 Open **Settings → World ID**. Connect IDKit using the phone QR, or connect World
 ID in the external browser. These enrollments are independent; connecting one
-does not silently enroll the other or grant an agent access.
+does not silently enroll the other or grant an agent access. When adding the
+second method, Runtime first verifies that candidate, then asks for fresh
+confirmation using the method already connected. API binds that confirmation
+to the exact candidate before adding it to the account.
 
 Open the Trader's delegated access from its wallet panel. Its external page
 requests a fresh check from the same enrolled human before granting or expanding

@@ -27,8 +27,12 @@ async function handle(req: Request, context: Context) {
       try { body = JSON.parse(raw); } catch { return bad("Expected JSON"); }
       if (!body || typeof body !== "object" || Array.isArray(body)) return bad("Expected a World request");
       if (isCreate) {
-        if (body.purpose !== "enroll" || !["idkit", "oidc"].includes(String(body.provider)) || Object.keys(body).some((k) => !["provider", "purpose"].includes(k))) return bad("Choose an enrollment provider");
-        result = await world.enroll(body.provider as "idkit" | "oidc", req.signal);
+        if (!["idkit", "oidc"].includes(String(body.provider))) return bad("Choose a World provider");
+        if (body.purpose === "enroll" && !Object.keys(body).some((k) => !["provider", "purpose"].includes(k))) {
+          result = await world.enroll(body.provider as "idkit" | "oidc", req.signal);
+        } else if (body.purpose === "link-provider" && worldRequestId(body.candidateId) && !Object.keys(body).some((k) => !["provider", "purpose", "candidateId"].includes(k))) {
+          result = await world.linkProvider(body.provider as "idkit" | "oidc", body.candidateId, req.signal);
+        } else return bad("Choose an enrollment or an existing provider to approve the candidate");
       } else {
         if (!body.result || typeof body.result !== "object" || Array.isArray(body.result) || Object.keys(body).some((k) => k !== "result")) return bad("Expected the original IDKit result");
         result = await world.proof(id!, body.result, req.signal);
