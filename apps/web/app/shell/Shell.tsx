@@ -9,6 +9,7 @@ import { useWallet } from "../wallet/context";
 import { WalletProvider } from "../wallet/WalletProvider";
 import { AppHeader } from "./AppHeader";
 import { ModelCard } from "./ModelCard";
+import { ScreenAmbient } from "./ScreenAmbient";
 import { SettingsPanel } from "./SettingsPanel";
 import { useLogin } from "./useLogin";
 import { useModel } from "./useModel";
@@ -47,8 +48,14 @@ function Stages() {
     setStage("welcome");
   };
 
+  // The ambient sits first in both returns, so it keeps running from one screen to the next.
   if (stage === "welcome") {
-    return <Welcome login={login} busy={session.loading || model.loading} walletError={wallet.error} />;
+    return (
+      <>
+        <ScreenAmbient />
+        <Welcome login={login} busy={session.loading || model.loading} walletError={wallet.error} />
+      </>
+    );
   }
 
   let screen: ReactNode;
@@ -78,6 +85,7 @@ function Stages() {
   }
   return (
     <>
+      {stage === "desk" ? null : <ScreenAmbient />}
       {screen}
       <SettingsPanel
         open={settingsOpen}
