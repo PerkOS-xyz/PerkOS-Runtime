@@ -9,8 +9,8 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { GET, POST } from "../app/api/desks/team/route";
-import { memberLook, pollEvery, seating, specialistSeat, wakeAction } from "../app/team/look";
+import { GET, POST, PUT } from "../app/api/desks/team/route";
+import { KEEP_AWAKE_MS, memberLook, pollEvery, seating, specialistSeat, wakeAction, wakesOnOpen } from "../app/team/look";
 
 describe("how the team shows", () => {
   it("maps where PerkOS says each agent stands", () => {
@@ -35,6 +35,20 @@ describe("how the team shows", () => {
     expect(wakeAction("ready", false).enabled).toBe(false);
     expect(wakeAction("hibernated", true)).toEqual({ label: "Waking…", enabled: false });
     expect(pollEvery("waking")).toBeLessThan(pollEvery("ready"));
+  });
+
+  it("wakes a sleeping team on its own when the desk opens, and never sets one up", () => {
+    const team = (...states: string[]) => ({ status: "hibernated" as const, agents: states.map((state) => ({ state })) });
+    expect(wakesOnOpen(team("hibernated", "hibernated"))).toBe(true);
+    expect(wakesOnOpen(team("ready", "hibernated"))).toBe(true);
+    expect(wakesOnOpen(team("ready", "ready"))).toBe(false);
+    expect(wakesOnOpen(team("waking", "provisioning"))).toBe(false);
+    expect(wakesOnOpen(team("hibernated", "planned"))).toBe(false);
+    expect(wakesOnOpen(team("hibernated", "failed"))).toBe(false);
+    expect(wakesOnOpen(team())).toBe(false);
+    expect(wakesOnOpen(null)).toBe(false);
+    // Well inside the shortest idle window PerkOS gives a desk agent.
+    expect(KEEP_AWAKE_MS).toBeLessThanOrEqual(5 * 60_000);
   });
 });
 
@@ -70,6 +84,28 @@ describe("/api/desks/team", () => {
       "https://api.perkos.xyz/project-templates/eqlty-desk/instance",
       "https://api.perkos.xyz/project-templates/eqlty-desk/instantiate",
     ]);
+  });
+
+  it("tells PerkOS the awake agents are in use on PUT, and wakes nothing", async () => {
+    const team = {
+      templateId: "eqlty-desk",
+      status: "partial",
+      agents: [
+        { role: "scout", name: "eqlty-scout-1", agentId: "id-scout", state: "ready" },
+        { role: "risk", name: "eqlty-risk-1", agentId: "id-risk", state: "hibernated" },
+        { role: "trader", name: "eqlty-trader-1", state: "ready" },
+        { role: "auditor", name: "eqlty-auditor-1", agentId: "id-auditor", state: "ready" },
+      ],
+    };
+    const http = vi.fn(async (url: string, _init?: RequestInit) => (url.endsWith("/instance") ? Response.json(team) : Response.json({ ok: true })));
+    vi.stubGlobal("fetch", http);
+    expect(await (await PUT(req("PUT", "", { desk: "eqlty-desk" }))).json()).toEqual({ touched: 2 });
+    expect(http.mock.calls.map((c) => `${c[1]?.method ?? "GET"} ${String(c[0])}`)).toEqual([
+      "GET https://api.perkos.xyz/project-templates/eqlty-desk/instance",
+      "POST https://api.perkos.xyz/agents/id-scout/activity",
+      "POST https://api.perkos.xyz/agents/id-auditor/activity",
+    ]);
+    expect((await PUT(req("PUT", "", { desk: "Bad Desk" }))).status).toBe(400);
   });
 
   it("passes PerkOS's 402 on, and asks which desk", async () => {

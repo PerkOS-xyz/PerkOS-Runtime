@@ -1,9 +1,9 @@
 "use client";
 
 import type { DeskTeam } from "@perkos/client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { pollEvery } from "./look";
+import { KEEP_AWAKE_MS, pollEvery, wakesOnOpen } from "./look";
 
 export interface TeamState {
   team: DeskTeam | null;
@@ -53,6 +53,29 @@ export function useTeam(desk: string): TeamState {
       setBusy(false);
     }
   }, [desk]);
+
+  // Opening the desk wakes a team that sleeps, once, so it is up before the first question.
+  const wokeOnOpen = useRef(false);
+  useEffect(() => {
+    if (wokeOnOpen.current || busy || !wakesOnOpen(team)) return;
+    wokeOnOpen.current = true;
+    void wake();
+  }, [team, busy, wake]);
+
+  // While the desk is open, PerkOS hears the team is in use, so it does not sleep mid-visit.
+  const anyAwake = Boolean(team?.agents.some((a) => a.state === "ready"));
+  useEffect(() => {
+    if (!anyAwake) return;
+    const touch = () =>
+      void fetch("/api/desks/team", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ desk })
+      }).catch(() => undefined);
+    touch();
+    const timer = setInterval(touch, KEEP_AWAKE_MS);
+    return () => clearInterval(timer);
+  }, [anyAwake, desk]);
 
   return { team, busy, error, wake };
 }
