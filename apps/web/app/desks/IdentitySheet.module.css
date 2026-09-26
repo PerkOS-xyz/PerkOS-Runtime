@@ -18,6 +18,7 @@
 .body textarea { resize: vertical; }
 .body input { width: 100%; box-sizing: border-box; border: 1px solid var(--hair-strong); border-radius: 8px; background: #0a1510; color: var(--ink); padding: 8px; font: inherit; }
 .section, .preview { display: grid; gap: 12px; padding: 16px 0; border-top: 1px solid var(--hair); min-width: 0; overflow-wrap: anywhere; }
+.embedded { flex: none; overflow: visible; }
 .preview ul { padding-left: 18px; }
 .packet { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 280px; overflow-y: auto; font: 11px/1.6 var(--mono); background: rgba(255,255,255,.03); padding: 12px; border-radius: 8px; }
 .tree { display: grid; gap: 8px; padding-left: 16px; border-left: 1px solid var(--ok); overflow-wrap: anywhere; }
