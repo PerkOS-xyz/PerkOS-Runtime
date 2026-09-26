@@ -1,7 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import { createPublicClient, createWalletClient, http, encodeFunctionData, parseAbi, zeroAddress, zeroHash } from 'viem';
 import { sepolia } from 'viem/chains';
-import { ENS_SEPOLIA as ENS, registryAbi, factoryAbi, helperAbi, resolverAbi, PROVISIONER_ROLES, nextProvisionStep, applyProvisionReceipt, verifyDeskIdentity, recordCall, revokeCall, readText, instanceName, seatName, dnsName } from '../../packages/ens/dist/index.js';
+import { ENS_SEPOLIA as ENS, registryAbi, factoryAbi, helperAbi, resolverAbi, PROVISIONER_ROLES, REGISTRY_ROLES, prepareDeskMove, nextMoveStep, discoverDesk, evidenceHash, evidenceRecord, verifyEvidence, nextProvisionStep, applyProvisionReceipt, verifyDeskIdentity, recordCall, revokeCall, readText, instanceName, seatName, dnsName } from '../../packages/ens/dist/index.js';
 
 if(process.env.ENS_REVIEW_MANAGED_FORK!=='1')throw new Error('Use run-fork.mjs');
 const rpc='http://127.0.0.1:18547';
@@ -35,7 +35,7 @@ try{
  await contract(operator,ENS.ethRegistrar,registrar,'commit',[commitment]);
  await client.request({method:'evm_increaseTime',params:[120]});await client.request({method:'evm_mine',params:[]});
  await contract(operator,ENS.ethRegistrar,registrar,'register',[rootLabel,operator,secret,zeroAddress,zeroAddress,duration,token,zeroHash]);
- const init=encodeFunctionData({abi:registryAbi,functionName:'initialize',args:[[{account:operator,roleBitmap:PROVISIONER_ROLES}]]});
+ const init=encodeFunctionData({abi:registryAbi,functionName:'initialize',args:[[{account:operator,roleBitmap:PROVISIONER_ROLES|REGISTRY_ROLES.setSubregistry}]]});
  const simulated=await client.simulateContract({account:operator,address:ENS.factory,abi:factoryAbi,functionName:'deployProxy',args:[ENS.userRegistryImpl,303n,init]});
  const parentRegistry=simulated.result;
  await contract(operator,ENS.factory,factoryAbi,'deployProxy',[ENS.userRegistryImpl,303n,init]);
@@ -43,13 +43,13 @@ try{
  await contract(operator,ENS.ethRegistry,registryAbi,'setSubregistry',[parentId,parentRegistry]);
  await contract(operator,parentRegistry,registryAbi,'setParent',[ENS.ethRegistry,rootLabel]);
  const definitions=[['scout','scout-source'],['risk','risk-verdict'],['trader',null],['auditor','auditor-evidence'],['hooks','hooks-evidence'],['quote','quote-evidence'],['treasury','treasury-evidence']];
- const spec={parentName:rootLabel+'.eth',parentRegistry,label:'eqlty-instance-review',owner,seats:definitions.map(([id,writes],i)=>({id,label:id,agentId:'real-fixture-'+id,wallet:agents[i],context:'Public EQLTY '+id+' role',writes}))};
+ const spec={mobile:true,parentName:rootLabel+'.eth',parentRegistry,label:'eqlty-instance-review',owner,seats:definitions.map(([id,writes],i)=>({id,label:id,agentId:'real-fixture-'+id,wallet:agents[i],context:'Public EQLTY '+id+' role',writes}))};
  report.parentName=spec.parentName;
  // Exercise bounded sponsorship instead of assuming every agent already has gas.
  await client.request({method:'anvil_setBalance',params:[agents[0],'0x0']});
  let progress={seats:{}},identity;
  const seen=[];
- for(let n=0;n<70;n++){
+ for(let n=0;n<90;n++){
   const step=await nextProvisionStep(client,operator,spec,progress);
   if('done' in step){identity=step.done;break;}
   console.log('STEP',step.id);seen.push(step.id);
@@ -85,12 +85,61 @@ try{
 
  check('Agent-signed record resolves through the hierarchy',await readText(client,seatName('scout',name),'scout-source')==='public-source:example');
  await reject('Trader record is refused','ENS_SEAT_READ_ONLY',()=>recordCall(client,identity,'trader','no'));
+ const packet={version:'1',type:'perkos-task-result',templateId:'eqlty-desk',decisionId:'fork-decision',taskId:'fork-task',role:'scout',agentId:scout.agentId,completedAt:new Date().toISOString(),response:'Fixture task response; no live agent executed this test.',quotes:[{chainId:4663,requestId:'complete-fixture-request-id',quotedAt:'2026-09-25T00:00:00Z',validUntil:'2026-09-25T00:02:00Z',tokenIn:operator,tokenOut:owner,amountIn:'1000000',amountOut:'2000000'}],identity:structuredClone(identity)};
+ const evidenceCall=await recordCall(client,identity,'scout',evidenceRecord(evidenceHash(packet)));
+ const published=await send(scout.wallet,evidenceCall);
+ const envelope={packet,hash:evidenceHash(packet),transactionHash:published.transactionHash,blockNumber:String(published.blockNumber)};
+ const checkedEvidence=await verifyEvidence(client,envelope);
+ check('Exported packet proves hash, signer, transaction and historical identity',checkedEvidence.publication==='verified');
+ check('Expired quote is identified separately from valid historical evidence',checkedEvidence.quoteStatus==='stale');
+ await reject('Changed packet content is rejected','ENS_EVIDENCE_HASH_MISMATCH',()=>verifyEvidence(client,{...envelope,packet:{...packet,response:'altered'}}));
+ const operatorWrite=await send(operator,evidenceCall);
+ check('Operator cannot impersonate an agent publication',(await verifyEvidence(client,{...envelope,transactionHash:operatorWrite.transactionHash,blockNumber:String(operatorWrite.blockNumber)})).publication==='invalid');
  const revoke=await revokeCall(client,identity,'scout');await send(operator,revoke);
  await reject('Revoked Scout record is refused','ENS_WRITE_REVOKED',()=>recordCall(client,identity,'scout','after-revoke'));
  const revoked=await verifyDeskIdentity(client,identity);
  check('Revocation preserves identity but removes write permission',revoked.verified&&!revoked.seats.find(s=>s.id==='scout').writeGranted);
- const tokenId=await client.readContract({address:parentRegistry,abi:registryAbi,functionName:'findTokenId',args:[spec.label]});
- await contract(owner,parentRegistry,registryAbi,'setSubregistry',[tokenId,zeroAddress]);
+ const discovered=await discoverDesk(client,name);
+ check('Desk is discovered and verified from ENS alone',discovered.verification.verified&&discovered.identity.seats.length===7);
+ await reject('Cannot move under a descendant','ENS_MOVE_CYCLE',()=>prepareDeskMove(client,identity,operator,'child.'+name,'desk'));
+ await reject('Old fixed identity requires explicit migration','ENS_FIXED_IDENTITY',()=>prepareDeskMove(client,{...identity,resolver:undefined},operator,spec.parentName,'fixed'));
+ const destinationSalt=404n;
+ const destination=await client.simulateContract({account:operator,address:ENS.factory,abi:factoryAbi,functionName:'deployProxy',args:[ENS.userRegistryImpl,destinationSalt,init]});
+ await contract(operator,ENS.factory,factoryAbi,'deployProxy',[ENS.userRegistryImpl,destinationSalt,init]);
+ const destinationRegistry=destination.result;
+ const expiry=await client.readContract({address:ENS.ethRegistry,abi:registryAbi,functionName:'findExpiry',args:[rootLabel]});
+ await contract(operator,parentRegistry,registryAbi,'register',['portfolio',operator,destinationRegistry,zeroAddress,REGISTRY_ROLES.setSubregistry,expiry]);
+ await contract(operator,destinationRegistry,registryAbi,'setParent',[parentRegistry,'portfolio']);
+ await reject('Occupied target cannot be overwritten','ENS_DESTINATION_OCCUPIED',()=>prepareDeskMove(client,identity,operator,spec.parentName,'portfolio'));
+ await reject('A wallet without move authority cannot start','ENS_MOVE_AUTHORITY_REQUIRED',()=>prepareDeskMove(client,identity,owner,'portfolio.'+spec.parentName,'eqlty-moved'));
+ const move=await prepareDeskMove(client,identity,operator,'portfolio.'+spec.parentName,'eqlty-moved');
+ const snapshot=await client.request({method:'evm_snapshot',params:[]});
+ await send(operator,await revokeCall(client,identity,'risk'));
+ await reject('Permission changes during a move stop reconciliation','ENS_MOVE_BINDINGS_CHANGED',()=>nextMoveStep(client,operator,move));
+ await client.request({method:'evm_revert',params:[snapshot]});
+ const moveSteps=[];
+ for(let n=0;n<35;n++){
+  // JSON roundtrip models a restart, not an in-memory planner cursor.
+  const step=await nextMoveStep(client,operator,JSON.parse(JSON.stringify(move)));
+  if('done' in step){identity=step.done;break;}
+  moveSteps.push(step.id);console.log('STEP',step.id);
+  const account=step.signer.kind==='operator'?operator:step.signer.wallet;
+  await send(account,{to:step.to,data:step.data,value:step.value});
+ }
+ check('Move completes with the same registry, wallets and registrations',identity.parentName===move.target.parentName&&identity.registry===move.source.registry&&JSON.stringify(identity.seats)===JSON.stringify(move.source.seats));
+ const moved=await discoverDesk(client,instanceName(identity.label,identity.parentName));
+ check('New name independently discovers the seven verified identities',moved.verification.verified&&moved.verification.seats.length===7);
+ check('Revoked grant survives move',!moved.verification.seats.find(s=>s.id==='scout').writeGranted);
+ check('No migration step grants or registers an agent',moveSteps.every(s=>!s.includes('grant')&&!s.includes('registration')));
+ check('Old child pointer is detached',await client.readContract({address:parentRegistry,abi:registryAbi,functionName:'getSubregistry',args:[spec.label]})===zeroAddress);
+ check('Historical evidence remains verifiable after revocation and move',(await verifyEvidence(client,envelope)).publication==='verified');
+ check('Old name is no longer canonical',!(await verifyDeskIdentity(client,move.source)).verified);
+ await reject('Revoked writer cannot publish at the new name','ENS_WRITE_REVOKED',()=>recordCall(client,identity,'scout','no'));
+ check('Record bundles retain existing evidence',await readText(client,seatName('risk',instanceName(identity.label,identity.parentName)),'risk-verdict')==='public-risk-evidence');
+ await send(risk.wallet,await recordCall(client,identity,'risk','after-move'));
+ check('Authorized writer publishes after move',await readText(client,seatName('risk',instanceName(identity.label,identity.parentName)),'risk-verdict')==='after-move');
+ const tokenId=await client.readContract({address:identity.parentRegistry,abi:registryAbi,functionName:'findTokenId',args:[identity.label]});
+ await contract(owner,identity.parentRegistry,registryAbi,'setSubregistry',[tokenId,zeroAddress]);
  check('Detached subtree cannot verify',(await verifyDeskIdentity(client,identity)).verified===false);
  await reject('Detached subtree cannot publish','ENS_IDENTITY_CHANGED',()=>recordCall(client,identity,'risk','no'));
  report.identity=identity;report.verification=verified;report.steps=seen;report.status='passed';

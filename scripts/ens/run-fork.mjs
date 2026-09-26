@@ -25,13 +25,13 @@ anvil.on('error', error => { spawnError = error; });
 anvil.stdout.on('data', b => { log += b; });
 anvil.stderr.on('data', b => { log += b; });
 const stop = () => { child?.kill(); anvil.kill('SIGTERM'); };
-const timer = setTimeout(stop, 180000);
+const timer = setTimeout(stop, 300000);
 const interrupt = () => { process.exitCode = 130; stop(); };
 process.once('SIGINT', interrupt);
 process.once('SIGTERM', interrupt);
 try {
   let ready = false;
-  for (let n = 0; n < 100; n++) {
+  for (let n = 0; n < 600; n++) {
     if (spawnError) throw spawnError;
     if (anvil.exitCode !== null || anvil.signalCode !== null) throw new Error('Anvil exited: ' + log.slice(-1200));
     try {

@@ -4,9 +4,9 @@ The implementation lives in Runtime (`@perkos/ens`, client, identity view), Perk
 
 ## Complete team
 
-The current published starter has seven roles: Scout, Risk, Trader, Auditor, Hooks, Quote and Treasury. Four turn participants are not the complete fleet. Runtime lists the descriptor's entire roster. API requires the descriptor, published template and instantiated team to have exactly matching role sets and distinct agent IDs; an old four-agent instance must be updated through the existing instantiate flow first.
+The current published starter has seven roles: Scout, Risk, Trader, Auditor, Hooks, Quote and Treasury. Analyze/advise currently use Scout, Risk, Quote, Trader and Auditor; launch uses Scout, Risk, Hooks, Treasury and Auditor. Not every role runs in every turn. Runtime lists the descriptor's entire roster. API requires the descriptor, published template and instantiated team to have exactly matching role sets and distinct agent IDs; an old four-agent instance must be updated through the existing instantiate flow first.
 
-Each role receives `<role>.<immutable-instance>.<configured-parent>`, a separate resolver, its own Dynamic server wallet binding and an ERC-8004 registration whose ENS service matches the ENSIP-25 backlink. Trader receives no ENS write grant. Other roles receive only their declared evidence key. These identities grant no trading authorization.
+Each role receives `<role>.<desk-label>.<active-parent>`, a separate resolver, its own Dynamic server wallet binding and an ERC-8004 registration whose ENS service matches the ENSIP-25 backlink. Trader receives no ENS write grant. Other roles receive only their declared evidence key. These identities grant no trading authorization.
 
 ## Ownership and recovery
 
@@ -39,3 +39,19 @@ From Runtime: `npm ci`, `npm test`, `npm run typecheck`, `npm run typecheck -w @
 ## Research
 
 Based on Obsidian `Hackathons/ETH Tokyo 26/ENS-V2/06-ENSIP-25-26-Agents.md`, `07-Use-Case-Brainstorm.md`, `08-Plan-Integracion.md`, and `09-Arquitectura-y-Codigo.md`. Earlier contract review and corrections are in `ENS-V2-Validation-2026-09-26/REVIEW.md` and `POINTERS.md` in the parent workspace. The separate-resolver requirement and incomplete team-transfer semantics are deliberate corrections to the initial research.
+
+## Mobile branches and task evidence (0.2.0)
+
+New identities publish a self-contained `perkos-desk` manifest in a separate desk resolver. The public `/ens` page discovers it through Universal Resolver V2 and checks every declared seat. It fetches no ENS-controlled HTTP URL and grants no app access.
+
+New mobile registries retain parent-setting authority; each resolver gives only the operator the root linking role. `prepareDeskMove` previews a same-owner parent move, and `nextMoveStep` mounts the destination, changes `setParent`, relinks the eight record bundles, updates seven ERC-8004 ENS services with their own wallets, updates the manifest, and detaches the original child pointer. The registry, seat tokens, wallets, IDs and grants remain unchanged. Fixed legacy identities are refused. Moving an individual seat or transferring team ownership is not implemented.
+
+History → ENS evidence selects an actual reply with an API-captured task digest. The owner reviews its whole public packet, then explicitly publishes its content hash with that agent's wallet. Trader remains read-only. The API stores no private response body until publication is requested; task receipt metadata and quote snapshots stay protected. Failed capture leaves the response usable but unavailable for ENS publication. Old turns without task receipts cannot be retroactively attributed.
+
+The packet includes the decision/task binding, response, identity snapshot and full quote references. The two-minute quote window is informational, not a trade authorization. A stale quote can be preserved as historical evidence but is labelled stale. Exported JSON verifies without a PerkOS account: content hash, actual transaction sender/to/calldata, canonical receipt and identity at the publication block. Archive RPC failure is reported as unverified history. The successful publication stays attached to its task after a move; mutable ENS records point to the latest packet, while exported packets keep earlier receipts.
+
+Identity and History show persisted ENS activity: named step, signer, signing/pending/confirmed/reverted/reconciliation state, transaction link and mined block. The UI never labels a submitted hash as a confirmed operation. The recent 128 transactions survive reopening the sheet; completed move plans are archived server-side.
+
+Latest contract run: **41 checks, 88 local sends**, including one negative-test transaction rolled back by an Anvil snapshot. This adds movement/restart, unchanged revoked grants, occupied destination, missing authority, mid-move permission drift, independent discovery, packet tampering, wrong signer, stale quotes and historical verification after revocation/movement. See `eqlty-mobile-evidence-fork-2026-09-27.json`. No public Sepolia transaction or Dynamic MPC acceptance is claimed.
+
+Visual review used the actual React components with a clearly labelled, read-only localhost API fixture. Pending/confirmed steps and explorer links were visible at desktop and 360 px without horizontal overflow or console errors. The fixture route is not included in the app.

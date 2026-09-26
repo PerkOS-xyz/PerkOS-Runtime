@@ -1,0 +1,438 @@
+{
+  "scope": "isolated Sepolia fork; no public broadcasts",
+  "startedAt": "2026-09-26T15:24:25.775Z",
+  "checks": [
+    {
+      "name": "Sepolia chain",
+      "pass": true
+    },
+    {
+      "name": "Example parent is available",
+      "pass": true
+    },
+    {
+      "name": "Production planner completes all seven seats",
+      "pass": true
+    },
+    {
+      "name": "Agent without gas receives only the bounded initial sponsorship",
+      "pass": true
+    },
+    {
+      "name": "Each seat gets a different resolver",
+      "pass": true
+    },
+    {
+      "name": "Real receipt supplies every ERC-8004 registration ID",
+      "pass": true
+    },
+    {
+      "name": "Canonical pointers and all seven ENSIP-25 associations verify",
+      "pass": true
+    },
+    {
+      "name": "Trader has no delegated ENS write",
+      "pass": true
+    },
+    {
+      "name": "Six evidence writers have their scoped grants",
+      "pass": true
+    },
+    {
+      "name": "risk signs and resolves its own record",
+      "pass": true
+    },
+    {
+      "name": "auditor signs and resolves its own record",
+      "pass": true
+    },
+    {
+      "name": "hooks signs and resolves its own record",
+      "pass": true
+    },
+    {
+      "name": "quote signs and resolves its own record",
+      "pass": true
+    },
+    {
+      "name": "treasury signs and resolves its own record",
+      "pass": true
+    },
+    {
+      "name": "Scout cannot publish through Risk resolver",
+      "pass": true
+    },
+    {
+      "name": "Agent-signed record resolves through the hierarchy",
+      "pass": true
+    },
+    {
+      "name": "Trader record is refused",
+      "pass": true
+    },
+    {
+      "name": "Exported packet proves hash, signer, transaction and historical identity",
+      "pass": true
+    },
+    {
+      "name": "Expired quote is identified separately from valid historical evidence",
+      "pass": true
+    },
+    {
+      "name": "Changed packet content is rejected",
+      "pass": true
+    },
+    {
+      "name": "Operator cannot impersonate an agent publication",
+      "pass": true
+    },
+    {
+      "name": "Revoked Scout record is refused",
+      "pass": true
+    },
+    {
+      "name": "Revocation preserves identity but removes write permission",
+      "pass": true
+    },
+    {
+      "name": "Desk is discovered and verified from ENS alone",
+      "pass": true
+    },
+    {
+      "name": "Cannot move under a descendant",
+      "pass": true
+    },
+    {
+      "name": "Old fixed identity requires explicit migration",
+      "pass": true
+    },
+    {
+      "name": "Occupied target cannot be overwritten",
+      "pass": true
+    },
+    {
+      "name": "A wallet without move authority cannot start",
+      "pass": true
+    },
+    {
+      "name": "Permission changes during a move stop reconciliation",
+      "pass": true
+    },
+    {
+      "name": "Move completes with the same registry, wallets and registrations",
+      "pass": true
+    },
+    {
+      "name": "New name independently discovers the seven verified identities",
+      "pass": true
+    },
+    {
+      "name": "Revoked grant survives move",
+      "pass": true
+    },
+    {
+      "name": "No migration step grants or registers an agent",
+      "pass": true
+    },
+    {
+      "name": "Old child pointer is detached",
+      "pass": true
+    },
+    {
+      "name": "Historical evidence remains verifiable after revocation and move",
+      "pass": true
+    },
+    {
+      "name": "Old name is no longer canonical",
+      "pass": true
+    },
+    {
+      "name": "Revoked writer cannot publish at the new name",
+      "pass": true
+    },
+    {
+      "name": "Record bundles retain existing evidence",
+      "pass": true
+    },
+    {
+      "name": "Authorized writer publishes after move",
+      "pass": true
+    },
+    {
+      "name": "Detached subtree cannot verify",
+      "pass": true
+    },
+    {
+      "name": "Detached subtree cannot publish",
+      "pass": true
+    }
+  ],
+  "transactions": [
+    "0xfa02366a794f70166962e66496b2e8494f38dbb2268048475538d001b6588528",
+    "0x9e458eea2a3ee0af4092bc7decdc5efe0a890d2ae9c3cd8d5a4f9a382e4f6bcc",
+    "0x6a7c783a83d38de951da9e5753a4a135ecbc0b6c2d557ba879ccac9442ee02f8",
+    "0x2e516fca9d99bdb0b78660016c8e5eae0ce583f9fc67c6ef04d969abb10b459a",
+    "0xd00cbff0b8e3a0a0a0967d1b74c7adfe61fa60ff216e14fb8a129099f4e4d9a8",
+    "0x6e69f4bf8a226d246bff0d299c109f7131c3d87dd2613949a3dda44d1de871c3",
+    "0xbd021ebe71fd951bf72e2880c885c3a02812a9a800651af0f8ff50d556b83484",
+    "0xe345597a595855076a25bc1268d7bfe82d6c6d4ce8bc9f09a6e4b103cc38b786",
+    "0xcb8f2735d05656b27359202aec63f983678db1845fe1871d8f1e976da49fad4d",
+    "0x77ddf7ea8744d8eb1b51d00a923c1326ec7e63aeac7cb06d59dcac9c00f73c3d",
+    "0x169c66a429db66085c92d09015cc884f178d15e8f2169256eeffd9238225cfb6",
+    "0xba9f4fe535ff9b55d502eb7035fe45880af0601947cfe9b0778987c150aa0c8c",
+    "0xf57894ca5ba9eee4b12f7e38478ddc0f056f24a8c0a20256ad6058e3184da476",
+    "0x02ea706ab04c7dffdba6fe422dc0016775f18803b273ddb24f3c8058b304e2ae",
+    "0xae50cf8b0400599f70d7ac974cae26967649a35536ed8afdd12013c2c6991423",
+    "0x3094b93d32bf4cb143c87cb89f6df20062dc8aa396e65cd6c32dadefe4c7a1e6",
+    "0xd5d608579d266e6041672822df814dd1b9bf3018d4abaa6f4cde8d795ebdae75",
+    "0xffe7f45162d6bac4edc08887f8bd3aa5b7992ae44ae582c2b86c234bf62e7a41",
+    "0x419ce8b13e3152b505b89d5f3208cbc67fb6aa561cef40115d56ca2347e00d07",
+    "0xea6ce32b8ca06f50cff2adac4b8d7ad7087aa9ffe3e63a14f55d34c142d012a4",
+    "0x1a313d18b5ff18fbdb66a78002bcaf4015a139295c0871134b65e67da5655afa",
+    "0x36250cb73522e483c55922e915d0dd085c1c500c9de6cdd825fa00d6a1fde3e6",
+    "0xebd00ba65d412d73b0292eac778a22aaf55136a867ffa87f018e5bf96f49c15f",
+    "0x16149c07a9090ea45e3ca9e5325c234b4539b2afb38acc2f65a6f3e62ab97b98",
+    "0xb571f469de760b54e4c5193e1bd520cd15ddc01fad46cbac4bfb7fbeda85bcca",
+    "0xc9107aa636c3e14ee26546d5f9c44bbf79977b03d721dd541610bd608e657957",
+    "0x334c35d245c3b4121c02e210f58354f4b843942adbe92922c070c6c52fc1bd93",
+    "0xa12d326f23cfee51415f66b85835ae2db909df7d3a2858e4495bb43d286cdfc9",
+    "0xe4df407a6ac6b0e94483d4ce3baf24a918ba09ec67773de31968088766f2d18b",
+    "0xe4d34f9ccb22761f09a85f822aef70e36213b32b4f2e4e076202d08ec831e147",
+    "0x8583566e60b5c8ffb45db8b2b7c299598af9c50da357a34779b29eef5c99d138",
+    "0x6f71873c263e6ff537091fa23bad765076ca820e3c78ffddbd649d3a8d3461aa",
+    "0xfda84fa8404fd998897ce2b2e9a5c3681ee82fab592ab51e256f73523575137e",
+    "0x11e2743580315a8e399b6ea802adafb4f99a36af4f7c84ed2a98554ad921d322",
+    "0x130c15111f9d0e05f7ac7d862b9a2e50b4d35a14b6014f9bd434ae835e3c069a",
+    "0x8158f42348ccca0678603730b9522ecf7e5feb0f6aba5454351cf42e40c87c5b",
+    "0x90244b4468f68b11b53804c3e164cd45763d327cd259c914c548aa8b7b4366cf",
+    "0x5cbd7b27176762c858089c2552228ea252d1a75921401415bec29f8f97557c16",
+    "0x8ce6d3b58f3d1ea6ba76133a38745f41f3d0473c05f0fad6737ef1417705a462",
+    "0xd95d60e344a28ec4032b909c223cc2c4d824e03bd801d53885cb9f4391127725",
+    "0xa516bfc2749178cedc6571ee0b09923615a1ecc7204ade39a37e421f99f40de8",
+    "0xa931980d228ab7113f49216082c834f0bfd9918dcd8f04127b6f03f306e4ccf6",
+    "0x7c3cbf7e5fff3dca6dfe195dfcd02f40a35b00c9e199c2f0a749d157ba2c1cec",
+    "0x0c42544d5f86e31d66906c2c8fce0be0b782711fb5ead11ccb74b74c937488e9",
+    "0x9e377200229b0ed06889fa063e2dd32128b573d05596b631b8b21e89f90bf5a3",
+    "0x29e339acac8542846db07c8131a81b045b989a9d484f720141d20b818cadbe1d",
+    "0x17d7fbe81afb5a555ccced95530f567fbbf4ce3d7f039a417314d36bfe1a021b",
+    "0xfb99abd117f3cd20c9996350da7ab005160c076f57213c6473e7d2a965c3b372",
+    "0xa1b36f0ed41b3b8fc0cce5114b03f08b773f4eec3da6a32357cc058bbcad1804",
+    "0x76769687f7e2949bf1b047f67acec179f905b09b8b249b8e237e31a958298b59",
+    "0x8ee1ce596459d56d5c7ec3b9630913a0bd14df962aa88d1b163a71b2d0c1c564",
+    "0x3002a4f6e4541d6bbc150df6b0f91eaf9bb4df5e6b50a2fde083211ef1754825",
+    "0x6cddc92fe891e6251edb52f0df168dccbe2cdd659b402c17c15cdf2c39f6b36a",
+    "0xfa4c9ff68f9e79df82d761f4ca5beffbb8fd24c455f52a6000e53cb8e175dd22",
+    "0xb372c3b1c6cfbf34f0b83d8786d4f9e99c098a19ad65621b67ec25619371434b",
+    "0x7356a5f7f3b49f25b2000d470362a2515c6cf9ff6beb3eacbf5cfa51d6dc6d43",
+    "0x9a295b1ee97ef7299075f2f893f8a806d64f94cfd79e41879bd19543875fa887",
+    "0x09629712a82c35641661335fadbec66b909e3b207dd405f39330bf17e1133322",
+    "0x88eaeb70e6d4606d2258e4b2629b0dbf81dd71f3fae144baeea743857eea56bf",
+    "0x626d57d92251ddb1ba92478a71ca88ad30725dbf19d77f7f52978f74d983741a",
+    "0x0016bdfdde655eefacfd21b4743d8bc34258201eb473214b2b6646da9918830b",
+    "0xbd9f67ed9755bef7389b1a3f6543cf6e82992b1da60452d0d236673f986cbf59",
+    "0x5b2c2b98a3370868c0ec094e0ef409d7f86f2b6808ed40ab0944211f89c59984",
+    "0xa31fb39c58775e211f1543405c1f2525989bdf156c39f81821b204e4cb5ee9fe",
+    "0xbb6fc9976c6511d9e9246ad4047afe58a0992a25b04291d3718c2419e1201b8b",
+    "0xe721fe59ce3c7a82a1cb3e36fc8f12785e1da585d07fd25f1268094dfa12234f",
+    "0x0d6323f7db07bec45d1927b12f5528d100ff8e1bcb2f683ee3730f1541a6dacf",
+    "0xc3f02f4bcc10b5d7de6b8063f54a89e604e77941f86cebdaa9cb48185ff746c9",
+    "0xaa2d528bd215c73a91527d90d849172428ac95017161ba1b69a4ee528aa6ccd8",
+    "0xd071ba24126ac6aa3b8dbb4174f75d4614f7f2aa31ec5174fa36355a609ab468",
+    "0x44a6898f87973a8a59bb2ee8461207ec02080d49eee5caf5c3b2891617b4f766",
+    "0x8be708867a7e7ebd16a39b1c9ab9776b2eaa56557e61ebc776d6a3710dd5139e",
+    "0xa08b1bf2d8e1b1a8a109ec23665d1322a533cca29a60e39d08a0fce4d778a7a9",
+    "0x9833e043f46c4db9c5aa07363fdf58aecc75caad0dc3fcb88ce05a7e47044845",
+    "0x859110d0020ec2baacf8dcadf838804c2e9ebd8af83119c48265fb5249408c83",
+    "0xec50ee39cd3a681ebb292f54584e5143a3ff6b7467ce961349c38017502bbd75",
+    "0x00d8e4f8dff0d1f6a78c72c4b0e4017ba82fd081e20402cf889eafb93269bd30",
+    "0x0779cbe5605b096c1903d80b4bd0953ef327ec9e18184c14d5caa08bbbb7615e",
+    "0x076c54a7d65f299c5b40795be935c07a7a004a9121895264528a6aac23273247",
+    "0x9a26c07c49626f5942f0d052140c02c08a8626d760770b83740088de03b4d475",
+    "0xe91fe538577230c24bea0da3214aa97195b73197c45eec3d7c634843bd6a441c",
+    "0x95ff4ffa766ca7353156c3c3a6e550ce2cdaefc92129530ceae2c9abff8a85b8",
+    "0xd3f1c10078a90d0b2d4ba53247c430d188de03e7d3864ee9d117b82ff994591c",
+    "0x514e2cea9393d827fc38579ce78eac137f3e18f4fbce4f328e11db24b0b07e9f",
+    "0x2c617cb3dba19d4504ce095416772f46f1f301901378efc7c9e1a83d064cd5f2",
+    "0xe20d36b3b81f4cce950f17a88525d8a28ecbcc4e72095b327272e54205ad76cc",
+    "0x0da1ed6f4a5f473d72747ecf44c07f87a0bb67e87d1a8e9f9dbd600045c9bb6e",
+    "0x60e137cd638608b4aa16416c369a5f4581644727eea5b3cde347df23222e87e6"
+  ],
+  "block": "11787066",
+  "deployer": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+  "parentName": "ensv2-review-20260926.eth",
+  "identity": {
+    "chainId": 11155111,
+    "parentName": "portfolio.ensv2-review-20260926.eth",
+    "parentRegistry": "0x76d2eCd35C2fe58606Fd635BE4Fd861D5333b6C4",
+    "label": "eqlty-moved",
+    "registry": "0xe87D0f82a593B5bA5aF38B00d188FB007Ed02206",
+    "owner": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+    "resolver": "0x07c2cC23033D548c05dBeB1E01D8bC3e6C3DB654",
+    "seats": [
+      {
+        "id": "scout",
+        "agentId": "real-fixture-scout",
+        "wallet": "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+        "resolver": "0x3ED5476f0FeB47d2Af76387CFA7226c018bD5297",
+        "registrationId": "10539",
+        "writes": "scout-source"
+      },
+      {
+        "id": "risk",
+        "agentId": "real-fixture-risk",
+        "wallet": "0x90f79bf6eb2c4f870365e785982e1f101e93b906",
+        "resolver": "0x81E5441FAEE8c6b644113bd7d8F7c98f820Cf534",
+        "registrationId": "10540",
+        "writes": "risk-verdict"
+      },
+      {
+        "id": "trader",
+        "agentId": "real-fixture-trader",
+        "wallet": "0x15d34aaf54267db7d7c367839aaf71a00a2c6a65",
+        "resolver": "0xd9C5Ac39E20F924E1598e87722943Ac29E01Da4b",
+        "registrationId": "10541",
+        "writes": null
+      },
+      {
+        "id": "auditor",
+        "agentId": "real-fixture-auditor",
+        "wallet": "0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc",
+        "resolver": "0x69DaB51590e44e928BAB634D5767A69073e82943",
+        "registrationId": "10542",
+        "writes": "auditor-evidence"
+      },
+      {
+        "id": "hooks",
+        "agentId": "real-fixture-hooks",
+        "wallet": "0x976ea74026e726554db657fa54763abd0c3a0aa9",
+        "resolver": "0x01918D2Df48E25fDcac06abEf65566ACb95E7E95",
+        "registrationId": "10543",
+        "writes": "hooks-evidence"
+      },
+      {
+        "id": "quote",
+        "agentId": "real-fixture-quote",
+        "wallet": "0x14dc79964da2c08b23698b3d3cc7ca32193d9955",
+        "resolver": "0x5Fa2A2c004CaF8e821D4cCf694E2171f951BB176",
+        "registrationId": "10544",
+        "writes": "quote-evidence"
+      },
+      {
+        "id": "treasury",
+        "agentId": "real-fixture-treasury",
+        "wallet": "0x23618e81e3f5cdf7f54c3d65f7fbc0abf5b21e8f",
+        "resolver": "0x54D695f91AF32966160A61C38003EA29dD6588fC",
+        "registrationId": "10545",
+        "writes": "treasury-evidence"
+      }
+    ]
+  },
+  "verification": {
+    "name": "eqlty-instance-review.ensv2-review-20260926.eth",
+    "blockNumber": "11787121",
+    "verified": true,
+    "issues": [],
+    "seats": [
+      {
+        "id": "scout",
+        "name": "scout.eqlty-instance-review.ensv2-review-20260926.eth",
+        "verified": true,
+        "writeGranted": true,
+        "issues": []
+      },
+      {
+        "id": "risk",
+        "name": "risk.eqlty-instance-review.ensv2-review-20260926.eth",
+        "verified": true,
+        "writeGranted": true,
+        "issues": []
+      },
+      {
+        "id": "trader",
+        "name": "trader.eqlty-instance-review.ensv2-review-20260926.eth",
+        "verified": true,
+        "writeGranted": false,
+        "issues": []
+      },
+      {
+        "id": "auditor",
+        "name": "auditor.eqlty-instance-review.ensv2-review-20260926.eth",
+        "verified": true,
+        "writeGranted": true,
+        "issues": []
+      },
+      {
+        "id": "hooks",
+        "name": "hooks.eqlty-instance-review.ensv2-review-20260926.eth",
+        "verified": true,
+        "writeGranted": true,
+        "issues": []
+      },
+      {
+        "id": "quote",
+        "name": "quote.eqlty-instance-review.ensv2-review-20260926.eth",
+        "verified": true,
+        "writeGranted": true,
+        "issues": []
+      },
+      {
+        "id": "treasury",
+        "name": "treasury.eqlty-instance-review.ensv2-review-20260926.eth",
+        "verified": true,
+        "writeGranted": true,
+        "issues": []
+      }
+    ]
+  },
+  "steps": [
+    "registry",
+    "resolver:_desk",
+    "desk-entry",
+    "desk-parent",
+    "resolver:scout",
+    "seat:scout",
+    "fund:scout",
+    "registration:scout",
+    "text:scout:agent-context",
+    "text:scout:agent-registration[0x0001000003aa36a7148004a818bfb912233c491871b3d84c89a494bd9e][10539]",
+    "grant:scout",
+    "resolver:risk",
+    "seat:risk",
+    "registration:risk",
+    "text:risk:agent-context",
+    "text:risk:agent-registration[0x0001000003aa36a7148004a818bfb912233c491871b3d84c89a494bd9e][10540]",
+    "grant:risk",
+    "resolver:trader",
+    "seat:trader",
+    "registration:trader",
+    "text:trader:agent-context",
+    "text:trader:agent-registration[0x0001000003aa36a7148004a818bfb912233c491871b3d84c89a494bd9e][10541]",
+    "resolver:auditor",
+    "seat:auditor",
+    "registration:auditor",
+    "text:auditor:agent-context",
+    "text:auditor:agent-registration[0x0001000003aa36a7148004a818bfb912233c491871b3d84c89a494bd9e][10542]",
+    "grant:auditor",
+    "resolver:hooks",
+    "seat:hooks",
+    "registration:hooks",
+    "text:hooks:agent-context",
+    "text:hooks:agent-registration[0x0001000003aa36a7148004a818bfb912233c491871b3d84c89a494bd9e][10543]",
+    "grant:hooks",
+    "resolver:quote",
+    "seat:quote",
+    "registration:quote",
+    "text:quote:agent-context",
+    "text:quote:agent-registration[0x0001000003aa36a7148004a818bfb912233c491871b3d84c89a494bd9e][10544]",
+    "grant:quote",
+    "resolver:treasury",
+    "seat:treasury",
+    "registration:treasury",
+    "text:treasury:agent-context",
+    "text:treasury:agent-registration[0x0001000003aa36a7148004a818bfb912233c491871b3d84c89a494bd9e][10545]",
+    "grant:treasury",
+    "desk-manifest"
+  ],
+  "status": "passed",
+  "finishedAt": "2026-09-26T15:26:19.843Z"
+}
