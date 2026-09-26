@@ -126,3 +126,19 @@ export function resolveIdentity(agent: { role: string; avatarIdentity?: AgentAva
   if (agent.avatarIdentity) return agent.avatarIdentity;
   return DESK_IDENTITIES[agent.role] ?? derived(agent.role);
 }
+
+/** Colors for the specialists' spheres, apart from the table's four and from Sparky's ember. */
+export const SPECIALIST_ACCENTS = ["#a77bff", "#ff5fc8", "#b4e05a", "#ff8a3d", "#c9b8ff", "#4fd8ff"];
+
+/**
+ * The color a role's sphere is lit in: the house accent for a role the house
+ * knows; else the specialist color for its seat, so no two specialists at one
+ * desk share one; else one picked from the role's name.
+ */
+export function sphereAccent(role: string, seat?: number): string {
+  const known = role === "agent" ? undefined : AGENT_ROLES[role];
+  if (known) return known.accent;
+  let h = 2166136261;
+  for (let i = 0; i < role.length; i++) h = Math.imul(h ^ role.charCodeAt(i), 16777619) >>> 0;
+  return SPECIALIST_ACCENTS[(seat ?? h) % SPECIALIST_ACCENTS.length]!;
+}
