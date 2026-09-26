@@ -8,6 +8,7 @@ import { useWallet } from "../wallet/context";
 import { BankrKeySection } from "./BankrKeyForm";
 import { orderSources, type ModelState } from "./useModel";
 import { useVault } from "./useVault";
+import { WorldPanel } from "../world/WorldPanel";
 
 type Identity = { address: string; name: string | null };
 
@@ -123,6 +124,7 @@ export function SettingsPanel({
           </ul>
         </section>
 
+        {open ? <WorldPanel /> : null}
         <BankrKeySection open={open} />
 
         <section>

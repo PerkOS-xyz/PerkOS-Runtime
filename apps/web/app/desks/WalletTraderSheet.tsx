@@ -48,6 +48,7 @@ import {
 import { sendBuyForTurn } from "./turnReceipts";
 import { useMarket } from "./useMarket";
 import { useTrader } from "./useTrader";
+import { WorldDelegationNote } from "../world/WorldDelegationNote";
 
 const HOLD_MS = 1600;
 const WAIT_MS = 3 * 60_000;
@@ -235,6 +236,7 @@ function Access({ trader, load, moving }: { trader: DeskTrader; load: () => Prom
         </p>
       ) : null}
       <p className="tr-note">Owned by you on Dynamic. PerkOS signs with a delegated share you approved: it cannot export your key or change your limits.</p>
+      <WorldDelegationNote />
     </>
   );
 

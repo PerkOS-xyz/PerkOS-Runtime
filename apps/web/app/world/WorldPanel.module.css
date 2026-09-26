@@ -1,0 +1,14 @@
+.intro { color: var(--muted, #adb2c3); font-size: 13px; line-height: 1.6; }
+.providers { display: grid; gap: 12px; margin: 16px 0; width: 100%; }
+.provider { border: 1px solid #ffffff20; border-radius: 14px; padding: 14px; }
+.provider header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0; border: 0; }
+.provider p { color: var(--muted, #adb2c3); font-size: 12px; line-height: 1.6; margin: 8px 0 12px; }
+.badge { color: #a9b4c7; font-size: 11px; }
+.connected { color: #80dbc0; }
+.pending { border: 1px solid #ffffff24; border-radius: 14px; padding: 16px; margin: 16px 0; overflow-wrap: anywhere; width: 100%; box-sizing: border-box; }
+.qr { display: block; width: min(100%, 240px); height: auto; margin: 12px auto; border-radius: 8px; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 14px; }
+.status { font-size: 13px; line-height: 1.6; }
+.error { color: #ffa6a6; font-size: 13px; line-height: 1.6; }
+.success { color: #80dbc0; font-size: 13px; line-height: 1.6; }
+.note { font-size: 12px; line-height: 1.6; color: var(--muted, #adb2c3); }

@@ -1,4 +1,5 @@
 "use client";
+import { WorldDelegationNote } from "../world/WorldDelegationNote";
 
 import type { DeskRail, DeskRails, OrderReceipt, PreparedOrder } from "@perkos/client";
 import type { DeskAsset } from "@perkos/desk-contract";
@@ -137,11 +138,11 @@ function TraderWallet({ rails }: { rails: DeskRails }) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
 
-  async function openAccess() {
+  async function openAccess(mode: "grant" | "edit") {
     setBusy(true);
     setNote("");
     try {
-      const res = await fetch("/api/delegation", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode: "grant" }) });
+      const res = await fetch("/api/delegation", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode }) });
       const body = (await res.json().catch(() => ({}))) as { url?: string; message?: string };
       if (!res.ok || !body.url) throw new Error(body.message ?? "PerkOS did not return a link.");
       window.open(body.url, "_blank", "noopener");
@@ -158,7 +159,8 @@ function TraderWallet({ rails }: { rails: DeskRails }) {
       <section className="tr-wallet empty" aria-label="The Trader's wallet">
         <h2>Give the Trader a wallet you own</h2>
         <p>You sign in with your email and delegate a wallet of yours. The Trader signs only orders you approve, inside the rails you set, and you can take it back anytime.</p>
-        <button type="button" className="pill small" disabled={busy} onClick={() => void openAccess()}>
+        <WorldDelegationNote />
+        <button type="button" className="pill small" disabled={busy} onClick={() => void openAccess("grant")}>
           {busy ? "Opening…" : "Give access"} <span className="arrow" aria-hidden>&nearr;</span>
         </button>
         {note ? <p className="tr-note">{note}</p> : null}
@@ -183,6 +185,11 @@ function TraderWallet({ rails }: { rails: DeskRails }) {
           ? `${readable(String(Math.round(gas * 1e18)), 18, 6)} ${rails.trader.gasSymbol} for gas on Robinhood Chain`
           : `No ${rails.trader.gasSymbol} for gas yet. Send a little ${rails.trader.gasSymbol} on Robinhood Chain to this address so the Trader can send your orders.`}
       </p>
+      <WorldDelegationNote />
+      <button type="button" className="chip-btn" disabled={busy} onClick={() => void openAccess("edit")}>
+        {busy ? "Opening…" : "Review Trader access ↗"}
+      </button>
+      {note ? <p className="tr-note">{note}</p> : null}
     </section>
   );
 }
