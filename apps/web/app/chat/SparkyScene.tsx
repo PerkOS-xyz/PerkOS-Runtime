@@ -7,7 +7,9 @@ import { openMemory } from "../memory/open";
 import { useVault } from "../shell/useVault";
 import { useTalk } from "../voice/useTalk";
 import { useWallet } from "../wallet/context";
+import { ChatChips, ChatsDrawer } from "./ChatsDrawer";
 import { MemoryBanner } from "./MemoryBanner";
+import { useChatActions, useChats } from "./useChats";
 import { useSparkyChat } from "./useSparkyChat";
 
 type Phase = "closed" | "opening" | "open" | "closing";
@@ -35,8 +37,10 @@ export function SparkyScene({ model, onOpenChange }: { model: string | null; onO
   const [draft, setDraft] = useState("");
   const [voiceReady, setVoiceReady] = useState<boolean | null>(null);
   const chat = useSparkyChat();
-  const { voice, talk } = useTalk(chat);
+  const { voice, talk } = useTalk(chat, { command: (text) => saved.command(text, true) });
   const vault = useVault(useWallet());
+  // Before any desk, the chats are kept under "home".
+  const chats = useChats({ scope: "home", chat, unlocked: vault.unlocked });
   const launcherRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -95,6 +99,7 @@ export function SparkyScene({ model, onOpenChange }: { model: string | null; onO
   const state = coreState(voice.status, chat.busy, isAnswering(chat.busy, chat.messages));
   const split = chat.messages.length > 0;
   const working = chat.busy || voice.status === "speaking";
+  const saved = useChatActions(chats, { working, stop });
   const noVoice = voiceReady === false ? "Voice needs Grok. Sign in with Grok in Settings." : "";
 
   /** He answers out loud when voice works here, and in text either way. */
@@ -102,6 +107,7 @@ export function SparkyScene({ model, onOpenChange }: { model: string | null; onO
     const t = text.trim();
     if (!t) return;
     setDraft("");
+    if (saved.command(t, false) !== null) return;
     if (voiceReady) talk(t);
     else void chat.send(t);
   }
@@ -176,7 +182,11 @@ export function SparkyScene({ model, onOpenChange }: { model: string | null; onO
               <p className="st-whisper" aria-live="polite">
                 {whisper(state)}
               </p>
-              {!split ? <p className="st-hello">Hi! Ask me anything, or tell me what you want to get done and I will point you to the right desk.</p> : null}
+              {!split ? (
+                <p className="st-hello" aria-live="polite">
+                  {saved.caption || "Hi! Ask me anything, or tell me what you want to get done and I will point you to the right desk."}
+                </p>
+              ) : null}
             </div>
 
             {split ? (
@@ -211,6 +221,9 @@ export function SparkyScene({ model, onOpenChange }: { model: string | null; onO
             )}
 
             {voice.error ? <p className="hint err ss-err">{voice.error}</p> : null}
+
+            <ChatChips chats={chats} hasMessages={split} onNew={() => saved.newChat()} />
+            {chats.open ? <ChatsDrawer scope="home" chats={chats} vault={vault} onNew={() => saved.newChat()} onOpen={saved.openSaved} /> : null}
 
             <form className="st-ask" onSubmit={submit}>
               <input

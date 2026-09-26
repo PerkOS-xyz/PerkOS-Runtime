@@ -9,11 +9,23 @@ import { useVoice } from "./useVoice";
 /**
  * Voice for a conversation with Sparky: what the person says is sent, and the
  * reply is spoken sentence by sentence while it streams in.
+ *
+ * `command` sees each transcript first. When it handles one (such as "new
+ * chat") it returns a short line for Sparky to say, and nothing is sent.
  */
-export function useTalk(chat: SparkyChatState) {
+export function useTalk(chat: SparkyChatState, { command }: { command?: (text: string) => string | null } = {}) {
   const splitter = useRef(new SentenceSplitter());
+  const commandRef = useRef(command);
+  commandRef.current = command;
   const voice = useVoice({
-    onTranscript: (text) => talk(text),
+    onTranscript: (text) => {
+      const said = commandRef.current?.(text) ?? null;
+      if (said === null) return talk(text);
+      // A turn with no reply: say the line, then listen again in a live conversation.
+      voice.beginTurn();
+      if (said) voice.speak(said);
+      voice.endTurn();
+    },
     onInterrupt: () => chat.abort()
   });
 

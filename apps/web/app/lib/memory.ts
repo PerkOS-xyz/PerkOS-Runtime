@@ -6,12 +6,13 @@
 import { rename } from "node:fs/promises";
 import { join } from "node:path";
 
-import { isScope, NoteStore } from "@perkos/vault";
+import { ChatStore, isScope, NoteStore } from "@perkos/vault";
 
 import { homeDir } from "./home";
 import { vaultKeys } from "./vault";
 
 const open = new Map<string, { key: Buffer; notes: NoteStore }>();
+const chatStores = new Map<string, { key: Buffer; root: string; chats: ChatStore }>();
 
 export const vaultRoot = (wallet: string) => join(homeDir(), "vault", wallet.toLowerCase());
 
@@ -33,6 +34,21 @@ export async function memoryFor(wallet: string | null): Promise<NoteStore | null
 /** Closes the wallet's open notes, so the key is no longer held here. */
 export function closeMemory(wallet: string): void {
   open.delete(wallet.toLowerCase());
+  chatStores.delete(wallet.toLowerCase());
+}
+
+/** The wallet's saved chats while memory is on: sealed with the same key, after the same key check. */
+export async function chatsFor(wallet: string | null): Promise<ChatStore | null> {
+  if (!wallet || !(await memoryFor(wallet))) return null;
+  const w = wallet.toLowerCase();
+  const key = open.get(w)?.key;
+  if (!key) return null;
+  const root = vaultRoot(w);
+  const hit = chatStores.get(w);
+  if (hit?.key.equals(key) && hit.root === root) return hit.chats;
+  const chats = new ChatStore(root, key);
+  chatStores.set(w, { key, root, chats });
+  return chats;
 }
 
 /** Moves the wallet's memory aside, still encrypted, so a new one can start. */

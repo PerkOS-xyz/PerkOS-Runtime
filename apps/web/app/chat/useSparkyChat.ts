@@ -14,6 +14,8 @@ export interface SparkyChatState {
   send: (text: string, hooks?: ReplyHooks) => Promise<void>;
   /** Stops the reply in progress; what already arrived stays. */
   abort: () => void;
+  /** Puts other messages on screen, such as a saved chat, or none for a new one. A reply in progress stops. */
+  replace: (messages: Message[]) => void;
 }
 
 /** Conversation with Sparky. `desk` is the open desk, if any. */
@@ -54,6 +56,8 @@ export function useSparkyChat({ desk }: { desk?: string } = {}): SparkyChatState
         for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
+          // A piece that lands after a stop or a replace belongs to nothing on screen.
+          if (controller.signal.aborted) throw new DOMException("The reply was stopped", "AbortError");
           const piece = decoder.decode(value, { stream: true });
           setMessages((prev) => {
             const next = [...prev];
@@ -80,5 +84,11 @@ export function useSparkyChat({ desk }: { desk?: string } = {}): SparkyChatState
 
   const abort = useCallback(() => abortRef.current?.abort(), []);
 
-  return { messages, busy, error, send, abort };
+  const replace = useCallback((next: Message[]) => {
+    abortRef.current?.abort();
+    setError("");
+    setMessages(next);
+  }, []);
+
+  return { messages, busy, error, send, abort, replace };
 }

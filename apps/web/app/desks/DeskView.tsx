@@ -2,13 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
 
+import { ChatChips, ChatsDrawer } from "../chat/ChatsDrawer";
+import { useChatActions, useChats } from "../chat/useChats";
 import { useSparkyChat } from "../chat/useSparkyChat";
 import { openMemory } from "../memory/open";
 import { AppHeader } from "../shell/AppHeader";
+import { useVault } from "../shell/useVault";
 import { wakeAction } from "../team/look";
 import { TeamRow } from "../team/TeamRow";
 import { useTeam } from "../team/useTeam";
 import { useTalk } from "../voice/useTalk";
+import { useWallet } from "../wallet/context";
 import { CHAIN_LABEL, chainOf } from "./chains";
 import type { Desk } from "./DesksScreen";
 import { Embers } from "./Embers";
@@ -35,11 +39,13 @@ export function DeskView({
 }) {
   const chain = chainOf(desk.module);
   const chat = useSparkyChat({ desk: desk.id });
+  const vault = useVault(useWallet());
+  const chats = useChats({ scope: desk.id, chat, unlocked: vault.unlocked });
   const [market, setMarket] = useState(false);
   const closeMarket = useCallback(() => setMarket(false), []);
   const [trader, setTrader] = useState(false);
   const closeTrader = useCallback(() => setTrader(false), []);
-  const { voice, talk } = useTalk(chat);
+  const { voice, talk } = useTalk(chat, { command: (text) => saved.command(text, true) });
   const manifest = useDeskManifest(desk.module);
   const team = useTeam(desk.id);
   const waking = wakeAction(team.team?.status, team.busy);
@@ -62,6 +68,7 @@ export function DeskView({
   const state = coreState(voice.status, chat.busy, isAnswering(chat.busy, chat.messages));
   const split = chat.messages.length > 0;
   const working = chat.busy || voice.status === "speaking";
+  const saved = useChatActions(chats, { working, stop });
   const starters = manifest?.starters.length ? manifest.starters : DEFAULT_STARTERS;
 
   /** Sparky answers out loud when voice works here, and in text either way. */
@@ -69,6 +76,7 @@ export function DeskView({
     const t = text.trim();
     if (!t) return;
     setDraft("");
+    if (saved.command(t, false) !== null) return;
     if (voiceReady) talk(t);
     else void chat.send(t);
   }
@@ -157,7 +165,11 @@ export function DeskView({
           <p className="st-whisper" aria-live="polite">
             {whisper(state)}
           </p>
-          {!split ? <p className="st-hello">You are in {desk.name}. Ask me anything about it, or tap me to talk.</p> : null}
+          {!split ? (
+            <p className="st-hello" aria-live="polite">
+              {saved.caption || `You are in ${desk.name}. Ask me anything about it, or tap me to talk.`}
+            </p>
+          ) : null}
         </div>
 
         {split ? (
@@ -190,6 +202,9 @@ export function DeskView({
             ))}
           </div>
         )}
+
+        <ChatChips chats={chats} hasMessages={split} onNew={() => saved.newChat()} />
+        {chats.open ? <ChatsDrawer scope={desk.id} chats={chats} vault={vault} onNew={() => saved.newChat()} onOpen={saved.openSaved} /> : null}
 
         <form className="st-ask" onSubmit={submit}>
           <input
