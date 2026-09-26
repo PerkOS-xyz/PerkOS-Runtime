@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createPublicClient, http } from "viem";
-import { sepolia } from "viem/chains";
+import { ensReader as reader } from "../lib/ensReader";
 import { instanceName, verifyDeskIdentity, type DeskVerification, type IdentityAction, type IdentityStatus } from "@perkos/ens";
 import { EnsActivityLog, ensStepLabel } from "./EnsActivityLog";
 import { EnsExplorer } from "./EnsExplorer";
@@ -10,7 +9,6 @@ import { Ensip25Proof, Ensip25Summary } from "./Ensip25Proof";
 import type { Chain } from "./chains";
 import styles from "./IdentitySheet.module.css";
 
-const reader = createPublicClient({ chain: sepolia, transport: http("https://ethereum-sepolia-rpc.publicnode.com", { timeout: 15_000, retryCount: 0 }), cacheTime: 0 });
 const short = (value: string) => `${value.slice(0, 8)}…${value.slice(-6)}`;
 const stateLabel: Record<IdentityStatus["state"], string> = {
   moving: "Moving the team and updating its public references.",
