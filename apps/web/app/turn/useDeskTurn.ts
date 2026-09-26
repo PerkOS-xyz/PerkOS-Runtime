@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import type { LaunchTurnFacts } from "../lib/launchTurn";
 import type { TurnEvent, TurnKind } from "../lib/turnRecord";
 import { cutTurn, idleTurn, pendingTurn, reduceTurn, stopLocally, type TurnView } from "./turnState";
 import { TurnFrames } from "./turnStream";
@@ -11,6 +12,8 @@ export interface TurnAsk {
   text: string;
   kind: TurnKind;
   tickers?: string[];
+  /** A launch turn's draft. */
+  launch?: LaunchTurnFacts;
 }
 
 /** How a turn the window asked for came to an end. */
@@ -72,7 +75,7 @@ export function useDeskTurn(): DeskTurnState {
         const res = await fetch("/api/desks/turn", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ desk: ask.desk, text: ask.text, kind: ask.kind, ...(ask.tickers?.length ? { tickers: ask.tickers } : {}) }),
+          body: JSON.stringify({ desk: ask.desk, text: ask.text, kind: ask.kind, ...(ask.tickers?.length ? { tickers: ask.tickers } : {}), ...(ask.launch ? { launch: ask.launch } : {}) }),
           signal: controller.signal,
         });
         if (!res.ok || !res.body) {

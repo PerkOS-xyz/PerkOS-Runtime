@@ -865,7 +865,7 @@ function Outcome({ run, trader, load }: { run: BuyRun; trader: DeskTrader | null
  * one pointer or key, in a window that keeps the focus. The rules live in
  * createHold; this only feeds it events.
  */
-function HoldToApprove({ onApprove, disabled }: { onApprove: () => void; disabled: boolean }) {
+export function HoldToApprove({ onApprove, disabled, label = "Hold to approve" }: { onApprove: () => void; disabled: boolean; label?: string }) {
   const [holding, setHolding] = useState(false);
   const approve = useRef(onApprove);
   const blocked = useRef(disabled);
@@ -922,7 +922,7 @@ function HoldToApprove({ onApprove, disabled }: { onApprove: () => void; disable
       onKeyUp={(e) => hold.release(`key:${e.key}`)}
     >
       <i className="hold-fill" aria-hidden />
-      <span>{holding ? "Keep holding…" : "Hold to approve"}</span>
+      <span>{holding ? "Keep holding…" : label}</span>
     </button>
   );
 }

@@ -447,6 +447,7 @@ function LaunchRow({ launch: l, index }: { launch: Launch; index: number }) {
           <small>{l.name}</small>
         </b>
         {facts.length ? <p>{facts.join(" · ")}</p> : null}
+        {l.poolId ? <p title={l.poolId}>Uniswap v4 pool {short(l.poolId)}</p> : null}
         {l.fees ? (
           <p className="pf-fees">
             {l.fees.claimableUsd !== null ? <span>{money(l.fees.claimableUsd)} to claim</span> : null}

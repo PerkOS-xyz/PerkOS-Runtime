@@ -6,6 +6,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { ChatChips, ChatsDrawer } from "../chat/ChatsDrawer";
 import { useChatActions, useChats } from "../chat/useChats";
 import { useSparkyChat } from "../chat/useSparkyChat";
+import type { DraftAnswer } from "../lib/launchDraft";
+import { launchFactsOf, launchQuestion } from "../lib/launchTurn";
 import type { TurnReceipt } from "../lib/turnRecord";
 import { openMemory } from "../memory/open";
 import { AppHeader } from "../shell/AppHeader";
@@ -27,12 +29,20 @@ import type { Desk } from "./DesksScreen";
 import { Embers } from "./Embers";
 import { IdentitySheet } from "./IdentitySheet";
 import { HistorySheet } from "./HistorySheet";
+import { LaunchCard } from "./LaunchCard";
+import { draftKey, launchIntent, type LaunchSeed } from "./launchForm";
 import { MarketSheet } from "./MarketSheet";
 import { PortfolioSheet } from "./PortfolioSheet";
 import { subscribeTurnReceipts, turnReceipt } from "./turnReceipts";
 import { WalletTraderSheet, type TraderPrefill } from "./WalletTraderSheet";
 import { coreState, DEFAULT_STARTERS, isAnswering, whisper } from "./stage";
 import { useDeskManifest } from "./useDeskManifest";
+
+/** What the person says when they tap the launch action among the first questions. */
+const LAUNCH_STARTER = "Launch a token paired with a stock";
+/** Sparky's line over the launch card: what happens, and who signs what. */
+const LAUNCH_LINE =
+  "Here is a launch card for Robinhood Chain. Bankr deploys the token and its Uniswap v4 pool from your Bankr wallet, which pays the gas. You sign nothing on chain, and nothing launches until you hold.";
 
 /**
  * An open desk as a scene: Sparky at the center, by voice or by text. The
@@ -69,6 +79,10 @@ export function DeskView({
     setPortfolio(false);
     setTrader(true);
   }, []);
+  // A token launch card in the conversation, under Sparky's line that opened it.
+  const [launch, setLaunch] = useState<{ anchor: string; seed: LaunchSeed; n: number } | null>(null);
+  // The launch the team last read: its verdict shows on the card while the draft stays the same.
+  const [launchTurnKey, setLaunchTurnKey] = useState("");
   // Spoken questions go through the same router as typed ones, so a task said out loud reaches the team.
   const { voice, talk, talkReply, hold, release } = useTalk(chat, { route: (text) => dispatch(text), command: (text) => saved.command(text, true) });
   const manifest = useDeskManifest(desk.module);
@@ -143,6 +157,31 @@ export function DeskView({
   const starters = manifest?.starters.length ? manifest.starters : DEFAULT_STARTERS;
 
   /**
+   * Opens the launch card with what the person said about the token. The card
+   * sits under Sparky's line; a new chat or a saved one on screen closes it,
+   * and a launch already sent keeps going above the card either way.
+   */
+  function openLaunch(seed: LaunchSeed, said?: string) {
+    if (said) chat.post({ role: "user", content: said });
+    const anchor = chat.post({ role: "assistant", content: LAUNCH_LINE });
+    setLaunch((l) => ({ anchor, seed, n: (l?.n ?? 0) + 1 }));
+  }
+
+  /**
+   * A drafted launch that passed Bankr's checks and simulation goes to the
+   * team once, when the desk gives it a launch turn: Scout, Risk and the
+   * specialists read it, the Auditor records it. Risk's verdict only warns;
+   * the hold stays the person's.
+   */
+  function launchChecked(answer: DraftAnswer) {
+    const key = draftKey(answer.draft);
+    if (!answer.ready || !manifest?.turns.launch || turn.live || key === launchTurnKey) return;
+    setLaunchTurnKey(key);
+    const facts = launchFactsOf(answer);
+    void turn.ask(launchQuestion(facts), "launch", { launch: facts, ...(answer.draft.pair.kind === "stock" ? { tickers: [answer.draft.pair.symbol] } : {}) });
+  }
+
+  /**
    * Where the person's words go, typed or spoken: a desk task to the team,
    * anything else to Sparky alone, and everything to Sparky while the team
    * works. Sparky answers out loud when voice works here, and in text either way.
@@ -150,6 +189,12 @@ export function DeskView({
   function dispatch(text: string, starter?: DeskStarter) {
     const t = text.trim();
     if (!t) return;
+    // Asking to launch a token opens the launch card instead of a turn or a reply.
+    const seed = chain === "robinhood" && desk.module && !starter?.turn ? launchIntent(t) : null;
+    if (seed) {
+      openLaunch(seed, t);
+      return;
+    }
     const route = routeFor(t, { manifest, ...(assets ? { assets } : {}), starter: starter ?? null, live: turn.live });
     if (route.to === "team") {
       void turn.ask(t, route.kind);
@@ -308,6 +353,17 @@ export function DeskView({
                 {m.role === "assistant" && m.work ? <WorkFold work={m.work} /> : null}
               </ChatLine>
             ))}
+            {launch && desk.module && chat.messages.some((m) => m.id === launch.anchor) ? (
+              <LaunchCard
+                key={launch.n}
+                module={desk.module}
+                seed={launch.seed}
+                onSettings={onSettings}
+                onClose={() => setLaunch(null)}
+                onChecked={launchChecked}
+                team={turn.view.kind === "launch" && launchTurnKey ? { key: launchTurnKey, live: turn.live, verdict: turn.view.verdict ?? null } : null}
+              />
+            ) : null}
             {turn.live ? <WorkingList view={turn.view} /> : null}
             {typing.map((role) => (
               <TypingLine key={`typing-${role}`} role={role} />
@@ -323,6 +379,12 @@ export function DeskView({
                 <small>{s.tag}</small>
               </button>
             ))}
+            {chain === "robinhood" && desk.module ? (
+              <button type="button" className="st-launch" style={{ "--i": starters.length } as CSSProperties} onClick={() => openLaunch({}, LAUNCH_STARTER)}>
+                {LAUNCH_STARTER}
+                <small>Bankr deploys it. You hold to launch.</small>
+              </button>
+            ) : null}
           </div>
         )}
 

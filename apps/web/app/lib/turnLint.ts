@@ -111,6 +111,8 @@ export function largestSize(text: string, quote = "USD"): number {
 export function lintTurn(input: LintInput): string[] {
   const flags: string[] = [];
   const order = input.kind === "order";
+  // A launch asks Risk for a verdict, as an order does, and has no size to trade.
+  const verdicts = order || input.kind === "launch";
   const given = input.given;
   const givenPcts = pcts(given);
   const venues = (input.venues ?? []).filter((v) => v.trim());
@@ -125,7 +127,7 @@ export function lintTurn(input: LintInput): string[] {
     if ((r.role === "trader" || r.role === "auditor") && !/@Sparky\b/.test(t)) flags.push(`${r.role}:no-mention`);
     const unknown = [...pcts(t)].filter((p) => !givenPcts.has(p));
     if (unknown.length) flags.push(`${r.role}:pct-not-in-facts(${unknown.slice(0, 3).join(",")})`);
-    if (!order && input.maxOrder !== undefined && largestSize(t, input.quote) > input.maxOrder) flags.push(`${r.role}:size-over-limit`);
+    if (!verdicts && input.maxOrder !== undefined && largestSize(t, input.quote) > input.maxOrder) flags.push(`${r.role}:size-over-limit`);
     const limit = wordLimit(input.rolePrompts[r.role]);
     const words = t.trim().split(/\s+/).length;
     if (limit !== null && words > limit + LENGTH_SLACK) flags.push(`${r.role}:over-length(${words})`);
@@ -137,8 +139,8 @@ export function lintTurn(input: LintInput): string[] {
       }
     }
     if (r.role === "risk") {
-      if (order && !/VERDICT\s*[:-]\s*(GO|BLOCK)\b/i.test(t)) flags.push("risk:no-verdict");
-      if (!order && !/^\s*RISK:\s*(low|medium|high)\b/im.test(t)) flags.push("risk:no-risk-level");
+      if (verdicts && !/VERDICT\s*[:-]\s*(GO|BLOCK)\b/i.test(t)) flags.push("risk:no-verdict");
+      if (!verdicts && !/^\s*RISK:\s*(low|medium|high)\b/im.test(t)) flags.push("risk:no-risk-level");
     }
   }
   return flags;

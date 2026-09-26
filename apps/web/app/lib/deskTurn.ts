@@ -14,6 +14,7 @@ import { Agents, Desks, DeskTrade, Team, type DeskSummary, type PerkosClient } f
 import type { DeskAsset, DeskManifest, DeskMarket, DeskSeries } from "@perkos/desk-contract";
 import type { NoteStore } from "@perkos/vault";
 
+import { launchFactLines, launchShortFact, type LaunchTurnFacts } from "./launchTurn";
 import { askedAbout, candidates, factLines, MAX_CANDIDATES } from "./marketFacts";
 import { teamMemory } from "./memory";
 import { rememberManifest, rememberMarket } from "./perkos";
@@ -47,6 +48,8 @@ export interface DeskTurnInput {
   notes: NoteStore | null;
   signal: AbortSignal;
   emit: (event: TurnEvent) => void;
+  /** A launch turn's draft: its facts follow the market line of the stock it pairs with. */
+  launch?: LaunchTurnFacts;
 }
 
 const within = <T>(work: Promise<T>, ms: number, fallback: T): Promise<T> =>
@@ -59,6 +62,8 @@ export function turnAssets(kind: TurnKind, question: string, market: DeskMarket,
     const named = market.assets.filter((a) => wanted.has(a.ticker.toUpperCase()));
     if (named.length) return named.slice(0, MAX_ASKED);
   }
+  // A launch looks only at the stock it pairs with, and at none when it pairs with WETH.
+  if (kind === "launch") return [];
   if (kind === "advise") return candidates(market, MAX_CANDIDATES);
   const asked = askedAbout(question, market.assets).slice(0, MAX_ASKED);
   return asked.length ? asked : candidates(market, MAX_ASKED);
@@ -94,14 +99,16 @@ export async function runDeskTurn(input: DeskTurnInput): Promise<TurnRecord | nu
   const early: TurnEvent[] = [step("Reading the market")];
   const market = await within<DeskMarket | null>(desks.market(input.desk.module), FACTS_MS, null);
   if (signal.aborted) return null;
-  if (!market) {
+  // A launch goes on without the market: its own facts are the ones Bankr checked and simulated.
+  const launching = kind === "launch";
+  if (!market && !launching) {
     input.emit({ step: "error", code: "DESK_MARKET", message: TURN_ERRORS.DESK_MARKET });
     return null;
   }
-  rememberMarket(input.desk.module, market);
+  if (market) rememberMarket(input.desk.module, market);
   rememberManifest(input.desk.module, manifest);
-  const assets = turnAssets(kind, input.question, market, input.tickers);
-  if (!assets.length) {
+  const assets = market ? turnAssets(kind, input.question, market, input.tickers) : [];
+  if (!assets.length && !launching) {
     input.emit({ step: "error", code: "DESK_MARKET", message: "The desk has no priced asset to look at right now." });
     return null;
   }
@@ -114,13 +121,17 @@ export async function runDeskTurn(input: DeskTurnInput): Promise<TurnRecord | nu
     [],
   );
   if (signal.aborted) return null;
-  const marketFacts = factLines(market, assets, series);
+  const marketFacts = market && assets.length ? factLines(market, assets, series) : [];
   const size = turnSize(input.question, manifest.maxOrder);
-  const quoted = await within(uniswapFacts(new DeskTrade(input.client), input.desk.module, assets, size), QUOTES_MS, [] as string[]);
+  // A launch buys nothing, so Uniswap is not asked for a price.
+  const quoted = launching ? [] : await within(uniswapFacts(new DeskTrade(input.client), input.desk.module, assets, size), QUOTES_MS, [] as string[]);
   if (signal.aborted) return null;
-  const facts = [...marketFacts, ...quoted.map((line, i) => `[F${marketFacts.length + i + 1}] ${line}`)];
-  early.push(step(`Read ${marketFacts.length} ${marketFacts.length === 1 ? "fact" : "facts"} from the market`));
-  if (quoted.length) early.push(step(`Asked Uniswap what ${size} ${market.quoteSymbol} buys now`));
+  const launchLines = launching && input.launch ? launchFactLines(input.launch) : [];
+  const extra = [...quoted, ...launchLines];
+  const facts = [...marketFacts, ...extra.map((line, i) => `[F${marketFacts.length + i + 1}] ${line}`)];
+  if (marketFacts.length || !launching) early.push(step(`Read ${marketFacts.length} ${marketFacts.length === 1 ? "fact" : "facts"} from the market`));
+  if (quoted.length) early.push(step(`Asked Uniswap what ${size} ${market?.quoteSymbol ?? "USD"} buys now`));
+  if (launchLines.length) early.push(step("Read the launch Bankr checked and simulated"));
   const memory = input.notes ? await teamMemory(input.notes, input.desk.id, input.question).catch(() => "") : "";
 
   // 2. Open.
@@ -128,11 +139,10 @@ export async function runDeskTurn(input: DeskTurnInput): Promise<TurnRecord | nu
     roles.filter((r) => rolePrompts[r as keyof typeof rolePrompts] !== undefined),
   );
   const roles = phases.flat();
-  const principal = principalLine(
-    input.question,
-    phases[0] ?? [],
-    assets.map((a) => shortFact(a, market.quoteSymbol)),
-  );
+  const principal = principalLine(input.question, phases[0] ?? [], [
+    ...assets.map((a) => shortFact(a, market?.quoteSymbol ?? "USD")),
+    ...(launching && input.launch ? [launchShortFact(input.launch)] : []),
+  ]);
   const startedAt = new Date(started).toISOString();
   emit({ step: "open", turnId: input.id, kind, desk: input.desk.id, question: input.question, principal, facts, roles, at: startedAt });
   for (const e of early) emit(e);
@@ -142,7 +152,7 @@ export async function runDeskTurn(input: DeskTurnInput): Promise<TurnRecord | nu
     question: input.question,
     rules: manifest.rules,
     facts,
-    market: `Market on ${market.chain}, priced in ${market.quoteSymbol}, observed at ${market.observedAt}.`,
+    ...(market ? { market: `Market on ${market.chain}, priced in ${market.quoteSymbol}, observed at ${market.observedAt}.` } : {}),
     ...(manifest.venues ? { venues: manifest.venues } : {}),
     memory,
     maxChars: headBudget(Object.values(prompts)),
@@ -237,7 +247,7 @@ export async function runDeskTurn(input: DeskTurnInput): Promise<TurnRecord | nu
       given: head.text,
       rolePrompts: prompts,
       maxOrder: manifest.maxOrder,
-      quote: market.quoteSymbol,
+      quote: market?.quoteSymbol,
       venues: manifest.venues,
     });
     return await close({

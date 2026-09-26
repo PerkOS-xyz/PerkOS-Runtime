@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import pkg from "../../package.json";
 import { openMemory } from "../memory/open";
 import { useWallet } from "../wallet/context";
+import { BankrKeySection } from "./BankrKeyForm";
 import { orderSources, type ModelState } from "./useModel";
 import { useVault } from "./useVault";
 
@@ -121,6 +122,8 @@ export function SettingsPanel({
             ))}
           </ul>
         </section>
+
+        <BankrKeySection open={open} />
 
         <section>
           <span className="kicker">Memory</span>

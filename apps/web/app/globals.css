@@ -967,6 +967,9 @@ button { font: inherit; }
 .set-sources li { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 12px; border: 1px solid var(--hair); background: rgba(6, 10, 22, 0.55); font-size: 12.5px; }
 .set-sources .ptag { margin-left: auto; }
 .set-sources .link-btn { padding: 0; font-size: 11px; }
+/* The Bankr key form spans the panel, like a provider row. */
+.settings-panel .key-form { align-self: stretch; }
+.settings-panel section > .link-btn { padding: 0; font-size: 11px; }
 @media (prefers-reduced-motion: reduce) {
   .settings-panel, .settings-backdrop, .gear-btn { transition: none; }
 }
@@ -2347,4 +2350,157 @@ button.st-card-chip:hover { border-color: var(--role); }
 @media (prefers-reduced-motion: reduce) {
   .pf-hero, .pf-pos, .pf-swap, .pf-launch, .pf-empty { animation: none; opacity: 1; }
   .pf-track i, .pf-skel i, .pf-swap.pending .pf-node, .pf-empty-mark i { animation: none; }
+}
+
+/* A token launch in the conversation: a ticket for a new token and the stock
+   it pairs with. Ember edge, a perforation under the pair, Bankr's rules as
+   checks, and the hold at the bottom. Robinhood green marks the chain. */
+.lc {
+  --rh: #00c805;
+  position: relative;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 18px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(236, 27, 105, 0.34);
+  background:
+    radial-gradient(120% 55% at 0% 0%, rgba(236, 27, 105, 0.13), transparent 62%),
+    radial-gradient(80% 45% at 100% 100%, rgba(0, 200, 5, 0.08), transparent 62%),
+    linear-gradient(170deg, rgba(14, 18, 32, 0.95), rgba(5, 7, 14, 0.97));
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(10px);
+  animation: rise 420ms var(--ease);
+}
+.lc::before { content: ""; position: absolute; left: 22px; right: 22px; top: -1px; height: 1px; background: var(--ember); opacity: 0.75; }
+.lc.live { border-color: rgba(0, 200, 5, 0.45); }
+.lc.failed { border-color: rgba(255, 176, 32, 0.4); }
+.lc-head { display: flex; align-items: center; gap: 10px; }
+.lc-head .chain-badge { align-self: center; white-space: nowrap; }
+.lc-head .kicker { white-space: nowrap; }
+.lc-head .bubble-close { margin-left: 0; width: 26px; height: 26px; font-size: 16px; }
+.lc-state { margin-left: auto; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--hair-strong); font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-2); }
+.lc-state.busy { color: #ffd3e1; border-color: rgba(236, 27, 105, 0.55); animation: breathe 1.2s ease-in-out infinite; }
+.lc-state.ready, .lc-state.live { color: #b9f5c6; border-color: rgba(0, 200, 5, 0.55); background: rgba(0, 200, 5, 0.1); }
+.lc-state.fix, .lc-state.failed { color: #ffd78a; border-color: rgba(255, 176, 32, 0.45); }
+
+/* The token and its pair as two coins, the token over the stock. */
+.lc-title { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.lc-title > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lc-title b { font-family: var(--display); font-size: 26px; font-weight: 800; line-height: 1; letter-spacing: -0.03em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lc-title small { font-size: 11.5px; color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lc-coins { position: relative; flex: none; width: 78px; height: 44px; }
+.lc-coin { position: absolute; top: 0; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; overflow: hidden; font-style: normal; }
+.lc-coin.pair { left: 34px; padding-left: 9px; border: 1.5px solid rgba(0, 200, 5, 0.7); background: radial-gradient(circle at 35% 30%, rgba(0, 200, 5, 0.25), rgba(3, 8, 5, 0.95)); color: #c9f7dd; font-size: 9.5px; font-weight: 600; letter-spacing: 0.04em; }
+.lc-coin.token { left: 0; z-index: 1; background: var(--ember); color: #fff; font-family: var(--display); font-size: 19px; font-weight: 800; box-shadow: 0 0 0 3px #0a0d18, 0 6px 18px rgba(236, 27, 105, 0.45); }
+.lc-coin.token img { width: 100%; height: 100%; object-fit: cover; }
+
+/* A ticket's perforation, notched at both edges. */
+.lc-perf { position: relative; display: block; height: 0; margin: 0 -18px; border-top: 1px dashed rgba(120, 160, 255, 0.24); }
+.lc-perf::before, .lc-perf::after { content: ""; position: absolute; top: -8px; width: 16px; height: 16px; border-radius: 50%; background: var(--bg); border: 1px solid rgba(236, 27, 105, 0.34); }
+.lc-perf::before { left: -9px; clip-path: inset(0 0 0 50%); }
+.lc-perf::after { right: -9px; clip-path: inset(0 50% 0 0); }
+
+.lc-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.lc-form .wide { grid-column: 1 / -1; }
+.lc-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.lc-field > span { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); }
+.lc-field input, .lc-field textarea { width: 100%; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--hair-strong); background: rgba(3, 4, 10, 0.7); color: var(--ink); font: inherit; font-size: 13px; resize: vertical; }
+.lc-field input:focus, .lc-field textarea:focus { outline: none; border-color: rgba(236, 27, 105, 0.55); }
+.lc-field input:disabled, .lc-field textarea:disabled { opacity: 0.6; }
+.lc-field .lc-search { padding: 7px 12px; font-size: 12px; }
+.lc-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.lc-chip { display: inline-flex; align-items: baseline; gap: 6px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--hair); background: rgba(8, 11, 22, 0.7); color: var(--ink); font: inherit; font-size: 11.5px; cursor: pointer; opacity: 0; animation: rise 320ms var(--ease) forwards; animation-delay: calc(var(--i, 0) * 18ms); transition: border-color 140ms var(--ease), background 140ms var(--ease); }
+.lc-chip b { font-weight: 600; letter-spacing: 0.02em; }
+.lc-chip small { font-size: 10px; color: var(--mute); }
+.lc-chip:hover:not(:disabled) { border-color: rgba(0, 200, 5, 0.5); }
+.lc-chip.on { border-color: rgba(0, 200, 5, 0.75); background: rgba(0, 200, 5, 0.14); box-shadow: 0 0 16px rgba(0, 200, 5, 0.18); }
+.lc-chip.on small { color: #b9f5c6; }
+.lc-chip.major b { color: #bcd0ff; }
+.lc-chip.thin::after { content: ""; align-self: center; width: 5px; height: 5px; border-radius: 50%; background: #ffb020; }
+.lc-chip:disabled { cursor: default; opacity: 0.45; }
+.lc-none { font-size: 11.5px; color: var(--mute); }
+.lc-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.lc-seg button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--hair); background: rgba(3, 4, 10, 0.55); color: var(--ink-2); font: inherit; font-size: 12.5px; text-align: left; cursor: pointer; }
+.lc-seg button small { font-size: 10.5px; color: var(--mute); }
+.lc-seg button[aria-checked="true"] { color: var(--ink); border-color: rgba(236, 27, 105, 0.6); background: rgba(236, 27, 105, 0.1); }
+.lc-extras { display: grid; grid-template-columns: auto 1fr 1fr; gap: 8px; align-items: stretch; }
+.lc-logo { display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px 6px; border-radius: 12px; border: 1px dashed var(--hair-strong); background: none; color: var(--ink-2); font: inherit; cursor: pointer; }
+.lc-logo > span, .lc-logo img { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; object-fit: cover; background: rgba(236, 27, 105, 0.12); color: #ffd3e1; font-size: 16px; }
+.lc-logo small { font-size: 10.5px; color: var(--mute); white-space: nowrap; }
+.lc-logo:hover:not(:disabled) { border-color: rgba(236, 27, 105, 0.5); }
+.lc-opt { position: relative; display: flex; flex-direction: column; gap: 2px; padding: 8px 12px 8px 30px; border-radius: 12px; border: 1px solid var(--hair); background: rgba(3, 4, 10, 0.55); color: var(--ink-2); font: inherit; text-align: left; cursor: pointer; }
+.lc-opt i { position: absolute; left: 11px; top: 12px; width: 10px; height: 10px; border-radius: 3px; border: 1px solid var(--hair-strong); }
+.lc-opt.on i { border-color: transparent; background: var(--ember); box-shadow: 0 0 10px rgba(236, 27, 105, 0.5); }
+.lc-opt b { font-size: 12px; font-weight: 500; color: var(--ink); }
+.lc-opt small { font-size: 10.5px; line-height: 1.45; color: var(--mute); }
+
+.lc-key { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(255, 176, 32, 0.38); background: rgba(255, 176, 32, 0.07); font-size: 12px; line-height: 1.55; color: #ffd78a; }
+.lc-key .chip-btn { padding: 5px 12px; font-size: 11.5px; }
+.lc-stale { margin: 0; font-size: 12px; color: #ffd78a; }
+.lc-checks { list-style: none; margin: 0; padding: 10px 12px; display: flex; flex-direction: column; gap: 7px; border-radius: 14px; border: 1px solid var(--hair); background: rgba(3, 4, 10, 0.55); }
+.lc-checks li { display: grid; grid-template-columns: 16px 150px 1fr; align-items: baseline; gap: 8px; font-size: 12px; opacity: 0; animation: rise 360ms var(--ease) forwards; animation-delay: calc(var(--i, 0) * 45ms); }
+.lc-checks li i { font-style: normal; font-weight: 600; text-align: center; }
+.lc-checks li span { color: var(--ink); }
+.lc-checks li small { font-size: 11.5px; line-height: 1.5; color: var(--mute); }
+.lc-checks li.ok i { color: var(--ok); }
+.lc-checks li.warn i { color: #ffb020; }
+.lc-checks li.warn small { color: #e9cf9a; }
+.lc-checks li.bad i, .lc-checks li.bad span { color: #ff9f9f; }
+.lc-checks li.bad small { color: #ffc9c9; }
+.lc-checks li.skip i { color: var(--mute); }
+.lc-terms { font-size: 12px; color: var(--ink-2); }
+.lc-terms summary { list-style: none; cursor: pointer; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); }
+.lc-terms summary::-webkit-details-marker { display: none; }
+.lc-terms summary::before { content: "+"; display: inline-block; width: 14px; color: #ff9fbf; }
+.lc-terms[open] summary::before { content: "−"; }
+.lc-terms summary:hover { color: var(--ink-2); }
+.lc-terms dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 10px 0 0; }
+.lc-terms dt { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--mute); padding-top: 2px; }
+.lc-terms dd { margin: 0; line-height: 1.55; }
+.lc-act { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.lc-honest { margin: -4px 0 0; font-size: 11px; line-height: 1.6; color: var(--mute); }
+
+/* While Bankr deploys, and what came of it. */
+.lc-sending, .lc-live, .lc-refused, .lc-unconfirmed { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--hair-strong); background: rgba(3, 4, 10, 0.55); }
+.lc-sending { border-color: rgba(236, 27, 105, 0.4); }
+.lc-sending b, .lc-live b, .lc-refused b, .lc-unconfirmed b { font-family: var(--display); font-size: 16px; }
+.lc-sending p, .lc-refused p, .lc-unconfirmed p { margin: 0; font-size: 12px; line-height: 1.6; color: var(--ink-2); }
+.lc-live { border-color: rgba(0, 200, 5, 0.45); background: radial-gradient(90% 80% at 100% 0%, rgba(0, 200, 5, 0.12), transparent 60%), rgba(3, 4, 10, 0.55); }
+.lc-live dl { display: grid; grid-template-columns: max-content 1fr; gap: 5px 14px; margin: 2px 0 0; }
+.lc-live dt { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--mute); padding-top: 2px; }
+.lc-live dd { margin: 0; min-width: 0; font-size: 12px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.lc-live small { font-size: 11px; color: var(--mute); }
+.lc-live .link-btn, .lc-refused .link-btn, .lc-unconfirmed .link-btn { align-self: flex-start; padding: 0; text-decoration: none; }
+.lc-stamp { position: absolute; right: 14px; top: 10px; padding: 2px 10px; border: 2px solid rgba(0, 200, 5, 0.75); border-radius: 6px; outline: 1px solid rgba(0, 200, 5, 0.35); outline-offset: 2px; color: #7dff8a; font-family: var(--display); font-size: 13px; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase; transform: rotate(-7deg); animation: lc-stamp 520ms cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+@keyframes lc-stamp { from { opacity: 0; transform: rotate(-7deg) scale(1.9); } to { opacity: 1; transform: rotate(-7deg) scale(1); } }
+.lc-links { display: flex; flex-wrap: wrap; gap: 6px; }
+.lc-links a { padding: 5px 11px; border-radius: 999px; border: 1px solid rgba(0, 200, 5, 0.45); background: rgba(0, 200, 5, 0.08); color: #c9f7dd; font-size: 11.5px; text-decoration: none; }
+.lc-links a:hover { background: rgba(0, 200, 5, 0.16); }
+.lc-refused { border-color: rgba(255, 90, 90, 0.35); }
+.lc-unconfirmed { border-color: rgba(255, 176, 32, 0.4); background: rgba(255, 176, 32, 0.06); }
+@media (max-width: 900px) {
+  .lc-head .kicker { display: none; }
+  .lc-form, .lc-extras, .lc-seg { grid-template-columns: 1fr; }
+  .lc-checks li { grid-template-columns: 16px 1fr; }
+  .lc-checks li small { grid-column: 2; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lc, .lc-chip, .lc-checks li, .lc-stamp, .lc-state.busy { animation: none; opacity: 1; }
+}
+/* The launch action among the first questions: the chain's green, the same card shape. */
+.st-starters button.st-launch { border-color: rgba(0, 200, 5, 0.38); background: radial-gradient(90% 120% at 0% 0%, rgba(0, 200, 5, 0.12), transparent 60%), rgba(8, 11, 22, 0.72); }
+.st-starters button.st-launch:hover { border-color: rgba(0, 200, 5, 0.7); }
+.st-starters button.st-launch small { color: #9fe3b0; }
+/* The desk's team on a drafted launch: reading it, or Risk's verdict. It warns; the hold stays the person's. */
+.lc-team { margin: 0; padding: 9px 12px; border-radius: 12px; border: 1px solid var(--hair); background: rgba(3, 4, 10, 0.5); font-size: 12px; line-height: 1.55; color: var(--ink-2); }
+.lc-team b { font-family: var(--display); font-weight: 700; }
+.lc-team.busy { border-color: rgba(236, 27, 105, 0.35); color: #ffd3e1; animation: breathe 1.4s ease-in-out infinite; }
+.lc-team.go { border-color: rgba(0, 200, 5, 0.45); background: rgba(0, 200, 5, 0.07); }
+.lc-team.go b { color: #7dff8a; }
+.lc-team.block { border-color: rgba(255, 176, 32, 0.45); background: rgba(255, 176, 32, 0.07); color: #ffe2a8; }
+.lc-team.block b { color: #ffb020; }
+@media (prefers-reduced-motion: reduce) {
+  .lc-team.busy { animation: none; }
 }

@@ -18,7 +18,7 @@
 import { failureLabel, runtimeFailure } from "./turnFailure";
 import { isTurnId, isTurnKind, roleName, withoutFactTags, type FailureKind, type RiskLevel, type RoleReply, type TurnKind, type TurnRecord, type Verdict } from "./turnRecord";
 
-export const KIND_NAMES: Record<TurnKind, string> = { analyze: "Analyze", advise: "Advise", order: "Order" };
+export const KIND_NAMES: Record<TurnKind, string> = { analyze: "Analyze", advise: "Advise", order: "Order", launch: "Launch" };
 
 /** What a list shows of one answer, in characters. */
 const LINE = 160;
