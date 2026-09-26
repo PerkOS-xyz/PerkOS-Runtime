@@ -93,6 +93,7 @@ export function DeskView({
         section={desk.name}
         onLogout={onLogout}
         onSettings={onSettings}
+        onHome={onBack}
         actions={
           <>
             {desk.module ? (
@@ -118,15 +119,15 @@ export function DeskView({
             </button>
             <button
               type="button"
-              className="ah-out"
+              className={`ah-out ah-wake ${team.team?.status ?? "reading"}`}
               disabled={!waking.enabled}
-              title="Wakes Scout, Risk, Trader and Auditor on PerkOS. Desk time runs while they are awake."
+              title="Wakes the desk's team on PerkOS. Desk time runs while they are awake."
               onClick={() => void team.wake()}
             >
               {waking.label}
             </button>
             <button type="button" className="ah-out" onClick={onBack}>
-              All desks
+              Dashboard
             </button>
           </>
         }
