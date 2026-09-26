@@ -124,6 +124,11 @@ export type TurnEvent =
       stopped?: boolean;
       error?: TurnErrorCode;
     }
+  /**
+   * Why the turn ended early. Before the turn opens (the desk's market did not
+   * answer, or no asset has a price) this is the only frame: no `open`, no
+   * `done`, and nothing is kept. After `open`, a `done` always follows it.
+   */
   | { step: "error"; code: TurnErrorCode; message: string };
 
 export interface TurnReceipt {
