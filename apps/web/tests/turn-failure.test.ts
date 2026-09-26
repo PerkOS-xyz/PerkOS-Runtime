@@ -29,8 +29,16 @@ describe("a task that came back", () => {
       ["I reached the maximum iterations (90) but couldn't summarize. Error: boom", "model"],
       ["Operation interrupted: waiting for model response (61.2s elapsed).", "model"],
       ["Session is shutting down. Your conversation can be resumed with: hermes --resume <session-id>", "offline"],
+      ["Operation interrupted during retry (empty response, attempt 2/3).", "model"],
+      ["Operation interrupted: handling API error (RateLimitError: slow down).", "model"],
+      ["Operation interrupted: retrying API call after error (retry 1/3).", "model"],
+      ["Operation interrupted: retrying empty response from model (retry 1/2).", "model"],
+      ["Operation interrupted.", "model"],
+      ["Billing or credits exhausted: insufficient_quota", "model"],
+      ["Provider reported usage/credit exhaustion (unverified, the same error can be a content-filter rejection, not billing): 429", "model"],
     ];
     for (const [text, kind] of texts) expect([text, classifyAnswer({ ok: true, reply: text }).failure]).toEqual([text, kind]);
+    expect(runtimeFailure("The operation was interrupted twice, but NVDA held its range [F1].")).toBeNull();
     expect(runtimeFailure("The API call failed after 3 retries, says the log")).toBeNull();
   });
 

@@ -21,6 +21,9 @@ const RUNTIME_FAILURES: Array<[RegExp, FailureKind]> = [
   [/^I apologize, but I encountered an error while processing the model response\b/i, "model"],
   [/^I reached the maximum iterations\b/i, "model"],
   [/^Operation interrupted: waiting for model response\b/i, "model"],
+  [/^Operation interrupted\b/i, "model"],
+  [/^Billing or credits exhausted:/i, "model"],
+  [/^Provider reported usage\/credit exhaustion\b/i, "model"],
   [/^Session is shutting down\b/i, "offline"],
 ];
 
