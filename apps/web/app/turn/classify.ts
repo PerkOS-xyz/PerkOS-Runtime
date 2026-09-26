@@ -51,8 +51,12 @@ const RECOMMEND =
 const OPPORTUNITY = /\b(opportunit\w*|oportunidad\w*)\b/;
 /** An open question about what to buy or where to put money. */
 const ADVISE = [
-  // "Which stock should I buy?", "What would you invest in?", "What to buy this month"
-  /\b(what|which)\b.*\b(should|would|to|worth|shall|do you)\b.*\b(buy|buying|invest|get into)\b/,
+  // "Which stock should I buy?", "What would you invest in?", "What to buy this month". Only a question about
+  // what to pick: "What do I need to buy a stock?" and "Which desk should I use to buy?" ask how, and stay chat.
+  /\bwhich\b(?!\s+(?:desk|desks|app|wallet|chain|network|platform|exchange|broker)\b).*\b(should|would|to|worth|shall|do you)\b.*\b(buy|buying|invest|get into)\b/,
+  /\bwhat\s+(?:(?:stock|stocks|share|shares|ticker|tickers|token|tokens|company|companies|one|ones)\s+)?(?:should|would|shall|do)\s+(?:i|we|you)\s+(?:buy|invest|get into)\b/,
+  /\bwhat\s+(?:stock|stocks|share|shares|ticker|tickers|token|tokens|company|companies)\b.*\b(?:to|worth)\b.*\b(?:buy|buying|invest)\b/,
+  /\bwhat\s+(?:to|is worth)\s+(?:buy|buying|invest in)\b/,
   // "Should I buy now?", "¿Debería invertir?"
   /\b(should i|shall i|deberia|debo|me conviene)\b.*\b(buy|invest|comprar|invertir)\b/,
   // "¿Qué compro?", "¿Qué acción me conviene comprar este mes?"; not "¿Qué puedo comprar aquí?"
@@ -137,12 +141,18 @@ const LOOSE_TICKER = /(?:\$[A-Za-z]{1,6}\b|\b[A-Z]{2,5}\b)/;
 const NOT_TICKERS = new Set(["USD", "USDC", "USDG", "OK", "AI", "PM", "AM", "ETF", "CEO", "API", "FAQ", "USA", "EU", "UK"]);
 
 function namesAsset(text: string, assets: DeskAsset[] | undefined): boolean {
-  if (assets?.length) return askedAbout(text, assets).length > 0;
+  // "Robinhood Chain" names the desk's chain, not the company whose token trades on it.
+  const words = text.replace(/\b[A-Za-z]+\s+chain\b/gi, " ");
+  if (assets?.length) return askedAbout(words, assets).length > 0;
   const m = text.match(new RegExp(LOOSE_TICKER.source, "g")) ?? [];
   return m.some((w) => !NOT_TICKERS.has(w.replace("$", "").toUpperCase()));
 }
 
+/** Asking which tool to use, not what to buy: "Which desk should I use to buy stocks?". */
+const WHICH_TOOL = /\b(which|what)\s+(desk|desks|app|apps|wallet|wallets|chain|chains|network|networks|platform|platforms|exchange|exchanges|broker|brokers)\b/;
+
 function advises(t: string): boolean {
+  if (WHICH_TOOL.test(t)) return false;
   if (ADVISE.some((re) => re.test(t)) || OPEN_ASK.some((re) => re.test(t))) return true;
   const money = BUY.test(t) || MARKET.test(t);
   if ((RECOMMEND.test(t) || OPPORTUNITY.test(t)) && (money || HORIZON.test(t))) return true;

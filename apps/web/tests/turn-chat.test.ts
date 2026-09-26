@@ -137,5 +137,7 @@ describe("where the person's words go", () => {
 describe("Sparky's voice", () => {
   it("speaks Sparky's words without fact tags or @", () => {
     expect(spoken("NVDA trades at 181.20 USDG [F1], and @Trader plans 50 USDG [F2].")).toBe("NVDA trades at 181.20 USDG, and Trader plans 50 USDG.");
+    // Grouped tags are never read out either.
+    expect(spoken("NVDA and AAPL both held [F1, F2], and the range was narrow [F1-F3].")).toBe("NVDA and AAPL both held, and the range was narrow.");
   });
 });

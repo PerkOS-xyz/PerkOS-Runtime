@@ -89,6 +89,19 @@ describe("which questions go to the team", () => {
     expect(kind("Any opportunities this week?")).toBe("advise");
     expect(kind("What do you recommend?")).toBe("advise");
     expect(kind("Best pick for next month")).toBe("advise");
+    expect(kind("What should I buy this month?")).toBe("advise");
+    expect(kind("What stocks are worth buying?")).toBe("advise");
+    expect(kind("What would you invest in?")).toBe("advise");
+    expect(kind("Which one should I buy?")).toBe("advise");
+  });
+
+  it("keeps questions about how to buy with Sparky, and does not read the desk's chain as a stock", () => {
+    expect(kind("What do I need to buy a stock here?")).toBeNull();
+    expect(kind("What does it cost to buy?")).toBeNull();
+    expect(kind("Which desk should I use to buy stocks?")).toBeNull();
+    const withHood = [...assets, asset("HOOD", "Robinhood Markets")];
+    expect(turnKindFor("Do I need gas to buy on Robinhood Chain?", { manifest: eqlty, assets: withHood })).toBeNull();
+    expect(turnKindFor("How is Robinhood doing today?", { manifest: eqlty, assets: withHood })).toBe("analyze");
   });
 
   it("understands Spanish", () => {
