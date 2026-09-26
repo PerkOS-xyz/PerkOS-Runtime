@@ -1,6 +1,7 @@
 "use client";
 
 import { SparkyChat } from "../chat/SparkyChat";
+import { useSparkyChat } from "../chat/useSparkyChat";
 import { AppHeader } from "../shell/AppHeader";
 import { CHAIN_LABEL, chainOf } from "./chains";
 import type { Desk } from "./DesksScreen";
@@ -18,6 +19,7 @@ export function DeskView({
   onSettings: () => void;
 }) {
   const chain = chainOf(desk.module);
+  const chat = useSparkyChat({ desk: desk.id });
   return (
     <main className="desk-view">
       <AppHeader
@@ -38,7 +40,7 @@ export function DeskView({
           <p>{desk.description}</p>
           <img className="dv-sparky" src="/sparky-full.png" alt="" draggable={false} />
         </aside>
-        <SparkyChat desk={desk.id} greeting={`You are in ${desk.name}. Ask me about it, or tell me what you want to do here.`} />
+        <SparkyChat chat={chat} greeting={`You are in ${desk.name}. Ask me about it, or tell me what you want to do here.`} />
       </div>
     </main>
   );
