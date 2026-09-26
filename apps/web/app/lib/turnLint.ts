@@ -52,8 +52,12 @@ const VENUE_NAMES = [
 const LENGTH_SLACK = 15;
 /** Words that make an amount a size to trade, not a price level. */
 const SIZE_WORDS = "buy|size|sizing|clip|position|allocate|add|enter|entry|start with|deploy|put|invest|spend|up to|at most";
-/** An amount after these is a price level: "add below 175 USDG". */
-const LEVEL_BEFORE = /\b(at|below|above|near|under|over|from|to|around|price|level|trades?|trading)\s*[:$]?\s*$/i;
+/** An amount after these is a price level: "add below 175 USDG". "Up to" is a size, unless a move comes before it. */
+const LEVEL_BEFORE = /\b(at|below|above|near|under|over|from|(?<!\bup\s)to|around|price|level|trades?|trading)\s*[:$]?\s*$/i;
+/** "Up to" after a move is a price target, not a size: "it could run up to 200 USDG". */
+const UP_TO_END = /\s*\bup\s+to\s*[:$]?\s*$/i;
+const MOVE_BEFORE =
+  /\b(run|runs|running|rise|rises|rising|climb|climbs|climbing|rally|rallies|rallying|move|moves|moving|trade|trades|trading|reach|reaches|jump|jumps|rebound|rebounds|bounce|bounces|push|pushes|pop|pops|spike|spikes|extend|extends|head|heads|recover|recovers|swing|swings)(?:\s+\w+ly)?\s*$/i;
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const pcts = (text: string) => new Set((text.match(/-?\d+(?:\.\d+)?\s?%/g) ?? []).map((x) => Math.abs(parseFloat(x)).toFixed(1)));
@@ -70,9 +74,12 @@ export function largestSize(text: string, quote = "USD"): number {
   const unit = `(?:${escape(quote)}|USDG|USDC|USD|dollars?)`;
   const amount = `(?:\\$\\s?(\\d[\\d,]*(?:\\.\\d+)?)\\s?(k)?|(\\d[\\d,]*(?:\\.\\d+)?)\\s?(k)?\\s?${unit}\\b)`;
   const re = new RegExp(`\\b(?:${SIZE_WORDS})\\b([^.\\n]{0,40}?)${amount}`, "gi");
+  const sizeWord = new RegExp(`^(?:${SIZE_WORDS})`, "i");
   let largest = 0;
   for (const m of text.matchAll(re)) {
     if (LEVEL_BEFORE.test(m[1] ?? "")) continue;
+    const lead = text.slice(0, m.index) + (m[0].match(sizeWord)?.[0] ?? "") + (m[1] ?? "");
+    if (UP_TO_END.test(lead) && MOVE_BEFORE.test(lead.replace(UP_TO_END, ""))) continue;
     const raw = m[2] ?? m[4];
     if (!raw) continue;
     const value = Number(raw.replace(/,/g, "")) * (m[3] || m[5] ? 1000 : 1);

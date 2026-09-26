@@ -112,5 +112,13 @@ describe("reading limits from the desk's words", () => {
     expect(largestSize("Start with $2k.", "USDG")).toBe(2_000);
     expect(largestSize("NVDA trades at 181.20 USDG.", "USDG")).toBe(0);
     expect(largestSize("Position of 1,500 USDC.", "USDC")).toBe(1_500);
+    expect(largestSize("NVDA could run up to 200 USDG this month.", "USDG")).toBe(0);
+    expect(largestSize("It may climb quickly up to $250.", "USDG")).toBe(0);
+    expect(largestSize("Size up to 150 USDG.", "USDG")).toBe(150);
+    expect(largestSize("Up to 120 USDG per order.", "USDG")).toBe(120);
+    expect(largestSize("Buy NVDA; it could run up to 200 USDG.", "USDG")).toBe(0);
+    expect(largestSize("Buy up to 90 USDG.", "USDG")).toBe(90);
+    // "Go up to" reads as a size as often as a target, so it stays a size.
+    expect(largestSize("I would go up to 150 USDG.", "USDG")).toBe(150);
   });
 });
