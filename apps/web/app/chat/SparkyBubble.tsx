@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { openMemory } from "../memory/open";
 import { useVault } from "../shell/useVault";
 import { SentenceSplitter } from "../voice/sentences";
 import { useWallet } from "../wallet/context";
@@ -125,6 +126,13 @@ export function SparkyBubble({ model }: { model: string | null }) {
               </svg>
               Live
             </button>
+            {vault.unlocked ? (
+              <button type="button" className="sp-icon" aria-label="What Sparky remembers" title="What Sparky remembers" onClick={() => openMemory()}>
+                <svg viewBox="0 0 24 24" aria-hidden>
+                  <path d="M4 5h16v4H4zM5 9v10h14V9M10 13h4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
+                </svg>
+              </button>
+            ) : null}
             <button
               type="button"
               className={`sp-icon${voice.muted ? " on" : ""}`}

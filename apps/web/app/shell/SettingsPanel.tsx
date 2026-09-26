@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import pkg from "../../package.json";
+import { openMemory } from "../memory/open";
 import { useWallet } from "../wallet/context";
 import { orderSources, type ModelState } from "./useModel";
 import { useVault } from "./useVault";
@@ -134,9 +135,21 @@ export function SettingsPanel({
           </p>
           {vault.error ? <p className="set-line hint err">{vault.error}</p> : null}
           {vault.unlocked ? (
-            <button type="button" className="chip-btn" disabled={vault.busy} onClick={() => void vault.lock()}>
-              Turn off on this device
-            </button>
+            <div className="memory-actions">
+              <button
+                type="button"
+                className="chip-btn"
+                onClick={() => {
+                  onClose();
+                  openMemory();
+                }}
+              >
+                Open memory
+              </button>
+              <button type="button" className="link-btn" disabled={vault.busy} onClick={() => void vault.lock()}>
+                Turn off on this device
+              </button>
+            </div>
           ) : vault.conflict ? (
             <button type="button" className="chip-btn" disabled={vault.busy} onClick={() => void vault.startFresh()}>
               Start a new memory

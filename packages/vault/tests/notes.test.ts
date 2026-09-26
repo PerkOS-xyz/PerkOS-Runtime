@@ -110,6 +110,15 @@ describe("NoteStore", () => {
     expect(readdirSync(join(root, "user", "journal"))).toEqual(["2026-09-26.json"]);
   });
 
+  it("reads only note ids", async () => {
+    const { notes } = store();
+    await notes.appendJournal("user", "hello");
+    expect(await notes.read("user/journal/2026-09-26")).not.toBeNull();
+    for (const id of ["../session", "user/../../session", "user/journal", "user/other/x", "user/journal/2026-09-26/x", "User/journal/2026-09-26"]) {
+      expect(await notes.read(id)).toBeNull();
+    }
+  });
+
   it("rejects scopes and names that could escape the vault", async () => {
     const { root, notes } = store();
     await expect(notes.appendJournal("../evil", "x")).rejects.toThrow("Not a scope");

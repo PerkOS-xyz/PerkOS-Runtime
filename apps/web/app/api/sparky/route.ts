@@ -1,5 +1,6 @@
 import { guard } from "../../lib/guard";
-import { journalEntry, memoryFor, recallScopes, scopeFor } from "../../lib/memory";
+import { journalEntry } from "../../lib/journal";
+import { memoryFor, recallScopes, scopeFor } from "../../lib/memory";
 import { defaultRegistry } from "../../lib/models";
 import { cachedDesks } from "../../lib/perkos";
 import { settings } from "../../lib/settings";
