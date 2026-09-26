@@ -15,6 +15,10 @@
   --err: #ff6b6b;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
   --display: var(--font-display), ui-sans-serif, sans-serif;
+  /* For anything read as data rather than prose: hashes, names, signed packets. */
+  --mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  /* The muted grey, lifted for the small type that has to stay readable over a panel. */
+  --mute-2: #8f9bb9;
 }
 
 * { box-sizing: border-box; }
@@ -42,6 +46,15 @@ body::after {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
 }
 button { font: inherit; }
+/* Scrollbars in the app's own dark, everywhere the platform lets us say so. */
+* { scrollbar-width: thin; scrollbar-color: rgba(120, 160, 255, 0.24) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background: rgba(120, 160, 255, 0.24); background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: rgba(236, 27, 105, 0.45); background-clip: padding-box; }
+/* Keyboard focus in the app's own colour, wherever a rule further down does not
+   already say otherwise. Pointer users never see it. */
+:is(button, a, select, summary, [tabindex]):focus-visible { outline: 1px solid var(--coral); outline-offset: 3px; border-radius: 6px; }
 
 .kicker {
   font-size: 11px;
@@ -252,6 +265,22 @@ button { font: inherit; }
 .ah-out.ah-wake:hover:not(:disabled) { background: rgba(236, 27, 105, 0.2); color: #fff; }
 .ah-out.ah-wake.waking, .ah-out.ah-wake.provisioning { opacity: 1; animation: ember-ring 2.4s ease-out infinite; }
 .ah-out.ah-wake.ready { opacity: 1; border-color: rgba(61, 220, 151, 0.5); background: rgba(61, 220, 151, 0.08); color: #b9f5d6; box-shadow: none; }
+/* A desk puts up to eleven things in this bar. It gives way in that order and
+   only as far as it must: the gaps close, the wallet's name shortens, and the
+   row wraps rather than let anything be cut off the right edge. */
+.app-header { flex-wrap: wrap; row-gap: 10px; }
+.ah-account { flex-wrap: wrap; justify-content: flex-end; row-gap: 8px; }
+.ah-id { flex: 0 1 auto; }
+@media (max-width: 1400px) {
+  .ah-account { gap: 8px 10px; }
+  .ah-id { max-width: 190px; }
+}
+@media (max-width: 1200px) {
+  .ah-account { gap: 8px; }
+  .ah-id { max-width: 132px; padding: 6px 10px 6px 8px; }
+  .ah-account .ah-out { letter-spacing: 0.08em; font-size: 10.5px; }
+  .ah-out.ah-wake { padding: 6px 11px; }
+}
 
 /* Header above the wizard, clear of the window controls. */
 .wizard { position: relative; }
@@ -420,11 +449,13 @@ button { font: inherit; }
   animation: rise 700ms var(--ease) 80ms forwards;
 }
 .dh-featured.robinhood {
-  border-color: rgba(0, 200, 5, 0.32);
+  border-color: rgba(0, 200, 5, 0.26);
+  /* The chain's green stays low and to the right, where the team stands; the
+     top of the card reads as the app's own dark rather than a green wash. */
   background:
-    radial-gradient(70% 90% at 82% 58%, rgba(0, 200, 5, 0.17), transparent 62%),
-    radial-gradient(60% 70% at 8% 0%, rgba(236, 27, 105, 0.12), transparent 60%),
-    linear-gradient(160deg, rgba(14, 30, 18, 0.92), rgba(3, 8, 5, 0.96));
+    radial-gradient(64% 70% at 84% 76%, rgba(0, 200, 5, 0.15), transparent 64%),
+    radial-gradient(60% 70% at 8% 0%, rgba(236, 27, 105, 0.1), transparent 60%),
+    linear-gradient(160deg, rgba(8, 16, 12, 0.94), rgba(3, 6, 5, 0.97));
 }
 .dh-featured.base {
   border-color: rgba(0, 82, 255, 0.36);
@@ -554,6 +585,10 @@ button { font: inherit; }
   transition: left var(--st-ms) var(--st-ease);
 }
 .st-id h1 { margin: 0; font-family: var(--display); font-size: 34px; font-weight: 800; line-height: 1; letter-spacing: -0.03em; }
+/* The name already says it is a desk, so the eyebrow above it goes; the line it
+   held stays as room over the title, which is what that space was doing anyway. */
+.st-id .kicker { display: none; }
+.st-id { padding-top: 22px; }
 .st-id .chain-badge { align-self: center; }
 .st-tagline { font-size: 11px; letter-spacing: 0.06em; color: var(--mute); }
 
@@ -604,15 +639,19 @@ button { font: inherit; }
 .st-core.listening .st-eye { opacity: 0.75; animation: st-eye-pulse 1.4s ease-in-out infinite; }
 .st-core.thinking .st-eye { opacity: 0.6; animation: st-eye-pulse 1.1s ease-in-out infinite; }
 .st-core.speaking .st-eye { opacity: 1; filter: blur(3px); animation: st-eye-beat 0.55s ease-in-out infinite; }
-/* While he answers, the light around him rises with him. */
-.st-blob { transition: filter 420ms var(--ease); }
+/* While he answers, the light around him rises with him. Both transitions in one
+   declaration, or this one would drop the slide it makes when the conversation opens. */
+.st-blob { transition: left var(--st-ms) var(--st-ease), filter 420ms var(--ease); }
 .stage:has(.st-core.speaking) .st-blob { filter: brightness(1.7) saturate(1.25); }
 @keyframes st-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
 @keyframes st-listen { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
 @keyframes st-speak { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.035); } }
 @keyframes st-eye-pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.95; } }
 @keyframes st-eye-beat { 0%, 100% { transform: scale(1); opacity: 0.85; } 50% { transform: scale(1.3); opacity: 1; } }
-.st-whisper { margin: 0; font-size: 11px; letter-spacing: 0.26em; text-transform: uppercase; color: var(--mute); transition: color 200ms var(--ease); }
+/* Centred as a box by the column above, and centred line by line here too:
+   in a narrow strip it wraps, and the second line would sit left otherwise.
+   The right padding gives back the trailing letter-space the tracking adds. */
+.st-whisper { margin: 0; padding-left: 0.26em; font-size: 11px; letter-spacing: 0.26em; text-transform: uppercase; color: var(--mute); text-align: center; text-wrap: balance; transition: color 200ms var(--ease); }
 .st-core:not(.idle) + .st-whisper { color: #ff9fbf; }
 .st-hello { margin: 0; max-width: 40ch; font-size: 12.5px; line-height: 1.6; color: var(--ink-2); text-align: center; opacity: 0; animation: rise 520ms var(--ease) 200ms forwards; }
 
@@ -641,7 +680,9 @@ button { font: inherit; }
 .st-turn { display: flex; flex-direction: column; gap: 5px; max-width: 92%; }
 .st-turn.user { align-self: flex-end; align-items: flex-end; }
 .st-who { font-size: 9.5px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--mute); }
-.st-turn p { margin: 0; padding: 11px 15px; border-radius: 16px; font-size: 13.5px; line-height: 1.6; white-space: pre-wrap; }
+/* A request id, a hash or an address arrives as one unbroken run of characters;
+   without this it walks straight out of the bubble instead of wrapping. */
+.st-turn p { margin: 0; min-width: 0; padding: 11px 15px; border-radius: 16px; font-size: 13.5px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .st-turn.user p { border-bottom-right-radius: 6px; background: var(--ember); color: #fff; }
 .st-turn.assistant p { border-bottom-left-radius: 6px; border: 1px solid var(--hair); background: rgba(10, 14, 26, 0.78); backdrop-filter: blur(8px); }
 .st-typing { display: inline-flex; gap: 4px; padding: 4px 0; }
@@ -656,32 +697,92 @@ button { font: inherit; }
   left: 50%;
   bottom: 100px;
   transform: translateX(-50%);
-  width: min(680px, calc(100% - 2 * var(--side)));
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* One line that scrolls sideways: the suggestions read in a row and keep to
+     their own band under the team, instead of stacking over the heads. */
+  width: min(1120px, calc(100% - 2 * var(--side)));
+  display: flex;
   gap: 10px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 52px;
+  scrollbar-width: none;
+  /* The ends fade the row itself out rather than painting over it, so the
+     colour behind shows through. The two discs are added back to the mask so
+     the chevrons stay solid inside the part that fades. */
+  -webkit-mask-image:
+    radial-gradient(circle 17px at 28px 50%, #000 62%, transparent 100%),
+    radial-gradient(circle 17px at calc(100% - 28px) 50%, #000 62%, transparent 100%),
+    linear-gradient(90deg, transparent 0, #000 56px, #000 calc(100% - 56px), transparent 100%);
+  mask-image:
+    radial-gradient(circle 17px at 28px 50%, #000 62%, transparent 100%),
+    radial-gradient(circle 17px at calc(100% - 28px) 50%, #000 62%, transparent 100%),
+    linear-gradient(90deg, transparent 0, #000 56px, #000 calc(100% - 56px), transparent 100%);
+  mask-composite: add;
 }
+.st-starters::-webkit-scrollbar { display: none; }
+/* Both ends fade out with a chevron over them, instead of a scrollbar under the
+   row. They are sticky flex items with their width taken back by a negative
+   margin, so they hold the edge as the row scrolls without displacing a card. */
+.st-starters::before, .st-starters::after {
+  content: "";
+  position: sticky;
+  z-index: 2;
+  flex: 0 0 52px;
+  align-self: stretch;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  /* Three layers, painted front to back: the chevron, a soft disc that holds it
+     off whatever card is under it, and the fade that dims the row's own edge. */
+  background-position: center, center, center;
+  background-size: 9px 15px, auto;
+}
+.st-starters::before {
+  left: 0;
+  margin-right: -56px;
+  flex-basis: 56px;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 14'%3E%3Cpath d='M6.3 1 1.4 7l4.9 6' fill='none' stroke='%23d5def5' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"),
+    radial-gradient(circle at center, rgba(4, 6, 14, 0.7) 0 12px, rgba(4, 6, 14, 0) 16px);
+}
+.st-starters::after {
+  right: 0;
+  margin-left: -56px;
+  flex-basis: 56px;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 14'%3E%3Cpath d='M1.7 1 6.6 7l-4.9 6' fill='none' stroke='%23d5def5' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"),
+    radial-gradient(circle at center, rgba(4, 6, 14, 0.7) 0 12px, rgba(4, 6, 14, 0) 16px);
+}
+/* The ends belong to the chevrons: the first and last card keep out of them,
+   as a margin rather than padding on the row, which would pen the fades in
+   and stop them reaching the edge. */
+.st-starters button:first-of-type { margin-left: 52px; }
+.st-starters button:last-of-type { margin-right: 52px; }
 .st-starters button {
+  flex: 0 0 clamp(178px, 17vw, 218px);
+  scroll-snap-align: start;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 11px 14px;
-  border-radius: 14px;
+  gap: 2px;
+  padding: 9px 12px;
+  border-radius: 13px;
   border: 1px solid var(--hair-strong);
-  background: rgba(8, 11, 22, 0.72);
-  backdrop-filter: blur(10px);
+  /* Opaque enough to stand on its own: a backdrop filter inside a scrolling row
+     is re-rasterised on every frame, which is what made the row flicker. */
+  background: rgba(8, 11, 22, 0.88);
   color: var(--ink);
   font: inherit;
-  font-size: 12.5px;
+  font-size: 11.5px;
+  line-height: 1.35;
   text-align: left;
   cursor: pointer;
   opacity: 0;
-  animation: rise 460ms var(--ease) forwards;
-  animation-delay: calc(260ms + var(--i, 0) * 70ms);
+  animation: rise 380ms var(--ease) forwards;
+  animation-delay: calc(140ms + var(--i, 0) * 45ms);
   transition: border-color 160ms var(--ease), transform 160ms var(--ease);
 }
 .st-starters button:hover { border-color: rgba(236, 27, 105, 0.55); transform: translateY(-1px); }
-.st-starters small { font-size: 10.5px; color: var(--mute); }
+.st-starters small { font-size: 9.5px; line-height: 1.3; color: var(--mute-2); }
 .st-ask {
   position: absolute;
   z-index: 6;
@@ -719,7 +820,25 @@ button { font: inherit; }
   .stage.split .st-id { display: none; }
   .stage.split .st-convo { top: 250px; }
   .stage.split .st-ask { left: 50%; }
-  .st-starters { grid-template-columns: 1fr; bottom: 92px; }
+  .st-starters { bottom: 92px; }
+  .st-starters button { flex-basis: 172px; }
+}
+/* A short window, before a conversation: the desk's name sits higher, Sparky
+   is drawn smaller and the suggestions read tighter, so his flame keeps off
+   the desk's own line and the row still has its band. */
+@media (max-height: 840px) {
+  .stage:not(.split):not(.panel) .st-id { top: 72px; }
+  .stage:not(.split):not(.panel) .st-core { width: 176px; height: 176px; }
+  .stage:not(.split):not(.panel) .st-core-wrap { gap: 10px; }
+}
+/* The three Uniswap seats are drawn at 48px by the component; on the desk
+   itself they read as a lesser team beside the four at 72px, so they are
+   brought up to the same size. The row drops to keep its own clearance. */
+@media not (max-width: 900px) {
+  .stage:not(.split):not(.panel) .st-member.st-spec { top: 132px; }
+  .st-starters { bottom: 88px; }
+  .st-starters button { font-size: 11px; padding: 8px 11px; }
+  .st-starters small { font-size: 9px; }
 }
 @media (max-height: 720px) {
   .st-core { width: 170px; height: 170px; }
@@ -1543,7 +1662,7 @@ button.mk-row { cursor: pointer; }
 .st-member.thinking small { color: #b69cff; }
 .st-member.error small { color: #ff8f8f; }
 .st-note { font-size: 11px; color: #ffb4b4; }
-.stage.split .st-team, .stage.panel .st-team { top: 236px; }
+.stage.split .st-team, .stage.panel .st-team { top: 256px; }
 .stage.split .st-team { left: calc(50% + var(--convo-w) / 2); }
 .stage.split .st-member, .stage.panel .st-member { transform: translate(-50%, -50%) scale(0.62); }
 .stage.split .st-member.seat-1, .stage.panel .st-member.seat-1 { left: -150px; }
@@ -1551,22 +1670,47 @@ button.mk-row { cursor: pointer; }
 .stage.split .st-member.seat-3, .stage.panel .st-member.seat-3 { left: 50px; }
 .stage.split .st-member.seat-4, .stage.panel .st-member.seat-4 { left: 150px; }
 .stage.split .st-member small, .stage.panel .st-member small { display: none; }
+/* Conversation and sheet open at once: the desk is left with a narrow strip
+   between them, so the seats close in and shrink rather than slide under either side. */
+.stage.split.panel .st-member:not(.st-spec) { transform: translate(-50%, -50%) scale(0.5); }
+.stage.split.panel .st-member.seat-1 { left: -96px; }
+.stage.split.panel .st-member.seat-2 { left: -32px; }
+.stage.split.panel .st-member.seat-3 { left: 32px; }
+.stage.split.panel .st-member.seat-4 { left: 96px; }
 /* Specialists: smaller, under the table at rest; one row under it in a conversation. */
 .st-member.st-spec { left: var(--x); top: 118px; gap: 4px; animation-delay: calc(440ms + var(--i, 0) * 60ms); }
+/* The specialists are drawn at 48px by the component and the four at 72px, so
+   on screen they read as a lesser team. They are brought to the same size here,
+   and every state's scale is matched to the seats beside them. */
+.st-member.st-spec .agent-portrait { width: 72px !important; height: 72px !important; }
+.st-member.st-spec .agent-portrait > svg { width: 100%; height: 100%; }
 .st-member.st-spec b { font-size: 11px; }
 .st-member.st-spec small { margin-top: -3px; font-size: 8.5px; }
 /* A partner's mark beside the name: small, in the partner's own color, lit like the rest. */
-.st-member b .st-mark { display: inline-block; width: 1.15em; height: 1.15em; margin-left: 0.35em; vertical-align: -0.2em; filter: drop-shadow(0 0 4px rgba(255, 0, 122, 0.55)); }
-.stage.split .st-member.st-spec, .stage.panel .st-member.st-spec { left: var(--row); top: 60px; transform: translate(-50%, -50%) scale(0.7); }
+.st-member b .st-mark { display: inline-block; width: 1.5em; height: 1.5em; margin-left: 0.32em; vertical-align: -0.34em; filter: drop-shadow(0 0 5px rgba(255, 0, 122, 0.6)); }
+/* Their seats are set 58px apart for the table's own width; beside a conversation
+   the row is drawn smaller but the names are not, so it opens up to keep them apart. */
+.stage.split .st-member.st-spec, .stage.panel .st-member.st-spec { left: calc(var(--row) * 1.95); top: 88px; transform: translate(-50%, -50%) scale(0.62); }
+/* In the narrow strip the specialists close in with the rest of the row. */
+.stage.split.panel .st-member.st-spec { left: calc(var(--row) * 1.3); transform: translate(-50%, -50%) scale(0.5); }
 /* Their names stay under them in a conversation too, so the desk says who each specialist is. */
 .stage.split .st-member.st-spec b, .stage.panel .st-member.st-spec b { font-size: 12px; white-space: nowrap; }
-.stage.split .st-core-wrap, .stage.panel .st-core-wrap { top: 56%; }
+/* The row is taller now that the specialists match the seats above them, so
+   Sparky sits lower: clear of their names, and still off the bottom edge. */
+.stage.split .st-core-wrap, .stage.panel .st-core-wrap { top: min(68%, calc(100% - 190px)); }
 @media (max-width: 900px) {
   .stage.split .st-team { display: none; }
 }
 /* A narrow window keeps the whole team on screen: the row scales toward Sparky. */
 @media (max-width: 1000px) {
   .stage:not(.split):not(.panel) .st-team { scale: 0.8; }
+}
+/* Narrower still: the seats at ±330px reach past both edges, so the row closes further. */
+@media (max-width: 820px) {
+  .stage:not(.split):not(.panel) .st-team { scale: 0.62; }
+}
+@media (max-width: 680px) {
+  .stage:not(.split):not(.panel) .st-team { scale: 0.5; }
 }
 @media (prefers-reduced-motion: reduce) {
   .st-member { animation: none; opacity: 1; }
@@ -1804,7 +1948,7 @@ button.mk-row { cursor: pointer; }
   color: var(--mute);
 }
 .st-turn.team.missed .st-dot { width: 7px; height: 7px; background: none; box-shadow: none; border: 1.5px solid color-mix(in srgb, var(--role) 65%, transparent); }
-.st-turn.team.missed small { flex-basis: 100%; padding-left: 15px; overflow: hidden; font-size: 10.5px; color: #56617c; text-overflow: ellipsis; white-space: nowrap; }
+.st-turn.team.missed small { flex-basis: 100%; padding-left: 15px; overflow: hidden; font-size: 10.5px; color: var(--mute-2); text-overflow: ellipsis; white-space: nowrap; }
 .st-sysnote {
   align-self: stretch;
   display: flex;
@@ -2022,6 +2166,8 @@ button.mk-row { cursor: pointer; }
   --card-w: clamp(88px, max(calc(11vw - 10px), calc(25vw - 186px)), 172px);
   --card-gap: 10px;
   --pitch: calc(var(--card-w) + var(--card-gap));
+  /* `--card-h` is set on the stage, not here: Sparky's own position is worked
+     out from it, and he sits above this element in the tree. */
 }
 .st-card { position: absolute; z-index: 1; left: 50%; top: calc(100% + 4px); translate: -50% 0; transform-origin: 50% 0; white-space: normal; text-align: left; line-height: 1.35; }
 /* The seats are drawn smaller with the conversation open; their cards and chips keep their own size. */
@@ -2053,13 +2199,13 @@ button.mk-row { cursor: pointer; }
 .st-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 6px; min-width: 0; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; }
 .st-card-head .agent-portrait { flex: none; }
 .st-card-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: color-mix(in srgb, var(--role) 82%, #fff); }
-.st-card-time { flex: none; margin-left: auto; color: var(--mute); letter-spacing: 0.04em; text-transform: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.st-card-time { flex: none; margin-left: auto; color: var(--mute-2); letter-spacing: 0.04em; text-transform: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .st-card.active .st-card-time { color: var(--ink); }
 .st-card-screen { display: flex; flex-direction: column; gap: 4px; min-height: 66px; margin-top: 8px; padding: 9px 9px 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.04); background: radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--role) 9%, #161b2e), #080a15); }
 .st-card-value { overflow: hidden; font-family: var(--display); font-size: clamp(13px, calc(var(--card-w) * 0.14), 22px); font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; color: var(--ink); text-overflow: ellipsis; white-space: nowrap; }
 .st-card-value.long { font-size: clamp(11px, calc(var(--card-w) * 0.115), 19px); }
 .st-card.warn .st-card-value, .st-card.error .st-card-value, .st-card.dim .st-card-value { color: var(--ink-2); }
-.st-card-label { overflow: hidden; font-size: 8px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--mute); text-overflow: ellipsis; white-space: nowrap; }
+.st-card-label { overflow: hidden; font-size: 8px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--mute-2); text-overflow: ellipsis; white-space: nowrap; }
 .st-card.active .st-card-label { color: color-mix(in srgb, var(--role) 70%, #fff); }
 .st-card.done .st-card-label { color: color-mix(in srgb, var(--role) 62%, var(--ink-2)); }
 .st-card.warn .st-card-label { color: #ffb366; }
@@ -2075,8 +2221,8 @@ button.mk-row { cursor: pointer; }
 /* The Auditor's record waits on the person's signature for its receipt. */
 .st-card-slot { margin-top: auto; padding: 5px 6px; border-radius: 7px; border: 1px dashed rgba(245, 106, 87, 0.55); background: radial-gradient(ellipse at center, rgba(236, 27, 105, 0.12), transparent 70%); font-size: 8.5px; line-height: 1.3; color: #ffc4b8; text-align: center; }
 .st-card-steps { display: flex; flex-direction: column; gap: 4px; margin: 9px 0 0; padding: 0 0 0 1px; list-style: none; }
-.st-card-steps li { display: flex; align-items: baseline; gap: 7px; font-size: 9px; line-height: 1.3; color: var(--mute); }
-.st-card-steps i { flex: none; position: relative; top: 1px; width: 7px; height: 7px; border-radius: 50%; border: 1px solid #3b4561; }
+.st-card-steps li { display: flex; align-items: baseline; gap: 7px; font-size: 9px; line-height: 1.3; color: var(--mute-2); }
+.st-card-steps i { flex: none; position: relative; top: 1px; width: 7px; height: 7px; border-radius: 50%; border: 1px solid #59658c; }
 .st-card-steps li.done { color: var(--ink-2); }
 .st-card-steps li.done i { border-color: transparent; background: var(--ok); box-shadow: 0 0 6px rgba(61, 220, 151, 0.45); }
 .st-card-steps li.active { color: var(--ink); }
@@ -2102,6 +2248,10 @@ button.st-card-chip:hover { border-color: var(--role); }
 .st-card.warn .st-card-chip i { background: none; border: 1.5px solid #ff8a1f; box-shadow: none; }
 .st-card.error .st-card-chip i { background: none; border: 1.5px solid #ff4a4a; box-shadow: none; }
 .stage.split .st-card-chip, .stage.panel .st-card-chip { max-width: 96px; padding: 3px 8px 3px 6px; font-size: 9px; }
+/* Each pill is as wide as its own word. What has to match is where they sit:
+   every card on the team centres its contents the same way, so the Trader's —
+   the only one that also carries the plan's pill — lines up with the rest. */
+.st-team .st-card { display: flex; flex-direction: column; align-items: center; }
 /* The Trader's plan, one press from the Trader: the one ember action at the
    table. It only fills the Trader in; the quote and the hold stay the person's. */
 .st-card-buy { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 10px; padding: 5px 8px; border: 0; border-radius: 999px; background: var(--ember); color: #fff; font: inherit; font-size: 10px; font-weight: 600; letter-spacing: 0.03em; white-space: nowrap; cursor: pointer; box-shadow: 0 6px 18px rgba(236, 27, 105, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.22); transition: filter 160ms var(--ease), box-shadow 160ms var(--ease); }
@@ -2115,9 +2265,44 @@ button.st-card-chip:hover { border-color: var(--role); }
 .stage.split .st-card-buy.chip, .stage.panel .st-card-buy.chip { font-size: 9px; }
 /* A chip with the plan or the receipt under it: both centered under the seat. */
 .st-card:has(> .st-card-buy.chip, > .st-card-receipt) { display: flex; flex-direction: column; align-items: center; }
+/* The plan's pill is the desk's offer, not the Trader's own seat: beside a
+   conversation it leaves the seat and centres under the whole scene, below
+   Sparky. Only the pill moves — the Trader's status chip stays on its seat.
+   Inside the card the seat's scale is already undone, so these are screen px:
+   `50px` cancels seat 3's offset and `64vh` follows Sparky's own top. */
+.stage.split .st-team.turn:not(.open) .st-card-buy.chip,
+.stage.split .st-team.turn:not(.open) .st-card-receipt,
+.stage.panel .st-team.turn .st-card-buy.chip,
+.stage.panel .st-team.turn .st-card-receipt {
+  position: absolute;
+  /* Measured from its own card, which already sits inside the row: the row's
+     top (272px) and the card's offset under the seat (38px) come off here.
+     The second `min()` is a floor it cannot pass, so a low window keeps it on
+     screen even when following Sparky would carry it off the bottom. */
+  top: min(calc(min(74vh, 100vh - 180px) - 160px), calc(100vh - 380px));
+  left: 50%;
+  translate: calc(-50% - 50px) 0;
+  margin: 0;
+}
+.stage.split.panel .st-team.turn .st-card-buy.chip,
+.stage.split.panel .st-team.turn .st-card-receipt { translate: calc(-50% - 32px) 0; }
+/* So the pill sits over Sparky's glow rather than behind it. */
+.stage.split .st-team.turn:not(.open), .stage.panel .st-team.turn { z-index: 4; }
 /* And the specialists step one more row lower, so the pill under the chip has its room. */
 .stage.split .st-team.turn:not(.open):has(.st-card-buy.chip, .st-card-receipt) .st-member.st-spec,
-.stage.panel .st-team.turn:has(.st-card-buy.chip, .st-card-receipt) .st-member.st-spec { top: 110px; }
+.stage.panel .st-team.turn:has(.st-card-buy.chip, .st-card-receipt) .st-member.st-spec { top: 122px; }
+/* Once a turn folds into chips the row needs that band, so Sparky steps down:
+   his head keeps clear of the specialists above him, and never reaches the
+   bottom edge. The row itself also drops, off the desk's own line. */
+.stage.split:has(.st-team.turn:not(.open)) .st-core-wrap,
+.stage.panel:has(.st-team.turn) .st-core-wrap { top: min(74%, calc(100% - 180px)); }
+/* On a low window his head is what there is least room for, so it is drawn
+   smaller rather than pressed against the row above it. */
+@media (max-height: 820px) {
+  .stage.split:has(.st-team.turn:not(.open)) .st-core-wrap,
+  .stage.panel:has(.st-team.turn) .st-core-wrap { transform: translate(-50%, -50%) scale(0.6); }
+}
+.stage.split .st-team.turn:not(.open), .stage.panel .st-team.turn { top: 272px; }
 /* Signed: the receipt of the order the person approved from the turn's plan,
    on the Auditor's card. Its diamond says where the swap stands; it opens the
    swap on the explorer. */
@@ -2134,7 +2319,10 @@ button.st-card-chip:hover { border-color: var(--role); }
 @keyframes buy-breathe { 50% { box-shadow: 0 4px 22px rgba(236, 27, 105, 0.7), 0 0 0 3px rgba(236, 27, 105, 0.16); } }
 @media not (max-width: 900px) {
   /* While the cards are open the full cards carry both; the chips' copies wait for the fold. */
-  .stage.split:not(.panel) .st-team.open :is(.st-card-buy.chip, .st-card-receipt) { display: none; }
+  /* While the turn runs the plan is not settled, and the pill inside the card
+     would only flash there before taking its place under Sparky: it waits for
+     the fold, and the card keeps that height for what the agent is saying. */
+  .stage.split:not(.panel) .st-team.open :is(.st-card-buy, .st-card-receipt) { display: none; }
 }
 @media (max-width: 900px) {
   /* Beside Sparky the plan's pill reaches under his line, too small to read at that size: the line gives way. */
@@ -2144,14 +2332,28 @@ button.st-card-chip:hover { border-color: var(--role); }
   .st-card-buy.chip, .st-card-receipt { animation: none; }
 }
 /* The chips need a little room: the specialists sit a step lower while they show. */
-.stage.split .st-team.turn:not(.open) .st-member.st-spec, .stage.panel .st-team.turn .st-member.st-spec { top: 76px; }
+.stage.split .st-team.turn:not(.open) .st-member.st-spec, .stage.panel .st-team.turn .st-member.st-spec { top: 88px; }
 .stage:not(.split):not(.panel) .st-team.turn .st-member.st-spec { top: 134px; }
 @keyframes card-in { from { opacity: 0; translate: 0 8px; } to { opacity: 1; translate: 0 0; } }
 @keyframes chip-in { from { opacity: 0; scale: 0.92; } to { opacity: 1; scale: 1; } }
 @keyframes card-pulse { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--role) 60%, transparent); } to { box-shadow: 0 0 0 6px transparent; } }
 /* The graph of the turn, beside the conversation. */
 @media not (max-width: 900px) {
-  .stage.split:not(.panel):has(.st-team.open) { --graph-top: 262px; --turn-y: clamp(640px, 58vh, calc(100vh - 96px)); }
+  /* Sparky follows the row: he sits below the cards, whatever height they take,
+     and `min()` last keeps him off the bottom edge on a window with little room. */
+  .stage.split:not(.panel):has(.st-team.open) {
+    /* Clear of the desk's name and its chain badge. */
+    --graph-top: 316px;
+    /* One height for the four cards, taken from the room actually left between
+       the row and the bottom edge rather than from a fixed number: whatever each
+       agent reports, the four end on the same line. `300px` above 150px + 58px
+       is what the formula below spends on Sparky and the gap over him. */
+    --card-h: clamp(212px, calc((100vh - 250px - var(--graph-top)) / 1.25), 320px);
+    --turn-y: min(max(calc(var(--graph-top) + 92px + var(--card-h) * 1.25 + 48px), 58vh), calc(100vh - 110px));
+  }
+  /* The desk's line steps aside while the graph is open: the heads need that
+     band, and the name and the chain still say where you are. */
+  .stage.split:not(.panel):has(.st-team.open) .st-tagline { display: none; }
   .stage.split:not(.panel):has(.st-team.open) .st-core-wrap { top: var(--turn-y); transform: translate(-50%, -50%) scale(0.46); }
   /* At that size his whisper is too small to read; the conversation says what he is doing. */
   .stage.split:not(.panel):has(.st-team.open) .st-whisper { display: none; }
@@ -2186,15 +2388,38 @@ button.st-card-chip:hover { border-color: var(--role); }
     transform: translate(-50%, -50%) rotate(45deg);
   }
   .stage.split:not(.panel) .st-team.open .st-card { top: calc(100% + 22px); scale: 1.25; }
-  .stage.split:not(.panel) .st-team.open .st-card-full { display: block; }
+  /* The four cards read as one row: they share a height whatever each agent
+     reports, and Focus sits on the same line across all of them. */
+  .stage.split:not(.panel) .st-team.open .st-card-full { display: flex; flex-direction: column; height: var(--card-h); }
+  /* The steps take what is left between the screen and the button, so a card
+     with one more of them ends on the same line as the other three. */
+  /* The four share a height, so the one with the most steps scrolls its own
+     list rather than losing the end of it. */
+  .stage.split:not(.panel) .st-team.open .st-card-steps { min-height: 0; overflow-y: auto; scrollbar-width: none; }
+  .stage.split:not(.panel) .st-team.open .st-card-steps::-webkit-scrollbar { display: none; }
+  .stage.split:not(.panel) .st-team.open .st-card-focus { margin-top: auto; }
   .stage.split:not(.panel) .st-team.open .st-card-chip { display: none; }
   /* The specialists step back beside Sparky, with their names and marks, out of the card row. */
-  .stage.split:not(.panel) .st-team.open .st-member.st-spec { left: calc(var(--x) * 0.5); top: calc(var(--turn-y) - var(--graph-top)); }
+  /* `--x` seats them to either side of Sparky; `--row` would put the middle
+     one dead centre, behind his head. */
+  .stage.split:not(.panel) .st-team.open .st-member.st-spec { left: calc(var(--x) * 0.62); top: calc(var(--turn-y) - var(--graph-top)); transform: translate(-50%, -50%) scale(0.8); }
   .stage.split:not(.panel) .st-team.open .st-member.st-spec b { display: inline; }
 }
 /* Narrower cards wrap their steps and grow taller: Sparky steps a little further down. */
 @media (900px < width <= 1300px) {
-  .stage.split:not(.panel):has(.st-team.open) { --turn-y: clamp(690px, 62vh, calc(100vh - 60px)); }
+  .stage.split:not(.panel):has(.st-team.open) { --graph-top: 300px; }
+}
+/* A short window: the graph starts higher and the cards give back the height,
+   so the row and Sparky share what there is instead of running past the edge. */
+@media (max-height: 920px) {
+  .stage.split:not(.panel):has(.st-team.open) { --graph-top: 288px; }
+  .stage.split:not(.panel) .st-team.open .st-card-steps { gap: 3px; }
+}
+/* Lower still: the row gives back what it can before anything is cut. */
+@media (max-height: 800px) {
+  .stage.split:not(.panel):has(.st-team.open) { --graph-top: 268px; }
+  .stage.split:not(.panel) .st-team.open .st-card-screen { min-height: 58px; margin-top: 6px; padding: 8px 8px 9px; }
+  .stage.split:not(.panel) .st-team.open .st-card-steps { margin-top: 6px; }
   .stage.split:not(.panel):has(.st-team.open) .st-core-wrap { transform: translate(-50%, -50%) scale(0.4); }
 }
 /* A narrow window keeps the team in view during a turn: the four heads beside Sparky, a chip under each. */
