@@ -25,6 +25,7 @@ import type { Desk } from "./DesksScreen";
 import { Embers } from "./Embers";
 import { HistorySheet } from "./HistorySheet";
 import { MarketSheet } from "./MarketSheet";
+import { PortfolioSheet } from "./PortfolioSheet";
 import { WalletTraderSheet } from "./WalletTraderSheet";
 import { coreState, DEFAULT_STARTERS, isAnswering, whisper } from "./stage";
 import { useDeskManifest } from "./useDeskManifest";
@@ -55,6 +56,13 @@ export function DeskView({
   const closeTrader = useCallback(() => setTrader(false), []);
   const [history, setHistory] = useState(false);
   const closeHistory = useCallback(() => setHistory(false), []);
+  const [portfolio, setPortfolio] = useState(false);
+  const closePortfolio = useCallback(() => setPortfolio(false), []);
+  // From an empty Portfolio to the Trader, where the owner gives access and buys.
+  const portfolioToTrader = useCallback(() => {
+    setPortfolio(false);
+    setTrader(true);
+  }, []);
   // Spoken questions go through the same router as typed ones, so a task said out loud reaches the team.
   const { voice, talk, talkReply, hold, release } = useTalk(chat, { route: (text) => dispatch(text), command: (text) => saved.command(text, true) });
   const manifest = useDeskManifest(desk.module);
@@ -144,7 +152,7 @@ export function DeskView({
   }
 
   return (
-    <main className={`stage ${chain}${split ? " split" : ""}${market || trader || history ? " panel" : ""}`}>
+    <main className={`stage ${chain}${split ? " split" : ""}${market || trader || history || portfolio ? " panel" : ""}`}>
       <div className="st-ambient" aria-hidden>
         <i className="st-blob" />
         <Embers />
@@ -161,6 +169,21 @@ export function DeskView({
                 Market
               </button>
             ) : null}
+            {desk.module && manifest?.screens.includes("portfolio") ? (
+              <button
+                type="button"
+                className="ah-out"
+                aria-pressed={portfolio}
+                onClick={() => {
+                  setMarket(false);
+                  setTrader(false);
+                  setHistory(false);
+                  setPortfolio((v) => !v);
+                }}
+              >
+                Portfolio
+              </button>
+            ) : null}
             {desk.module && manifest?.screens.includes("trader") ? (
               <button
                 type="button"
@@ -169,6 +192,7 @@ export function DeskView({
                 onClick={() => {
                   setMarket(false);
                   setHistory(false);
+                  setPortfolio(false);
                   setTrader((v) => !v);
                 }}
               >
@@ -183,6 +207,7 @@ export function DeskView({
                 onClick={() => {
                   setMarket(false);
                   setTrader(false);
+                  setPortfolio(false);
                   setHistory((v) => !v);
                 }}
               >
@@ -341,6 +366,15 @@ export function DeskView({
       {market && desk.module ? <MarketSheet title={desk.name} module={desk.module} chain={chain} onAsk={send} onClose={closeMarket} /> : null}
       {trader && !market && desk.module ? <WalletTraderSheet title={desk.name} module={desk.module} chain={chain} onClose={closeTrader} /> : null}
       {history && !market && !trader ? <HistorySheet desk={desk.id} title={desk.name} chain={chain} live={turn.live} vault={vault} onClose={closeHistory} /> : null}
+      {portfolio && !market && !trader && !history && desk.module ? (
+        <PortfolioSheet
+          title={desk.name}
+          module={desk.module}
+          chain={chain}
+          onTrader={manifest?.screens.includes("trader") ? portfolioToTrader : undefined}
+          onClose={closePortfolio}
+        />
+      ) : null}
     </main>
   );
 }

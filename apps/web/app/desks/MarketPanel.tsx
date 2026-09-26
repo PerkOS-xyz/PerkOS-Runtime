@@ -15,7 +15,7 @@ const clock = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour:
 /** "Apple • Robinhood Token" reads as "Apple" in a row. */
 const shortName = (name: string) => name.split(" • ")[0] ?? name;
 
-function Logo({ asset }: { asset: DeskAsset }) {
+export function Logo({ asset }: { asset: Pick<DeskAsset, "ticker" | "logoUrl"> }) {
   const [broken, setBroken] = useState(false);
   if (!asset.logoUrl || broken) {
     return (
