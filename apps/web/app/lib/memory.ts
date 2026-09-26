@@ -53,11 +53,3 @@ export function recallScopes(desk: string | undefined, deskIds: string[]): strin
   const scope = scopeFor(desk);
   return scope === "user" ? ["user", ...deskIds.filter(isScope)] : ["user", scope];
 }
-
-const MAX_ENTRY = 2000;
-
-/** One exchange as a journal entry, stamped with the local time. */
-export function journalEntry(question: string, reply: string, at = new Date()): string {
-  const time = `${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`;
-  return `[${time}] Person: ${question.trim().slice(0, MAX_ENTRY)}\nSparky: ${reply.trim().slice(0, MAX_ENTRY)}`;
-}

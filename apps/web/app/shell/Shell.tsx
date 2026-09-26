@@ -4,6 +4,7 @@ import { useCallback, useState, type ReactNode } from "react";
 
 import { DeskView } from "../desks/DeskView";
 import { DesksScreen, type Desk } from "../desks/DesksScreen";
+import { MemoryPanel } from "../memory/MemoryPanel";
 import { useWallet } from "../wallet/context";
 import { WalletProvider } from "../wallet/WalletProvider";
 import { AppHeader } from "./AppHeader";
@@ -88,6 +89,7 @@ function Stages() {
         }}
         onLogout={logout}
       />
+      <MemoryPanel />
     </>
   );
 }

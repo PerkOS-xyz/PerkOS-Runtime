@@ -188,7 +188,10 @@ export class NoteStore {
     );
   }
 
+  /** A note by id, or null when it is missing, sealed with another key, or not a note id at all. */
   async read(id: string): Promise<Note | null> {
+    const [scope = "", dir = "", name = "", ...rest] = id.split("/");
+    if (rest.length || !isScope(scope) || !(dir in KINDS) || !SLUG.test(name)) return null;
     const hit = this.notes.get(id);
     if (hit) return hit;
     const note = await this.load(id);
