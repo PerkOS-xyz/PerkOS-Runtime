@@ -73,6 +73,15 @@ describe("which questions go to the team", () => {
     expect(kind("look into Apple")).toBe("analyze");
     expect(kind("check the market")).toBe("analyze");
     expect(kind("check NVDA")).toBe("analyze");
+    expect(kind("Give me an analysis of NVDA")).toBe("analyze");
+    expect(kind("I want a quick analysis of the market")).toBe("analyze");
+    expect(kind("Dame un análisis de Tesla")).toBe("analyze");
+  });
+
+  it("keeps a question about what was already said with Sparky", () => {
+    for (const text of ["What did the analysis say?", "Explain the analysis", "Summarize the research", "¿Qué dijo el análisis?", "Explícame el análisis", "What did Scout say?"]) {
+      expect([text, kind(text)]).toEqual([text, null]);
+    }
   });
 
   it("reads open buying questions as advice", () => {

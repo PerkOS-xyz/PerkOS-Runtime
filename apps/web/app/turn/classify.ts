@@ -53,7 +53,9 @@ const ASSET_ASK = [
   /\b(precio|cuesta|vale|cotiza|sube|subio|baja|bajo|como va|como esta|compar\w*|barat\w*|caro|cara|caros|mejor|compr\w*|vend\w*|analiza\w*|revisa|mira|hoy|ahora|rendimiento)\b/,
 ];
 /** A request to analyze, which is a task on its own. */
-const ANALYZE_ALONE = /\b(ana(?:l|ly|lyz|liz|lys|y)[sz]?e?|analiza|analizar|analisa|analisis|research|investiga|investigar|look into)\b/;
+const ANALYZE_ALONE = /\b(ana(?:l|ly|lyz|liz|lys|y)[sz]?e?|analys[ie]s|analiza|analizar|analisa|analisis|research|investiga|investigar|look into)\b/;
+/** A question about what was already said, which Sparky answers from the chat: "What did the analysis say?" */
+const RECALL = /\b(what did|what was|what were|explain|summari[sz]e|que dijo|que dijeron|cual fue|explica|explicame|resume|resumeme)\b/;
 /** A request to check or look, which is a task when it is about the market. */
 const CHECK = /\b(check|revisa|revisar|mira|mirar)\b/;
 const MARKET_WORDS = /\b(market|markets|stock|stocks|shares|price|prices|chart|mercado|accion|acciones|precio|precios|desk|mesa)\b/;
@@ -77,7 +79,7 @@ function kindOf(text: string, ctx: ClassifyContext): TurnKind | null {
   if (amount && TRADE_VERB.test(t) && asset && ctx.manifest?.turns.order) return "order";
   if (!asset && !amount && ADVISE.some((re) => re.test(t))) return "advise";
   if (asset && ASSET_ASK.some((re) => re.test(t))) return "analyze";
-  if (ANALYZE_ALONE.test(t)) return "analyze";
+  if (ANALYZE_ALONE.test(t) && !RECALL.test(t)) return "analyze";
   if (CHECK.test(t) && (asset || MARKET_WORDS.test(t))) return "analyze";
   return null;
 }
