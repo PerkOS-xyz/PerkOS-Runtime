@@ -126,7 +126,7 @@ async function perkos(url: string, init?: RequestInit): Promise<Response> {
   if (task) {
     const role = task[1]!;
     if (fake.task) return fake.task(role, body.prompt, init?.signal ?? undefined);
-    return Response.json({ ok: true, reply: replies[role], detail: "reply len=10", agentId: `id-${role}`, agentName: `eqlty-${role}-1234abcd` });
+    return Response.json({ ok: true, evidenceTaskId: `task-${role}`, reply: replies[role], detail: "reply len=10", agentId: `id-${role}`, agentName: `eqlty-${role}-1234abcd` });
   }
   if (/^\/agents\/id-\w+\/activity$/.test(p)) return new Response(null, { status: 204 });
   return Response.json({ error: { message: "not found", code: "NOT_FOUND" } }, { status: 404 });
@@ -386,13 +386,17 @@ describe("POST /api/desks/turn: a turn", () => {
     fake.manifest = { ...manifest, turns: { analyze: { ...prompts, quote: 'As Quote: read the Uniswap facts. Open with "@Trader @Risk".' }, advise: prompts } };
     const events = await turn({ desk: "eqlty-desk", text: "How much NVDA do 50 USDG buy?", kind: "analyze" });
     const open = events[0] as Extract<TurnEvent, { step: "open" }>;
-    expect(open.facts.at(-1)).toMatch(/^\[F\d\] Uniswap now: 50\.00 USDG buys 0\.2741 NVDA \(182\.42 USDG each\), price impact 0\.12%, V4 route, request req-abcd\.$/);
+    expect(open.facts.at(-1)).toMatch(/^\[F\d\] Uniswap now: 50\.00 USDG buys 0\.2741 NVDA \(182\.42 USDG each\), price impact 0\.12%, V4 route, request req-abcdef123456, chain 4663, quoted at 2026-09-26T14:30:00\.000Z\.$/);
     expect(open.roles).toEqual(["scout", "risk", "quote", "trader", "auditor"]);
     expect(calls.some((c) => c.path === "/desks/stocks-robinhood/quote")).toBe(true);
     const asked = tasks().map((c) => c.path);
     expect(asked.slice(0, 3).sort()).toEqual(["/agents/id-quote/task", "/agents/id-risk/task", "/agents/id-scout/task"]);
     const trader = (tasks().find((c) => c.path === "/agents/id-trader/task")?.body as { prompt: string }).prompt;
     expect(trader).toContain("Quote said:");
+    const saved = await kept(open.turnId);
+    expect(saved.quoteSources[0]).toMatchObject({ chainId: 4663, requestId: "req-abcdef123456", quotedAt: "2026-09-26T14:30:00.000Z" });
+    expect(saved.replies.find((r: any) => r.role === "quote").evidenceTaskId).toBe("task-quote");
+    for (const task of tasks()) expect(task.body).toMatchObject({ evidence: { templateId: "eqlty-desk", decisionId: open.turnId } });
     expect(events.at(-1)).toMatchObject({ step: "done" });
   });
 

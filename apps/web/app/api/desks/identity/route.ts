@@ -13,7 +13,8 @@ async function handle(req: Request) {
   if (!client) return Response.json({ message: "Sign in to PerkOS first." }, { status: 401 });
   try {
     const identities = new DeskIdentities(client);
-    const result = req.method === "GET" ? await identities.status(desk) : await identities.change(desk, await req.json() as IdentityAction);
+    const result = req.method === "GET" ? await identities.status(desk) : new URL(req.url).searchParams.get("preview") === "1"
+      ? await identities.preview(desk, await req.json()) : await identities.change(desk, await req.json() as IdentityAction);
     return Response.json(result, { headers: { "Cache-Control": "no-store" } });
   } catch (err) { return errorResponse(err); }
 }

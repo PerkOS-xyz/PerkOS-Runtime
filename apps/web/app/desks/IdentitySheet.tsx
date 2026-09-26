@@ -4,12 +4,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPublicClient, http } from "viem";
 import { sepolia } from "viem/chains";
 import { instanceName, verifyDeskIdentity, type DeskVerification, type IdentityAction, type IdentityStatus } from "@perkos/ens";
+import { EnsActivityLog, ensStepLabel } from "./EnsActivityLog";
+import { EnsExplorer } from "./EnsExplorer";
 import type { Chain } from "./chains";
 import styles from "./IdentitySheet.module.css";
 
 const reader = createPublicClient({ chain: sepolia, transport: http("https://ethereum-sepolia-rpc.publicnode.com", { timeout: 15_000, retryCount: 0 }), cacheTime: 0 });
 const short = (value: string) => `${value.slice(0, 8)}…${value.slice(-6)}`;
 const stateLabel: Record<IdentityStatus["state"], string> = {
+  moving: "Moving the team and updating its public references.",
   absent: "The team has no public identity yet.", disabled: "ENS is not configured for this deployment.",
   provisioning: "Creating the team's identities.", pending: "Waiting for the transaction to be confirmed.",
   reconciliation: "The transaction needs operator review.", ready: "The public identities are ready to verify.", failed: "The transaction failed.",
@@ -22,7 +25,9 @@ export function IdentitySheet({ desk, title, chain, onClose }: { desk: string; t
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [role, setRole] = useState("");
-  const [value, setValue] = useState("");
+  const [parentName, setParentName] = useState("");
+  const [label, setLabel] = useState("");
+  const [move, setMove] = useState<{ previewHash: string; from: string; to: string; parentName: string; label: string } | null>(null);
   const generation = useRef(0);
   const running = useRef(false);
   const url = `/api/desks/identity?desk=${encodeURIComponent(desk)}`;
@@ -37,7 +42,7 @@ export function IdentitySheet({ desk, title, chain, onClose }: { desk: string; t
   const show = useCallback(async (next: IdentityStatus, version: number) => {
     if (generation.current !== version) return;
     setStatus(next); setVerification(null);
-    if (next.identity) {
+    if (next.identity && !next.migration && next.state === "ready") {
       try {
         const result = await verifyDeskIdentity(reader, next.identity);
         if (generation.current === version) setVerification(result);
@@ -78,7 +83,7 @@ export function IdentitySheet({ desk, title, chain, onClose }: { desk: string; t
         if (generation.current !== version) break;
         next = await request({ action: "advance" });
       }
-      if (generation.current === version && action.action === "record" && next.lastOperation?.requestId === action.requestId && next.lastOperation.success) setValue("");
+      if (generation.current === version && next.state === "ready") setMove(null);
     } catch (err) { if (generation.current === version) { setVerification(null); setError((err as Error).message); } }
     finally { if (generation.current === version) { setBusy(false); running.current = false; } }
   }
@@ -95,12 +100,14 @@ export function IdentitySheet({ desk, title, chain, onClose }: { desk: string; t
       <p>Public identities on Sepolia. Records describe the team and its evidence; trading uses your existing approval rules.</p>
       {error ? <p role="alert">{error}</p> : null}
       <p aria-live="polite">{busy ? status?.state === "pending" ? stateLabel.pending : "Checking identity…" : status?.message ?? (status ? stateLabel[status.state] : "Reading identity…")}</p>
+      {status?.step && (busy || ["pending", "moving", "reconciliation"].includes(status.state)) ? <p className={styles.liveAction} role="status">{ensStepLabel(status.step)}</p> : null}
       {status?.parentName ? <p>Parent: <strong>{status.parentName}</strong></p> : null}
       {status?.operator ? <p>Provisioning wallet: <a href={`https://sepolia.etherscan.io/address/${status.operator}`} target="_blank" rel="noreferrer">{short(status.operator)}</a></p> : null}
       {identity ? <><strong style={{ overflowWrap: "anywhere" }}>{instanceName(identity.label, identity.parentName)}</strong>
         <p>{verification?.verified ? `Verified at block ${verification.blockNumber}` : "Identity has not been verified."}</p>
         {verification && !verification.verified ? <p role="alert">The parent, ownership or a teammate identity no longer matches. Publishing is disabled.</p> : null}
       </> : null}
+      <EnsActivityLog activity={status?.activity ?? []} />
       <ul className={styles.seats}>
         {(status?.descriptor?.seats ?? []).map((seat) => {
           const saved = identity?.seats.find((s) => s.id === seat.id);
@@ -117,14 +124,39 @@ export function IdentitySheet({ desk, title, chain, onClose }: { desk: string; t
         <button type="button" disabled={busy} onClick={() => void refresh()}>Verify again</button>
         {status && !["disabled", "ready", "reconciliation"].includes(status.state) ? <button type="button" disabled={busy} onClick={() => void run({ action: "advance" })}>{status.state === "absent" ? "Create public identities" : "Resume"}</button> : null}
       </div>
-      {identity ? <form onSubmit={(event) => { event.preventDefault(); void run({ action: "record", role: chosenRole, value, requestId: crypto.randomUUID() }); }}>
-        <h3>Publish public evidence</h3>
-        <p>This text is public and permanent in transaction history. Enter only information you intend to publish.</p>
-        <label>Teammate <select value={chosenRole} onChange={(event) => setRole(event.target.value)} disabled={busy}>{writable.map((seat) => <option key={seat.id} value={seat.id}>{seat.label}</option>)}</select></label>
-        <label>Public record<textarea rows={3} maxLength={1024} value={value} onChange={(event) => setValue(event.target.value)} disabled={!ready || !grant?.writeGranted} /></label>
-        <button type="submit" disabled={!ready || !grant?.writeGranted || !value.trim() || new TextEncoder().encode(value).length > 1024}>Publish with teammate wallet</button>
-        <button type="button" disabled={!ready || !grant?.writeGranted} onClick={() => void run({ action: "revoke", role: chosenRole, requestId: crypto.randomUUID() })}>Revoke {chosenRole} publication</button>
-      </form> : null}
+      {identity ? <>
+        <form onSubmit={async (event) => {
+          event.preventDefault(); setBusy(true); setError(""); setMove(null);
+          const version = generation.current;
+          try {
+            const res = await fetch(`${url}&preview=1`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "move", parentName: parentName || status?.moveParents?.[0], label: label || identity.label }), signal: AbortSignal.timeout(65_000) });
+            const body = await res.json();
+            if (!res.ok) throw new Error(body.message ?? "Move could not be prepared.");
+            if (version === generation.current) setMove(body);
+          } catch (err) { if (version === generation.current) setError((err as Error).message); }
+          finally { if (version === generation.current) setBusy(false); }
+        }}>
+          <h3>Move the desk branch</h3>
+          <p>Move all {identity.seats.length} names together. Agent wallets, ERC-8004 IDs and revoked permissions stay with the team.</p>
+          {status?.migration ? <p role="status">{status.migration.from} → {status.migration.to}. Publishing is paused. Resume to finish the remaining steps.</p> : null}
+          <label>Destination parent<select value={parentName || status?.moveParents?.[0] || ""} disabled={busy || !!status?.migration} onChange={(e) => { setParentName(e.target.value); setMove(null); }}>{status?.moveParents?.map((name) => <option key={name}>{name}</option>)}</select></label>
+          <label>Desk label<input value={label || identity.label} onChange={(e) => { setLabel(e.target.value); setMove(null); }} disabled={busy || !!status?.migration} pattern="[a-z][a-z0-9-]{0,63}" maxLength={64} /></label>
+          <button type="submit" disabled={!ready || !!status?.migration}>Preview move</button>
+          {move ? <div className={styles.preview}>
+            <p><strong>{move.from}</strong> → <strong>{move.to}</strong></p>
+            <ul>{identity.seats.map((seat) => <li key={seat.id}>{seat.id}.{move.to}</li>)}</ul>
+            <p>The operator mounts the destination and updates both pointers. Each teammate updates its own ERC-8004 reference. The old branch is detached after verification. This takes several transactions; closing this view pauses future steps.</p>
+            <button type="button" disabled={!ready} onClick={() => void run({ action: "move", parentName: move.parentName, label: move.label, previewHash: move.previewHash, requestId: crypto.randomUUID() })}>Move these {identity.seats.length} names</button>
+          </div> : null}
+        </form>
+        <section className={styles.section}>
+          <h3>Publication permissions</h3>
+          <p>Publish a teammate's actual response from History → ENS evidence. Revoking a writer preserves its identity and earlier evidence.</p>
+          <label>Teammate <select value={chosenRole} onChange={(event) => setRole(event.target.value)} disabled={busy}>{writable.map((seat) => <option key={seat.id} value={seat.id}>{seat.label}</option>)}</select></label>
+          <button type="button" disabled={!ready || !grant?.writeGranted} onClick={() => void run({ action: "revoke", role: chosenRole, requestId: crypto.randomUUID() })}>Revoke {chosenRole} publication</button>
+        </section>
+      </> : null}
+      <EnsExplorer />
     </div>
   </aside>;
 }

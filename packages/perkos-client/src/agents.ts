@@ -14,6 +14,7 @@
 import { PerkosApiError, type PerkosClient } from "./client.ts";
 
 export interface AgentAnswer {
+  evidenceTaskId?: string;
   /** What PerkOS said: true when the runtime delivered a reply. */
   ok: boolean;
   reply: string;
@@ -26,6 +27,7 @@ export interface AgentAnswer {
 }
 
 export interface AskOptions {
+  evidence?: { templateId: string; decisionId: string; quoteIds?: string[] };
   /** How long PerkOS waits for the agent. PerkOS accepts 5 s to 90 s. */
   timeoutMs?: number;
   signal?: AbortSignal;
@@ -59,11 +61,12 @@ export class Agents {
     const started = this.now();
     const body = await this.client.request<Record<string, unknown>>(`/agents/${encodeURIComponent(agentId)}/task`, {
       method: "POST",
-      body: { prompt, timeoutMs },
+      body: { prompt, timeoutMs, ...(options.evidence ? { evidence: options.evidence } : {}) },
       timeoutMs: timeoutMs + HTTP_GRACE_MS,
       ...(options.signal ? { signal: options.signal } : {}),
     });
     const answer: AgentAnswer = {
+      ...(typeof body.evidenceTaskId === "string" ? { evidenceTaskId: body.evidenceTaskId } : {}),
       ok: body.ok === true,
       reply: typeof body.reply === "string" ? body.reply.trim() : "",
       agentId: typeof body.agentId === "string" && body.agentId ? body.agentId : agentId,
