@@ -71,11 +71,31 @@ function seriesLine(s: DeskSeries, quote: string): string {
   return `${span} range ${num(Math.min(...values))} to ${num(Math.max(...values))} ${quote}${change} (${s.source})`;
 }
 
+const MOST_ACTIVE = 8;
+
+/**
+ * When the question names no asset, the desk's busiest tradeable assets, so a
+ * question like "what should I buy?" is answered from this desk's own market:
+ * most traded first, then the biggest moves.
+ */
+export function mostActive(assets: DeskAsset[], limit = MOST_ACTIVE): DeskAsset[] {
+  return assets
+    .filter((a) => a.tradeable === true && a.priceUsd !== null)
+    .sort(
+      (a, b) =>
+        (b.volume24hUsd ?? -1) - (a.volume24hUsd ?? -1) ||
+        Math.abs(b.change24hPct ?? 0) - Math.abs(a.change24hPct ?? 0) ||
+        a.ticker.localeCompare(b.ticker),
+    )
+    .slice(0, limit);
+}
+
 /** The facts block for the prompt, or "" when there is no market. */
 export function marketFacts(deskName: string, market: DeskMarket | null, question: string, series: DeskSeries[] = []): string {
   if (!market) return "";
   const asked = askedAbout(question, market.assets);
-  const lines = asked.map((a) => {
+  const shown = asked.length ? asked : mostActive(market.assets);
+  const lines = shown.map((a) => {
     const price = a.priceUsd === null ? "no price right now" : `${num(a.priceUsd)} ${market.quoteSymbol}${a.priceAt ? ` at ${clock(a.priceAt)}` : ""}`;
     const change = a.change24hPct === null ? "" : `, ${a.change24hPct >= 0 ? "+" : ""}${a.change24hPct.toFixed(2)}% in 24h`;
     const trade = a.tradeable === true ? "tradeable" : a.tradeable === false ? "not tradeable now" : "tradeability unknown";
@@ -86,8 +106,13 @@ export function marketFacts(deskName: string, market: DeskMarket | null, questio
   return [
     `Market of ${deskName} on ${market.chain}, priced in ${market.quoteSymbol}, observed ${clock(market.observedAt)}.`,
     `Assets on this desk (${market.assets.length}): ${market.assets.map((a) => a.ticker).join(", ")}.`,
-    lines.length ? `Prices of what the person asked about:\n${lines.join("\n")}` : "",
+    lines.length
+      ? asked.length
+        ? `Prices of what the person asked about:\n${lines.join("\n")}`
+        : `Most active on this desk now:\n${lines.join("\n")}`
+      : "",
     "Use only these prices. If a price is not listed here, say you do not have it; never guess one.",
+    "Talk only about the assets on this desk. Never suggest ETFs, funds or tickers that are not in its list, and never tell the person to ask a teammate by name.",
   ]
     .filter(Boolean)
     .join("\n");
