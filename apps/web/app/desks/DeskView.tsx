@@ -13,7 +13,7 @@ import { CHAIN_LABEL, chainOf } from "./chains";
 import type { Desk } from "./DesksScreen";
 import { Embers } from "./Embers";
 import { MarketSheet } from "./MarketSheet";
-import { TraderSheet } from "./TraderSheet";
+import { WalletTraderSheet } from "./WalletTraderSheet";
 import { coreState, DEFAULT_STARTERS, isAnswering, whisper } from "./stage";
 import { useDeskManifest } from "./useDeskManifest";
 
@@ -262,7 +262,7 @@ export function DeskView({
       </div>
 
       {market && desk.module ? <MarketSheet title={desk.name} module={desk.module} chain={chain} onAsk={send} onClose={closeMarket} /> : null}
-      {trader && !market && desk.module ? <TraderSheet title={desk.name} module={desk.module} chain={chain} onClose={closeTrader} /> : null}
+      {trader && !market && desk.module ? <WalletTraderSheet title={desk.name} module={desk.module} chain={chain} onClose={closeTrader} /> : null}
     </main>
   );
 }
