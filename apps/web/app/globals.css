@@ -1177,6 +1177,68 @@ button { font: inherit; }
 }
 .mem-edit textarea:focus { border-color: rgba(236, 27, 105, 0.6); box-shadow: 0 0 0 4px rgba(236, 27, 105, 0.12); }
 @media (prefers-reduced-motion: reduce) { .mem-confirm { animation: none; } }
+/* Memory: a desk's decisions, each turn of its team kept like a signed docket. */
+.mem-group + .mem-group-head, .mem-group + .mem-rows { margin-top: 26px; }
+.mem-group-head { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font-size: 9.5px; font-weight: 500; letter-spacing: 0.24em; text-transform: uppercase; color: #ff9fbf; }
+.mem-group-head i { font-style: normal; letter-spacing: 0.06em; color: var(--mute); }
+.mem-group-head::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--hair-strong), transparent); }
+.mem-dec { position: relative; overflow: hidden; }
+.mem-dec::before { content: ""; position: absolute; left: 0; top: 16px; bottom: 16px; width: 2px; border-radius: 0 2px 2px 0; background: var(--ember); opacity: 0.6; }
+.mem-dec .mem-text { gap: 6px; }
+.mem-stamp small.mem-dec-time { margin-top: 2px; letter-spacing: 0.08em; color: var(--ink-2); }
+.mem-dec-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.mem-tag { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--hair-strong); background: rgba(61, 126, 255, 0.07); font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; white-space: nowrap; color: var(--ink-2); }
+.mem-tag.risk.low, .mem-tag.verdict.go { border-color: rgba(61, 220, 151, 0.45); background: rgba(61, 220, 151, 0.08); color: #9ff0c8; }
+.mem-tag.risk.medium { border-color: rgba(255, 176, 32, 0.5); background: rgba(255, 176, 32, 0.08); color: #ffd27a; }
+.mem-tag.risk.high, .mem-tag.verdict.block { border-color: rgba(255, 107, 107, 0.55); background: rgba(255, 107, 107, 0.1); color: #ffb3b3; }
+.mem-tag.warn { border-color: rgba(255, 107, 107, 0.4); background: none; color: #ff9f9f; }
+.mem-tag.quiet { border-color: var(--hair); background: none; color: var(--mute); }
+.mem-dec-q { font-family: var(--display); font-size: 15.5px; font-weight: 600; line-height: 1.35; letter-spacing: -0.01em; color: var(--ink); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.mem-dec-out { font-size: 12px; line-height: 1.5; color: var(--ink-2); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
+/* One diamond per agent, lit in its role's color when it answered. */
+.mem-voices { flex: none; display: flex; align-items: center; gap: 6px; padding: 0 2px; }
+.mem-voices i { width: 7px; height: 7px; border-radius: 1.5px; transform: rotate(45deg); border: 1px solid var(--role); background: var(--role); box-shadow: 0 0 10px color-mix(in srgb, var(--role) 55%, transparent); }
+.mem-voices i.off { border-color: rgba(255, 107, 107, 0.75); background: transparent; box-shadow: none; }
+.mem-more { display: block; margin: 12px auto 0; font-size: 11.5px; letter-spacing: 0.04em; }
+.mem-more:hover { color: #ffd3e1; }
+.mem-dec-off { font-size: 11.5px; color: var(--ink-2); }
+.mem-dec-off::before { content: ""; display: inline-block; width: 6px; height: 6px; margin: 0 10px 2px 0; border-radius: 1px; transform: rotate(45deg); vertical-align: middle; background: var(--ember); box-shadow: 0 0 10px rgba(236, 27, 105, 0.6); }
+/* A decision read whole: the team as a relay on a cobalt wire, then the plan, the record and Sparky's summary. */
+.mem-dec-kicker { margin: 0 0 10px; font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: #ff9fbf; }
+.mem-note h3.mem-dec-title { margin-bottom: 14px; font-size: 24px; line-height: 1.2; }
+.mem-decision { display: flex; flex-direction: column; gap: 22px; }
+.mem-decision > * { opacity: 0; animation: rise 380ms var(--ease) forwards; animation-delay: calc(var(--i, 0) * 70ms); }
+.mem-dec-label { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; font-size: 9.5px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--mute); }
+.mem-dec-label small { font-size: 9.5px; letter-spacing: 0.16em; color: var(--mute); }
+.mem-dec-label small::before { content: "· "; }
+.mem-dec-ended { margin: 0; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(255, 176, 32, 0.4); background: rgba(255, 176, 32, 0.06); font-size: 12.5px; line-height: 1.6; color: #ffd9a0; }
+.mem-dec-team { list-style: none; margin: 0 0 0 5px; padding: 2px 0 2px 22px; border-left: 1px solid var(--hair-strong); display: flex; flex-direction: column; gap: 16px; }
+.mem-dec-team li { position: relative; }
+.mem-dec-team li:not(.mem-dec-hand)::before { content: ""; position: absolute; left: -27px; top: 4px; width: 9px; height: 9px; border-radius: 2px; transform: rotate(45deg); background: var(--role); box-shadow: 0 0 0 4px color-mix(in srgb, var(--role) 16%, transparent), 0 0 16px color-mix(in srgb, var(--role) 45%, transparent); }
+.mem-dec-team li.missed::before { border: 1px solid rgba(255, 107, 107, 0.8); background: #0c0f1c; box-shadow: 0 0 0 4px rgba(255, 107, 107, 0.08); }
+.mem-dec-who { display: flex; align-items: baseline; gap: 10px; margin-bottom: 3px; }
+.mem-dec-who b { font-size: 10px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: color-mix(in srgb, var(--role) 80%, #fff); }
+.mem-dec-who small { font-size: 10px; letter-spacing: 0.06em; color: var(--mute); }
+.mem-dec-team p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--ink); }
+.mem-dec-team li.missed p { color: #ff9f9f; }
+.mem-dec-team li.missed p small { display: block; margin-top: 3px; font-size: 11px; line-height: 1.5; color: var(--mute); overflow-wrap: anywhere; }
+/* Where the first agents hand what they read to the ones who plan and record. */
+.mem-dec-hand { margin: -4px 0; font-size: 9px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--cobalt); }
+.mem-dec-hand::before { content: ""; position: absolute; left: -22px; top: 50%; width: 14px; height: 1px; background: var(--cobalt); opacity: 0.7; }
+.mem-dec-paper { padding: 14px 16px 15px; border-radius: 14px; border: 1px solid var(--hair); border-left: 2px solid var(--role); background: linear-gradient(90deg, color-mix(in srgb, var(--role) 8%, transparent), rgba(6, 10, 22, 0.55) 60%); }
+.mem-dec-paper .mem-dec-label { color: color-mix(in srgb, var(--role) 78%, #fff); }
+.mem-dec-paper p { margin: 0; font-size: 13px; line-height: 1.7; color: var(--ink); white-space: pre-line; }
+.mem-dec-paper.missed { border-left-color: rgba(255, 107, 107, 0.7); background: rgba(255, 107, 107, 0.04); }
+.mem-dec-paper.missed p { color: #ff9f9f; }
+.mem-dec-signed { display: flex; align-items: center; gap: 9px; margin: 0; font-size: 12px; letter-spacing: 0.04em; color: #9ff0c8; }
+.mem-dec-signed::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 1.5px; transform: rotate(45deg); background: var(--ok); box-shadow: 0 0 10px rgba(61, 220, 151, 0.6); }
+.mem-dec-sparky { margin: 0; padding: 12px 16px; border-radius: 12px; border-left: 2px solid var(--coral); background: rgba(236, 27, 105, 0.06); font-size: 13px; line-height: 1.7; white-space: pre-line; color: var(--ink-2); }
+.mem-dec-sparky span { display: block; margin-bottom: 4px; font-size: 9.5px; letter-spacing: 0.2em; text-transform: uppercase; color: #ff9fbf; }
+.mem-dec-checks { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.mem-dec-checks .mem-dec-label { flex-basis: 100%; margin-bottom: 2px; }
+.mem-dec-checks code { padding: 3px 9px; border-radius: 8px; border: 1px dashed rgba(255, 176, 32, 0.45); background: rgba(255, 176, 32, 0.05); font: inherit; font-size: 11px; color: #ffd27a; }
+@media (max-width: 520px) { .mem-voices { display: none; } }
+@media (prefers-reduced-motion: reduce) { .mem-decision > * { animation: none; opacity: 1; } }
 
 /* The desk's market: a quiet board of what it can trade. */
 .mk { --accent: var(--coral); --accent-soft: rgba(236, 27, 105, 0.08); position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid var(--hair); }

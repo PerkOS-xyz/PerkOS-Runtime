@@ -2,17 +2,19 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
+import type { Decision, DecisionRow } from "../lib/decisions";
 import { parseJournal } from "../lib/journal";
 import { parseMemory } from "../lib/memoryNote";
 import { useVault } from "../shell/useVault";
 import { useWallet } from "../wallet/context";
+import { DecisionKicker, DecisionList, DecisionView } from "./Decisions";
 import { OPEN_MEMORY, type OpenMemory } from "./open";
 
 type Kind = "journal" | "note" | "turn";
-type Scope = { id: string; name: string; notes: number };
-type Row = { id: string; scope: string; kind: Kind; title: string; updatedAt: string; exchanges: number; preview: string };
+type Scope = { id: string; name: string; notes: number; turns?: number };
+type Row = { id: string; scope: string; kind: Kind; title: string; updatedAt: string; exchanges: number; preview: string; decision?: DecisionRow };
 type Hit = { id: string; scope: string; name: string; title: string; snippet: string; updatedAt: string };
-type Note = { id: string; scope: string; kind: Kind; title: string; body: string; updatedAt: string };
+type Note = { id: string; scope: string; kind: Kind; title: string; body: string; updatedAt: string; decision?: Decision };
 type Status = "loading" | "locked" | "ready" | "error";
 
 async function load<T>(query: string): Promise<{ status: number; body: T | null }> {
@@ -21,9 +23,9 @@ async function load<T>(query: string): Promise<{ status: number; body: T | null 
   return { status: res.status, body: res.ok ? ((await res.json()) as T) : null };
 }
 
-/** The day of a journal (from its id), or of the last change for a note. */
+/** The day of a journal or a desk turn (from its id), or of the last change for a note. */
 function day(id: string, updatedAt: string) {
-  const m = /\/(\d{4})-(\d{2})-(\d{2})$/.exec(id);
+  const m = /\/(\d{4})-(\d{2})-(\d{2})$/.exec(id) ?? /\/turns\/(\d{4})(\d{2})(\d{2})-/.exec(id);
   const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(updatedAt);
   return {
     date: String(d.getDate()),
@@ -119,6 +121,7 @@ export function MemoryPanel() {
   const [noteError, setNoteError] = useState("");
   const [refresh, setRefresh] = useState(0);
   const [summary, setSummary] = useState({ busy: false, text: "" });
+  const [allDecisions, setAllDecisions] = useState(false);
   const search = useRef<HTMLInputElement>(null);
   const current = scope.scope ?? "user";
 
@@ -172,6 +175,7 @@ export function MemoryPanel() {
   }, [vault.unlocked]);
 
   useEffect(() => setSummary({ busy: false, text: "" }), [current]);
+  useEffect(() => setAllDecisions(false), [current]);
 
   const summarizeToday = async () => {
     setSummary({ busy: true, text: "" });
@@ -231,8 +235,8 @@ export function MemoryPanel() {
   }, [note?.id]);
 
   const openNote = async (id: string) => {
-    const { body } = await load<{ note: Note }>(`?id=${encodeURIComponent(id)}`);
-    if (body) setNote(body.note);
+    const { body } = await load<{ note: Note; decision?: Decision }>(`?id=${encodeURIComponent(id)}`);
+    if (body) setNote(body.decision ? { ...body.note, decision: body.decision } : body.note);
   };
 
   const saveNote = async () => {
@@ -274,6 +278,9 @@ export function MemoryPanel() {
             ? "Your wallet signed differently than last time, so the memory saved on this device stays locked."
             : "Memory is off. Turn it on and Sparky keeps your conversations, encrypted with your wallet, on this device."}
         </p>
+        <p className="mem-dec-off">
+          {current === "user" ? "A desk's decisions are kept only while memory is on." : `Decisions from ${scopeName} are kept only while memory is on.`}
+        </p>
         {vault.error ? <p className="hint err">{vault.error}</p> : null}
         <button
           type="button"
@@ -308,13 +315,18 @@ export function MemoryPanel() {
             </div>
           ) : null}
         </div>
-        <h3>{note.kind === "journal" ? day(note.id, note.updatedAt).long : note.title}</h3>
+        {note.decision ? <DecisionKicker d={note.decision} /> : null}
+        <h3 className={note.decision ? "mem-dec-title" : undefined}>
+          {note.kind === "journal" ? day(note.id, note.updatedAt).long : (note.decision?.question ?? note.title)}
+        </h3>
         {confirming ? (
           <div className="mem-confirm" role="alertdialog" aria-label="Forget">
             <p>
               {note.kind === "journal"
                 ? "Forget this day? Sparky will no longer remember these conversations or what it kept from them. This cannot be undone."
-                : "Forget this note? Sparky will no longer remember it. This cannot be undone."}
+                : note.kind === "turn"
+                  ? "Forget this decision? Sparky and the desk's team will no longer recall it. This cannot be undone."
+                  : "Forget this note? Sparky will no longer remember it. This cannot be undone."}
             </p>
             <div className="memory-actions">
               <button type="button" className="chip-btn danger" onClick={() => void forgetNote()}>
@@ -340,6 +352,8 @@ export function MemoryPanel() {
               </button>
             </div>
           </div>
+        ) : note.decision ? (
+          <DecisionView d={note.decision} />
         ) : isMemory(note.id) ? (
           <MemoryDays body={note.body} />
         ) : exchanges.length ? (
@@ -376,7 +390,7 @@ export function MemoryPanel() {
                   <small>{d.month}</small>
                 </span>
                 <span className="mem-text">
-                  <span className="mem-title">{h.name}</span>
+                  <span className="mem-title">{h.id.includes("/turns/") ? `${h.name} · Decision` : h.name}</span>
                   <span className="mem-preview">{marked(h.snippet.replace(/\[(\d{2}:\d{2})\] Person: /g, "$1 · You: "), query)}</span>
                 </span>
                 <span className="mem-go" aria-hidden>
@@ -402,17 +416,28 @@ export function MemoryPanel() {
       </div>
     );
   } else {
-    const ordered = [...(rows ?? [])].sort((a, b) => Number(isMemory(b.id)) - Number(isMemory(a.id)));
+    const ordered = [...(rows ?? [])].filter((r) => r.kind !== "turn").sort((a, b) => Number(isMemory(b.id)) - Number(isMemory(a.id)));
+    // A desk's turns, newest first: each id starts with the turn's local date and time.
+    const decisions = (rows ?? []).filter((r) => r.kind === "turn").sort((a, b) => b.id.localeCompare(a.id));
     const talkedToday = ordered.some((r) => r.kind === "journal" && r.id.endsWith(`/${today()}`));
+    const decidedToday = decisions.some((r) => r.id.includes(`/turns/${today().replace(/-/g, "")}-`));
     body = (
       <>
-        {talkedToday ? (
+        {talkedToday || decidedToday ? (
           <div className="mem-tools">
-            <span aria-live="polite">{summary.text || "Sparky keeps what lasts from each day in Memory."}</span>
+            <span aria-live="polite">
+              {summary.text || (decidedToday ? "Sparky keeps what lasts from each day in Memory, the desk's decisions too." : "Sparky keeps what lasts from each day in Memory.")}
+            </span>
             <button type="button" className="chip-btn" disabled={summary.busy} onClick={() => void summarizeToday()}>
               {summary.busy ? "Summarizing…" : "Summarize today"}
             </button>
           </div>
+        ) : null}
+        {decisions.length ? <DecisionList rows={decisions} all={allDecisions} onAll={() => setAllDecisions(true)} onOpen={(id) => void openNote(id)} /> : null}
+        {decisions.length && ordered.length ? (
+          <h4 className="mem-group-head">
+            <span>Conversations</span>
+          </h4>
         ) : null}
         <ul className="mem-rows" aria-busy={rows === null}>
           {ordered.map((r, i) => {
@@ -494,6 +519,7 @@ export function MemoryPanel() {
                     type="button"
                     className={`mem-scope${s.id === current ? " on" : ""}`}
                     aria-pressed={s.id === current}
+                    title={s.turns ? `${s.turns} ${s.turns === 1 ? "decision" : "decisions"}` : undefined}
                     onClick={() => setScope({ scope: s.id, name: s.name })}
                   >
                     {s.name}

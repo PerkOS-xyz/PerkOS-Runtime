@@ -16,6 +16,9 @@ import { DELETE, POST } from "../app/api/vault/route";
 import { journalEntry } from "../app/lib/journal";
 import { memoryFor } from "../app/lib/memory";
 import { addSummary } from "../app/lib/memoryNote";
+import { failureLabel } from "../app/lib/turnFailure";
+import { turnBody, turnTitle, type TurnRecord } from "../app/lib/turnRecord";
+import { getTurn, listTurns, saveTurn } from "../app/lib/turnStore";
 
 const account = privateKeyToAccount(generatePrivateKey());
 const wallet = account.address.toLowerCase();
@@ -173,5 +176,102 @@ describe("/api/memory/summarize", () => {
     expect(status).toBe(200);
     expect(body.results).toEqual([{ scope: "eqlty-desk", date: "2026-09-20", ok: false, reason: "empty" }]);
     expect((await summarize({ pending: true })).body.results).toEqual([]);
+  });
+});
+
+describe("a desk's decisions", () => {
+  const turn = (id: string, extra: Partial<TurnRecord> = {}): TurnRecord => ({
+    v: 1,
+    id,
+    desk: "eqlty-desk",
+    module: "stocks-robinhood",
+    kind: "analyze",
+    question: "How is NVDA doing today?",
+    principal: "@Scout @Risk How is NVDA doing today?",
+    startedAt: new Date(2026, 8, 26, Number(id.slice(9, 11)), Number(id.slice(11, 13))).toISOString(),
+    endedAt: new Date(2026, 8, 26, 15, 0).toISOString(),
+    ms: 71_400,
+    facts: ["[F1] NVDA (NVIDIA): 181.20 USDG, +1.20% in 24h"],
+    memory: "",
+    head: "",
+    prompts: {},
+    replies: [
+      { role: "scout", phase: 1, ok: true, reply: "@Trader @Auditor NVDA holds its range [F1].", ms: 18_200 },
+      { role: "risk", phase: 1, ok: true, reply: "RISK: medium\n@Trader @Auditor keep it under 50 USDG.", ms: 12_900 },
+      { role: "trader", phase: 2, ok: true, reply: "@Sparky Wait for a pullback to 178 USDG, then buy 50 USDG.", ms: 20_100 },
+      { role: "auditor", phase: 2, ok: false, reply: "", failure: "model", detail: "API call failed after 3 retries", ms: 20_000 },
+    ],
+    guests: [],
+    riskLevel: "medium",
+    flags: ["auditor:no-answer"],
+    trace: [],
+    summary: "The desk reads NVDA as steady and would wait for 178 USDG.",
+    ...extra,
+  });
+
+  it("are counted per scope, listed with what came of each, and opened as a readable account", async () => {
+    const notes = await turnOn();
+    await notes.appendJournal("eqlty-desk", journalEntry("Keep the budget small.", "Noted."));
+    for (const r of [turn("20260926-093000-ab12", { question: "What should I buy this month?", kind: "advise" }), turn("20260926-143000-cd34")]) {
+      await notes.writeTurn(r.desk, r.id, turnTitle(r), turnBody(r, failureLabel), r);
+    }
+
+    const { body: top } = await get();
+    expect(top.scopes).toEqual([
+      { id: "user", name: "You", notes: 0 },
+      { id: "eqlty-desk", name: "eqlty-desk", notes: 3, turns: 2 },
+    ]);
+
+    const { body: list } = await get("?scope=eqlty-desk");
+    const decisions = list.notes.filter((n: { kind: string }) => n.kind === "turn");
+    expect(decisions.map((n: { id: string }) => n.id).sort().reverse()).toEqual(["eqlty-desk/turns/20260926-143000-cd34", "eqlty-desk/turns/20260926-093000-ab12"]);
+    expect(decisions.find((n: { id: string }) => n.id.endsWith("cd34")).decision).toEqual({
+      kind: "analyze",
+      question: "How is NVDA doing today?",
+      startedAt: new Date(2026, 8, 26, 14, 30).toISOString(),
+      riskLevel: "medium",
+      outcome: "The desk reads NVDA as steady and would wait for 178 USDG.",
+      answered: 3,
+      missing: 1,
+      voices: [
+        { role: "scout", ok: true },
+        { role: "risk", ok: true },
+        { role: "trader", ok: true },
+        { role: "auditor", ok: false },
+      ],
+    });
+    expect(list.notes.find((n: { kind: string }) => n.kind === "journal").decision).toBeUndefined();
+
+    const { body: one } = await get(`?id=${encodeURIComponent("eqlty-desk/turns/20260926-143000-cd34")}`);
+    expect(one.note.kind).toBe("turn");
+    expect(one.decision.agents.map((a: { name: string; line: string }) => `${a.name}: ${a.line}`)).toEqual([
+      "Scout: NVDA holds its range.",
+      "Risk: Keep it under 50 USDG.",
+      "Trader: Wait for a pullback to 178 USDG, then buy 50 USDG.",
+      "Auditor: model failed",
+    ]);
+    expect(one.decision).toMatchObject({ plan: "Wait for a pullback to 178 USDG, then buy 50 USDG.", recordMissing: "model failed", checks: ["Auditor · no answer"] });
+    expect(one.decision.summary).toBe("The desk reads NVDA as steady and would wait for 178 USDG.");
+  });
+
+  it("forgotten from Memory, also leave this session's History", async () => {
+    const notes = await turnOn();
+    const r = turn("20260926-160000-ef56");
+    expect(await saveTurn(wallet, r, notes)).toBe("vault");
+    expect((await listTurns(wallet, "eqlty-desk", null)).map((t) => t.id)).toContain(r.id);
+    const res = await FORGET(req("DELETE", `?id=${encodeURIComponent(`eqlty-desk/turns/${r.id}`)}`));
+    expect(await res.json()).toEqual({ ok: true });
+    expect((await listTurns(wallet, "eqlty-desk", null)).map((t) => t.id)).not.toContain(r.id);
+    expect(await getTurn(wallet, r.id, notes)).toBeNull();
+  });
+
+  it("are found by search, like the rest of what Sparky remembers", async () => {
+    const notes = await turnOn();
+    const r = turn("20260926-143000-cd34");
+    await notes.writeTurn(r.desk, r.id, turnTitle(r), turnBody(r, failureLabel), r);
+    await notes.appendJournal("user", journalEntry("My budget is 500 USDG a month.", "Noted."));
+    const { body } = await get("?q=NVDA");
+    expect(body.hits.map((h: { id: string }) => h.id)).toEqual(["eqlty-desk/turns/20260926-143000-cd34"]);
+    expect(body.hits[0].snippet).toContain("How is NVDA doing today?");
   });
 });
