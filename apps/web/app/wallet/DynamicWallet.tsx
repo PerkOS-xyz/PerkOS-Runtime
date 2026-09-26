@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { DynamicContextProvider, useDynamicContext } from "@dynamic-labs/sdk-react-core";
-import { EthereumWalletConnectors } from "@dynamic-labs/ethereum";
+import { EthereumWalletConnectors, isEthereumWallet } from "@dynamic-labs/ethereum";
 
-import { WalletContext, type Wallet } from "./context";
+import { WalletContext, type Wallet, type WalletTransaction } from "./context";
 
 const envId = process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID?.trim() ?? "";
 const BASE_ID = 8453;
@@ -22,6 +22,20 @@ const BASE = {
   vanityName: "Base"
 };
 
+/** Where the EQLTY desk trades: the owner sets its rails here with their own wallet. */
+const ROBINHOOD_ID = 4663;
+const ROBINHOOD = {
+  blockExplorerUrls: ["https://robinhoodchain.blockscout.com"],
+  chainId: ROBINHOOD_ID,
+  chainName: "Robinhood Chain",
+  iconUrls: ["https://app.dynamic.xyz/assets/networks/eth.svg"],
+  name: "Robinhood Chain",
+  nativeCurrency: { decimals: 18, name: "Ether", symbol: "ETH" },
+  networkId: ROBINHOOD_ID,
+  rpcUrls: ["https://rpc.mainnet.chain.robinhood.com"],
+  vanityName: "Robinhood Chain"
+};
+
 export function DynamicWallet({ children }: { children: ReactNode }) {
   return (
     <DynamicContextProvider
@@ -31,7 +45,7 @@ export function DynamicWallet({ children }: { children: ReactNode }) {
         // Connect only: the PerkOS session is opened by signing the PerkOS
         // nonce, so the connector's own sign-in message is not needed.
         initialAuthenticationMode: "connect-only",
-        overrides: { evmNetworks: [BASE] },
+        overrides: { evmNetworks: [BASE, ROBINHOOD] },
         appName: "PerkOS Runtime",
         appLogoUrl: "/logo.png"
       }}
@@ -77,6 +91,19 @@ function Bridge({ children }: { children: ReactNode }) {
     [primaryWallet, address]
   );
 
+  const sendTransaction = useCallback(
+    async (tx: WalletTransaction) => {
+      if (!primaryWallet || !address || !isEthereumWallet(primaryWallet)) throw new Error("Connect an Ethereum wallet first");
+      if (primaryWallet.connector.supportsNetworkSwitching()) await primaryWallet.switchNetwork(tx.chainId);
+      const client = await primaryWallet.getWalletClient(String(tx.chainId));
+      const hash = await client.sendTransaction({ account: client.account, chain: client.chain, to: tx.to, data: tx.data, value: tx.value ?? 0n });
+      const reader = await primaryWallet.getPublicClient();
+      const receipt = await reader.waitForTransactionReceipt({ hash, timeout: 120_000 });
+      return { hash, status: receipt.status };
+    },
+    [primaryWallet, address]
+  );
+
   const value = useMemo<Wallet>(
     () => ({
       enabled: true,
@@ -90,9 +117,10 @@ function Bridge({ children }: { children: ReactNode }) {
         setShowAuthFlow(true);
       },
       logout,
-      signMessage
+      signMessage,
+      sendTransaction
     }),
-    [address, error, logout, loggingOut, sdkHasLoaded, setShowAuthFlow, signMessage]
+    [address, error, logout, loggingOut, sdkHasLoaded, setShowAuthFlow, signMessage, sendTransaction]
   );
 
   return <WalletContext value={value}>{children}</WalletContext>;

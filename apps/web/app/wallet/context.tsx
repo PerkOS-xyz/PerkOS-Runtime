@@ -16,7 +16,11 @@ export type Wallet = {
   logout: () => Promise<void>;
   /** personal_sign with the connected wallet. */
   signMessage: (message: string) => Promise<string>;
+  /** Send one transaction from the connected wallet on that chain, and wait for it to land. */
+  sendTransaction: (tx: WalletTransaction) => Promise<{ hash: `0x${string}`; status: "success" | "reverted" }>;
 };
+
+export type WalletTransaction = { chainId: number; to: `0x${string}`; data: `0x${string}`; value?: bigint };
 
 export const disabledWallet: Wallet = {
   enabled: false,
@@ -28,6 +32,9 @@ export const disabledWallet: Wallet = {
   open: () => undefined,
   logout: async () => undefined,
   signMessage: async () => {
+    throw new Error("No wallet connector configured");
+  },
+  sendTransaction: async () => {
     throw new Error("No wallet connector configured");
   }
 };
