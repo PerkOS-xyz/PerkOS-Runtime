@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GET } from "../app/api/desks/market/route";
+import { GET as SERIES } from "../app/api/desks/series/route";
 
 const request = (module: string) =>
   new Request(`http://127.0.0.1:3100/api/desks/market?module=${module}`, { headers: { host: "127.0.0.1:3100" } });
@@ -75,5 +76,28 @@ describe("GET /api/desks/market", () => {
     const res = await GET(request("stocks-robinhood"));
     expect(res.status).toBe(502);
     expect(await res.json()).toMatchObject({ error: "DESK_CONTRACT" });
+  });
+});
+
+describe("GET /api/desks/series", () => {
+  const ask = (query: string) => SERIES(new Request(`http://127.0.0.1:3100/api/desks/series?${query}`, { headers: { host: "127.0.0.1:3100" } }));
+
+  it("asks which desk and which tickers", async () => {
+    await signIn();
+    expect((await ask("module=stocks-robinhood")).status).toBe(400);
+    expect((await ask("module=Bad&tickers=NVDA")).status).toBe(400);
+  });
+
+  it("returns the desk's series for the tickers asked", async () => {
+    await signIn();
+    const series = { ticker: "NVDA", priceUsd: 224.84, change24hPct: 0.37, points: [{ at: "2026-09-25T02:00:00.000Z", value: 224.15 }], source: "uniswap-rwa-1h" };
+    const http = vi.fn(async (url: string) => {
+      expect(url).toBe("https://api.perkos.xyz/desks/stocks-robinhood/series?tickers=NVDA");
+      return Response.json({ ok: true, module: "stocks-robinhood", series: [series] });
+    });
+    vi.stubGlobal("fetch", http);
+    const res = await ask("module=stocks-robinhood&tickers=nvda");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ series: [series] });
   });
 });

@@ -58,7 +58,7 @@ export function DeskView({
         </aside>
         <SparkyChat chat={chat} greeting={`You are in ${desk.name}. Ask me about it, or tell me what you want to do here.`} />
       </div>
-      {market && desk.module ? <MarketSheet title={desk.name} module={desk.module} chain={chain} onClose={closeMarket} /> : null}
+      {market && desk.module ? <MarketSheet title={desk.name} module={desk.module} chain={chain} onAsk={(text) => void chat.send(text)} onClose={closeMarket} /> : null}
     </main>
   );
 }

@@ -6,7 +6,19 @@ import type { Chain } from "./chains";
 import { MarketPanel } from "./MarketPanel";
 
 /** The desk's market, opened from the right over the desk. Escape closes it. */
-export function MarketSheet({ title, module, chain, onClose }: { title: string; module: string; chain: Chain; onClose: () => void }) {
+export function MarketSheet({
+  title,
+  module,
+  chain,
+  onAsk,
+  onClose
+}: {
+  title: string;
+  module: string;
+  chain: Chain;
+  onAsk?: (text: string) => void;
+  onClose: () => void;
+}) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -23,7 +35,7 @@ export function MarketSheet({ title, module, chain, onClose }: { title: string; 
           &times;
         </button>
       </div>
-      <MarketPanel module={module} chain={chain} />
+      <MarketPanel module={module} chain={chain} onAsk={onAsk} />
     </aside>
   );
 }
