@@ -8,7 +8,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { deriveVaultKey, NoteStore } from "../src/index.ts";
+import { deriveVaultKey, NoteStore, VaultKeyMismatch } from "../src/index.ts";
 
 const WALLET = "0xabc0000000000000000000000000000000000001";
 const KEY = deriveVaultKey(WALLET, "0x01");
@@ -61,6 +61,36 @@ describe("NoteStore", () => {
     expect(context).toContain("Journal 2026-09-26 (2026-09-26)");
     expect(context).toContain("500 USDG");
     expect(await notes.contextFor("unrelated words here", ["user"])).toBe("");
+  });
+
+  it("records the key on a new vault and tells whether another key opens it", async () => {
+    const { root, notes } = store();
+    expect(await notes.claim()).toBe(true);
+    expect(readFileSync(join(root, "key-check.json"), "utf8")).not.toContain("perkos-vault-check");
+    expect(await new NoteStore(root, KEY).claim()).toBe(true);
+    expect(await new NoteStore(root, deriveVaultKey(WALLET, "0x02")).claim()).toBe(false);
+    await notes.appendJournal("user", "hello");
+    expect((await new NoteStore(root, KEY).list()).map((n) => n.id)).toEqual(["user/journal/2026-09-26"]);
+  });
+
+  it("does not write over a note that the key cannot open", async () => {
+    const { root, notes } = store();
+    await notes.appendJournal("user", "kept");
+    await notes.writeNote("user", "goals", "Goals", "kept too");
+    const other = new NoteStore(root, deriveVaultKey(WALLET, "0x02"), () => DAY);
+    await expect(other.appendJournal("user", "new")).rejects.toBeInstanceOf(VaultKeyMismatch);
+    await expect(other.writeNote("user", "goals", "Goals", "new")).rejects.toBeInstanceOf(VaultKeyMismatch);
+    const reopened = new NoteStore(root, KEY);
+    expect((await reopened.read("user/journal/2026-09-26"))?.body).toBe("kept");
+    expect((await reopened.read("user/notes/goals"))?.body).toBe("kept too");
+  });
+
+  it("keeps every entry when appends run at the same time", async () => {
+    const { root, notes } = store();
+    await Promise.all(["one", "two", "three", "four"].map((e) => notes.appendJournal("user", e)));
+    const body = (await new NoteStore(root, KEY).read("user/journal/2026-09-26"))?.body ?? "";
+    expect(body.split("\n\n").sort()).toEqual(["four", "one", "three", "two"]);
+    expect(readdirSync(join(root, "user", "journal"))).toEqual(["2026-09-26.json"]);
   });
 
   it("rejects scopes and names that could escape the vault", async () => {
