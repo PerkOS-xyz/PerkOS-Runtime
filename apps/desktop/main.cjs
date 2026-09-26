@@ -10,9 +10,10 @@
  *   except wallet and sign-in popups.
  */
 
-const { app, BrowserWindow, shell, session } = require("electron");
+const { app, BrowserWindow, shell, session, safeStorage } = require("electron");
 const { spawn } = require("child_process");
 const crypto = require("crypto");
+const fs = require("fs");
 const http = require("http");
 const net = require("net");
 const path = require("path");
@@ -81,6 +82,28 @@ async function waitFor(target, tries = 200) {
   throw new Error("server did not start");
 }
 
+/**
+ * Per-device secret for the local vault, protected by the OS through
+ * safeStorage (Keychain on macOS, DPAPI on Windows, libsecret on Linux). The
+ * server uses it to keep the vault key across restarts. Empty when the OS
+ * offers no protection; the key then stays in memory for the session.
+ */
+function deviceSecret() {
+  try {
+    if (!safeStorage.isEncryptionAvailable()) return "";
+    // Without a keyring, Linux falls back to a fixed key: treat that as no protection.
+    if (process.platform === "linux" && safeStorage.getSelectedStorageBackend?.() === "basic_text") return "";
+    const file = path.join(app.getPath("userData"), "device-secret.bin");
+    if (fs.existsSync(file)) return safeStorage.decryptString(fs.readFileSync(file));
+    const secret = crypto.randomBytes(32).toString("hex");
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, safeStorage.encryptString(secret), { mode: 0o600 });
+    return secret;
+  } catch {
+    return "";
+  }
+}
+
 function startServer(port) {
   const web = path.join(__dirname, "../web");
   // Next runs on Electron's own Node instead of npx, which fails on Windows
@@ -88,7 +111,7 @@ function startServer(port) {
   const nextBin = require.resolve("next/dist/bin/next", { paths: [web] });
   server = spawn(process.execPath, [nextBin, "dev", "--hostname", "127.0.0.1", "--port", String(port)], {
     cwd: web,
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", PERKOS_API_TOKEN: API_TOKEN },
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", PERKOS_API_TOKEN: API_TOKEN, PERKOS_DEVICE_SECRET: deviceSecret() },
     stdio: ["ignore", "pipe", "pipe"]
   });
   server.stdout?.on("data", (b) => process.stdout.write(b));
