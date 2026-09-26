@@ -13,7 +13,9 @@ import { wakeAction } from "../team/look";
 import { TeamRow } from "../team/TeamRow";
 import { useTeam } from "../team/useTeam";
 import { ChatLine, TypingLine } from "../turn/ChatLine";
+import { focusLine } from "../turn/TurnCards";
 import { routeFor } from "../turn/turnChat";
+import { chatOfTurn, FOCUS_HOLD_MS } from "../turn/turnLook";
 import { useDeskAssets, useTurnChat } from "../turn/useTurnChat";
 import { WorkFold, WorkingList } from "../turn/WorkingList";
 import { useTalk } from "../voice/useTalk";
@@ -68,6 +70,13 @@ export function DeskView({
     return out;
   }, [chat.messages]);
   const typing = turn.view.order.filter((role) => turn.view.roles[role]?.status === "thinking");
+  const convoRef = useRef<HTMLElement>(null);
+  /** Until when the conversation stays on the line Focus brought into view. */
+  const heldUntil = useRef(0);
+  const inChat = useMemo(() => chatOfTurn(chat.messages, turn.view.turnId), [chat.messages, turn.view.turnId]);
+  const focus = useCallback((role: string) => {
+    if (convoRef.current && focusLine(convoRef.current, role)) heldUntil.current = Date.now() + FOCUS_HOLD_MS;
+  }, []);
 
   useEffect(() => {
     fetch("/api/voice")
@@ -77,6 +86,7 @@ export function DeskView({
   }, []);
 
   useEffect(() => {
+    if (Date.now() < heldUntil.current) return;
     endRef.current?.scrollIntoView({ block: "end" });
   }, [chat.messages, typing.length, turn.view.steps.length]);
 
@@ -188,7 +198,7 @@ export function DeskView({
           {team.error ? <small className="st-note">{team.error}</small> : null}
         </header>
 
-        <TeamRow team={team.team} />
+        <TeamRow team={team.team} turn={turn.live || inChat.held ? { view: turn.view, lines: inChat.lines, onFocus: focus } : null} />
 
         <div className="st-core-wrap">
           <button
@@ -212,7 +222,7 @@ export function DeskView({
         </div>
 
         {split ? (
-          <section className="st-convo" aria-label="Conversation with Sparky">
+          <section ref={convoRef} className="st-convo" aria-label="Conversation with Sparky">
             {chat.messages.map((m) => (
               <ChatLine key={m.id} message={m} typing={chat.replying.includes(m.id)} facts={m.role === "team" && m.turnId ? factsByTurn.get(m.turnId) : undefined}>
                 {m.role === "assistant" && m.work ? <WorkFold work={m.work} /> : null}
