@@ -1810,7 +1810,8 @@ button.mk-row { cursor: pointer; }
    with the specialists beside him. Two seconds after the turn the cards fold
    into chips under the seats and the scene returns. */
 .st-team {
-  --card-w: clamp(88px, calc(11vw - 10px), 172px);
+  /* Four cards fill the side beside the conversation, whatever its width. */
+  --card-w: clamp(88px, max(calc(11vw - 10px), calc(25vw - 186px)), 172px);
   --card-gap: 10px;
   --pitch: calc(var(--card-w) + var(--card-gap));
 }
@@ -1828,19 +1829,27 @@ button.mk-row { cursor: pointer; }
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   animation: card-in 420ms var(--ease) both;
 }
+/* A narrow card drops its small head and lets its label wrap, so nothing is cut. */
+.st-card-full { container-type: inline-size; }
+@container (max-width: 98px) {
+  .st-card-head .agent-portrait { display: none; }
+  .st-card-full .st-card-screen { padding: 8px 7px 9px; }
+  .st-card-full .st-card-label { line-height: 1.25; white-space: normal; }
+}
 .st-member.seat-2 .st-card-full { animation-delay: 70ms; }
 .st-member.seat-3 .st-card-full { animation-delay: 140ms; }
 .st-member.seat-4 .st-card-full { animation-delay: 210ms; }
 .st-card.active .st-card-full { border-color: color-mix(in srgb, var(--role) 88%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--role) 22%, transparent), 0 0 32px color-mix(in srgb, var(--role) 26%, transparent), 0 18px 40px rgba(0, 0, 0, 0.5); }
 .st-card.dim .st-card-full { border-color: color-mix(in srgb, var(--role) 28%, transparent); }
-.st-card-head { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; }
+/* The time moves to its own line when the name needs the room. */
+.st-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 6px; min-width: 0; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; }
 .st-card-head .agent-portrait { flex: none; }
-.st-card-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: color-mix(in srgb, var(--role) 82%, #fff); }
-.st-card-time { flex: none; color: var(--mute); letter-spacing: 0.04em; text-transform: none; font-variant-numeric: tabular-nums; }
+.st-card-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: color-mix(in srgb, var(--role) 82%, #fff); }
+.st-card-time { flex: none; margin-left: auto; color: var(--mute); letter-spacing: 0.04em; text-transform: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .st-card.active .st-card-time { color: var(--ink); }
 .st-card-screen { display: flex; flex-direction: column; gap: 4px; min-height: 66px; margin-top: 8px; padding: 9px 9px 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.04); background: radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--role) 9%, #161b2e), #080a15); }
-.st-card-value { overflow: hidden; font-family: var(--display); font-size: clamp(15px, calc(var(--card-w) * 0.14), 22px); font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; color: var(--ink); text-overflow: ellipsis; white-space: nowrap; }
-.st-card-value.long { font-size: clamp(12px, calc(var(--card-w) * 0.115), 19px); }
+.st-card-value { overflow: hidden; font-family: var(--display); font-size: clamp(13px, calc(var(--card-w) * 0.14), 22px); font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; color: var(--ink); text-overflow: ellipsis; white-space: nowrap; }
+.st-card-value.long { font-size: clamp(11px, calc(var(--card-w) * 0.115), 19px); }
 .st-card.warn .st-card-value, .st-card.error .st-card-value, .st-card.dim .st-card-value { color: var(--ink-2); }
 .st-card-label { overflow: hidden; font-size: 8px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--mute); text-overflow: ellipsis; white-space: nowrap; }
 .st-card.active .st-card-label { color: color-mix(in srgb, var(--role) 70%, #fff); }
@@ -1884,7 +1893,7 @@ button.st-card-chip:hover { border-color: var(--role); }
 .st-card.waiting .st-card-chip i, .st-card.dim .st-card-chip i { background: none; border: 1px solid var(--mute); box-shadow: none; }
 .st-card.warn .st-card-chip i { background: none; border: 1.5px solid #ff8a1f; box-shadow: none; }
 .st-card.error .st-card-chip i { background: none; border: 1.5px solid #ff4a4a; box-shadow: none; }
-.stage.split .st-card-chip, .stage.panel .st-card-chip { max-width: 92px; }
+.stage.split .st-card-chip, .stage.panel .st-card-chip { max-width: 96px; padding: 3px 8px 3px 6px; font-size: 9px; }
 /* The chips need a little room: the specialists sit a step lower while they show. */
 .stage.split .st-team.turn:not(.open) .st-member.st-spec, .stage.panel .st-team.turn .st-member.st-spec { top: 76px; }
 .stage:not(.split):not(.panel) .st-team.turn .st-member.st-spec { top: 134px; }
@@ -1893,8 +1902,10 @@ button.st-card-chip:hover { border-color: var(--role); }
 @keyframes card-pulse { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--role) 60%, transparent); } to { box-shadow: 0 0 0 6px transparent; } }
 /* The graph of the turn, beside the conversation. */
 @media not (max-width: 900px) {
-  .stage.split:not(.panel):has(.st-team.open) { --graph-top: 262px; --turn-y: clamp(620px, 62vh, 700px); }
+  .stage.split:not(.panel):has(.st-team.open) { --graph-top: 262px; --turn-y: clamp(640px, 58vh, calc(100vh - 96px)); }
   .stage.split:not(.panel):has(.st-team.open) .st-core-wrap { top: var(--turn-y); transform: translate(-50%, -50%) scale(0.46); }
+  /* At that size his whisper is too small to read; the conversation says what he is doing. */
+  .stage.split:not(.panel):has(.st-team.open) .st-whisper { display: none; }
   .stage.split:not(.panel) .st-team.open { top: var(--graph-top); }
   .stage.split:not(.panel) .st-team.open .st-member:not(.st-spec) { transform: translate(-50%, -50%) scale(0.8); }
   .stage.split:not(.panel) .st-team.open .st-member.seat-1 { left: calc(var(--pitch) * -1.5); }
@@ -1932,21 +1943,30 @@ button.st-card-chip:hover { border-color: var(--role); }
   .stage.split:not(.panel) .st-team.open .st-member.st-spec { left: calc(var(--x) * 0.5); top: calc(var(--turn-y) - var(--graph-top)); }
   .stage.split:not(.panel) .st-team.open .st-member.st-spec b { display: inline; }
 }
+/* Narrower cards wrap their steps and grow taller: Sparky steps a little further down. */
+@media (900px < width <= 1300px) {
+  .stage.split:not(.panel):has(.st-team.open) { --turn-y: clamp(690px, 62vh, calc(100vh - 60px)); }
+  .stage.split:not(.panel):has(.st-team.open) .st-core-wrap { transform: translate(-50%, -50%) scale(0.4); }
+}
 /* A narrow window keeps the team in view during a turn: the four heads beside Sparky, a chip under each. */
 @media (max-width: 900px) {
   .stage.split .st-team.turn { display: block; left: 50%; top: 170px; }
   .stage.split .st-team.turn .st-member { transform: translate(-50%, -50%) scale(0.5); }
   .stage.split .st-team.turn .st-member b, .stage.split .st-team.turn .st-member.st-spec { display: none; }
-  .stage.split .st-team.turn .st-member.seat-1 { left: -142px; }
-  .stage.split .st-team.turn .st-member.seat-2 { left: -70px; }
-  .stage.split .st-team.turn .st-member.seat-3 { left: 70px; }
-  .stage.split .st-team.turn .st-member.seat-4 { left: 142px; }
+  .stage.split .st-team.turn .st-member.seat-1 { left: calc(-1 * min(172px, 50vw - 50px)); }
+  .stage.split .st-team.turn .st-member.seat-2 { left: -78px; }
+  .stage.split .st-team.turn .st-member.seat-3 { left: 78px; }
+  .stage.split .st-team.turn .st-member.seat-4 { left: min(172px, 50vw - 50px); }
   .stage.split .st-team.turn .st-card { scale: 2; }
-  .stage.split .st-team.turn .st-card-chip { max-width: 68px; }
+  .stage.split .st-team.turn .st-card-chip { max-width: 96px; }
 }
 /* Focus lights the agent's line in its color for a moment. */
 .st-turn.team.st-focus p { animation: line-focus 1.6s var(--ease); }
 @keyframes line-focus { 0%, 35% { box-shadow: inset 2px 0 0 var(--role), 0 0 0 1px color-mix(in srgb, var(--role) 60%, transparent), 0 0 26px color-mix(in srgb, var(--role) 35%, transparent); } }
 @media (prefers-reduced-motion: reduce) {
   .st-card-full, .st-card-chip, .st-card-skel, .st-card-bar::after, .st-card-steps li.active i, .st-card-chip i, .st-turn.team.st-focus p { animation: none; }
+}
+/* On a narrow window Sparky stays above the conversation, in the room the narrow layout leaves him. */
+@media (max-width: 900px) {
+  .stage.split .st-core-wrap { top: 170px; }
 }
