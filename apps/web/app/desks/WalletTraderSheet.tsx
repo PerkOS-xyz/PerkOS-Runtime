@@ -26,6 +26,7 @@ import {
   quoteMismatch,
   quoteSecondsLeft,
   readable,
+  recheckBuy,
   RECHECK_MS,
   receiptView,
   revokeAllowed,
@@ -49,6 +50,7 @@ import { sendBuyForTurn } from "./turnReceipts";
 import { useMarket } from "./useMarket";
 import { useTrader } from "./useTrader";
 import { WorldDelegationNote } from "../world/WorldDelegationNote";
+import { delegationChanged, delegationLink, delegationMode, effectiveOrderCap, worldApprovalRequired } from "./delegation";
 
 const HOLD_MS = 1600;
 const WAIT_MS = 3 * 60_000;
@@ -84,6 +86,7 @@ export function WalletTraderSheet({
   title,
   module,
   chain,
+  agentId,
   onClose,
   prefill = null,
   onPlanUsed
@@ -91,6 +94,7 @@ export function WalletTraderSheet({
   title: string;
   module: string;
   chain: Chain;
+  agentId?: string;
   onClose: () => void;
   prefill?: TraderPrefill | null;
   /** A buy from the plan went out: the plan has done its part. */
@@ -129,26 +133,24 @@ export function WalletTraderSheet({
           </p>
         ) : null}
         {!trader && loading ? <p className="tr-note">Reading the delegated wallet…</p> : null}
-        {trader ? <Access trader={trader} load={load} moving={moving} /> : null}
+        {trader ? <Access trader={trader} agentId={agentId} load={load} moving={moving} /> : null}
         {trader?.delegated && trader.wallet ? <Funds module={module} trader={trader} assets={market?.assets ?? []} load={load} /> : null}
         {/* Always drawn: a buy that was in flight when the sheet closed shows its outcome even if the wallet cannot be read now. */}
-        <Buy key={prefill?.key ?? 0} module={module} trader={trader} assets={market?.assets ?? []} load={load} prefill={prefill} onPlanUsed={onPlanUsed} />
+        <Buy key={prefill?.key ?? 0} module={module} trader={trader} agentId={agentId} assets={market?.assets ?? []} load={load} prefill={prefill} onPlanUsed={onPlanUsed} />
       </div>
     </aside>
   );
 }
 
 /** A one-time link to the PerkOS page where the owner gives access, edits limits or revokes. */
-async function openDelegation(mode: "grant" | "edit" | "revoke"): Promise<void> {
-  const res = await fetch("/api/delegation", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode }) });
-  const body = (await res.json().catch(() => ({}))) as { url?: string; message?: string };
-  if (!res.ok || !body.url) throw new Error(body.message ?? "PerkOS did not return a link.");
+async function openDelegation(mode: "grant" | "edit" | "revoke", agentId?: string): Promise<void> {
+  const url = await delegationLink(mode, agentId);
   // The shell sends the page to the system browser, where the owner signs in with Dynamic.
-  window.open(body.url, "_blank", "noopener");
+  window.open(url, "_blank", "noopener");
 }
 
 /** Who has access, and the three places its limits live. */
-function Access({ trader, load, moving }: { trader: DeskTrader; load: () => Promise<DeskTrader | null>; moving: boolean }) {
+function Access({ trader, agentId, load, moving }: { trader: DeskTrader; agentId?: string; load: () => Promise<DeskTrader | null>; moving: boolean }) {
   const [busy, setBusy] = useState<"" | "grant" | "edit" | "revoke">("");
   const [waiting, setWaiting] = useState<"" | "grant" | "edit">("");
   const [note, setNote] = useState("");
@@ -156,7 +158,9 @@ function Access({ trader, load, moving }: { trader: DeskTrader; load: () => Prom
   const [copied, setCopied] = useState(false);
   // Revoke asks once more before it runs. An order that starts meanwhile hides the question until it finishes.
   const [confirming, setConfirming] = useState(false);
-  const capBefore = useRef({ cap: trader.cap, reason: trader.capReason });
+  const before = useRef(trader);
+  const needsApproval = worldApprovalRequired(trader, agentId);
+  const cap = effectiveOrderCap(trader, agentId);
 
   // While the owner finishes in the browser, read the wallet every 4 s, with a
   // ceiling: an abandoned page must not leave a poll running for ever.
@@ -165,7 +169,7 @@ function Access({ trader, load, moving }: { trader: DeskTrader; load: () => Prom
     const started = Date.now();
     const timer = window.setInterval(async () => {
       const next = await load();
-      const done = waiting === "grant" ? next?.delegated : next && (next.cap !== capBefore.current.cap || next.capReason !== capBefore.current.reason);
+      const done = next && (waiting === "grant" ? next.delegated && !worldApprovalRequired(next, agentId) : delegationChanged(before.current, next));
       if (done) {
         setWaiting("");
         setNote("");
@@ -176,14 +180,15 @@ function Access({ trader, load, moving }: { trader: DeskTrader; load: () => Prom
       }
     }, 4000);
     return () => window.clearInterval(timer);
-  }, [waiting, load]);
+  }, [waiting, load, agentId]);
 
   async function open(mode: "grant" | "edit") {
     setBusy(mode);
     setNote("");
-    capBefore.current = { cap: trader.cap, reason: trader.capReason };
+    before.current = trader;
     try {
-      await openDelegation(mode);
+      if (trader.world?.enabled && !agentId) throw new Error("This desk's Trader is not available yet. Set up its team, then try again.");
+      await openDelegation(mode, agentId);
       setWaiting(mode);
     } catch (err) {
       setNote((err as Error).message);
@@ -235,7 +240,7 @@ function Access({ trader, load, moving }: { trader: DeskTrader; load: () => Prom
           ) : null}
         </p>
       ) : null}
-      <p className="tr-note">Owned by you on Dynamic. PerkOS signs with a delegated share you approved: it cannot export your key or change your limits.</p>
+      <p className="tr-note">Owned by you on Dynamic. A delegated share keeps your key private; spending also requires the current Trader permission.</p>
       <WorldDelegationNote />
     </>
   );
@@ -273,7 +278,7 @@ function Access({ trader, load, moving }: { trader: DeskTrader; load: () => Prom
       <div className="tr-wallet-row">
         <span className={`tr-dot${trader.gas.ok ? "" : " low"}`} aria-hidden />
         <div>
-          <small>The Trader buys from your wallet</small>
+          <small>{needsApproval ? "Wallet connected · World approval required" : "The Trader buys from your wallet"}</small>
           <b title={wallet}>{short(wallet)}</b>
         </div>
         <button type="button" className="link-btn" onClick={() => void copy(wallet)}>
@@ -286,8 +291,8 @@ function Access({ trader, load, moving }: { trader: DeskTrader; load: () => Prom
       <dl className="tr-limits">
         <dt>Per order</dt>
         <dd>
-          {trader.cap > 0 ? `up to ${trader.cap} USDG` : "not set yet"}
-          {trader.capBy === "owner" ? <i className="by dyn">Dynamic</i> : <i className="by perkos">PerkOS</i>}
+          {needsApproval ? "Buying paused" : cap > 0 ? `up to ${cap} USDG` : "not set yet"}
+          {!needsApproval ? <i className={`by ${trader.world?.enabled ? "you" : trader.capBy === "owner" ? "dyn" : "perkos"}`}>{trader.world?.enabled ? "World + limits" : trader.capBy === "owner" ? "Dynamic" : "PerkOS"}</i> : null}
         </dd>
         <dt>Buys</dt>
         <dd>
@@ -306,10 +311,12 @@ function Access({ trader, load, moving }: { trader: DeskTrader; load: () => Prom
           a quote, then you hold to approve<i className="by you">You</i>
         </dd>
       </dl>
-      <p className="tr-note">{capNote(trader)}</p>
+      <p className="tr-note">{needsApproval
+        ? "Confirm access for this desk's Trader, wallet and chain with your linked World identity. Your wallet and funds remain accessible."
+        : trader.world?.enabled ? `World and your saved limits allow up to ${cap} USDG per order for this Trader.` : capNote(trader)}</p>
       <div className="tr-actions">
-        <button type="button" className="chip-btn" disabled={busy !== "" || waiting === "edit"} onClick={() => void open("edit")}>
-          {waiting === "edit" ? "Waiting for the browser…" : busy === "edit" ? "Opening…" : "Edit limits ↗"}
+        <button type="button" className="chip-btn" disabled={busy !== "" || waiting !== ""} onClick={() => void open(delegationMode(trader, agentId))}>
+          {waiting !== "" ? "Waiting for the browser…" : busy !== "" ? "Opening…" : needsApproval ? "Confirm Trader access ↗" : "Edit limits ↗"}
         </button>
         <button
           type="button"
@@ -485,6 +492,7 @@ function useSweepRun(module: string): SweepRun | null {
 function Buy({
   module,
   trader,
+  agentId,
   assets,
   load,
   prefill = null,
@@ -492,6 +500,7 @@ function Buy({
 }: {
   module: string;
   trader: DeskTrader | null;
+  agentId?: string;
   assets: DeskAsset[];
   load: () => Promise<DeskTrader | null>;
   prefill?: TraderPrefill | null;
@@ -510,7 +519,8 @@ function Buy({
   const [clock, setClock] = useState(0);
 
   // The plan's amount, once the wallet is read: never above one order's limit or what the wallet holds.
-  const fromPlan = prefill ? planAmount(prefill.amount, trader) : null;
+  const cap = trader ? effectiveOrderCap(trader, agentId) : 0;
+  const fromPlan = prefill ? planAmount(prefill.amount, trader ? { ...trader, cap } : null) : null;
   const planned = fromPlan?.amount ?? null;
   // An amount the owner typed is theirs: the plan no longer sets it.
   const typed = useRef(false);
@@ -520,9 +530,8 @@ function Buy({
 
   const asset = tradeable.find((a) => a.ticker === ticker);
   const amount = AMOUNT.test(amountText.trim()) ? Number(amountText) : NaN;
-  const cap = trader?.cap ?? 0;
   // A transfer home in flight, or one of USDG that may still land, keeps the buy waiting.
-  const reason = buyReason(trader, amount, asset !== undefined, sweep);
+  const reason = buyReason(trader, amount, asset !== undefined, sweep, agentId);
 
   // The outcome of a buy moves money: read the wallet again as soon as it lands.
   const settled = run?.outcome ? run.id : 0;
@@ -563,7 +572,8 @@ function Buy({
   }
 
   function approve() {
-    if (!quote || reason || check?.blocked || !slippageOk(slippage) || quoteSecondsLeft(quote.receivedAt, performance.now()) <= 0) return;
+    if (!trader || !quote || reason || check?.blocked || !slippageOk(slippage) || quoteSecondsLeft(quote.receivedAt, performance.now()) <= 0) return;
+    if (buyReason(trader, quote.amount, true, sweep, agentId)) return;
     const { quote: q, asset: stock } = quote;
     const usdg = String(quote.amount);
     // The quote the owner saw always goes with the order: PerkOS refuses the swap below it less this slippage.
@@ -579,7 +589,12 @@ function Buy({
         maxSlippageBps: slippage,
         heldBefore: heldOf(trader, stock.address)
       },
-      () => sendBuyForTurn(order)
+      async () => {
+        const current = await load();
+        const blocked = recheckBuy({ before: trader, current, amount: quote.amount, agentId, receivedAt: quote.receivedAt, now: performance.now(), sweep: sweepRun(module) });
+        if (blocked) return { kind: "refused", code: "TRADER_PERMISSION_CHANGED", message: blocked, detail: "Nothing was submitted. Review the Trader's current access and limits." };
+        return sendBuyForTurn(order);
+      }
     );
     if (started) setQuote(null);
     // One buy from the plan: the next one from this form follows no turn.

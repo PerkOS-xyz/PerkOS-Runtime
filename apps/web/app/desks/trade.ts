@@ -11,6 +11,7 @@ import type { DeskAsset } from "@perkos/desk-contract";
 import { formatUnits, parseUnits } from "viem";
 
 import type { TurnReceipt } from "../lib/turnRecord";
+import { effectiveOrderCap, worldApprovalRequired } from "./delegation";
 
 export const EXPLORER = "https://robinhoodchain.blockscout.com";
 
@@ -139,15 +140,17 @@ export function heldOf(trader: DeskTrader | null, address: string): string {
 }
 
 /** Why a buy of `amount` USDG cannot run right now, in words, or null when it can. */
-export function buyBlocker(trader: DeskTrader | null, amount: number): string | null {
+export function buyBlocker(trader: DeskTrader | null, amount: number, agentId?: string): string | null {
   if (!trader) return "The delegated wallet has not been read yet.";
   if (!trader.delegated || !trader.wallet) return "Give the Trader access to a wallet of yours first.";
+  if (worldApprovalRequired(trader, agentId)) return "Confirm this desk's Trader access with World before buying.";
+  const cap = effectiveOrderCap(trader, agentId);
   const held = usdgHeld(fundsOf(trader));
   if (!(held > 0)) return "The delegated wallet holds no USDG. Send USDG on Robinhood Chain to it first.";
   if (!trader.gas.ok) return "The delegated wallet needs a little ETH on Robinhood Chain for gas.";
-  if (!(trader.cap > 0)) return "PerkOS has not set how much one order may spend yet.";
+  if (!(cap > 0)) return "PerkOS has not set how much one order may spend yet.";
   if (!(amount > 0)) return "Enter how much USDG to spend.";
-  if (amount > trader.cap) return `One order can spend up to ${trader.cap} USDG.`;
+  if (amount > cap) return `One order can spend up to ${cap} USDG.`;
   if (amount > held) return `The delegated wallet holds ${held} USDG.`;
   return null;
 }
@@ -549,9 +552,23 @@ export function sweepBlocksBuy(sweep: SweepState | null, usdgAddress: string | n
 }
 
 /** Why the owner cannot get a quote or hold to approve right now, or null when they can. */
-export function buyReason(trader: DeskTrader | null, amount: number, stockChosen: boolean, sweep: SweepState | null): string | null {
+export function buyReason(trader: DeskTrader | null, amount: number, stockChosen: boolean, sweep: SweepState | null, agentId?: string): string | null {
   const usdgAddress = trader ? (fundsOf(trader).usdg?.address ?? null) : null;
-  return buyBlocker(trader, amount) ?? sweepBlocksBuy(sweep, usdgAddress) ?? (stockChosen ? null : "Choose a stock.");
+  return buyBlocker(trader, amount, agentId) ?? sweepBlocksBuy(sweep, usdgAddress) ?? (stockChosen ? null : "Choose a stock.");
+}
+
+/** A wallet read can finish after a rebind or the quote expires. Keep the
+ * owner's approval bound to the wallet, chain and quote they actually saw. */
+export function recheckBuy(input: {
+  before: DeskTrader; current: DeskTrader | null; amount: number; agentId?: string;
+  receivedAt: number; now: number; sweep: SweepState | null;
+}): string | null {
+  const { before, current } = input;
+  if (!current || !before.wallet || current.wallet?.toLowerCase() !== before.wallet.toLowerCase() || current.chainId !== before.chainId) {
+    return "The Trader's wallet or chain changed. Review it and get a new quote.";
+  }
+  if (quoteSecondsLeft(input.receivedAt, input.now) <= 0) return "The quote expired while checking access. Get a new quote.";
+  return buyReason(current, input.amount, true, input.sweep, input.agentId);
 }
 
 /** Whether the buy's outcome may be put away now, on this machine's monotonic clock (see mayDismiss). */
