@@ -6,6 +6,7 @@ import { sepolia } from "viem/chains";
 import { instanceName, verifyDeskIdentity, type DeskVerification, type IdentityAction, type IdentityStatus } from "@perkos/ens";
 import { EnsActivityLog, ensStepLabel } from "./EnsActivityLog";
 import { EnsExplorer } from "./EnsExplorer";
+import { Ensip25Proof, Ensip25Summary } from "./Ensip25Proof";
 import type { Chain } from "./chains";
 import styles from "./IdentitySheet.module.css";
 
@@ -107,6 +108,7 @@ export function IdentitySheet({ desk, title, chain, onClose }: { desk: string; t
         <p>{verification?.verified ? `Verified at block ${verification.blockNumber}` : "Identity has not been verified."}</p>
         {verification && !verification.verified ? <p role="alert">The parent, ownership or a teammate identity no longer matches. Publishing is disabled.</p> : null}
       </> : null}
+      <Ensip25Summary verification={verification} total={status?.descriptor?.seats.length ?? 0} />
       <EnsActivityLog activity={status?.activity ?? []} />
       <ul className={styles.seats}>
         {(status?.descriptor?.seats ?? []).map((seat) => {
@@ -116,6 +118,7 @@ export function IdentitySheet({ desk, title, chain, onClose }: { desk: string; t
             <div style={{ overflowWrap: "anywhere" }}>{checked?.name ?? seat.context}</div>
             <small>{seat.writes ? `${seat.writes}: ${checked ? checked.writeGranted ? "may publish" : "revoked" : "not checked"}` : "No ENS publication permission"}</small>
             {saved ? <div><a href={`https://sepolia.etherscan.io/address/${saved.wallet}`} target="_blank" rel="noreferrer">{short(saved.wallet)}</a> · ERC-8004 #{saved.registrationId}</div> : null}
+            {saved ? <Ensip25Proof seat={saved} checked={checked} block={verification?.blockNumber} /> : <small>ENSIP-25 · Pending identity creation and verification</small>}
           </li>;
         })}
       </ul>

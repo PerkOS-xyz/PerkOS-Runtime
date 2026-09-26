@@ -5,6 +5,7 @@ import { createPublicClient, http } from "viem";
 import { sepolia } from "viem/chains";
 import { discoverDesk, instanceName, parseEvidence, readText, seatName, verifyEvidence, type EvidenceEnvelope } from "@perkos/ens";
 import styles from "./IdentitySheet.module.css";
+import { Ensip25Proof, Ensip25Summary } from "./Ensip25Proof";
 
 export const ensReader = createPublicClient({ chain: sepolia, transport: http("https://ethereum-sepolia-rpc.publicnode.com", { timeout: 15_000, retryCount: 0 }), cacheTime: 0 });
 const PUBLIC_EVIDENCE = "https://api.perkos.xyz/ens/evidence/";
@@ -80,8 +81,11 @@ export function EnsExplorer() {
       <span>↓ child pointer · ↑ parent pointer</span>
       <strong>{desk.verification.name}</strong>
       <p>{desk.verification.verified ? `Canonical team verified at block ${desk.verification.blockNumber}` : `Unverified: ${desk.verification.issues.join(", ")}`}</p>
+      <Ensip25Summary verification={desk.verification} total={desk.identity.seats.length} />
       <div className={styles.tree}>{desk.verification.seats.map((s) => <div key={s.id}>
         <strong>{s.id}</strong> · {s.verified ? "verified" : "unverified"} · {s.writeGranted ? "may publish" : "no publication grant"}
+        <div>{s.name}</div>
+        <Ensip25Proof seat={desk.identity.seats.find((seat) => seat.id === s.id)!} checked={s} block={desk.verification.blockNumber} />
         {/^perkos-evidence:1:0x[0-9a-f]{64}$/.test(records[s.id] ?? "") ? <button type="button" disabled={busy} onClick={() => void load(records[s.id]!.split(":")[2]!)}>Read {s.id} evidence</button> : null}
       </div>)}</div>
     </div> : null}
