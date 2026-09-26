@@ -8,6 +8,9 @@ import { CHAIN_LABEL, chainOf } from "./chains";
 
 export type Desk = { id: string; name: string; description: string; module?: string };
 
+/** The desk this build puts first; the rest are one tap away. */
+const FEATURED = (process.env.NEXT_PUBLIC_FEATURED_DESK?.trim() || "eqlty").toLowerCase();
+
 /** The desks this wallet can open, as a row of cards. */
 export function DesksScreen({
   model,
@@ -25,6 +28,7 @@ export function DesksScreen({
   const [desks, setDesks] = useState<Desk[] | null>(null);
   const [error, setError] = useState("");
   const [withSparky, setWithSparky] = useState(false);
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -44,8 +48,12 @@ export function DesksScreen({
     };
   }, []);
 
+  const featured = desks?.find((d) => `${d.id} ${d.module ?? ""}`.toLowerCase().includes(FEATURED)) ?? desks?.[0] ?? null;
+  const featuredChain = chainOf(featured?.module);
+  const featuring = !showAll && (featured !== null || !desks);
+
   return (
-    <main className={`desks-home${withSparky ? " behind" : ""}`}>
+    <main className={`desks-home${featuring ? " featured" : ""}${withSparky ? " behind" : ""}`}>
       <AppHeader
         section="Desks"
         onLogout={onLogout}
@@ -59,7 +67,40 @@ export function DesksScreen({
           ) : null
         }
       />
+      {featuring ? (
+        <section className={`dh-featured ${featured ? featuredChain : "skel"}`} aria-label="Featured desk" aria-busy={!featured}>
+          {featured ? (
+            <>
+              <div className="df-copy">
+                <span className="kicker">Featured desk</span>
+                <h1>{featured.name}</h1>
+                {featuredChain !== "neutral" ? <span className={`chain-badge ${featuredChain}`}>{CHAIN_LABEL[featuredChain]}</span> : null}
+                <p>{featured.description}</p>
+                <div className="df-cta">
+                  <button type="button" className="pill" onClick={() => onOpen(featured)}>
+                    Open desk <span className="arrow" aria-hidden>&rarr;</span>
+                  </button>
+                  {desks && desks.length > 1 ? (
+                    <button type="button" className="link-btn df-more" onClick={() => setShowAll(true)}>
+                      See all desks ({desks.length})
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+              <div className="df-art" aria-hidden>
+                <i className="df-glow" />
+                <img className="df-sparky" src="/sparky-full.png" alt="" draggable={false} />
+              </div>
+            </>
+          ) : null}
+        </section>
+      ) : null}
       <section className="dh-intro">
+        {featured ? (
+          <button type="button" className="link-btn dh-back" onClick={() => setShowAll(false)}>
+            &larr; Featured desk
+          </button>
+        ) : null}
         <span className="kicker">Your desks</span>
         <h1>Pick a desk.</h1>
         <p>Each desk is a team of agents with its own market and screens. Open one and Sparky comes along.</p>
