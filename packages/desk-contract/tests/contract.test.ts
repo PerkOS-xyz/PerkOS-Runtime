@@ -121,6 +121,39 @@ describe("a desk's manifest", () => {
     expect(DeskManifestSchema.safeParse(manifest).success).toBe(true);
   });
 
+  it("still takes a manifest without a starter's turn, an order cap or venues", () => {
+    const parsed = DeskManifestSchema.parse(manifest);
+    expect(parsed.maxOrder).toBeUndefined();
+    expect(parsed.venues).toBeUndefined();
+    expect(parsed.starters[0]?.turn).toBeUndefined();
+  });
+
+  it("takes the turn a starter runs, the order cap and the desk's venues", () => {
+    const parsed = DeskManifestSchema.parse({
+      ...manifest,
+      starters: [
+        { text: "What should I buy this month?", tag: "The desk reads the market", turn: "advise" },
+        { text: "How is NVDA doing today?", tag: "Price and recent range", turn: "analyze" },
+        { text: "What can I trade on this desk?", tag: "Tokenized stocks in USDG" },
+      ],
+      maxOrder: 100,
+      venues: ["Uniswap on Robinhood Chain"],
+    });
+    expect(parsed.starters.map((s) => s.turn)).toEqual(["advise", "analyze", undefined]);
+    expect(parsed.maxOrder).toBe(100);
+    expect(parsed.venues).toEqual(["Uniswap on Robinhood Chain"]);
+  });
+
+  it("refuses a starter's turn it does not know, an order cap that is not a positive number, or empty venues", () => {
+    const starter = { text: "Launch a coin", tag: "New token" };
+    expect(DeskManifestSchema.safeParse({ ...manifest, starters: [{ ...starter, turn: "launch" }] }).success).toBe(false);
+    expect(DeskManifestSchema.safeParse({ ...manifest, maxOrder: 0 }).success).toBe(false);
+    expect(DeskManifestSchema.safeParse({ ...manifest, maxOrder: "100" }).success).toBe(false);
+    expect(DeskManifestSchema.safeParse({ ...manifest, venues: [] }).success).toBe(false);
+    expect(DeskManifestSchema.safeParse({ ...manifest, venues: [""] }).success).toBe(false);
+    expect(DeskManifestSchema.safeParse({ ...manifest, starters: [{ ...starter, promoted: true }] }).success).toBe(false);
+  });
+
   it("refuses a screen the app does not know, a role left out, or a field nobody reads", () => {
     expect(DeskManifestSchema.safeParse({ ...manifest, screens: ["casino"] }).success).toBe(false);
     expect(DeskManifestSchema.safeParse({ ...manifest, turns: { analyze: { scout: "x", risk: "y", trader: "z" } } }).success).toBe(false);

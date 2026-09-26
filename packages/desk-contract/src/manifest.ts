@@ -15,6 +15,8 @@ export const DeskStarterSchema = z
     text: z.string().trim().min(1).max(120),
     /** A few words under the question: what the desk will do with it. */
     tag: z.string().trim().min(1).max(60),
+    /** The kind of turn this question runs. Left out, the question is plain chat with Sparky. */
+    turn: z.enum(["analyze", "advise", "order"]).optional(),
   })
   .strict();
 
@@ -34,6 +36,17 @@ export const DeskManifestSchema = z
     screens: z.array(z.enum(["market", "portfolio", "history", "trader"])).max(6),
     /** What every member of the team keeps in every turn on this desk. */
     rules: z.string().trim().min(1).max(1600),
+    /**
+     * The most one order may spend, in the market's quote asset. Checks on the
+     * team's answers use it; a desk that leaves it out gets no size check.
+     */
+    maxOrder: z.number().positive().max(1_000_000).optional(),
+    /**
+     * Where the desk trades, named as the team should name it: "Uniswap on
+     * Robinhood Chain". An answer that names another venue is flagged; a desk
+     * that leaves this out gets no venue check.
+     */
+    venues: z.array(z.string().trim().min(1).max(64)).min(1).max(8).optional(),
     /** A kind of turn the desk leaves out is one it does not run. */
     turns: z
       .object({
