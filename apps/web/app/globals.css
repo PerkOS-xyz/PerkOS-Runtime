@@ -653,3 +653,10 @@ button { font: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .sp-avatar::before, .eq i, .live-dot, .mic-btn.listening, .bubble.live .bubble-button { animation: none; }
 }
+
+/* Offer to turn on Sparky's memory, inside the bubble. */
+.memory-banner { display: flex; gap: 10px; margin: 10px 12px 0; padding: 12px; border-radius: 14px; border: 1px solid rgba(236, 27, 105, 0.35); background: rgba(236, 27, 105, 0.07); }
+.memory-banner > svg { flex: none; width: 18px; height: 18px; margin-top: 1px; color: #ff9fbf; }
+.memory-banner p { margin: 0; font-size: 12px; line-height: 1.55; color: var(--ink-2); }
+.memory-actions { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.memory-actions .chip-btn { padding: 6px 12px; font-size: 11.5px; }
