@@ -34,6 +34,12 @@ export function sparkyPrompt(desks: DeskBrief[], open?: DeskBrief): string {
   return `${SPARKY_PROMPT}\n\nDesks available:\n${list}${here}\n\nRecommend only desks from this list, by name. If none fits, say so.`;
 }
 
+/** Adds what Sparky remembers about the question to the prompt, when anything matches. */
+export function withMemory(system: string, recall: string): string {
+  if (!recall.trim()) return system;
+  return `${system}\n\nNotes from earlier conversations with this person. Use them only when they help with the question:\n${recall.trim()}`;
+}
+
 const MAX_MESSAGES = 20;
 const MAX_CHARS = 4000;
 
@@ -86,6 +92,40 @@ export async function startReply(
     },
     async cancel() {
       await pieces.return?.();
+    },
+  });
+}
+
+/** Passes a reply through and hands its text to `done` once, when it ends or is cut off. */
+export function tapReply(stream: ReadableStream<Uint8Array>, done: (text: string) => void): ReadableStream<Uint8Array> {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    done(text + decoder.decode());
+  };
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const next = await reader.read();
+        if (next.done) {
+          finish();
+          controller.close();
+          return;
+        }
+        text += decoder.decode(next.value, { stream: true });
+        controller.enqueue(next.value);
+      } catch (err) {
+        finish();
+        controller.error(err);
+      }
+    },
+    async cancel(reason) {
+      finish();
+      await reader.cancel(reason);
     },
   });
 }

@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { AiRegistry, type AiProvider, type ChatRequest } from "@perkos/ai";
 
-import { cleanMessages, SPARKY_PROMPT, sparkyPrompt, startReply } from "../app/lib/sparky";
+import { cleanMessages, SPARKY_PROMPT, sparkyPrompt, startReply, tapReply, withMemory } from "../app/lib/sparky";
 
 function provider(chat: (r: ChatRequest) => AsyncIterable<string>): AiProvider {
   return { id: "local", label: "Local", health: async () => ({ ok: true, detail: "" }), models: async () => [], chat };
@@ -99,5 +99,45 @@ describe("sparkyPrompt", () => {
     expect(prompt).toContain("Desk 19");
     expect(prompt).not.toContain("Desk 20");
     expect(prompt).not.toContain("d".repeat(301));
+  });
+});
+
+describe("withMemory", () => {
+  it("leaves the prompt as it is when nothing matches", () => {
+    expect(withMemory(SPARKY_PROMPT, "")).toBe(SPARKY_PROMPT);
+  });
+
+  it("adds the matching notes after the prompt", () => {
+    const prompt = withMemory(SPARKY_PROMPT, "- Journal 2026-09-26: budget is 500 USDG");
+    expect(prompt.startsWith(SPARKY_PROMPT)).toBe(true);
+    expect(prompt).toContain("Notes from earlier conversations with this person");
+    expect(prompt.endsWith("- Journal 2026-09-26: budget is 500 USDG")).toBe(true);
+  });
+});
+
+describe("tapReply", () => {
+  const encoder = new TextEncoder();
+  const source = (pieces: string[]) =>
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const p of pieces) controller.enqueue(encoder.encode(p));
+        controller.close();
+      },
+    });
+
+  it("passes the reply through and reports its text once at the end", async () => {
+    const seen: string[] = [];
+    const out = tapReply(source(["Hello", ", ", "there ✨"]), (t) => seen.push(t));
+    expect(await text(out)).toBe("Hello, there ✨");
+    expect(seen).toEqual(["Hello, there ✨"]);
+  });
+
+  it("reports what arrived when the reader stops early", async () => {
+    const seen: string[] = [];
+    const out = tapReply(source(["first. ", "second."]), (t) => seen.push(t));
+    const reader = out.getReader();
+    await reader.read();
+    await reader.cancel();
+    expect(seen).toEqual(["first. "]);
   });
 });
