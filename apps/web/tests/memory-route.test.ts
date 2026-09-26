@@ -10,7 +10,7 @@ import { vaultKeyMessage } from "@perkos/vault";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { GET } from "../app/api/memory/route";
+import { DELETE as FORGET, GET, PUT } from "../app/api/memory/route";
 import { POST as SUMMARIZE } from "../app/api/memory/summarize/route";
 import { DELETE, POST } from "../app/api/vault/route";
 import { journalEntry } from "../app/lib/journal";
@@ -98,6 +98,49 @@ describe("/api/memory", () => {
     await notes.writeNote("user", "memory", "Memory", addSummary("", "2026-09-26", "Facts\n- Budget is 500 USDG.\nDecisions\n- none\nPreferences\n- Low risk."));
     const { body } = await get("?scope=user");
     expect(body.notes[0]).toMatchObject({ title: "Memory", preview: "Budget is 500 USDG. · Low risk." });
+  });
+});
+
+describe("editing and forgetting", () => {
+  const send = async (res: Promise<Response>) => {
+    const r = await res;
+    return { status: r.status, body: await r.json() };
+  };
+
+  it("edits the Memory note but not a day's conversations", async () => {
+    const notes = await turnOn();
+    await notes.writeNote("user", "memory", "Memory", "## 2026-09-26\nFacts\n- Budget is 500 USDG.");
+    await notes.appendJournal("user", journalEntry("My budget is 500 USDG a month.", "Noted."));
+    const edited = await send(PUT(req("PUT", "", { id: "user/notes/memory", body: "## 2026-09-26\nFacts\n- Budget is 600 USDG." })));
+    expect(edited.body.note).toMatchObject({ id: "user/notes/memory", title: "Memory", body: "## 2026-09-26\nFacts\n- Budget is 600 USDG." });
+    const day = (await notes.list("user")).find((n) => n.kind === "journal")!;
+    expect((await send(PUT(req("PUT", "", { id: day.id, body: "rewritten" })))).status).toBe(400);
+    expect((await send(PUT(req("PUT", "", { id: "user/notes/memory", body: "  " })))).status).toBe(400);
+  });
+
+  it("forgets a day for good", async () => {
+    const notes = await turnOn();
+    await notes.appendJournal("user", journalEntry("My budget is 500 USDG a month.", "Noted."));
+    const day = (await notes.list("user"))[0]!;
+    expect((await send(FORGET(req("DELETE", `?id=${encodeURIComponent(day.id)}`)))).body).toEqual({ ok: true });
+    expect((await get("?scope=user")).body.notes).toEqual([]);
+    expect((await get("?q=budget")).body.hits).toEqual([]);
+    expect((await send(FORGET(req("DELETE", `?id=${encodeURIComponent(day.id)}`)))).status).toBe(404);
+  });
+
+  it("takes a forgotten day out of the Memory note too", async () => {
+    const notes = await turnOn();
+    await notes.appendJournal("user", journalEntry("My budget is 500 USDG a month.", "Noted."));
+    const day = (await notes.list("user"))[0]!;
+    const date = day.id.slice(-10);
+    await notes.writeNote("user", "memory", "Memory", addSummary(addSummary("", "2020-01-01", "Facts\n- Older."), date, "Facts\n- Budget is 500 USDG."));
+    await send(FORGET(req("DELETE", `?id=${encodeURIComponent(day.id)}`)));
+    expect((await notes.read("user/notes/memory"))?.body).toBe("## 2020-01-01\nFacts\n- Older.");
+
+    await notes.appendJournal("user", journalEntry("Another day.", "Noted."));
+    await notes.writeNote("user", "memory", "Memory", addSummary("", date, "Facts\n- Only this day."));
+    await send(FORGET(req("DELETE", `?id=${encodeURIComponent(day.id)}`)));
+    expect(await notes.read("user/notes/memory")).toBeNull();
   });
 });
 
