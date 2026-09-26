@@ -967,6 +967,9 @@ button { font: inherit; }
 .set-sources li { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 12px; border: 1px solid var(--hair); background: rgba(6, 10, 22, 0.55); font-size: 12.5px; }
 .set-sources .ptag { margin-left: auto; }
 .set-sources .link-btn { padding: 0; font-size: 11px; }
+/* The Bankr key form spans the panel, like a provider row. */
+.settings-panel .key-form { align-self: stretch; }
+.settings-panel section > .link-btn { padding: 0; font-size: 11px; }
 @media (prefers-reduced-motion: reduce) {
   .settings-panel, .settings-backdrop, .gear-btn { transition: none; }
 }
