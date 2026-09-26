@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { chatCommand, newChatCaption, newChatId, savable, type NewChatOutcome } from "./chatsView";
+import { chatCommand, LOST_SAVE_CAPTION, newChatCaption, newChatId, savable, type NewChatOutcome } from "./chatsView";
 import type { Message, SparkyChatState } from "./useSparkyChat";
 
 /** How long after a reply ends before the thread is saved. */
@@ -22,6 +22,8 @@ export interface ChatsState {
   version: number;
   /** Keeps the conversation on screen (when it can) and starts an empty one. */
   newChat: () => NewChatOutcome;
+  /** Goes up each time the thread a New chat set aside could not be saved after all. */
+  lostSave: number;
   /** Puts a saved thread on screen, after keeping the one that was there. */
   openChat: (id: string) => Promise<boolean>;
   /** The drawer deleted a thread; when it is the one on screen, the screen clears. */
@@ -42,6 +44,7 @@ export function useChats({ scope, chat, unlocked }: { scope: string; chat: Spark
   const [open, setOpen] = useState(false);
   const [refused, setRefused] = useState(false);
   const [version, setVersion] = useState(0);
+  const [lostSave, setLostSave] = useState(0);
   const idRef = useRef("");
   // What is saved of the thread on screen, to skip saving the same thing twice.
   const savedRef = useRef("");
@@ -57,10 +60,12 @@ export function useChats({ scope, chat, unlocked }: { scope: string; chat: Spark
   }, [unlocked]);
 
   const save = useCallback(
-    (list: Message[]) => {
+    (list: Message[]): Promise<boolean> => {
       const keep = savable(list).slice(-KEEP);
       const sig = JSON.stringify(keep);
-      if (!keep.length || sig === savedRef.current || lockedRef.current) return;
+      // Nothing new to keep counts as kept; a locked vault keeps nothing.
+      if (!keep.length || sig === savedRef.current) return Promise.resolve(true);
+      if (lockedRef.current) return Promise.resolve(false);
       let id = idRef.current;
       if (!id) {
         id = newChatId();
@@ -71,13 +76,20 @@ export function useChats({ scope, chat, unlocked }: { scope: string; chat: Spark
       const undo = () => {
         if (idRef.current === id && savedRef.current === sig) savedRef.current = "";
       };
-      void fetch(url(scope, id), { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ messages: keep }) })
+      return fetch(url(scope, id), { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ messages: keep }) })
         .then((res) => {
-          if (res.ok) return setVersion((v) => v + 1);
+          if (res.ok) {
+            setVersion((v) => v + 1);
+            return true;
+          }
           undo();
           if (res.status === 423 || res.status === 401) setRefused(true);
+          return false;
         })
-        .catch(undo);
+        .catch(() => {
+          undo();
+          return false;
+        });
     },
     [scope]
   );
@@ -90,12 +102,18 @@ export function useChats({ scope, chat, unlocked }: { scope: string; chat: Spark
   }, [messages, busy, locked, save]);
 
   // Leaving the desk or the scene keeps what is on screen.
-  useEffect(() => () => save(messagesRef.current), [save]);
+  useEffect(
+    () => () => {
+      void save(messagesRef.current);
+    },
+    [save]
+  );
 
   const newChat = useCallback((): NewChatOutcome => {
     const had = savable(messagesRef.current).length > 0;
     const kept = had && !lockedRef.current;
-    if (kept) save(messagesRef.current);
+    // The line says it is saved; if the save fails after all, lostSave corrects it.
+    if (kept) void save(messagesRef.current).then((ok) => (ok ? undefined : setLostSave((n) => n + 1)));
     idRef.current = "";
     savedRef.current = "";
     setActiveId("");
@@ -136,7 +154,7 @@ export function useChats({ scope, chat, unlocked }: { scope: string; chat: Spark
     [replace]
   );
 
-  return { activeId, open, setOpen, locked, version, newChat, openChat, deleted };
+  return { activeId, open, setOpen, locked, version, newChat, lostSave, openChat, deleted };
 }
 
 export interface ChatActions {
@@ -160,6 +178,11 @@ export interface ChatActions {
  */
 export function useChatActions(chats: ChatsState, { working, stop }: { working: boolean; stop: () => void }): ChatActions {
   const [caption, setCaption] = useState("");
+
+  // The thread New chat set aside was not saved after all: say so instead.
+  useEffect(() => {
+    if (chats.lostSave) setCaption(LOST_SAVE_CAPTION);
+  }, [chats.lostSave]);
 
   // Once the new thread is saved, the line about the last one has done its job.
   useEffect(() => {

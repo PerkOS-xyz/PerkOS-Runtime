@@ -1572,6 +1572,8 @@ button.mk-row { cursor: pointer; }
   transform-origin: 28px calc(100% + 36px);
   animation: cd-in 280ms var(--ease) both;
 }
+/* It takes focus when it opens so Escape reaches it; no ring for that. */
+.chats-drawer:focus { outline: none; }
 /* An ember seam along the top edge, like the light under a closed door. */
 .chats-drawer::before { content: ""; position: absolute; left: 20px; right: 20px; top: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(236, 27, 105, 0.75), rgba(245, 106, 87, 0.5), transparent); }
 @keyframes cd-in { from { opacity: 0; transform: translateY(14px) scale(0.97); } to { opacity: 1; transform: none; } }

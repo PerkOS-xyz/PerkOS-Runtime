@@ -129,6 +129,17 @@ export function chatWhen(iso: string, now: Date = new Date()): string {
 }
 
 /** The line under Sparky after a new chat starts. */
+/** Said when the thread a New chat set aside could not be saved after all. */
+export const LOST_SAVE_CAPTION = "New chat. The last one could not be saved in Chats.";
+
+/**
+ * Whether Escape belongs to the drawer: only while focus is inside it, so a
+ * panel or sheet opened on top of it gets its own Escape first.
+ */
+export function escapeIsMine(root: { contains(node: Node | null): boolean } | null, active: Element | null): boolean {
+  return Boolean(root && active && root.contains(active));
+}
+
 export function newChatCaption(outcome: NewChatOutcome): string {
   if (outcome === "saved") return "New chat. The last one is saved in Chats.";
   if (outcome === "unsaved") return "New chat. The last one was not kept: turn on memory to save your chats.";
