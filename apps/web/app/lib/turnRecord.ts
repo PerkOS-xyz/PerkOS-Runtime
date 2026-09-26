@@ -111,6 +111,7 @@ export type TurnEvent =
   | { step: "phase"; phase: 1 | 2; roles: string[]; at: string }
   | { step: "start"; role: string; phase: 1 | 2; at: string; agentName?: string }
   | ({ step: "reply"; riskLevel?: RiskLevel; verdict?: Verdict } & RoleReply)
+  /** Follows every reply that is not ok, mid-turn or when the whole team could not take part: "X did not answer". */
   | { step: "failure"; role: string; phase: 1 | 2; failure: FailureKind; label: string; detail?: string }
   | {
       step: "done";

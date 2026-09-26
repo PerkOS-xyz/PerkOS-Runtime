@@ -276,6 +276,22 @@ describe("POST /api/desks/turn: a turn", () => {
     expect(tasks()).toEqual([]);
   });
 
+  it("sends a failure event for every role when the team as a whole cannot take part, and names the button to press", async () => {
+    fake.states = { scout: "hibernated", risk: "hibernated", trader: "hibernated", auditor: "hibernated" };
+    fake.specialists = { hooks: "planned", quote: "planned", treasury: "planned" };
+    fake.status = "hibernated";
+    const events = await turn();
+    const failures = events.filter((e): e is Extract<TurnEvent, { step: "failure" }> => e.step === "failure");
+    expect(failures.map((f) => [f.role, f.failure])).toEqual(ROLES.map((r) => [r, "offline"]));
+    expect(failures.every((f) => f.label.length > 0)).toBe(true);
+    expect(events.find((e) => e.step === "error")).toMatchObject({ message: expect.stringContaining("Press Wake team to create them") });
+
+    fake = { states: { scout: "planned", risk: "planned", trader: "planned", auditor: "planned" }, status: "none" };
+    const none = await turn();
+    expect(none.filter((e) => e.step === "failure").map((e) => ("failure" in e ? e.failure : null))).toEqual(ROLES.map(() => "not_set_up"));
+    expect(none.find((e) => e.step === "error")).toMatchObject({ message: expect.stringContaining("Set up the team") });
+  });
+
   it("runs with the turn's roles awake while the specialists are not set up, and wakes nothing", async () => {
     fake.specialists = { hooks: "planned", quote: "planned", treasury: "planned" };
     fake.status = "partial";

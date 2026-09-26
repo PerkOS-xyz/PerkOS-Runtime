@@ -18,6 +18,7 @@ import { askedAbout, candidates, factLines, MAX_CANDIDATES } from "./marketFacts
 import { teamMemory } from "./memory";
 import { rememberMarket } from "./perkos";
 import { runTurn } from "./turnEngine";
+import { failureLabel } from "./turnFailure";
 import { lintTurn } from "./turnLint";
 import { buildHead, headBudget, principalLine, shortFact } from "./turnPrompts";
 import { TURN_PHASES, type FailureKind, type RoleReply, type TurnErrorCode, type TurnEvent, type TurnKind, type TurnRecord, type TurnStep } from "./turnRecord";
@@ -199,6 +200,8 @@ export async function runDeskTurn(input: DeskTurnInput): Promise<TurnRecord | nu
           ms: 0,
         };
         emit({ step: "reply", ...reply });
+        // The same pair of events a role that did not answer sends mid-turn, so the window reads one shape.
+        emit({ step: "failure", role, phase, failure: reply.failure ?? failure, label: failureLabel(reply.failure ?? failure), ...(reply.detail ? { detail: reply.detail } : {}) });
         return reply;
       });
       return await close({ replies, error: { code: team.code, message: team.message } });
