@@ -6,11 +6,12 @@ import { mkdtemp, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { vaultKeyMessage } from "@perkos/vault";
+import { deriveVaultKey, NoteStore, vaultKeyMessage } from "@perkos/vault";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { DELETE, GET, POST } from "../app/api/vault/route";
+import { memoryFor } from "../app/lib/memory";
 
 const account = privateKeyToAccount(generatePrivateKey());
 const wallet = account.address.toLowerCase();
@@ -59,6 +60,43 @@ describe("/api/vault", () => {
     expect(res.status).toBe(400);
     expect(await (await GET(req("GET"))).json()).toMatchObject({ unlocked: false });
   }, 20_000);
+
+  it("turns on again with the same signature after being turned off", async () => {
+    const signature = await account.signMessage({ message: vaultKeyMessage(wallet) });
+    await POST(req("POST", { signature }));
+    await DELETE(req("DELETE"));
+    expect((await POST(req("POST", { signature }))).status).toBe(200);
+  });
+
+  it("keeps a memory made with another key locked, and can start a new one", async () => {
+    const oldKey = deriveVaultKey(wallet, "0x01");
+    const before = new NoteStore(join(home, "vault", wallet), oldKey);
+    await before.claim();
+    await before.appendJournal("user", "from before");
+    const signature = await account.signMessage({ message: vaultKeyMessage(wallet) });
+
+    const res = await POST(req("POST", { signature }));
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: "other_key" });
+    expect(await (await GET(req("GET"))).json()).toMatchObject({ unlocked: false });
+
+    expect(await (await POST(req("POST", { signature, fresh: true }))).json()).toEqual({ unlocked: true, persistent: true });
+    const aside = (await readdir(join(home, "vault"))).filter((d) => d !== wallet);
+    expect(aside).toHaveLength(1);
+    const kept = await new NoteStore(join(home, "vault", aside[0]!), oldKey).list();
+    expect(kept.map((n) => n.body)).toEqual(["from before"]);
+  });
+
+  it("opens the notes only while memory is on", async () => {
+    expect(await memoryFor(wallet)).toBeNull();
+    const signature = await account.signMessage({ message: vaultKeyMessage(wallet) });
+    await POST(req("POST", { signature }));
+    const notes = await memoryFor(wallet);
+    expect(notes).not.toBeNull();
+    expect(await memoryFor(wallet)).toBe(notes);
+    await DELETE(req("DELETE"));
+    expect(await memoryFor(wallet)).toBeNull();
+  });
 
   it("locks by forgetting the key on this device", async () => {
     const signature = await account.signMessage({ message: vaultKeyMessage(wallet) });

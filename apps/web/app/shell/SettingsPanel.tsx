@@ -128,12 +128,18 @@ export function SettingsPanel({
               ? vault.persistent
                 ? "On. Your conversations are kept encrypted with your wallet on this device."
                 : "On for this session. Sign again after a restart."
-              : "Off. Sparky does not keep your conversations."}
+              : vault.conflict
+                ? "Your wallet signed differently than last time, so the memory saved on this device stays locked. A new memory leaves the old one on disk, encrypted."
+                : "Off. Sparky does not keep your conversations."}
           </p>
           {vault.error ? <p className="set-line hint err">{vault.error}</p> : null}
           {vault.unlocked ? (
             <button type="button" className="chip-btn" disabled={vault.busy} onClick={() => void vault.lock()}>
               Turn off on this device
+            </button>
+          ) : vault.conflict ? (
+            <button type="button" className="chip-btn" disabled={vault.busy} onClick={() => void vault.startFresh()}>
+              Start a new memory
             </button>
           ) : (
             <button type="button" className="chip-btn" disabled={vault.busy || vault.unlocked === null} onClick={() => void vault.unlock()}>
