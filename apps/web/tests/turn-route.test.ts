@@ -7,6 +7,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { PerkosApiError } from "@perkos/client";
 import { vaultKeyMessage } from "@perkos/vault";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -14,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as TURN } from "../app/api/desks/turn/route";
 import { GET as TURNS } from "../app/api/desks/turns/route";
 import { DELETE as VAULT_OFF, POST as VAULT_ON } from "../app/api/vault/route";
+import { sessions } from "../app/lib/session";
 import type { TurnEvent } from "../app/lib/turnRecord";
 import { clearSessionTurns, liveTurn } from "../app/lib/turnStore";
 
@@ -158,6 +160,32 @@ describe("POST /api/desks/turn: refusals before the turn starts", () => {
     expect(await order.json()).toEqual({ error: "no_turn", message: "This desk does not run that kind of turn." });
     await rm(join(home, "session.json"));
     expect((await post({ desk: "eqlty-desk", text: "x", kind: "analyze" })).status).toBe(401);
+    expect(tasks()).toEqual([]);
+  });
+});
+
+describe("POST /api/desks/turn: a sign-in that cannot be renewed", () => {
+  it("answers JSON, 502 when PerkOS does not answer and 401 when it refuses, and starts nothing", async () => {
+    for (const [err, status, error] of [
+      [new PerkosApiError("PerkOS did not answer", 0, "UNREACHABLE"), 502, "perkos_unreachable"],
+      [new TypeError("fetch failed"), 502, "perkos_unreachable"],
+      [new PerkosApiError("Refresh token expired", 401, "PERKOS_SESSION"), 401, "signed_out"],
+    ] as const) {
+      const real = sessions.current.bind(sessions);
+      let reads = 0;
+      // The first read (who is signed in) works; the renewal after it fails.
+      const spy = vi.spyOn(sessions, "current").mockImplementation(async () => {
+        reads += 1;
+        if (reads === 1) return real();
+        throw err;
+      });
+      const res = await post({ desk: "eqlty-desk", text: "How is NVDA doing today?", kind: "analyze" });
+      spy.mockRestore();
+      expect(res.status).toBe(status);
+      expect(res.headers.get("content-type")).toContain("application/json");
+      expect(await res.json()).toMatchObject({ error });
+      expect(liveTurn(WALLET, "eqlty-desk")).toBeNull();
+    }
     expect(tasks()).toEqual([]);
   });
 });

@@ -1,4 +1,4 @@
-import { Desks } from "@perkos/client";
+import { Desks, PerkosApiError, type DeskSummary, type PerkosClient } from "@perkos/client";
 
 import { runDeskTurn } from "../../../lib/deskTurn";
 import { guard } from "../../../lib/guard";
@@ -16,10 +16,16 @@ const MAX_TEXT = 2_000;
 const MAX_TICKERS = 5;
 
 const bad = (error: string, message: string, status = 400) => Response.json({ error, message }, { status });
+/** Renewing the sign-in failed: PerkOS refused it, or did not answer. */
+const renewFailed = (err: unknown) =>
+  err instanceof PerkosApiError && err.status === 401
+    ? bad("signed_out", TURN_ERRORS.SIGNED_OUT, 401)
+    : bad("perkos_unreachable", "PerkOS did not answer to renew the sign-in. Try again in a moment.", 502);
 
 // POST { desk, text, kind: "analyze" | "advise" | "order", tickers? } -> text/event-stream of desk turn events,
 // one `data: <json>\n\n` frame each (see lib/turnRecord.ts). The team is woken only when part of it sleeps.
-// 400 bad input, 401 signed out, 404 when the desk does not run that kind of turn, 409 while a turn is live.
+// 400 bad input, 401 signed out, 404 when the desk does not run that kind of turn, 409 while a turn is live,
+// 502 when PerkOS does not answer to renew the sign-in.
 // Closing the stream stops waiting for the team; PerkOS cannot cancel a task, so an agent may still finish.
 export async function POST(req: Request) {
   const denied = guard(req);
@@ -40,10 +46,19 @@ export async function POST(req: Request) {
   }
 
   const wallet = await sessionWallet();
-  const client = wallet ? await perkosClient() : null;
-  if (!wallet || !client) return bad("signed_out", TURN_ERRORS.SIGNED_OUT, 401);
+  if (!wallet) return bad("signed_out", TURN_ERRORS.SIGNED_OUT, 401);
+  // Both read the sign-in again, which may renew it; a renewal PerkOS does not answer is a 502, not a crash.
+  let client: PerkosClient | null;
+  let desks: DeskSummary[];
+  try {
+    client = await perkosClient();
+    desks = client ? await cachedDesks() : [];
+  } catch (err) {
+    return renewFailed(err);
+  }
+  if (!client) return bad("signed_out", TURN_ERRORS.SIGNED_OUT, 401);
 
-  const summary = (await cachedDesks()).find((d) => d.id === desk);
+  const summary = desks.find((d) => d.id === desk);
   if (!summary) return bad("desk", "This desk is not available right now.", 404);
   const module = summary.module;
   if (!module) return bad("no_turn", "This desk does not run that kind of turn.", 404);
