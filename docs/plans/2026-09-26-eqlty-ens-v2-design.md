@@ -1,20 +1,22 @@
 # EQLTY: a desk with verifiable ENS V2 identities
 
-Status: working design for implementation. Julio asked to bring the validated ENS V2 use case into PerkOS Runtime, using EQLTY-Desk first. Identity, parent/child pointers, permission isolation, verification and revocation are the first flow. A question about including complete team transfer is pending; no approval of that extra scope is assumed.
+Status: implemented locally in isolated Runtime/API/EQLTY branches, awaiting deployment configuration and public Sepolia acceptance with real Dynamic wallets. Julio asked to bring the validated ENS V2 use case into PerkOS Runtime, using the complete seven-agent EQLTY team first. Identity, parent/child pointers, permission isolation, verification and revocation comprise this flow. Complete team transfer remains a separate design.
 
 ## The experience
 
-A person opens their EQLTY desk and can create its public identity once its four real agents exist. Runtime shows the instance name and each seat's name, wallet, registration and verification state. It only says verified after reading Sepolia and checking both registry pointers and the ERC-8004/ENSIP-25 association. An API response alone never produces a verified badge.
+A person opens their EQLTY desk and can create its public identity once its seven real agents (Scout, Risk, Trader, Auditor, Hooks, Quote and Treasury) exist. Runtime shows the instance name and each seat's name, wallet, registration and verification state. It only says verified after reading Sepolia and checking both registry pointers and the ERC-8004/ENSIP-25 association. An API response alone never produces a verified badge.
 
 The tree is `<seat>.<instance>.perkosruntime.eth`. The parent name and the canonical Runtime subregistry are deployment configuration, verified before writes. Each desk instance gets an immutable, unique label; it is not simply `eqlty` or a mutable owner's wallet. The example name `ensv2-review-20260926.eth` remains a test fixture. Nothing registers the production parent merely by opening Runtime.
 
-Scout can publish a bounded `scout-source` record, Risk `risk-verdict`, and Auditor `auditor-evidence`. Trader has no ENS write permission. The person can inspect and revoke these grants. ENS publishes explicit, public identity and evidence; private chats, prompts, wallet credentials and portfolio data are not automatically copied to records. Trading still runs on the desk's market chain with its existing approval rules.
+Scout can publish a bounded `scout-source` record, Risk `risk-verdict`, Auditor `auditor-evidence`, Hooks `hooks-evidence`, Quote `quote-evidence`, and Treasury `treasury-evidence`. Trader has no ENS write permission. The person can inspect and revoke these grants. ENS publishes explicit, public identity and evidence; private chats, prompts, wallet credentials and portfolio data are not automatically copied to records. Trading still runs on the desk's market chain with its existing approval rules.
 
 ## Approaches considered
 
 1. Shared ENS capability in Runtime/API, with a declarative identity descriptor supplied by each desk. Recommended: reuses the proven hierarchy and allows future desks to adopt it without implementing signing.
 2. ENS implementation inside EQLTY-Desk. Fewer initial boundaries, but duplicates infrastructure for later desks and changes a service that currently holds no keys.
 3. Display pre-existing ENS names only. Useful for a viewer, but does not satisfy the requested node creation, scoped permissions or revocation flow.
+
+The published fleet and the instantiated team must have exactly the same role set as the identity descriptor; omitted specialists block provisioning. No client hardcodes a four-agent limit.
 
 ## Boundaries
 

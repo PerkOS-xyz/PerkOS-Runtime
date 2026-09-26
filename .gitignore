@@ -145,3 +145,8 @@ node_modules/
 dist/
 .DS_Store
 *.log
+
+# Reproducible ENS package output and local fork evidence
+packages/ens/dist/
+scripts/ens/anvil.log
+scripts/ens/fork-results.json

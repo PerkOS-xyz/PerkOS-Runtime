@@ -1,0 +1,14 @@
+{
+  "name": "@perkos/ens",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Keyless ENS V2 primitives and identity verification for PerkOS desks",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist", "README.md"],
+  "scripts": { "build": "tsc -p tsconfig.json", "prepack": "npm run build" },
+  "dependencies": { "viem": "^2.56.9" },
+  "devDependencies": { "typescript": "^5.9.2" }
+}

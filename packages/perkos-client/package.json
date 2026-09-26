@@ -8,6 +8,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@perkos/desk-contract": "*"
+    "@perkos/desk-contract": "*",
+    "@perkos/ens": "0.1.0"
   }
 }
