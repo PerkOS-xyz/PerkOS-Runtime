@@ -5,7 +5,7 @@
 import { isChatId } from "@perkos/vault";
 import { describe, expect, it } from "vitest";
 
-import { chatCommand, chatWhen, groupChats, groupNames, newChatCaption, newChatId, savable, type ChatRow } from "../app/chat/chatsView";
+import { chatCommand, chatWhen, escapeIsMine, groupChats, groupNames, LOST_SAVE_CAPTION, newChatCaption, newChatId, savable, type ChatRow } from "../app/chat/chatsView";
 
 const row = (id: string, extra: Partial<ChatRow> = {}): ChatRow => ({
   id,
@@ -98,5 +98,24 @@ describe("newChatCaption", () => {
     expect(newChatCaption("unsaved")).toMatch(/turn on memory/);
     expect(newChatCaption("empty")).toMatch(/new chat/);
     for (const o of ["saved", "unsaved", "empty"] as const) expect(newChatCaption(o)).not.toContain("\u2014");
+  });
+});
+
+describe("escapeIsMine", () => {
+  const inside = { id: "inside" } as unknown as Element;
+  const outside = { id: "outside" } as unknown as Element;
+  const root = { contains: (node: Node | null) => (node as unknown) === inside };
+
+  it("is the drawer's only while focus is inside it", () => {
+    expect(escapeIsMine(root, inside)).toBe(true);
+    expect(escapeIsMine(root, outside)).toBe(false);
+    expect(escapeIsMine(root, null)).toBe(false);
+    expect(escapeIsMine(null, inside)).toBe(false);
+  });
+});
+
+describe("a New chat whose save failed", () => {
+  it("says so plainly", () => {
+    expect(LOST_SAVE_CAPTION).toBe("New chat. The last one could not be saved in Chats.");
   });
 });

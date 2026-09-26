@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState, type CSSProperties, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
 
 import type { VaultState } from "../shell/useVault";
-import { chatWhen, groupChats, groupNames, type ChatRow } from "./chatsView";
+import { chatWhen, escapeIsMine, groupChats, groupNames, type ChatRow } from "./chatsView";
 import type { ChatsState } from "./useChats";
 
 type Status = "loading" | "ready" | "locked" | "signed_out" | "error";
@@ -58,10 +58,17 @@ export function ChatsDrawer({
     void load();
   }, [load, version, vault.unlocked]);
 
-  // Escape closes the drawer before anything else it would close.
+  // Focus moves into the drawer when it opens, so Escape reaches it first.
+  const rootRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    rootRef.current?.focus();
+  }, []);
+
+  // Escape closes the drawer before anything else it would close, while focus
+  // is inside it: a panel opened on top keeps its own Escape.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
+      if (e.key !== "Escape" || !escapeIsMine(rootRef.current, document.activeElement)) return;
       e.stopPropagation();
       if (edit) setEdit(null);
       else if (confirm) setConfirm("");
@@ -112,7 +119,7 @@ export function ChatsDrawer({
   let n = 0;
 
   return (
-    <aside className="chats-drawer" aria-label="Saved chats">
+    <aside ref={rootRef} tabIndex={-1} className="chats-drawer" aria-label="Saved chats">
       <header className="cd-head">
         <div>
           <span className="kicker">Saved</span>
