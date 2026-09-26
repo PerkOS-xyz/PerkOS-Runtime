@@ -56,6 +56,7 @@ export type CapReason = "owner-limit" | "no-rule-for-chain" | "owner-limit-above
 const CAP_REASONS: readonly CapReason[] = ["owner-limit", "no-rule-for-chain", "owner-limit-above-platform", "no-owner-limit"];
 
 export interface DeskQuote {
+  evidenceId?: string;
   /** The chain the desk priced on, when it says. */
   chainId: number | null;
   /** The stock the desk priced, as it named it; null when it did not. */
@@ -433,6 +434,7 @@ export class DeskTrade {
       protocols,
       requestId: text(q.requestId),
       quotedAt: text(q.quotedAt),
+      ...(typeof body.evidenceId === "string" ? { evidenceId: body.evidenceId } : {}),
       gasFeeUsd: finite(q.gasFeeUsd),
     };
   }

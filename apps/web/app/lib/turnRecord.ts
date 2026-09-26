@@ -11,7 +11,7 @@
  * History read them.
  */
 
-import type { TeamStatus } from "@perkos/client";
+import type { DeskQuote, TeamStatus } from "@perkos/client";
 
 export const TURN_KINDS = ["analyze", "advise", "order", "launch"] as const;
 export type TurnKind = (typeof TURN_KINDS)[number];
@@ -56,6 +56,7 @@ export const TURN_PHASES: readonly [readonly string[], readonly string[]] = [
 export const PHASE_ONE_SPECIALISTS: readonly string[] = ["quote", "hooks", "treasury"];
 
 export interface RoleReply {
+  evidenceTaskId?: string;
   /** scout, risk, trader, auditor */
   role: string;
   /** "eqlty-scout-1a2b3c4d" */
@@ -149,6 +150,7 @@ export interface TurnReceipt {
 }
 
 export interface TurnRecord {
+  quoteSources?: DeskQuote[];
   v: 1;
   /** "20260926-143205-ab12": sorts by time, and names the record in the vault. */
   id: string;

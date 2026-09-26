@@ -51,8 +51,8 @@ describe("the turn's size", () => {
 
 describe("a quote as a fact", () => {
   it("says what the size buys, at what price each, with the impact, the route and the request", () => {
-    expect(quoteLine(quote("NVDA"), "NVDA")).toBe("Uniswap now: 50.00 USDG buys 0.2741 NVDA (182.42 USDG each), price impact 0.12%, V4 route, request 0f3c9a51.");
-    expect(quoteLine(quote("NVDA", { priceImpactPct: null, protocols: [], requestId: null }), "NVDA")).toBe("Uniswap now: 50.00 USDG buys 0.2741 NVDA (182.42 USDG each), CLASSIC route.");
+    expect(quoteLine(quote("NVDA"), "NVDA")).toBe("Uniswap now: 50.00 USDG buys 0.2741 NVDA (182.42 USDG each), price impact 0.12%, V4 route, request 0f3c9a51-7d2e, chain 4663.");
+    expect(quoteLine(quote("NVDA", { priceImpactPct: null, protocols: [], requestId: null }), "NVDA")).toBe("Uniswap now: 50.00 USDG buys 0.2741 NVDA (182.42 USDG each), CLASSIC route, chain 4663.");
   });
 
   it("quotes the first few tradeable assets in the turn's order, and leaves out the ones that do not come back", async () => {

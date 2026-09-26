@@ -22,7 +22,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "viem": "^2.56.9",
-    "@perkos/ens": "0.1.0"
+    "@perkos/ens": "0.2.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

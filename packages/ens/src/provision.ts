@@ -1,22 +1,25 @@
 import { decodeEventLog, encodeFunctionData, keccak256, stringToHex, zeroAddress, type Address, type Hex, type PublicClient, type TransactionReceipt } from "viem";
 import { factoryAbi, helperAbi, identityRegistryAbi, registryAbi, resolverAbi } from "./abi.js";
-import { DESK_OWNER_ROLES, ENS_SEPOLIA, PARENT_ROLES, PROVISIONER_ROLES, SEAT_OWNER_ROLES, TEXT_ADMIN, TEXT_ROLE } from "./deployment.js";
+import { DESK_OWNER_ROLES, ENS_SEPOLIA, PARENT_ROLES, PROVISIONER_ROLES, SEAT_OWNER_ROLES, TEXT_ADMIN, TEXT_ROLE, LINK_ROLE } from "./deployment.js";
 import { agentRegistrationKey, dnsName, instanceName, seatName, textResource } from "./names.js";
+import { deskManifestRecord, DESK_MANIFEST_KEY } from "./discovery.js";
 import { agentMetadataUri, readText, verifyDeskIdentity, type DeskIdentity } from "./reader.js";
 
 export interface ProvisionSeat { id: string; label: string; agentId: string; wallet: Address; context: string; writes: string | null }
 export interface ProvisionSpec {
+  mobile?: boolean;
   parentName: string; parentRegistry: Address; label: string; owner: Address; seats: ProvisionSeat[];
 }
 export interface ProvisionProgress {
   registry?: Address;
+  deskResolver?: Address;
   seats: Record<string, { resolver?: Address; registrationId?: string; funded?: boolean }>;
 }
 export interface EnsCall { to: Address; data: Hex; value: bigint }
 export interface ProvisionStep extends EnsCall {
   id: string;
   signer: { kind: "operator" } | { kind: "agent"; agentId: string; wallet: Address };
-  result?: { kind: "registry"; address: Address } | { kind: "resolver"; seat: string; address: Address } |
+  result?: { kind: "registry"; address: Address } | { kind: "deskResolver"; address: Address } | { kind: "resolver"; seat: string; address: Address } |
     { kind: "registration"; seat: string; wallet: Address; uri: string } | { kind: "funding"; seat: string };
 }
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
@@ -37,15 +40,16 @@ export async function nextProvisionStep(client: PublicClient, operator: Address,
   const call = (id: string, to: Address, data: Hex): ProvisionStep => ({ id, to, data, value: 0n, signer: operatorSigner });
   const proxy = async (kind: "registry" | "resolver", seat?: string): Promise<ProvisionStep> => {
     const implementation = kind === "registry" ? ENS_SEPOLIA.userRegistryImpl : ENS_SEPOLIA.permissionedResolverImpl;
-    const grants = [{ account: operator, roleBitmap: kind === "registry" ? PROVISIONER_ROLES : TEXT_ROLE | TEXT_ADMIN }];
+    const grants = [{ account: operator, roleBitmap: kind === "registry" ? PROVISIONER_ROLES : TEXT_ROLE | TEXT_ADMIN | (spec.mobile ? LINK_ROLE : 0n) }];
     const data = kind === "registry" ? encodeFunctionData({ abi: registryAbi, functionName: "initialize", args: [grants] }) :
       encodeFunctionData({ abi: resolverAbi, functionName: "initialize", args: [grants, []] });
     const salt = SALT(name, seat ? `resolver:${seat}` : "registry");
     const simulated = await client.simulateContract({ account: operator, address: ENS_SEPOLIA.factory, abi: factoryAbi, functionName: "deployProxy", args: [implementation, salt, data] });
     return { ...call(seat ? `resolver:${seat}` : "registry", ENS_SEPOLIA.factory, encodeFunctionData({ abi: factoryAbi, functionName: "deployProxy", args: [implementation, salt, data] })),
-      result: kind === "registry" ? { kind, address: simulated.result } : { kind, seat: seat!, address: simulated.result } };
+      result: kind === "registry" ? { kind, address: simulated.result } : seat === "_desk" ? { kind: "deskResolver", address: simulated.result } : { kind, seat: seat!, address: simulated.result } };
   };
   if (!progress.registry) return proxy("registry");
+  if (spec.mobile && !progress.deskResolver) return proxy("resolver", "_desk");
   const registry = progress.registry;
   const implementation = await client.readContract({ address: ENS_SEPOLIA.factory, abi: factoryAbi, functionName: "verifyContract", args: [registry] });
   if (!same(implementation, ENS_SEPOLIA.userRegistryImpl)) return fail("ENS_REGISTRY_IMPLEMENTATION");
@@ -54,7 +58,7 @@ export async function nextProvisionStep(client: PublicClient, operator: Address,
     const parentContainer = await client.readContract({ address: ENS_SEPOLIA.universalHelper, abi: helperAbi, functionName: "findParentRegistry", args: [dnsName(spec.parentName)] });
     const expiry = await client.readContract({ address: parentContainer, abi: registryAbi, functionName: "findExpiry", args: [spec.parentName.split(".")[0]!] });
     if (expiry <= (await client.getBlock()).timestamp) return fail("ENS_PARENT_EXPIRED");
-    return call("desk-entry", spec.parentRegistry, encodeFunctionData({ abi: registryAbi, functionName: "register", args: [spec.label, spec.owner, registry, zeroAddress, DESK_OWNER_ROLES, expiry] }));
+    return call("desk-entry", spec.parentRegistry, encodeFunctionData({ abi: registryAbi, functionName: "register", args: [spec.label, spec.owner, registry, progress.deskResolver ?? zeroAddress, DESK_OWNER_ROLES, expiry] }));
   }
   if (!same(owner, spec.owner)) return fail("ENS_OWNER_CHANGED");
   const child = await client.readContract({ address: spec.parentRegistry, abi: registryAbi, functionName: "getSubregistry", args: [spec.label] });
@@ -95,12 +99,19 @@ export async function nextProvisionStep(client: PublicClient, operator: Address,
       return call(`grant:${seat.id}`, resolver, encodeFunctionData({ abi: resolverAbi, functionName: "grantSetterRoles", args: [setter, seat.wallet] }));
     }
   }
-  if (await client.readContract({ address: registry, abi: registryAbi, functionName: "hasRootRoles", args: [PARENT_ROLES, operator] })) {
+  if (!spec.mobile && await client.readContract({ address: registry, abi: registryAbi, functionName: "hasRootRoles", args: [PARENT_ROLES, operator] })) {
     return call("lock-parent", registry, encodeFunctionData({ abi: registryAbi, functionName: "revokeRootRoles", args: [PARENT_ROLES, operator] }));
   }
   const identity: DeskIdentity = { chainId: ENS_SEPOLIA.chainId, parentName: spec.parentName, parentRegistry: spec.parentRegistry,
-    label: spec.label, registry, owner: spec.owner, seats: spec.seats.map((seat) => ({ id: seat.id, agentId: seat.agentId, wallet: seat.wallet,
+    label: spec.label, registry, owner: spec.owner, ...(progress.deskResolver ? { resolver: progress.deskResolver } : {}), seats: spec.seats.map((seat) => ({ id: seat.id, agentId: seat.agentId, wallet: seat.wallet,
       resolver: progress.seats[seat.id]!.resolver!, registrationId: progress.seats[seat.id]!.registrationId!, writes: seat.writes })) };
+  if (identity.resolver) {
+    const mounted = await client.readContract({ address: spec.parentRegistry, abi: registryAbi, functionName: "getResolver", args: [spec.label] });
+    if (!same(mounted, identity.resolver)) return fail("ENS_RESOLVER_CHANGED");
+    const manifest = deskManifestRecord(identity);
+    if (await readText(client, name, DESK_MANIFEST_KEY) !== manifest) return call("desk-manifest", identity.resolver,
+      encodeFunctionData({ abi: resolverAbi, functionName: "setText", args: [dnsName(name), DESK_MANIFEST_KEY, manifest] }));
+  }
   if (!(await verifyDeskIdentity(client, identity)).verified) return fail("ENS_VERIFICATION_FAILED");
   return { done: identity };
 }
@@ -112,6 +123,7 @@ export function applyProvisionReceipt(progress: ProvisionProgress, step: Provisi
   const result = step.result;
   if (!result) return next;
   if (result.kind === "registry") { next.registry = result.address; return next; }
+  if (result.kind === "deskResolver") { next.deskResolver = result.address; return next; }
   const seat = next.seats[result.seat] ??= {};
   if (result.kind === "resolver") seat.resolver = result.address;
   else if (result.kind === "funding") seat.funded = true;

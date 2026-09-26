@@ -164,7 +164,7 @@ export async function runTurn(input: RunTurnInput): Promise<TurnOutcome> {
       if (input.touch) void input.touch(seat.agentId).catch(() => undefined);
       const ms = Math.max(0, now() - started);
       const name = answer.agentName || seat.agentName;
-      const reply: RoleReply = { role, phase, ...(name ? { agentName: name } : {}), ok: read.ok, reply: read.reply, ms, startedAt };
+      const reply: RoleReply = { ...(read.ok && answer.evidenceTaskId ? { evidenceTaskId: answer.evidenceTaskId } : {}), role, phase, ...(name ? { agentName: name } : {}), ok: read.ok, reply: read.reply, ms, startedAt };
       if (!read.ok) {
         reply.failure = read.failure ?? "other";
         if (read.detail) reply.detail = read.detail;

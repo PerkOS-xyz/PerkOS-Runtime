@@ -1,5 +1,7 @@
 "use client";
 
+import { TurnEvidence } from "./TurnEvidence";
+
 import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { receiptLine, type TurnRecord, type TurnRow } from "../lib/turnRecord";
@@ -169,7 +171,7 @@ export function HistorySheet({
                 </button>
               </p>
             ) : null}
-            {turn ? <TurnReplay record={turn} /> : null}
+            {turn ? <><TurnReplay record={turn} /><TurnEvidence key={turn.id} record={turn} /></> : null}
           </>
         ) : (
           <TurnList list={list} status={status} vault={vault} onOpen={(id) => void openTurn(id)} onRetry={() => void load()} />

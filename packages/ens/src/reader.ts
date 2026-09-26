@@ -1,5 +1,5 @@
 import { decodeFunctionResult, encodeFunctionData, isAddress, namehash, type Address, type PublicClient } from "viem";
-import { helperAbi, identityRegistryAbi, registryAbi, resolverAbi, textProfileAbi, universalAbi } from "./abi.js";
+import { factoryAbi, helperAbi, identityRegistryAbi, registryAbi, resolverAbi, textProfileAbi, universalAbi } from "./abi.js";
 import { ENS_SEPOLIA, TEXT_ROLE } from "./deployment.js";
 import { agentRegistrationKey, dnsName, instanceName, normalizedName, seatName, textResource } from "./names.js";
 
@@ -19,6 +19,7 @@ export interface DeskIdentity {
   registry: Address;
   owner: Address;
   seats: SeatIdentity[];
+  resolver?: Address;
 }
 export interface SeatVerification {
   id: string;
@@ -71,12 +72,12 @@ export async function readText(client: PublicClient, name: string, key: string, 
  * Verify at a single observed block. Transport errors throw, never reuse a previous
  * positive result. The only trusted navigation endpoints are the pinned ENS contracts.
  */
-export async function verifyDeskIdentity(client: PublicClient, input: DeskIdentity): Promise<DeskVerification> {
+export async function verifyDeskIdentity(client: PublicClient, input: DeskIdentity, atBlock?: bigint): Promise<DeskVerification> {
   if (input.chainId !== ENS_SEPOLIA.chainId || await client.getChainId() !== ENS_SEPOLIA.chainId) throw new Error("ENS_CHAIN_MISMATCH");
   if (![input.parentRegistry, input.registry, input.owner].every((address) => isAddress(address)) || input.seats.length > 16 || input.seats.length < 1) throw new Error("ENS_IDENTITY_INVALID");
   if (new Set(input.seats.map((s) => s.id)).size !== input.seats.length || new Set(input.seats.map((s) => s.resolver.toLowerCase())).size !== input.seats.length) throw new Error("ENS_SEATS_NOT_ISOLATED");
   const name = instanceName(input.label, input.parentName);
-  const blockNumber = await client.getBlockNumber({ cacheTime: 0 });
+  const blockNumber = atBlock ?? await client.getBlockNumber({ cacheTime: 0 });
   const at = { blockNumber };
   const helper = { address: ENS_SEPOLIA.universalHelper, abi: helperAbi, ...at } as const;
   const [root, parentCanonical, deskCanonical, parent, forward, owner] = await Promise.all([
@@ -88,6 +89,8 @@ export async function verifyDeskIdentity(client: PublicClient, input: DeskIdenti
     client.readContract({ ...helper, functionName: "findExactOwner", args: [dnsName(name)] }),
   ]);
   const issues: string[] = [];
+  const registryImplementation = await client.readContract({ address: ENS_SEPOLIA.factory, abi: factoryAbi, functionName: "verifyContract", args: [input.registry], ...at });
+  if (!same(registryImplementation, ENS_SEPOLIA.userRegistryImpl)) issues.push("registry-implementation");
   if (!same(root, ENS_SEPOLIA.rootRegistry)) issues.push("deployment");
   if (!same(parentCanonical, input.parentRegistry)) issues.push("parent-not-canonical");
   if (!same(deskCanonical, input.registry)) issues.push("desk-not-canonical");
@@ -101,6 +104,8 @@ export async function verifyDeskIdentity(client: PublicClient, input: DeskIdenti
     if (!isAddress(seat.wallet) || !isAddress(seat.resolver)) throw new Error("ENS_SEAT_INVALID");
     const registrationKey = agentRegistrationKey(seat.registrationId);
     const registrationId = BigInt(seat.registrationId);
+    const implementation = await client.readContract({ address: ENS_SEPOLIA.factory, abi: factoryAbi, functionName: "verifyContract", args: [seat.resolver], ...at });
+    if (!same(implementation, ENS_SEPOLIA.permissionedResolverImpl)) failures.push("resolver-implementation");
     const [seatParent, seatOwner, resolver, registrationOwner, metadata, backlink, writeGranted] = await Promise.all([
       client.readContract({ ...helper, functionName: "findParentRegistry", args: [dnsName(seatFqn)] }),
       client.readContract({ ...helper, functionName: "findExactOwner", args: [dnsName(seatFqn)] }),
@@ -116,7 +121,7 @@ export async function verifyDeskIdentity(client: PublicClient, input: DeskIdenti
     if (!same(resolver, seat.resolver)) failures.push("resolver-changed");
     if (!same(registrationOwner, seat.wallet)) failures.push("agent-wallet-changed");
     if (claimedEnsName(metadata) !== seatFqn) failures.push("registration-name-mismatch");
-    if (!backlink.length) failures.push("attestation-missing");
+    if (backlink !== "1") failures.push("attestation-missing");
     // Identity validity and permission revocation are distinct states.
     return { id: seat.id, name: seatFqn, verified: failures.length === 0, writeGranted, issues: failures };
   }));

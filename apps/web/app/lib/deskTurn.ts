@@ -10,7 +10,7 @@
  * order: the person trades only from the Trader sheet, by holding to approve.
  */
 
-import { Agents, Desks, DeskTrade, Team, type DeskSummary, type PerkosClient } from "@perkos/client";
+import { Agents, Desks, DeskTrade, Team, type DeskQuote, type DeskSummary, type PerkosClient } from "@perkos/client";
 import type { DeskAsset, DeskManifest, DeskMarket, DeskSeries } from "@perkos/desk-contract";
 import type { NoteStore } from "@perkos/vault";
 
@@ -124,8 +124,10 @@ export async function runDeskTurn(input: DeskTurnInput): Promise<TurnRecord | nu
   const marketFacts = market && assets.length ? factLines(market, assets, series) : [];
   const size = turnSize(input.question, manifest.maxOrder);
   // A launch buys nothing, so Uniswap is not asked for a price.
-  const quoted = launching ? [] : await within(uniswapFacts(new DeskTrade(input.client), input.desk.module, assets, size), QUOTES_MS, [] as string[]);
+  const collectedQuotes: DeskQuote[] = [];
+  const quoted = launching ? [] : await within(uniswapFacts(new DeskTrade(input.client), input.desk.module, assets, size, (q) => collectedQuotes.push(q)), QUOTES_MS, [] as string[]);
   if (signal.aborted) return null;
+  const quoteSources = quoted.length ? collectedQuotes.slice() : [];
   const launchLines = launching && input.launch ? launchFactLines(input.launch) : [];
   const extra = [...quoted, ...launchLines];
   const facts = [...marketFacts, ...extra.map((line, i) => `[F${marketFacts.length + i + 1}] ${line}`)];
@@ -169,6 +171,7 @@ export async function runDeskTurn(input: DeskTurnInput): Promise<TurnRecord | nu
     endedAt: startedAt,
     ms: 0,
     facts: head.facts,
+    quoteSources,
     memory: head.memory,
     head: head.text,
     prompts: {},
@@ -235,7 +238,7 @@ export async function runDeskTurn(input: DeskTurnInput): Promise<TurnRecord | nu
       seats: team.seats,
       head: head.text,
       rolePrompts: prompts,
-      ask: (agentId, prompt, options) => agents.ask(agentId, prompt, options),
+      ask: (agentId, prompt, options) => agents.ask(agentId, prompt, { ...options, evidence: { templateId: input.desk.id, decisionId: input.id, quoteIds: quoteSources.flatMap((q) => q.evidenceId ? [q.evidenceId] : []) } }),
       touch: (agentId) => agents.touch(agentId),
       emit,
       signal,

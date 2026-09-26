@@ -40,17 +40,19 @@ export function quoteLine(q: DeskQuote, ticker: string): string {
   if (q.priceImpactPct !== null) parts.push(`price impact ${q.priceImpactPct.toFixed(2)}%`);
   const route = q.protocols.length ? q.protocols.join(" + ") : q.routing;
   if (route) parts.push(`${route} route`);
-  if (q.requestId) parts.push(`request ${q.requestId.slice(0, 8)}`);
+  if (q.requestId) parts.push(`request ${q.requestId}`);
+  if (q.chainId) parts.push(`chain ${q.chainId}`);
+  if (q.quotedAt) parts.push(`quoted at ${q.quotedAt}`);
   return `${parts.join(", ")}.`;
 }
 
 /** Quotes for the first few tradeable assets at this size, in the turn's order; the ones that fail are left out. */
-export async function uniswapFacts(trade: Pick<DeskTrade, "quote">, module: string, assets: DeskAsset[], size: number): Promise<string[]> {
+export async function uniswapFacts(trade: Pick<DeskTrade, "quote">, module: string, assets: DeskAsset[], size: number, onQuote?: (quote: DeskQuote) => void): Promise<string[]> {
   const picked = assets.filter((a) => a.tradeable !== false).slice(0, QUOTED_ASSETS);
   const lines = await Promise.all(
     picked.map((a) =>
       trade.quote(module, a.ticker, String(size)).then(
-        (q) => quoteLine(q, a.ticker),
+        (q) => { onQuote?.(q); return quoteLine(q, a.ticker); },
         () => null,
       ),
     ),
