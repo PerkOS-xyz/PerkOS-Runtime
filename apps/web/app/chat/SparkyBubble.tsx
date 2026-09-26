@@ -2,7 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { useVault } from "../shell/useVault";
 import { SentenceSplitter } from "../voice/sentences";
+import { useWallet } from "../wallet/context";
+import { MemoryBanner } from "./MemoryBanner";
 import { useVoice, type VoiceStatus } from "../voice/useVoice";
 import { SparkyChat } from "./SparkyChat";
 import { useSparkyChat } from "./useSparkyChat";
@@ -24,6 +27,7 @@ export function SparkyBubble({ model }: { model: string | null }) {
   const [open, setOpen] = useState(false);
   const [voiceReady, setVoiceReady] = useState<boolean | null>(null);
   const chat = useSparkyChat();
+  const vault = useVault(useWallet());
   const splitter = useRef(new SentenceSplitter());
 
   const voice = useVoice({
@@ -154,6 +158,7 @@ export function SparkyBubble({ model }: { model: string | null }) {
           </div>
         ) : null}
         {voice.error ? <p className="hint err live-err">{voice.error}</p> : null}
+        <MemoryBanner vault={vault} />
         <SparkyChat chat={chat} compact mic={mic} onSend={(text) => (live ? talk(text) : void chat.send(text))} />
       </section>
       <button

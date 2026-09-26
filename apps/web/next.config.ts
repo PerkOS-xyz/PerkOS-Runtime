@@ -4,7 +4,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   // The shared packages ship TypeScript source, not a build.
-  transpilePackages: ["@perkos/ai", "@perkos/client", "@perkos/desk-contract"],
+  transpilePackages: ["@perkos/ai", "@perkos/client", "@perkos/desk-contract", "@perkos/vault"],
   // Dependencies are hoisted to the workspace root.
   turbopack: { root: join(__dirname, "../..") },
   devIndicators: false,

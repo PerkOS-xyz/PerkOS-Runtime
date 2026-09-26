@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 
 import pkg from "../../package.json";
+import { useWallet } from "../wallet/context";
 import { orderSources, type ModelState } from "./useModel";
+import { useVault } from "./useVault";
 
 type Identity = { address: string; name: string | null };
 
@@ -30,6 +32,7 @@ export function SettingsPanel({
 }) {
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [busy, setBusy] = useState("");
+  const vault = useVault(useWallet());
 
   useEffect(() => {
     if (!open) return;
@@ -116,6 +119,27 @@ export function SettingsPanel({
               </li>
             ))}
           </ul>
+        </section>
+
+        <section>
+          <span className="kicker">Memory</span>
+          <p className="set-line">
+            {vault.unlocked
+              ? vault.persistent
+                ? "On. Your conversations are kept encrypted with your wallet on this device."
+                : "On for this session. Sign again after a restart."
+              : "Off. Sparky does not keep your conversations."}
+          </p>
+          {vault.error ? <p className="set-line hint err">{vault.error}</p> : null}
+          {vault.unlocked ? (
+            <button type="button" className="chip-btn" disabled={vault.busy} onClick={() => void vault.lock()}>
+              Turn off on this device
+            </button>
+          ) : (
+            <button type="button" className="chip-btn" disabled={vault.busy || vault.unlocked === null} onClick={() => void vault.unlock()}>
+              {vault.busy ? "Waiting for the signature…" : "Turn on memory"}
+            </button>
+          )}
         </section>
 
         <section>
