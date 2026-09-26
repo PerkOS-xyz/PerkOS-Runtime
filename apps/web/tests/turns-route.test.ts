@@ -10,7 +10,7 @@ import { vaultKeyMessage } from "@perkos/vault";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { DELETE, GET } from "../app/api/desks/turns/route";
+import { DELETE, GET, PATCH } from "../app/api/desks/turns/route";
 import { DELETE as LOCK, POST as UNLOCK } from "../app/api/vault/route";
 import { closeMemory, memoryFor } from "../app/lib/memory";
 import type { TurnRecord } from "../app/lib/turnRecord";
@@ -26,6 +26,13 @@ const forget = async (query: string, host = "127.0.0.1:3100") => {
   return { status: res.status, body: await res.json() };
 };
 const ids = (body: { turns: Array<{ id: string }> }) => body.turns.map((t) => t.id);
+const sign = async (query: string, receipt: unknown, host = "127.0.0.1:3100") => {
+  const res = await PATCH(
+    new Request(`http://127.0.0.1:3100/api/desks/turns${query}`, { method: "PATCH", headers: { host, "content-type": "application/json" }, body: JSON.stringify({ receipt }) }),
+  );
+  return { status: res.status, body: await res.json() };
+};
+const RECEIPT = { hash: `0x${"ab".repeat(32)}`, status: "success", ticker: "NVDA", amount: "50", explorerUrl: `https://robinhoodchain.blockscout.com/tx/0x${"ab".repeat(32)}` };
 const record = (id: string, extra: Partial<TurnRecord> = {}): TurnRecord => ({
   v: 1,
   id,
@@ -118,6 +125,56 @@ describe("forgetting a turn", () => {
   });
 });
 
+describe("keeping the receipt of a buy from a turn's plan", () => {
+  it("keeps it with the turn, so History lists the turn signed with the stock and the amount", async () => {
+    await saveTurn(WALLET, record("20260926-141000-ab12"), null);
+    expect(await sign("?id=20260926-141000-ab12", RECEIPT)).toEqual({ status: 200, body: { ok: true } });
+    const { body } = await get("?id=20260926-141000-ab12");
+    expect(body.turn.receipt).toEqual({ ...RECEIPT, at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/) });
+    const list = (await get("?desk=eqlty-desk")).body;
+    expect(list.turns[0]).toMatchObject({ signed: true, receipt: { ticker: "NVDA", amount: "50", status: "success" } });
+  });
+
+  it("takes the same swap again with where it stands now, and refuses another swap for the same turn", async () => {
+    await saveTurn(WALLET, record("20260926-141000-ab12"), null);
+    expect((await sign("?id=20260926-141000-ab12", { ...RECEIPT, status: "pending" })).status).toBe(200);
+    expect((await sign("?id=20260926-141000-ab12", { ...RECEIPT, hash: RECEIPT.hash.toUpperCase().replace("0X", "0x") })).status).toBe(200);
+    expect((await get("?id=20260926-141000-ab12")).body.turn.receipt.status).toBe("success");
+    expect(await sign("?id=20260926-141000-ab12", { ...RECEIPT, hash: `0x${"cd".repeat(32)}` })).toMatchObject({ status: 409, body: { error: "signed" } });
+    expect((await get("?id=20260926-141000-ab12")).body.turn.receipt.hash).toBe(RECEIPT.hash.toUpperCase().replace("0X", "0x"));
+  });
+
+  it("keeps only an https link to the swap, since History draws it", async () => {
+    await saveTurn(WALLET, record("20260926-141000-ab12"), null);
+    expect((await sign("?id=20260926-141000-ab12", { ...RECEIPT, explorerUrl: "javascript:alert(1)" })).status).toBe(200);
+    expect((await get("?id=20260926-141000-ab12")).body.turn.receipt).not.toHaveProperty("explorerUrl");
+  });
+
+  it("refuses a receipt that does not read, and answers 404 for a turn it does not know", async () => {
+    await saveTurn(WALLET, record("20260926-141000-ab12"), null);
+    for (const bad of [
+      null,
+      { ...RECEIPT, hash: "feed" },
+      { ...RECEIPT, status: "not_sent" },
+      { ...RECEIPT, ticker: "<b>" },
+      { ...RECEIPT, amount: "50 USDG" },
+      { ...RECEIPT, amount: 50 },
+    ]) {
+      expect((await sign("?id=20260926-141000-ab12", bad)).status).toBe(400);
+    }
+    expect((await get("?id=20260926-141000-ab12")).body.turn).not.toHaveProperty("receipt");
+    expect((await sign("?id=20260926-000000-0000", RECEIPT)).status).toBe(404);
+    expect((await sign("?id=../../session", RECEIPT)).status).toBe(404);
+  });
+
+  it("refuses outside callers and answers 401 signed out", async () => {
+    await saveTurn(WALLET, record("20260926-141000-ab12"), null);
+    expect((await sign("?id=20260926-141000-ab12", RECEIPT, "evil.example")).status).toBe(403);
+    await rm(join(home, "session.json"));
+    expect((await sign("?id=20260926-141000-ab12", RECEIPT)).status).toBe(401);
+  });
+});
+
 describe("/api/desks/turns with memory on", () => {
   const account = privateKeyToAccount(generatePrivateKey());
   const wallet = account.address.toLowerCase();
@@ -156,6 +213,14 @@ describe("/api/desks/turns with memory on", () => {
     expect(body.memory).toBe("on");
     expect(ids(body)).toEqual(["20260926-142000-cd34", "20260926-141000-ab12"]);
     expect((await get("?id=20260926-142000-cd34")).body.turn).toMatchObject({ summary: "The desk would start with NVDA.", riskLevel: "medium" });
+  });
+
+  it("keeps a receipt in the sealed copy, so the turn stays signed after a restart", async () => {
+    await saveTurn(wallet, record("20260926-141000-ab12"), await memoryFor(wallet));
+    expect((await sign("?id=20260926-141000-ab12", RECEIPT)).status).toBe(200);
+    restart();
+    expect((await get("?id=20260926-141000-ab12")).body.turn.receipt).toMatchObject({ hash: RECEIPT.hash, ticker: "NVDA", amount: "50" });
+    expect((await get("?desk=eqlty-desk")).body.turns[0]).toMatchObject({ signed: true, receipt: { ticker: "NVDA", amount: "50", status: "success" } });
   });
 
   it("forgets the sealed copy too, so the turn does not come back after a restart", async () => {
