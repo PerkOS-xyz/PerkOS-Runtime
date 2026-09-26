@@ -113,6 +113,10 @@ export function MemoryPanel() {
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<Hit[] | null>(null);
   const [note, setNote] = useState<Note | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [noteError, setNoteError] = useState("");
   const [refresh, setRefresh] = useState(0);
   const [summary, setSummary] = useState({ busy: false, text: "" });
   const search = useRef<HTMLInputElement>(null);
@@ -203,21 +207,57 @@ export function MemoryPanel() {
   useEffect(() => {
     if (!open) return;
     const t = setTimeout(() => search.current?.focus(), 320);
+    return () => clearTimeout(t);
+  }, [open]);
+
+  // Escape steps back: out of editing, out of the question, out of the note, then closes.
+  useEffect(() => {
+    if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      if (note) setNote(null);
+      if (editing !== null) setEditing(null);
+      else if (confirming) setConfirming(false);
+      else if (note) setNote(null);
       else close();
     };
     window.addEventListener("keydown", onKey);
-    return () => {
-      clearTimeout(t);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [open, note, close]);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, note, editing, confirming, close]);
+
+  useEffect(() => {
+    setEditing(null);
+    setConfirming(false);
+    setNoteError("");
+  }, [note?.id]);
 
   const openNote = async (id: string) => {
     const { body } = await load<{ note: Note }>(`?id=${encodeURIComponent(id)}`);
     if (body) setNote(body.note);
+  };
+
+  const saveNote = async () => {
+    if (!note || editing === null) return;
+    setSaving(true);
+    setNoteError("");
+    const res = await fetch("/api/memory", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: note.id, body: editing })
+    }).catch(() => null);
+    const out = (await res?.json().catch(() => null)) as { note?: Note; message?: string } | null;
+    setSaving(false);
+    if (!res?.ok || !out?.note) return setNoteError(out?.message ?? "Could not save the note. Try again in a moment.");
+    setNote(out.note);
+    setEditing(null);
+    setRefresh((n) => n + 1);
+  };
+
+  const forgetNote = async () => {
+    if (!note) return;
+    const res = await fetch(`/api/memory?id=${encodeURIComponent(note.id)}`, { method: "DELETE" }).catch(() => null);
+    if (!res?.ok) return setNoteError("Could not forget it. Try again in a moment.");
+    setNote(null);
+    setRefresh((n) => n + 1);
   };
 
   // A desk opened from its own screen shows up even before it has notes.
@@ -251,11 +291,56 @@ export function MemoryPanel() {
     const exchanges = note.kind === "journal" ? parseJournal(note.body) : [];
     body = (
       <article className="mem-note">
-        <button type="button" className="link-btn mem-back" onClick={() => setNote(null)}>
-          ← Back
-        </button>
+        <div className="mem-note-head">
+          <button type="button" className="link-btn mem-back" onClick={() => setNote(null)}>
+            ← Back
+          </button>
+          {editing === null && !confirming ? (
+            <div className="mem-note-acts">
+              {note.kind === "note" ? (
+                <button type="button" className="link-btn" onClick={() => setEditing(note.body)}>
+                  Edit
+                </button>
+              ) : null}
+              <button type="button" className="link-btn danger" onClick={() => setConfirming(true)}>
+                Forget
+              </button>
+            </div>
+          ) : null}
+        </div>
         <h3>{note.kind === "journal" ? day(note.id, note.updatedAt).long : note.title}</h3>
-        {isMemory(note.id) ? (
+        {confirming ? (
+          <div className="mem-confirm" role="alertdialog" aria-label="Forget">
+            <p>
+              {note.kind === "journal"
+                ? "Forget this day? Sparky will no longer remember these conversations or what it kept from them. This cannot be undone."
+                : "Forget this note? Sparky will no longer remember it. This cannot be undone."}
+            </p>
+            <div className="memory-actions">
+              <button type="button" className="chip-btn danger" onClick={() => void forgetNote()}>
+                Forget
+              </button>
+              <button type="button" className="link-btn" onClick={() => setConfirming(false)}>
+                Keep it
+              </button>
+            </div>
+          </div>
+        ) : null}
+        {noteError ? <p className="hint err">{noteError}</p> : null}
+        {editing !== null ? (
+          <div className="mem-edit">
+            {isMemory(note.id) ? <p className="mem-quiet">Each day starts with &quot;## YYYY-MM-DD&quot;. Lines that start with &quot;- &quot; are what Sparky keeps.</p> : null}
+            <textarea value={editing} onChange={(e) => setEditing(e.target.value)} spellCheck={false} aria-label="Note text" />
+            <div className="memory-actions">
+              <button type="button" className="chip-btn" disabled={saving} onClick={() => void saveNote()}>
+                {saving ? "Saving…" : "Save"}
+              </button>
+              <button type="button" className="link-btn" onClick={() => setEditing(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : isMemory(note.id) ? (
           <MemoryDays body={note.body} />
         ) : exchanges.length ? (
           <ol className="mem-transcript">

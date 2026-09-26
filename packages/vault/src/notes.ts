@@ -10,7 +10,7 @@
  * memory only and is rebuilt from the notes when the vault opens.
  */
 
-import { access, mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import MiniSearch from "minisearch";
@@ -197,6 +197,17 @@ export class NoteStore {
     const note = await this.load(id);
     if (note) this.notes.set(id, note);
     return note;
+  }
+
+  /** Deletes a note for good, file and search entry. False when there is no such note this key can open. */
+  async remove(id: string): Promise<boolean> {
+    if (!(await this.read(id))) return false;
+    return this.serial(async () => {
+      await rm(this.file(id), { force: true });
+      this.notes.delete(id);
+      if (this.index?.has(id)) this.index.discard(id);
+      return true;
+    });
   }
 
   private async loadAll(): Promise<void> {

@@ -119,6 +119,19 @@ describe("NoteStore", () => {
     }
   });
 
+  it("forgets a note for good", async () => {
+    const { root, notes } = store();
+    await notes.appendJournal("user", "My budget is 500 USDG.");
+    await notes.writeNote("user", "goals", "Goals", "Grow the budget.");
+    expect((await notes.search("budget", { scopes: ["user"] })).length).toBe(2);
+    expect(await notes.remove("user/journal/2026-09-26")).toBe(true);
+    expect(await notes.remove("user/journal/2026-09-26")).toBe(false);
+    expect(await notes.remove("../session")).toBe(false);
+    expect((await notes.search("budget", { scopes: ["user"] })).map((h) => h.id)).toEqual(["user/notes/goals"]);
+    expect(readdirSync(join(root, "user", "journal"))).toEqual([]);
+    expect((await new NoteStore(root, KEY).list()).map((n) => n.id)).toEqual(["user/notes/goals"]);
+  });
+
   it("rejects scopes and names that could escape the vault", async () => {
     const { root, notes } = store();
     await expect(notes.appendJournal("../evil", "x")).rejects.toThrow("Not a scope");
