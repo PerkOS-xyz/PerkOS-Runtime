@@ -39,6 +39,17 @@ export function savable<M extends { content: string }>(messages: readonly M[]): 
   return messages.filter((m) => m.content.trim() !== "");
 }
 
+/**
+ * What a saved chat keeps of a conversation: the person's lines and Sparky's,
+ * as text. The team's lines and any screen-only fields (ids, tones) are left
+ * out, so the same conversation always gives the same saved thread.
+ */
+export function keptLines(messages: ReadonlyArray<{ role: string; content: string }>): Array<{ role: "user" | "assistant"; content: string }> {
+  return savable(messages)
+    .filter((m): m is { role: "user" | "assistant"; content: string } => m.role === "user" || m.role === "assistant")
+    .map((m) => ({ role: m.role, content: m.content }));
+}
+
 const NEW_PHRASES = new Set([
   "new chat",
   "start a new chat",

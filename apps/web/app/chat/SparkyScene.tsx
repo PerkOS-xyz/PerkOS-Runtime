@@ -99,7 +99,7 @@ export function SparkyScene({ model, onOpenChange }: { model: string | null; onO
   const state = coreState(voice.status, chat.busy, isAnswering(chat.busy, chat.messages));
   const split = chat.messages.length > 0;
   const working = chat.busy || voice.status === "speaking";
-  const saved = useChatActions(chats, { working, stop });
+  const saved = useChatActions(chats, { working, stop, settle: () => chat.abort() });
   const noVoice = voiceReady === false ? "Voice needs Grok. Sign in with Grok in Settings." : "";
 
   /** He answers out loud when voice works here, and in text either way. */

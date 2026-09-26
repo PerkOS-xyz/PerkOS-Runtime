@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { chatCommand, LOST_SAVE_CAPTION, newChatCaption, newChatId, savable, type NewChatOutcome } from "./chatsView";
+import { chatCommand, keptLines, LOST_SAVE_CAPTION, newChatCaption, newChatId, type NewChatOutcome } from "./chatsView";
+import { newMessageId } from "./messages";
 import type { Message, SparkyChatState } from "./useSparkyChat";
 
 /** How long after a reply ends before the thread is saved. */
@@ -61,7 +62,7 @@ export function useChats({ scope, chat, unlocked }: { scope: string; chat: Spark
 
   const save = useCallback(
     (list: Message[]): Promise<boolean> => {
-      const keep = savable(list).slice(-KEEP);
+      const keep = keptLines(list).slice(-KEEP);
       const sig = JSON.stringify(keep);
       // Nothing new to keep counts as kept; a locked vault keeps nothing.
       if (!keep.length || sig === savedRef.current) return Promise.resolve(true);
@@ -110,7 +111,7 @@ export function useChats({ scope, chat, unlocked }: { scope: string; chat: Spark
   );
 
   const newChat = useCallback((): NewChatOutcome => {
-    const had = savable(messagesRef.current).length > 0;
+    const had = keptLines(messagesRef.current).length > 0;
     const kept = had && !lockedRef.current;
     // The line says it is saved; if the save fails after all, lostSave corrects it.
     if (kept) void save(messagesRef.current).then((ok) => (ok ? undefined : setLostSave((n) => n + 1)));
@@ -132,12 +133,12 @@ export function useChats({ scope, chat, unlocked }: { scope: string; chat: Spark
       }
       if (!res.ok) return false;
       const body = (await res.json().catch(() => ({}))) as { chat?: { messages?: Message[] } };
-      const list = savable(Array.isArray(body.chat?.messages) ? body.chat.messages : []);
+      const list = keptLines(Array.isArray(body.chat?.messages) ? body.chat.messages : []);
       save(messagesRef.current);
       idRef.current = id;
       savedRef.current = JSON.stringify(list);
       setActiveId(id);
-      replace(list);
+      replace(list.map((m) => ({ ...m, id: newMessageId() })));
       return true;
     },
     [replace, save, scope]
@@ -176,7 +177,10 @@ export interface ChatActions {
  * click stops a reply in progress first; a spoken command arrives between
  * replies and leaves the live conversation listening.
  */
-export function useChatActions(chats: ChatsState, { working, stop }: { working: boolean; stop: () => void }): ChatActions {
+export function useChatActions(
+  chats: ChatsState,
+  { working, stop, settle }: { working: boolean; stop: () => void; settle?: () => void }
+): ChatActions {
   const [caption, setCaption] = useState("");
 
   // The thread New chat set aside was not saved after all: say so instead.
@@ -191,6 +195,9 @@ export function useChatActions(chats: ChatsState, { working, stop }: { working: 
 
   const newChat = (stopFirst = true) => {
     if (stopFirst && working) stop();
+    // Said out loud: the voice keeps listening, but replies and a team turn
+    // still in flight must not land in the new chat.
+    else if (!stopFirst && working) settle?.();
     const line = newChatCaption(chats.newChat());
     setCaption(line);
     return line;
