@@ -5,13 +5,17 @@ import type { DeskMarket, DeskSeries } from "@perkos/desk-contract";
 
 import { sessions } from "./session";
 
-/** A client that sends the current session token, or null when signed out. */
+/**
+ * A client that sends the current session token, or null when signed out.
+ * The token is read again on every call: a desk turn outlives an access token,
+ * and the session refreshes it when it is close to expiry.
+ */
 export async function perkosClient(): Promise<PerkosClient | null> {
   const session = await sessions.current();
   if (!session) return null;
   return new PerkosClient({
     ...(process.env.PERKOS_API_URL ? { baseUrl: process.env.PERKOS_API_URL } : {}),
-    token: () => session.accessToken,
+    token: async () => (await sessions.current())?.accessToken,
   });
 }
 
