@@ -220,6 +220,23 @@ describe("POST /api/desks/buy", () => {
     });
   });
 
+  it("sends the desk turn a buy follows as the order's reason, and refuses one that is not a turn", async () => {
+    await signIn();
+    const bodies: unknown[] = [];
+    perkos({
+      "POST /desks/stocks-robinhood/orders/buy": (init) => {
+        bodies.push(JSON.parse(String(init?.body)));
+        return Response.json({ ok: true, bought: true, status: "success", hash: "0xfeed", explorerUrl: null, amountOut: null, steps: [], notice: null });
+      },
+    });
+    expect((await BUY(post("/api/desks/buy", { ...ORDER, turnId: "20260926-143205-ab12" }))).status).toBe(200);
+    expect(bodies).toEqual([{ ticker: "NVDA", amountUsdg: "1", maxSlippageBps: 100, quotedAmountOut: "4200000000000000", reason: "20260926-143205-ab12" }]);
+    for (const turnId of ["../../session", "", 42, "20260926-143205"]) {
+      expect((await BUY(post("/api/desks/buy", { ...ORDER, turnId }))).status).toBe(400);
+    }
+    expect(bodies).toHaveLength(1);
+  });
+
   it("passes an order that stopped before the swap, or a swap not confirmed yet, through as a receipt", async () => {
     await signIn();
     perkos({

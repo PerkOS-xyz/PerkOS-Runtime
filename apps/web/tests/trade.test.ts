@@ -284,6 +284,14 @@ describe("what an answer to a buy means", () => {
       return Response.json({ receipt: receipt() }, { status: 200 });
     });
     await expect(sendBuy(order, http as unknown as typeof fetch)).resolves.toEqual({ kind: "receipt", receipt: receipt() });
+    // A buy from a desk turn's plan names the turn.
+    const planned = { ...order, turnId: "20260926-143205-ab12" };
+    const named = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body))).toEqual(planned);
+      return Response.json({ receipt: receipt() }, { status: 200 });
+    });
+    await expect(sendBuy(planned, named as unknown as typeof fetch)).resolves.toMatchObject({ kind: "receipt" });
+    expect(named).toHaveBeenCalledTimes(1);
   });
 
   it("turns a network failure or a wait that ran out into an unconfirmed order", async () => {

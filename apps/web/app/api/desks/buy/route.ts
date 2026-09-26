@@ -4,17 +4,19 @@ import { MAX_SLIPPAGE_BPS } from "../../../desks/trade";
 import { guard } from "../../../lib/guard";
 import { perkosClient } from "../../../lib/perkos";
 import { errorResponse } from "../../../lib/respond";
+import { isTurnId } from "../../../lib/turnRecord";
 
 const MODULE = /^[a-z][a-z0-9-]{0,31}$/;
 const TICKER = /^[A-Za-z0-9.\-]{1,16}$/;
 const USDG = /^\d{1,7}(\.\d{1,6})?$/;
 const UINT = /^\d{1,78}$/;
 
-// POST { module, ticker, amountUsdg, maxSlippageBps, quotedAmountOut } -> { receipt }
+// POST { module, ticker, amountUsdg, maxSlippageBps, quotedAmountOut, turnId? } -> { receipt }
 //   buys with the wallet the owner delegated. The desk calls this only after
 //   the owner holds to approve; PerkOS prices the order again, checks it
 //   against the Trader's policy and the quote, and signs it through Dynamic.
 //   The quote the owner saw is required: it sets the minimum the swap is held to.
+//   turnId, when the buy follows a desk turn's plan: PerkOS keeps it as the order's reason.
 export async function POST(req: Request) {
   const denied = guard(req);
   if (denied) return denied;
@@ -24,6 +26,7 @@ export async function POST(req: Request) {
   const amount = typeof body.amountUsdg === "number" || typeof body.amountUsdg === "string" ? String(body.amountUsdg).trim() : "";
   const slippage = body.maxSlippageBps;
   const quoted = body.quotedAmountOut;
+  const turnId = body.turnId ?? null;
   if (
     !MODULE.test(module) ||
     !TICKER.test(ticker) ||
@@ -42,12 +45,15 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
+  if (turnId !== null && !isTurnId(turnId)) {
+    return Response.json({ error: "input", message: "The desk turn this order follows is not one Runtime knows." }, { status: 400 });
+  }
   const client = await perkosClient();
   if (!client) return Response.json({ error: "signed_out", message: "Sign in to PerkOS first." }, { status: 401 });
   try {
     // "01.50" and "1.5" are the same order; PerkOS reads the plain decimal.
     const amountUsdg = String(Number(amount));
-    const receipt = await new DeskTrade(client).buy(module, { ticker, amountUsdg, maxSlippageBps: slippage, quotedAmountOut: quoted });
+    const receipt = await new DeskTrade(client).buy(module, { ticker, amountUsdg, maxSlippageBps: slippage, quotedAmountOut: quoted, ...(turnId !== null ? { reason: turnId } : {}) });
     return Response.json({ receipt });
   } catch (err) {
     return errorResponse(err);

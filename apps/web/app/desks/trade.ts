@@ -367,6 +367,8 @@ export interface BuyOrder {
   maxSlippageBps: number;
   /** The quote the owner saw, always sent: PerkOS refuses the swap below it less the slippage. */
   quotedAmountOut: string;
+  /** The desk turn whose plan the buy follows, when it does: PerkOS keeps it as the order's reason. */
+  turnId?: string;
 }
 
 export interface SweepOrder {
