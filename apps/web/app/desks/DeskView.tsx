@@ -107,6 +107,7 @@ export function DeskView({
     setPrefill({ turnId, ticker: plan.ticker, amount: plan.amount, startedAt: turn.view.startedAt, key: Date.now() });
     setMarket(false);
     setHistory(false);
+    setPortfolio(false);
     setTrader(true);
   }, [plan, turn.view.turnId, turn.view.startedAt]);
   // Offered on a desk that trades, until the person signed from the plan.
