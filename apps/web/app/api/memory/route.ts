@@ -2,16 +2,18 @@ import type { Note } from "@perkos/vault";
 
 import { guard } from "../../lib/guard";
 import { parseJournal } from "../../lib/journal";
+import { parseMemory } from "../../lib/memoryNote";
 import { memoryFor } from "../../lib/memory";
 import { cachedDesks } from "../../lib/perkos";
 import { sessionWallet } from "../../lib/vault";
 
 const PREVIEW = 180;
 
-/** A row for the list: a day's journal shows its first question and how many exchanges it holds. */
+/** A row for the list: a day's journal shows its first question and how many exchanges it holds; the Memory note, its latest facts. */
 function row(n: Note) {
   const exchanges = n.kind === "journal" ? parseJournal(n.body) : [];
-  const text = exchanges[0]?.person ?? n.body;
+  const latest = n.kind === "note" ? parseMemory(n.body)[0]?.sections.flatMap((s) => s.items) : undefined;
+  const text = exchanges[0]?.person ?? (latest?.length ? latest.join(" · ") : n.body);
   return {
     id: n.id,
     scope: n.scope,

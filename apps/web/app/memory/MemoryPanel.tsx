@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { parseJournal } from "../lib/journal";
+import { parseMemory } from "../lib/memoryNote";
 import { useVault } from "../shell/useVault";
 import { useWallet } from "../wallet/context";
 import { OPEN_MEMORY, type OpenMemory } from "./open";
@@ -44,6 +45,54 @@ function marked(text: string, query: string): ReactNode {
   return parts.map((p, i) => (i % 2 ? <mark key={i}>{p}</mark> : <Fragment key={i}>{p}</Fragment>));
 }
 
+const isMemory = (id: string) => id.endsWith("/notes/memory");
+const today = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+async function summarize(body: object): Promise<{ ok: boolean; reason?: string; message?: string }> {
+  const res = await fetch("/api/memory/summarize", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body)
+  }).catch(() => null);
+  const out = (await res?.json().catch(() => ({}))) as { results?: { reason?: string }[]; message?: string } | undefined;
+  return { ok: Boolean(res?.ok), reason: out?.results?.[0]?.reason, message: out?.message };
+}
+
+// Earlier days are summarized once per app session, after memory is on.
+let pendingAsked = false;
+
+/** The Memory note as days, each with its facts, decisions, preferences and open questions. */
+function MemoryDays({ body }: { body: string }) {
+  const days = parseMemory(body);
+  if (!days.length) return <pre className="mem-raw">{body}</pre>;
+  return (
+    <div className="mem-days">
+      {days.map((d, i) => (
+        <section key={d.date} className="mem-day" style={{ "--i": i } as CSSProperties}>
+          <h4>{day(`/${d.date}`, d.date).long}</h4>
+          {d.sections.length ? (
+            d.sections.map((s) => (
+              <div key={s.name} className="mem-section">
+                <span>{s.name}</span>
+                <ul>
+                  {s.items.map((item, j) => (
+                    <li key={j}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ))
+          ) : (
+            <p className="mem-quiet">Nothing lasting that day.</p>
+          )}
+        </section>
+      ))}
+    </div>
+  );
+}
+
 const Lock = () => (
   <svg viewBox="0 0 24 24" aria-hidden>
     <path d="M7 11V8a5 5 0 0 1 10 0v3M6 11h12v9H6z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
@@ -64,6 +113,8 @@ export function MemoryPanel() {
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<Hit[] | null>(null);
   const [note, setNote] = useState<Note | null>(null);
+  const [refresh, setRefresh] = useState(0);
+  const [summary, setSummary] = useState({ busy: false, text: "" });
   const search = useRef<HTMLInputElement>(null);
   const current = scope.scope ?? "user";
 
@@ -96,7 +147,7 @@ export function MemoryPanel() {
     return () => {
       live = false;
     };
-  }, [open, vault.unlocked]);
+  }, [open, vault.unlocked, refresh]);
 
   useEffect(() => {
     if (!open || status !== "ready") return;
@@ -108,7 +159,31 @@ export function MemoryPanel() {
     return () => {
       live = false;
     };
-  }, [open, status, current]);
+  }, [open, status, current, refresh]);
+
+  useEffect(() => {
+    if (!vault.unlocked || pendingAsked) return;
+    pendingAsked = true;
+    void summarize({ pending: true }).then(() => setRefresh((n) => n + 1));
+  }, [vault.unlocked]);
+
+  useEffect(() => setSummary({ busy: false, text: "" }), [current]);
+
+  const summarizeToday = async () => {
+    setSummary({ busy: true, text: "" });
+    const r = await summarize({ scope: current, force: true });
+    setSummary({
+      busy: false,
+      text: !r.ok
+        ? (r.message ?? "Could not summarize today. Try again in a moment.")
+        : r.reason === "empty"
+          ? "Not enough from today to summarize yet."
+          : r.reason === "busy"
+            ? "Today is being summarized already."
+            : "Today is in Memory now."
+    });
+    setRefresh((n) => n + 1);
+  };
 
   useEffect(() => {
     const q = query.trim();
@@ -180,7 +255,9 @@ export function MemoryPanel() {
           ← Back
         </button>
         <h3>{note.kind === "journal" ? day(note.id, note.updatedAt).long : note.title}</h3>
-        {exchanges.length ? (
+        {isMemory(note.id) ? (
+          <MemoryDays body={note.body} />
+        ) : exchanges.length ? (
           <ol className="mem-transcript">
             {exchanges.map((e, i) => (
               <li key={i} style={{ "--i": i } as CSSProperties}>
@@ -240,30 +317,49 @@ export function MemoryPanel() {
       </div>
     );
   } else {
+    const ordered = [...(rows ?? [])].sort((a, b) => Number(isMemory(b.id)) - Number(isMemory(a.id)));
+    const talkedToday = ordered.some((r) => r.kind === "journal" && r.id.endsWith(`/${today()}`));
     body = (
-      <ul className="mem-rows" aria-busy={rows === null}>
-        {(rows ?? []).map((r, i) => {
-          const d = day(r.id, r.updatedAt);
-          return (
-            <li key={r.id} style={{ "--i": i } as CSSProperties}>
-              <button type="button" className="mem-row" onClick={() => void openNote(r.id)}>
-                <span className="mem-stamp">
-                  <b>{d.date}</b>
-                  <small>{d.month}</small>
-                  <small>{d.weekday}</small>
-                </span>
-                <span className="mem-text">
-                  <span className="mem-title">{r.kind === "journal" ? `${r.exchanges} ${r.exchanges === 1 ? "exchange" : "exchanges"}` : r.title}</span>
-                  <span className="mem-preview">{r.preview}</span>
-                </span>
-                <span className="mem-go" aria-hidden>
-                  →
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+      <>
+        {talkedToday ? (
+          <div className="mem-tools">
+            <span aria-live="polite">{summary.text || "Sparky keeps what lasts from each day in Memory."}</span>
+            <button type="button" className="chip-btn" disabled={summary.busy} onClick={() => void summarizeToday()}>
+              {summary.busy ? "Summarizing…" : "Summarize today"}
+            </button>
+          </div>
+        ) : null}
+        <ul className="mem-rows" aria-busy={rows === null}>
+          {ordered.map((r, i) => {
+            const d = day(r.id, r.updatedAt);
+            return (
+              <li key={r.id} style={{ "--i": i } as CSSProperties}>
+                <button type="button" className={`mem-row${isMemory(r.id) ? " pinned" : ""}`} onClick={() => void openNote(r.id)}>
+                  {isMemory(r.id) ? (
+                    <span className="mem-stamp mem-seal-stamp" aria-hidden>
+                      <Lock />
+                      <small>Kept</small>
+                    </span>
+                  ) : (
+                    <span className="mem-stamp">
+                      <b>{d.date}</b>
+                      <small>{d.month}</small>
+                      <small>{d.weekday}</small>
+                    </span>
+                  )}
+                  <span className="mem-text">
+                    <span className="mem-title">{r.kind === "journal" ? `${r.exchanges} ${r.exchanges === 1 ? "exchange" : "exchanges"}` : r.title}</span>
+                    <span className="mem-preview">{r.preview}</span>
+                  </span>
+                  <span className="mem-go" aria-hidden>
+                    →
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </>
     );
   }
 

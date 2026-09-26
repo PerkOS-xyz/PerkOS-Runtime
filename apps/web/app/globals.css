@@ -751,3 +751,19 @@ button { font: inherit; }
   .memory-sheet, .memory-backdrop { transition: none; }
   .mem-rows li, .mem-transcript li, .mem-note, .mem-empty img { animation: none; opacity: 1; }
 }
+/* Memory: what lasts from each day. */
+.mem-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; font-size: 11.5px; color: var(--mute); }
+.mem-tools .chip-btn { flex: none; padding: 6px 12px; font-size: 11.5px; }
+.mem-row.pinned { border-color: rgba(236, 27, 105, 0.35); background: linear-gradient(90deg, rgba(236, 27, 105, 0.1), rgba(6, 10, 22, 0.55) 60%); }
+.mem-seal-stamp { gap: 6px; }
+.mem-seal-stamp svg { width: 22px; height: 22px; color: var(--coral); }
+.mem-days { display: flex; flex-direction: column; gap: 16px; }
+.mem-day { padding: 16px 18px; border-radius: 16px; border: 1px solid var(--hair); background: rgba(6, 10, 22, 0.55); opacity: 0; animation: rise 380ms var(--ease) forwards; animation-delay: calc(var(--i, 0) * 60ms); }
+.mem-day h4 { margin: 0 0 12px; font-family: var(--display); font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+.mem-section + .mem-section { margin-top: 12px; }
+.mem-section > span { font-size: 9.5px; letter-spacing: 0.2em; text-transform: uppercase; color: #ff9fbf; }
+.mem-section ul { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.mem-section li { position: relative; padding-left: 16px; font-size: 13px; line-height: 1.6; color: var(--ink); }
+.mem-section li::before { content: ""; position: absolute; left: 2px; top: 9px; width: 6px; height: 6px; border-radius: 50%; background: var(--ember); }
+.mem-quiet { margin: 0; font-size: 12.5px; color: var(--mute); }
+@media (prefers-reduced-motion: reduce) { .mem-day { animation: none; opacity: 1; } }
