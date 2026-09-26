@@ -114,6 +114,6 @@ describe("Sparky's line to the first roles", () => {
     expect(principalLine("Pick for me", ["scout", "risk"], ["A", "B", "C", "D", "E", "F"])).toBe("@Scout @Risk Pick for me. Facts attached: A; B; C; D; and 2 more.");
     expect(principalLine("Hi", ["scout"], [])).toBe("@Scout Hi.");
     expect(principalLine("x", ["scout"], [])).not.toMatch(/\[F\d/);
-    expect(principalLine("x", ["scout"], [])).not.toContain("—");
+    expect(principalLine("x", ["scout"], [])).not.toContain(String.fromCharCode(0x2014));
   });
 });
