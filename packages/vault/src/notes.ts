@@ -46,6 +46,23 @@ export const isScope = (scope: string) => SCOPE.test(scope);
 
 const CHECK = "perkos-vault-check-v1";
 
+/** Words too common to tell notes apart, in English and Spanish. */
+const COMMON = new Set(
+  (
+    "the and for you your are was were with this that these those what which who whom how why when where can could would should " +
+    "will shall about from have has had not but all any some our out get got just like into than then them they their there here " +
+    "its it's i'm i've don't does did done also very too please much many more most such only own same other " +
+    "que los las del por para con una uno unos unas mis tus sus como cual cuales pero mas más este esta esto estos estas ese esa eso " +
+    "esos esas hay muy sin sobre también tambien fue son está esta estoy están estan ser era han has hemos tengo tiene cómo qué cuál"
+  ).split(" "),
+);
+
+/** Index and query terms: lowercase, without short or common words. */
+const term = (word: string): string | null => {
+  const w = word.toLowerCase();
+  return w.length < 3 || COMMON.has(w) ? null : w;
+};
+
 /** A note is on disk but the key cannot open it, so it is left untouched. */
 export class VaultKeyMismatch extends Error {
   constructor(id: string) {
@@ -197,12 +214,23 @@ export class NoteStore {
   async search(query: string, { scopes, k = 6 }: { scopes: string[]; k?: number }): Promise<Hit[]> {
     await this.loadAll();
     if (!this.index) {
-      this.index = new MiniSearch<Note>({ fields: ["title", "body"], storeFields: ["scope", "title", "updatedAt"], idField: "id" });
+      this.index = new MiniSearch<Note>({
+        fields: ["title", "body"],
+        storeFields: ["scope", "title", "updatedAt"],
+        idField: "id",
+        processTerm: term,
+      });
       this.index.addAll([...this.notes.values()]);
     }
     if (!query.trim()) return [];
     return this.index
-      .search(query, { prefix: true, fuzzy: 0.2, boost: { title: 2 }, filter: (r) => scopes.includes(String(r.scope)) })
+      .search(query, {
+        // Prefix and typo matching only on longer words, where they help more than they add noise.
+        prefix: (t) => t.length >= 4,
+        fuzzy: (t) => (t.length >= 5 ? 0.2 : false),
+        boost: { title: 2 },
+        filter: (r) => scopes.includes(String(r.scope)),
+      })
       .slice(0, k)
       .map((r) => {
         const note = this.notes.get(String(r.id));
