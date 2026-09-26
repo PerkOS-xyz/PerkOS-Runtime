@@ -107,20 +107,23 @@ export function spreadOf(assets: DeskAsset[], limit = MOST_ACTIVE): DeskAsset[] 
   return Array.from({ length: limit }, (_, i) => pool[Math.floor(i * step)]).filter((a): a is DeskAsset => Boolean(a));
 }
 
+/** One asset as the desk priced it, with its history when there is one: "NVDA (NVIDIA): 181.20 USDG at 14:30, ...". */
+function assetLine(a: DeskAsset, market: DeskMarket, series: DeskSeries[]): string {
+  const price = a.priceUsd === null ? "no price right now" : `${num(a.priceUsd)} ${market.quoteSymbol}${a.priceAt ? ` at ${clock(a.priceAt)}` : ""}`;
+  const change = a.change24hPct === null ? "" : `, ${a.change24hPct >= 0 ? "+" : ""}${a.change24hPct.toFixed(2)}% in 24h`;
+  const trade = a.tradeable === true ? "tradeable" : a.tradeable === false ? "not tradeable now" : "tradeability unknown";
+  const s = series.find((x) => x.ticker.toUpperCase() === a.ticker.toUpperCase());
+  const history = s ? seriesLine(s, market.quoteSymbol) : "";
+  return `${a.ticker} (${shortName(a.name)}): ${price}${change}, ${trade}.${history ? ` ${history}.` : ""}`.replace(/\.\.$/, ".");
+}
+
 /** The facts block for the prompt, or "" when there is no market. */
 export function marketFacts(deskName: string, market: DeskMarket | null, question: string, series: DeskSeries[] = []): string {
   if (!market) return "";
   const asked = askedAbout(question, market.assets);
   const active = reportsActivity(market.assets);
   const shown = asked.length ? asked : active ? mostActive(market.assets) : spreadOf(market.assets);
-  const lines = shown.map((a) => {
-    const price = a.priceUsd === null ? "no price right now" : `${num(a.priceUsd)} ${market.quoteSymbol}${a.priceAt ? ` at ${clock(a.priceAt)}` : ""}`;
-    const change = a.change24hPct === null ? "" : `, ${a.change24hPct >= 0 ? "+" : ""}${a.change24hPct.toFixed(2)}% in 24h`;
-    const trade = a.tradeable === true ? "tradeable" : a.tradeable === false ? "not tradeable now" : "tradeability unknown";
-    const s = series.find((x) => x.ticker.toUpperCase() === a.ticker.toUpperCase());
-    const history = s ? seriesLine(s, market.quoteSymbol) : "";
-    return `- ${a.ticker} (${shortName(a.name)}): ${price}${change}, ${trade}.${history ? ` ${history}.` : ""}`.replace(/\.\.$/, ".");
-  });
+  const lines = shown.map((a) => `- ${assetLine(a, market, series)}`);
   return [
     `Market of ${deskName} on ${market.chain}, priced in ${market.quoteSymbol}, observed ${clock(market.observedAt)}.`,
     `Assets on this desk (${market.assets.length}): ${market.assets.map((a) => a.ticker).join(", ")}.`,
@@ -136,4 +139,36 @@ export function marketFacts(deskName: string, market: DeskMarket | null, questio
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+/**
+ * The facts a desk turn hands its team, numbered so every answer can cite the
+ * one it rests on: "[F1] NVDA (NVIDIA): 181.20 USDG at 14:30, ...". Only the
+ * team gets these tags; Sparky's own facts stay plain, because what Sparky
+ * says is read aloud.
+ */
+export function factLines(market: DeskMarket, assets: DeskAsset[], series: DeskSeries[] = []): string[] {
+  return assets.map((a, i) => `[F${i + 1}] ${assetLine(a, market, series)}`);
+}
+
+/** How many assets an open question ("what should I buy?") puts in front of the team. */
+export const MAX_CANDIDATES = 12;
+
+const byMagnitude = (v: number | null) => (v === null ? -1 : Math.abs(v));
+
+/**
+ * The assets worth a look for an open question: the ones the desk can trade
+ * and has priced, the most traded first, then the ones that moved most, then
+ * by ticker so the same market always gives the same list.
+ */
+export function candidates(market: DeskMarket, max = MAX_CANDIDATES): DeskAsset[] {
+  return market.assets
+    .filter((a) => a.tradeable === true && a.priceUsd !== null)
+    .sort(
+      (a, b) =>
+        (b.volume24hUsd ?? -1) - (a.volume24hUsd ?? -1) ||
+        byMagnitude(b.change24hPct) - byMagnitude(a.change24hPct) ||
+        a.ticker.localeCompare(b.ticker),
+    )
+    .slice(0, Math.max(0, max));
 }

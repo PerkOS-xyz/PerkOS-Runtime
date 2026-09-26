@@ -5,7 +5,7 @@
 import type { DeskAsset, DeskMarket } from "@perkos/desk-contract";
 import { describe, expect, it } from "vitest";
 
-import { askedAbout, marketFacts, mostActive, spreadOf } from "../app/lib/marketFacts";
+import { askedAbout, candidates, factLines, MAX_CANDIDATES, marketFacts, mostActive, spreadOf } from "../app/lib/marketFacts";
 
 const asset = (ticker: string, name: string, extra: Partial<DeskAsset> = {}): DeskAsset => ({
   ticker,
@@ -123,5 +123,51 @@ describe("marketFacts", () => {
     const facts = marketFacts("EQLTY Desk", market, "What should I buy this month?");
     expect(facts).toContain("the desk reports no 24h volume or change right now");
     expect(facts).not.toContain("Most active on this desk now:");
+  });
+});
+
+describe("numbered facts for the team", () => {
+  it("numbers the assets in the order given, with the same text Sparky's facts use", () => {
+    const lines = factLines(MARKET, [MARKET.assets[4]!, MARKET.assets[0]!], [
+      { ticker: "NVDA", priceUsd: 225.17, change24hPct: null, points: [], source: "uniswap-rwa-1d", line: "NVDA moved from 210.10 to 228.30 over 5 days" },
+    ]);
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toMatch(/^\[F1\] NVDA \(NVIDIA\): 225\.17 USDG at \d{2}:\d{2}, tradeability unknown\. NVDA moved from 210\.10 to 228\.30 over 5 days\.$/);
+    expect(lines[1]).toMatch(/^\[F2\] AAPL \(Apple\): 341\.67 USDG at \d{2}:\d{2}, tradeable\.$/);
+    expect(factLines(MARKET, [MARKET.assets[4]!, MARKET.assets[0]!])).toEqual(factLines(MARKET, [MARKET.assets[4]!, MARKET.assets[0]!]));
+  });
+
+  it("keeps Sparky's own facts free of the tags", () => {
+    expect(marketFacts("EQLTY Desk", MARKET, "NVDA")).not.toMatch(/\[F\d+\]/);
+  });
+});
+
+describe("candidates for an open question", () => {
+  const market: DeskMarket = {
+    ...MARKET,
+    assets: [
+      asset("AAPL", "Apple", { volume24hUsd: 5_000_000, change24hPct: 0.4 }),
+      asset("NVDA", "NVIDIA", { volume24hUsd: 25_000_000, change24hPct: -1.5 }),
+      asset("AMD", "AMD", { volume24hUsd: null, change24hPct: 3.1 }),
+      asset("TSLA", "Tesla", { volume24hUsd: null, change24hPct: -4.2 }),
+      asset("MSFT", "Microsoft", { volume24hUsd: 5_000_000, change24hPct: -2.0 }),
+      asset("BE", "Bloom Energy", { volume24hUsd: null, change24hPct: null }),
+      asset("AMC", "AMC Entertainment", { volume24hUsd: null, change24hPct: null }),
+      asset("HOOD", "Robinhood", { volume24hUsd: 90_000_000, tradeable: false }),
+      asset("COIN", "Coinbase", { volume24hUsd: 80_000_000, tradeable: null }),
+      asset("PLTR", "Palantir", { volume24hUsd: 70_000_000, priceUsd: null }),
+    ],
+  };
+
+  it("leaves out what the desk cannot trade or has not priced, and sorts by volume, then move, then ticker", () => {
+    expect(candidates(market).map((a) => a.ticker)).toEqual(["NVDA", "MSFT", "AAPL", "TSLA", "AMD", "AMC", "BE"]);
+  });
+
+  it("stops at twelve", () => {
+    const many: DeskMarket = { ...MARKET, assets: Array.from({ length: 20 }, (_, i) => asset(`T${String(i).padStart(2, "0")}`, `Company ${i}`, { volume24hUsd: i })) };
+    expect(MAX_CANDIDATES).toBe(12);
+    expect(candidates(many)).toHaveLength(12);
+    expect(candidates(many)[0]?.ticker).toBe("T19");
+    expect(candidates(many, 3).map((a) => a.ticker)).toEqual(["T19", "T18", "T17"]);
   });
 });
