@@ -46,7 +46,7 @@ export function Welcome({ login, busy, walletError }: { login: LoginState; busy:
       </div>
       <div className="hero-stage" aria-hidden>
         <div className="hero-glow" />
-        <img className="hero-sparky" src="/sparky-full.png" alt="" width={900} height={1364} />
+        <img className="hero-sparky" src="/sparky-samurai-full.png" alt="" width={900} height={1364} />
       </div>
     </main>
   );
