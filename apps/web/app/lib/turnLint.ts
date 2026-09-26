@@ -58,6 +58,12 @@ const LEVEL_BEFORE = /\b(at|below|above|near|under|over|from|(?<!\bup\s)to|aroun
 const UP_TO_END = /\s*\bup\s+to\s*[:$]?\s*$/i;
 const MOVE_BEFORE =
   /\b(run|runs|running|rise|rises|rising|climb|climbs|climbing|rally|rallies|rallying|move|moves|moving|trade|trades|trading|reach|reaches|jump|jumps|rebound|rebounds|bounce|bounces|push|pushes|pop|pops|spike|spikes|extend|extends|head|heads|recover|recovers|swing|swings)(?:\s+\w+ly)?\s*$/i;
+/** Words that make an amount a size to trade in Spanish, as the team answers in the person's language. */
+const SIZE_WORDS_ES =
+  "compra|compro|comprar|compraría|compre|entrada|entrar|entraría|entra|posición|tamaño|asigna|asignar|asignaría|invierte|invertir|invertiría|destina|destinar|destinaría|gasta|gastar|añade|añadir|agrega|agregar|suma|sumar|empieza con|empezar con|empezaría con|comienza con|comenzar con|arranca con|arrancar con|como máximo";
+/** A Spanish price level: "compra por debajo de 175 USDG", "compra a 175 USDG". Only after a Spanish word, where "a" is not an article. */
+const LEVEL_BEFORE_ES = /\b(a|en|sobre|desde|debajo de|encima de|cerca de|precio|nivel|objetivo|cotiza|cotizando)\s*[:$]?\s*$/i;
+const SPANISH_WORD = new RegExp(`^(?:${SIZE_WORDS_ES})\\b`, "i");
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const pcts = (text: string) => new Set((text.match(/-?\d+(?:\.\d+)?\s?%/g) ?? []).map((x) => Math.abs(parseFloat(x)).toFixed(1)));
@@ -69,23 +75,37 @@ export function wordLimit(prompt: string | undefined): number | null {
   return m ? Number(m[1]) : null;
 }
 
-/** The largest amount an answer puts forward as a size to trade, in the quote asset. */
-export function largestSize(text: string, quote = "USD"): number {
-  const unit = `(?:${escape(quote)}|USDG|USDC|USD|dollars?)`;
+/** An amount an answer puts forward as a size to trade, and where the words that make it one begin and end. */
+export interface SizeMention {
+  value: number;
+  at: number;
+  /** Just after the amount and its unit. */
+  end: number;
+}
+
+/** Every amount an answer puts forward as a size to trade, in the quote asset, in the order it says them. */
+export function sizesIn(text: string, quote = "USD"): SizeMention[] {
+  const unit = `(?:${escape(quote)}|USDG|USDC|USD|dollars?|d[oó]lares)`;
   const amount = `(?:\\$\\s?(\\d[\\d,]*(?:\\.\\d+)?)\\s?(k)?|(\\d[\\d,]*(?:\\.\\d+)?)\\s?(k)?\\s?${unit}\\b)`;
-  const re = new RegExp(`\\b(?:${SIZE_WORDS})\\b([^.\\n]{0,40}?)${amount}`, "gi");
-  const sizeWord = new RegExp(`^(?:${SIZE_WORDS})`, "i");
-  let largest = 0;
+  const re = new RegExp(`\\b(?:${SIZE_WORDS}|${SIZE_WORDS_ES})\\b([^.\\n]{0,40}?)${amount}`, "gi");
+  const sizeWord = new RegExp(`^(?:${SIZE_WORDS}|${SIZE_WORDS_ES})\\b`, "i");
+  const sizes: SizeMention[] = [];
   for (const m of text.matchAll(re)) {
-    if (LEVEL_BEFORE.test(m[1] ?? "")) continue;
+    if ((SPANISH_WORD.test(m[0]) ? LEVEL_BEFORE_ES : LEVEL_BEFORE).test(m[1] ?? "")) continue;
     const lead = text.slice(0, m.index) + (m[0].match(sizeWord)?.[0] ?? "") + (m[1] ?? "");
     if (UP_TO_END.test(lead) && MOVE_BEFORE.test(lead.replace(UP_TO_END, ""))) continue;
     const raw = m[2] ?? m[4];
     if (!raw) continue;
-    const value = Number(raw.replace(/,/g, "")) * (m[3] || m[5] ? 1000 : 1);
-    if (Number.isFinite(value)) largest = Math.max(largest, value);
+    // "1,500" is fifteen hundred; "50,5" is fifty and a half, as Spanish writes it.
+    const value = Number(raw.replace(/,(\d{1,2})$/, ".$1").replace(/,/g, "")) * (m[3] || m[5] ? 1000 : 1);
+    if (Number.isFinite(value)) sizes.push({ value, at: m.index ?? 0, end: (m.index ?? 0) + m[0].length });
   }
-  return largest;
+  return sizes;
+}
+
+/** The largest amount an answer puts forward as a size to trade, in the quote asset. */
+export function largestSize(text: string, quote = "USD"): number {
+  return Math.max(0, ...sizesIn(text, quote).map((s) => s.value));
 }
 
 export function lintTurn(input: LintInput): string[] {

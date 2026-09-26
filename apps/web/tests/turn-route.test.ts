@@ -54,6 +54,7 @@ const replies: Record<string, string> = {
   risk: "RISK: medium\n@Trader @Auditor Keep it to 50 USDG.",
   trader: "@Sparky Entry: 50 USDG, take profit at 190 USDG.",
   auditor: "@Sparky Thesis: NVDA holds its range [F1]. Check the next close.",
+  quote: "@Trader @Risk 50 USDG buys 0.2741 NVDA on Uniswap [F3], price impact 0.12%.",
 };
 
 type State = "ready" | "hibernated" | "waking" | "planned" | "provisioning" | "failed";
@@ -65,6 +66,9 @@ interface Fake {
   wake?: () => Response;
   task?: (role: string, prompt: string, signal: AbortSignal | undefined) => Promise<Response> | Response;
   marketDown?: boolean;
+  /** The desk answers Uniswap quotes. */
+  quotes?: boolean;
+  manifest?: unknown;
 }
 let fake: Fake;
 let calls: Array<{ method: string; path: string; body?: unknown }> = [];
@@ -87,7 +91,26 @@ async function perkos(url: string, init?: RequestInit): Promise<Response> {
   if (p === "/project-templates") {
     return Response.json({ templates: [{ id: "eqlty-desk", kind: "fleet", module: "stocks-robinhood", name: { en: "EQLTY Desk" }, description: { en: "Stocks" } }] });
   }
-  if (p === "/desks/stocks-robinhood/manifest") return Response.json(manifest);
+  if (p === "/desks/stocks-robinhood/manifest") return Response.json(fake.manifest ?? manifest);
+  if (p === "/desks/stocks-robinhood/quote" && fake.quotes) {
+    const ticker = u.searchParams.get("ticker") ?? "";
+    return Response.json({
+      quote: {
+        chainId: 4663,
+        ticker,
+        tokenIn: { symbol: "USDG", address: "0x5fc5360d0400a0fd4f2af552add042d716f1d168", decimals: 6 },
+        tokenOut: { symbol: ticker, address: "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec", decimals: 18 },
+        amountIn: String(Number(u.searchParams.get("amountUsdg")) * 1e6),
+        amountOut: "274100000000000000",
+        priceImpactPct: 0.12,
+        routing: "CLASSIC",
+        protocols: ["V4"],
+        requestId: "req-abcdef123456",
+        quotedAt: "2026-09-26T14:30:00.000Z",
+        gasFeeUsd: 0.01,
+      },
+    });
+  }
   if (p === "/desks/stocks-robinhood/market") return fake.marketDown ? Response.json({ error: { message: "down" } }, { status: 502 }) : Response.json(market);
   if (p === "/desks/stocks-robinhood/series") return Response.json({ series: [] });
   if (p === "/project-templates/eqlty-desk/instance") return Response.json(teamBody());
@@ -220,7 +243,7 @@ describe("POST /api/desks/turn: a turn", () => {
     const taskOf = (role: string) => tasks().find((c) => c.path === `/agents/id-${role}/task`);
     const scout = taskOf("scout");
     const trader = taskOf("trader");
-    expect(scout?.body).toMatchObject({ timeoutMs: 55_000 });
+    expect(scout?.body).toMatchObject({ timeoutMs: 85_000 });
     const first = (scout?.body as { prompt: string }).prompt;
     expect(first).toContain('Request to the desk: "How is NVDA doing today?".');
     expect(first).toContain(`Desk rules: ${manifest.rules}`);
@@ -355,6 +378,31 @@ describe("POST /api/desks/turn: a turn", () => {
     const events = await turn();
     expect(events).toEqual([{ step: "error", code: "DESK_MARKET", message: expect.stringContaining("market did not answer") }]);
     expect(liveTurn(WALLET, "eqlty-desk")).toBeNull();
+  });
+
+  it("gives the team Uniswap's price at the turn's size, and asks Quote in the first phase when the desk gives it a prompt", async () => {
+    fake.quotes = true;
+    fake.specialists = { quote: "ready" };
+    fake.manifest = { ...manifest, turns: { analyze: { ...prompts, quote: 'As Quote: read the Uniswap facts. Open with "@Trader @Risk".' }, advise: prompts } };
+    const events = await turn({ desk: "eqlty-desk", text: "How much NVDA do 50 USDG buy?", kind: "analyze" });
+    const open = events[0] as Extract<TurnEvent, { step: "open" }>;
+    expect(open.facts.at(-1)).toMatch(/^\[F\d\] Uniswap now: 50\.00 USDG buys 0\.2741 NVDA \(182\.42 USDG each\), price impact 0\.12%, V4 route, request req-abcd\.$/);
+    expect(open.roles).toEqual(["scout", "risk", "quote", "trader", "auditor"]);
+    expect(calls.some((c) => c.path === "/desks/stocks-robinhood/quote")).toBe(true);
+    const asked = tasks().map((c) => c.path);
+    expect(asked.slice(0, 3).sort()).toEqual(["/agents/id-quote/task", "/agents/id-risk/task", "/agents/id-scout/task"]);
+    const trader = (tasks().find((c) => c.path === "/agents/id-trader/task")?.body as { prompt: string }).prompt;
+    expect(trader).toContain("Quote said:");
+    expect(events.at(-1)).toMatchObject({ step: "done" });
+  });
+
+  it("leaves the Uniswap price out, and Quote with no prompt out of the turn, when the desk does not give them", async () => {
+    fake.specialists = { quote: "ready" };
+    const events = await turn();
+    const open = events[0] as Extract<TurnEvent, { step: "open" }>;
+    expect(open.facts.some((f) => f.includes("Uniswap now"))).toBe(false);
+    expect(open.roles).toEqual(["scout", "risk", "trader", "auditor"]);
+    expect(tasks().some((c) => c.path === "/agents/id-quote/task")).toBe(false);
   });
 
   it("records a runtime failure sent as a reply as no answer, with the runtime's words", async () => {

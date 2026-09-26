@@ -10,6 +10,8 @@ import type { BuyReceipt, DeskQuote, DeskTrader, SweepReceipt, TraderBalance } f
 import type { DeskAsset } from "@perkos/desk-contract";
 import { formatUnits, parseUnits } from "viem";
 
+import type { TurnReceipt } from "../lib/turnRecord";
+
 export const EXPLORER = "https://robinhoodchain.blockscout.com";
 
 /** Robinhood Chain: the one chain this Trader buys on, and the one its copy and explorer name. */
@@ -367,6 +369,8 @@ export interface BuyOrder {
   maxSlippageBps: number;
   /** The quote the owner saw, always sent: PerkOS refuses the swap below it less the slippage. */
   quotedAmountOut: string;
+  /** The desk turn whose plan the buy follows, when it does: PerkOS keeps it as the order's reason. */
+  turnId?: string;
 }
 
 export interface SweepOrder {
@@ -454,6 +458,42 @@ export function sweepView(r: SweepReceipt, symbol: string): string {
 
 /** An answer that may still be a purchase: a swap not confirmed yet, or no clear answer at all. */
 export const unresolved = (o: BuyOutcome): boolean => o.kind === "unconfirmed" || (o.kind === "receipt" && o.receipt.bought === null);
+
+/**
+ * The receipt a desk turn keeps of a buy that followed its plan: the swap that
+ * went out, confirmed, on its way or reverted, with what the person approved.
+ * Null when no swap went out, or when nobody can say what happened.
+ */
+export function turnReceiptOf(outcome: BuyOutcome, order: { ticker: string; amountUsdg: string }, at: Date = new Date()): TurnReceipt | null {
+  if (outcome.kind !== "receipt") return null;
+  const r = outcome.receipt;
+  if (r.status === "not_sent" || !r.hash) return null;
+  return { hash: r.hash, ...(r.explorerUrl ? { explorerUrl: r.explorerUrl } : {}), status: r.status, ticker: order.ticker, amount: order.amountUsdg, at: at.toISOString() };
+}
+
+/** What held a buy from the desk's plan below the plan's amount: one order's limit, or the USDG in the wallet. */
+export type PlanCap = "cap" | "held" | null;
+
+/**
+ * What a buy from the desk's plan starts with: the plan's amount, never more
+ * than one order may spend or than the wallet holds, in whole cents. Before
+ * the wallet is read, or while a limit is not known, the plan's amount as it is.
+ */
+export function planAmount(planned: number, trader: DeskTrader | null): { amount: string; capped: PlanCap } {
+  let amount = planned;
+  let capped: PlanCap = null;
+  if (trader && trader.cap > 0 && trader.cap < amount) {
+    amount = trader.cap;
+    capped = "cap";
+  }
+  const held = trader ? usdgHeld(fundsOf(trader)) : 0;
+  if (held > 0 && held < amount) {
+    amount = held;
+    capped = "held";
+  }
+  // Down to the cent, so rounding never asks for more than the wallet holds.
+  return { amount: String(Math.floor(amount * 100 + 1e-6) / 100), capped };
+}
 
 /** How much more of the stock the wallet holds than when the owner approved, in atomic units, or null when none. */
 export function arrived(before: string, now: string): string | null {

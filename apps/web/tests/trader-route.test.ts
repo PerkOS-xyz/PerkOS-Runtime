@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DELETE as REVOKE } from "../app/api/delegation/route";
 import { POST as BUY } from "../app/api/desks/buy/route";
+import { GET as POSITIONS } from "../app/api/desks/positions/route";
 import { GET as QUOTE } from "../app/api/desks/quote/route";
 import { POST as SWEEP } from "../app/api/desks/sweep/route";
 import { GET as TRADER } from "../app/api/desks/trader/route";
@@ -219,6 +220,23 @@ describe("POST /api/desks/buy", () => {
     });
   });
 
+  it("sends the desk turn a buy follows as the order's reason, and refuses one that is not a turn", async () => {
+    await signIn();
+    const bodies: unknown[] = [];
+    perkos({
+      "POST /desks/stocks-robinhood/orders/buy": (init) => {
+        bodies.push(JSON.parse(String(init?.body)));
+        return Response.json({ ok: true, bought: true, status: "success", hash: "0xfeed", explorerUrl: null, amountOut: null, steps: [], notice: null });
+      },
+    });
+    expect((await BUY(post("/api/desks/buy", { ...ORDER, turnId: "20260926-143205-ab12" }))).status).toBe(200);
+    expect(bodies).toEqual([{ ticker: "NVDA", amountUsdg: "1", maxSlippageBps: 100, quotedAmountOut: "4200000000000000", reason: "20260926-143205-ab12" }]);
+    for (const turnId of ["../../session", "", 42, "20260926-143205"]) {
+      expect((await BUY(post("/api/desks/buy", { ...ORDER, turnId }))).status).toBe(400);
+    }
+    expect(bodies).toHaveLength(1);
+  });
+
   it("passes an order that stopped before the swap, or a swap not confirmed yet, through as a receipt", async () => {
     await signIn();
     perkos({
@@ -307,5 +325,90 @@ describe("DELETE /api/delegation", () => {
     await signIn();
     perkos({ "POST /delegation/revoke": () => Response.json({ ok: true, revoked: false }) });
     expect(await (await REVOKE(post("/api/delegation", {}, "DELETE"))).json()).toEqual({ revoked: false });
+  });
+});
+
+describe("GET /api/desks/positions", () => {
+  const PORTFOLIO = {
+    ok: true,
+    module: "stocks-robinhood",
+    delegated: true,
+    wallet: WALLET,
+    chain: "robinhood",
+    chainId: 4663,
+    input: { symbol: "USDG", address: USDG, decimals: 6 },
+    gas: { symbol: "ETH", raw: "2000000000000000", formatted: "0.002" },
+    cash: { symbol: "USDG", raw: "12500000", formatted: "12.5" },
+    positions: [
+      {
+        ticker: "NVDA",
+        name: "NVIDIA • Robinhood Token",
+        address: NVDA,
+        decimals: 18,
+        raw: "100000000000000000",
+        amount: "0.1",
+        price: 180,
+        change24hPct: 1.5,
+        logoUrl: null,
+        value: 18,
+        spent: "30",
+        received: "0.15",
+        avgCost: 200,
+        cost: 20,
+        pnl: -2,
+        pnlPct: -10,
+        buys: 2,
+        lastBuyAt: "2026-09-22T10:00:00.000Z",
+      },
+    ],
+    totals: { value: 18, cost: 20, pnl: -2, pnlPct: -10, unpriced: 0, uncosted: 0 },
+    swaps: [{ hash: "0xfeed", ticker: "NVDA", tokenOut: NVDA, usdgIn: "20", amountOut: "0.1", status: "success", explorerUrl: null, at: "2026-09-22T10:00:00.000Z" }],
+    marketAvailable: true,
+    unreadable: [],
+    history: "complete",
+  };
+
+  it("asks which desk, needs a session, and refuses another site", async () => {
+    expect((await POSITIONS(get("/api/desks/positions?module=Bad"))).status).toBe(400);
+    expect((await POSITIONS(get("/api/desks/positions?module=stocks-robinhood"))).status).toBe(401);
+    const foreign = new Request("http://127.0.0.1:3100/api/desks/positions?module=stocks-robinhood", { headers: { ...HOST, "sec-fetch-site": "cross-site" } });
+    expect((await POSITIONS(foreign)).status).toBe(403);
+  });
+
+  it("returns the portfolio PerkOS read, in the client's atomic units", async () => {
+    await signIn();
+    perkos({ "GET /desks/stocks-robinhood/positions": () => Response.json(PORTFOLIO) });
+    const res = await POSITIONS(get("/api/desks/positions?module=stocks-robinhood"));
+    expect(res.status).toBe(200);
+    const { portfolio } = await res.json();
+    expect(portfolio).toMatchObject({
+      delegated: true,
+      wallet: WALLET,
+      chainId: 4663,
+      cash: { symbol: "USDG", address: USDG, decimals: 6, amount: "12500000" },
+      gas: { ok: true, wei: "2000000000000000" },
+      totals: { value: 18, cost: 20, pnl: -2, pnlPct: -10 },
+      history: "complete",
+    });
+    expect(portfolio.positions).toEqual([
+      expect.objectContaining({ ticker: "NVDA", amount: "100000000000000000", spent: "30000000", received: "150000000000000000", avgCost: 200, buys: 2 }),
+    ]);
+    expect(portfolio.swaps).toEqual([expect.objectContaining({ hash: "0xfeed", ticker: "NVDA", usdgIn: "20", amountOut: "0.1", status: "success" })]);
+  });
+
+  it("refuses a portfolio on any chain but Robinhood Chain, and passes PerkOS's code through", async () => {
+    await signIn();
+    perkos({ "GET /desks/stocks-robinhood/positions": () => Response.json({ ...PORTFOLIO, chainId: 8453 }) });
+    let res = await POSITIONS(get("/api/desks/positions?module=stocks-robinhood"));
+    expect(res.status).toBe(502);
+    expect(await res.json()).toMatchObject({ error: "PORTFOLIO_CHAIN" });
+
+    perkos({
+      "GET /desks/stocks-robinhood/positions": () =>
+        Response.json({ error: { message: "Robinhood Chain did not answer. Try again in a moment.", code: "CHAIN_UNAVAILABLE" } }, { status: 503 }),
+    });
+    res = await POSITIONS(get("/api/desks/positions?module=stocks-robinhood"));
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: "CHAIN_UNAVAILABLE", message: "Robinhood Chain did not answer. Try again in a moment." });
   });
 });

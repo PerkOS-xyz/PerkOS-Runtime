@@ -2,6 +2,8 @@
 
 import { useEffect, useState, type CSSProperties } from "react";
 
+import { txUrl } from "../desks/trade";
+import type { TurnReceipt } from "../lib/turnRecord";
 import { AgentPortrait } from "../team/AgentPortrait";
 import { sphereAccent } from "../team/avatarIdentity";
 import { cardsMode, FOLD_AFTER_MS, type CardLook, type CardsMode } from "./turnLook";
@@ -14,6 +16,12 @@ export interface SeatTurn {
   lines: ReadonlySet<string>;
   /** Brings a role's last line of the conversation into view. */
   onFocus: (role: string) => void;
+  /** The receipt of the order the person approved from this turn's plan, for the Auditor's card. */
+  receipt?: TurnReceipt | null | undefined;
+  /** Opens the Trader with the Trader's plan filled in, once the turn is over and left one. */
+  onBuy?: (() => void) | undefined;
+  /** What Buy in Trader fills in, for its tip: "NVDA for 50 USDG". */
+  buyTitle?: string | undefined;
 }
 
 /** The moment the cards are drawn at: every second while the turn runs, then once more when they fold. */
@@ -62,10 +70,30 @@ export function focusLine(convo: HTMLElement, role: string): boolean {
  * once it folds. Focus, or the chip, shows the agent's last line in the
  * conversation. A `replay` card, as History shows a kept turn, is the same
  * card without Focus and without the chip.
+ *
+ * With `onBuy`, the Trader's card and its chip carry Buy in Trader: it only
+ * fills the Trader in, and the quote and the hold stay the person's. Once the
+ * person signed, the Auditor's card and its chip carry the receipt.
  */
-export function TurnCard({ look, onFocus, replay = false }: { look: CardLook; onFocus?: (() => void) | undefined; replay?: boolean }) {
+export function TurnCard({
+  look,
+  onFocus,
+  onBuy,
+  buyTitle,
+  replay = false
+}: {
+  look: CardLook;
+  onFocus?: (() => void) | undefined;
+  onBuy?: (() => void) | undefined;
+  buyTitle?: string | undefined;
+  replay?: boolean;
+}) {
   const style = { "--role": sphereAccent(look.role) } as CSSProperties;
   const tip = look.detail ? `${look.summary}\n${look.detail}` : look.summary;
+  const buy =
+    onBuy && !replay
+      ? { onClick: onBuy, title: `Opens the Trader with ${buyTitle ?? "the Trader's plan"} filled in. Nothing is bought until you get a quote and hold to approve.` }
+      : null;
   return (
     <div className={`st-card ${look.tone}`} data-role={look.role} style={style} title={tip}>
       <div className="st-card-full">
@@ -86,7 +114,7 @@ export function TurnCard({ look, onFocus, replay = false }: { look: CardLook; on
               {look.status === "thinking" ? <span className="st-card-label">thinking</span> : <span className="st-card-skel short" aria-hidden />}
             </>
           )}
-          {look.receiptSlot ? <span className="st-card-slot">Receipt after your signature</span> : <span className="st-card-bar" aria-hidden />}
+          {look.receiptSlot ? <span className="st-card-slot">Receipt after your signature</span> : look.receipt ? <Receipt receipt={look.receipt} className="st-card-slot" /> : <span className="st-card-bar" aria-hidden />}
         </div>
         <ol className="st-card-steps">
           {look.steps.map((step) => (
@@ -96,6 +124,11 @@ export function TurnCard({ look, onFocus, replay = false }: { look: CardLook; on
             </li>
           ))}
         </ol>
+        {buy ? (
+          <button type="button" className="st-card-buy" {...buy}>
+            Buy in Trader
+          </button>
+        ) : null}
         {replay ? null : (
           <button
             type="button"
@@ -119,6 +152,28 @@ export function TurnCard({ look, onFocus, replay = false }: { look: CardLook; on
           <span>{look.chip}</span>
         </span>
       )}
+      {buy ? (
+        <button type="button" className="st-card-buy chip" {...buy}>
+          Buy in Trader
+        </button>
+      ) : null}
+      {!replay && look.receipt ? <Receipt receipt={look.receipt} className="st-card-receipt" /> : null}
     </div>
+  );
+}
+
+/** What the person signed after the turn, on the Auditor's card: a link to the swap on the explorer. */
+function Receipt({ receipt, className }: { receipt: NonNullable<CardLook["receipt"]>; className: string }) {
+  return (
+    <a
+      className={`${className} st-receipt ${receipt.status}`}
+      href={txUrl(receipt.hash, receipt.explorerUrl)}
+      target="_blank"
+      rel="noreferrer"
+      title={`${receipt.text}. Opens the swap on the explorer.`}
+    >
+      <i aria-hidden />
+      <span>{receipt.text}</span>
+    </a>
   );
 }

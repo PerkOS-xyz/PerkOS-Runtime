@@ -6,7 +6,8 @@ import { describe, expect, it } from "vitest";
 
 import { AiRegistry, type AiProvider, type ChatRequest } from "@perkos/ai";
 
-import { cleanMessages, SPARKY_PROMPT, sparkyPrompt, startReply, tapReply, withMemory } from "../app/lib/sparky";
+import { cleanMessages, planToPoint, SPARKY_PROMPT, sparkyPrompt, startReply, tapReply, withMemory, withPlan } from "../app/lib/sparky";
+import type { RoleReply } from "../app/lib/turnRecord";
 
 function provider(chat: (r: ChatRequest) => AsyncIterable<string>): AiProvider {
   return { id: "local", label: "Local", health: async () => ({ ok: true, detail: "" }), models: async () => [], chat };
@@ -139,5 +140,37 @@ describe("tapReply", () => {
     await reader.read();
     await reader.cancel();
     expect(seen).toEqual(["first. "]);
+  });
+});
+
+describe("pointing to the Trader's plan after a turn", () => {
+  const trader = (reply: string): RoleReply => ({ role: "trader", phase: 2, ok: true, reply, ms: 9_000 });
+  const turn = (over: Partial<Parameters<typeof planToPoint>[0]> = {}) => ({
+    kind: "advise" as const,
+    facts: ["[F1] NVDA (NVIDIA): 181.20 USDG.", "[F2] AAPL (Apple): 228.40 USDG."],
+    replies: [trader("@Sparky Entry plan for AAPL [F2]: 150 USDG, take profit at 240, stop at 220.")],
+    ...over,
+  });
+  const desk = { screens: ["market", "trader", "history"] as ("market" | "trader" | "history")[], maxOrder: 100 };
+
+  it("points to the plan after an advise turn on a desk with a Trader, capped at one order", () => {
+    expect(planToPoint(turn(), desk)).toEqual({ ticker: "AAPL", amount: 100 });
+  });
+
+  it("stays quiet after another kind of turn, on a desk without a Trader, or when there is no plan", () => {
+    expect(planToPoint(turn({ kind: "analyze" }), desk)).toBeNull();
+    expect(planToPoint(turn(), { screens: ["market", "history"], maxOrder: 100 })).toBeNull();
+    expect(planToPoint(turn(), null)).toBeNull();
+    expect(planToPoint(turn({ replies: [trader("@Sparky I would wait for the close [F1] before any 40 USDG entry in NVDA.")] }), desk)).toBeNull();
+    expect(planToPoint(turn({ error: { code: "TEAM_ASLEEP", message: "The team is asleep." } }), desk)).toBeNull();
+  });
+
+  it("asks Sparky to close on Buy in Trader, and never to say it was bought", () => {
+    const prompt = withPlan("SYSTEM", { ticker: "AAPL", amount: 40 });
+    expect(prompt.startsWith("SYSTEM\n\n")).toBe(true);
+    expect(prompt).toContain("The Trader's plan is ready to buy from the desk: AAPL for 40 USDG.");
+    expect(prompt).toContain('points the person to "Buy in Trader" on the Trader\'s card');
+    expect(prompt).toContain("nothing is bought until they get a quote and hold to approve");
+    expect(prompt).not.toMatch(/\u2014/);
   });
 });

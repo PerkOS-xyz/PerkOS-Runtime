@@ -22,9 +22,12 @@ export const DeskStarterSchema = z
 
 const RolePrompt = z.string().trim().min(1).max(1200);
 
-/** What each role does in one kind of turn. */
+/**
+ * What each role does in one kind of turn. `quote`, for a desk with a Uniswap
+ * quote specialist, joins the first phase to read the executable price.
+ */
 export const DeskRolePromptsSchema = z
-  .object({ scout: RolePrompt, risk: RolePrompt, trader: RolePrompt, auditor: RolePrompt })
+  .object({ scout: RolePrompt, risk: RolePrompt, trader: RolePrompt, auditor: RolePrompt, quote: RolePrompt.optional() })
   .strict();
 
 export const DeskManifestSchema = z

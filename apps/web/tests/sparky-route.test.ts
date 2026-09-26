@@ -37,6 +37,7 @@ vi.mock("../app/lib/models", async () => {
 import { POST as SPARKY } from "../app/api/sparky/route";
 import { DELETE as VAULT_OFF, POST as VAULT_ON } from "../app/api/vault/route";
 import { memoryFor } from "../app/lib/memory";
+import { rememberManifest } from "../app/lib/perkos";
 import { answering, teamLines } from "../app/lib/sparky";
 import type { TurnRecord } from "../app/lib/turnRecord";
 import { clearSessionTurns, getTurn, saveTurn } from "../app/lib/turnStore";
@@ -131,6 +132,25 @@ describe("Sparky's summary of a desk turn", () => {
     expect(system()).toContain("Nothing is bought until the person holds to approve in the Trader.");
     expect(system()).not.toContain("USDG [F1]");
     await vi.waitFor(async () => expect((await getTurn(WALLET, ID, null))?.summary).toBe("The desk reads NVDA as steady."));
+  });
+
+  it("closes an advise turn that left a plan by pointing to Buy in Trader, and no other turn", async () => {
+    rememberManifest("stocks-robinhood", {
+      tagline: "Tokenized stocks on Robinhood Chain",
+      starters: [],
+      screens: ["market", "trader", "history"],
+      rules: "An order is at most 100 USDG.",
+      maxOrder: 100,
+      turns: {},
+    });
+    const advise = record({ kind: "advise", replies: [{ role: "trader", phase: 2, ok: true, reply: "@Sparky Entry plan for NVDA [F1]: 50 USDG, stop at 172.", ms: 9_000 }] });
+    await saveTurn(WALLET, advise, null);
+    await (await post({ desk: "eqlty-desk", turn: ID, messages: [] })).text();
+    expect(system()).toContain("The Trader's plan is ready to buy from the desk: NVDA for 50 USDG.");
+    expect(system()).toContain('"Buy in Trader"');
+    await saveTurn(WALLET, { ...advise, kind: "analyze" }, null);
+    await (await post({ desk: "eqlty-desk", turn: ID, messages: [] })).text();
+    expect(system()).not.toContain("Buy in Trader");
   });
 
   it("tells Sparky why the team could not take part", async () => {

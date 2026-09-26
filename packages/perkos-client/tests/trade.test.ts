@@ -228,6 +228,16 @@ describe("a buy", () => {
     });
   });
 
+  it("sends the reason the order goes out with, when there is one", async () => {
+    const bodies: unknown[] = [];
+    const http = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return reply(200, { ok: true, bought: true, status: "success", hash: "0xfeed", steps: [] });
+    });
+    await tradeWith(http as typeof fetch).buy("stocks-robinhood", { ...input, reason: "20260926-143205-ab12" });
+    expect(bodies).toEqual([{ ...input, reason: "20260926-143205-ab12" }]);
+  });
+
   it("reads an order that stopped before the swap as nothing bought, and keeps no approval's hash as the order's", async () => {
     await expect(
       buyWith({
@@ -320,5 +330,123 @@ describe("amounts in atomic units", () => {
     expect(atomic("0.1234567", 6)).toBe("123456");
     expect(atomic("-1", 6)).toBeNull();
     expect(atomic("abc", 6)).toBeNull();
+  });
+});
+
+describe("the portfolio", () => {
+  const TSLA = "0x00000000000000000000000000000000000000e7";
+  const nvda = {
+    ticker: "NVDA",
+    name: "NVIDIA • Robinhood Token",
+    address: NVDA,
+    decimals: 18,
+    raw: "100000000000000000",
+    amount: "0.1",
+    price: 180,
+    change24hPct: 1.5,
+    logoUrl: "https://logos.example/NVDA.png",
+    value: 18,
+    spent: "30",
+    received: "0.15",
+    avgCost: 200,
+    cost: 20,
+    pnl: -2,
+    pnlPct: -10,
+    buys: 2,
+    lastBuyAt: "2026-09-22T10:00:00.000Z",
+  };
+  const answer = {
+    ok: true,
+    module: "stocks-robinhood",
+    delegated: true,
+    wallet: WALLET,
+    chain: "robinhood",
+    chainId: 4663,
+    input: { symbol: "USDG", address: USDG, decimals: 6 },
+    gas: { symbol: "ETH", raw: "2000000000000000", formatted: "0.002" },
+    cash: { symbol: "USDG", raw: "12500000", formatted: "12.5" },
+    positions: [
+      nvda,
+      { ...nvda, ticker: "TSLA", name: "Tesla", address: TSLA, raw: undefined, amount: "0.02", price: null, value: null, spent: "0", received: "0", avgCost: null, cost: null, pnl: null, pnlPct: null, buys: 0, lastBuyAt: null, logoUrl: "javascript:alert(1)" },
+      { ticker: "BROKEN", address: "0x12", decimals: 18, raw: "1" },
+    ],
+    totals: { value: 18, cost: 20, pnl: -2, pnlPct: -10, unpriced: 1, uncosted: 1 },
+    swaps: [
+      { hash: "0xfeed", ticker: "NVDA", tokenOut: NVDA, usdgIn: "20", amountOut: "0.1", status: "success", explorerUrl: "https://robinhoodchain.blockscout.com/tx/0xfeed", at: "2026-09-22T10:00:00.000Z" },
+      { hash: "0xbeef", ticker: null, tokenOut: null, usdgIn: "10", amountOut: null, status: "sending", explorerUrl: "javascript:alert(1)", at: null },
+      { ticker: "NVDA", usdgIn: "5" },
+    ],
+    marketAvailable: true,
+    unreadable: [],
+    history: "partial",
+  };
+  const portfolioWith = (body: unknown, expectChainId?: number) =>
+    tradeWith(vi.fn(async () => reply(200, body)) as unknown as typeof fetch).positions("stocks-robinhood", expectChainId);
+
+  it("reads each position in atomic units, the cash, the gas, the totals and the last swaps", async () => {
+    const http = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      expect(String(url)).toBe("https://api.perkos.xyz/desks/stocks-robinhood/positions");
+      expect(new Headers(init?.headers).get("authorization")).toBe("Bearer session-token");
+      return reply(200, answer);
+    });
+    await expect(tradeWith(http as typeof fetch).positions("stocks-robinhood", 4663)).resolves.toEqual({
+      delegated: true,
+      wallet: WALLET,
+      chainId: 4663,
+      input: { symbol: "USDG", address: USDG, decimals: 6 },
+      cash: { symbol: "USDG", address: USDG, decimals: 6, amount: "12500000" },
+      gas: { ok: true, wei: "2000000000000000" },
+      positions: [
+        { ...nvda, raw: undefined, amount: "100000000000000000", spent: "30000000", received: "150000000000000000" },
+        {
+          ticker: "TSLA",
+          name: "Tesla",
+          address: TSLA,
+          decimals: 18,
+          amount: "20000000000000000",
+          price: null,
+          change24hPct: 1.5,
+          // Only an http(s) link reaches the screen.
+          logoUrl: null,
+          value: null,
+          spent: "0",
+          received: "0",
+          avgCost: null,
+          cost: null,
+          pnl: null,
+          pnlPct: null,
+          buys: 0,
+          lastBuyAt: null,
+        },
+      ],
+      totals: { value: 18, cost: 20, pnl: -2, pnlPct: -10, unpriced: 1, uncosted: 1 },
+      swaps: [
+        { hash: "0xfeed", ticker: "NVDA", tokenOut: NVDA, usdgIn: "20", amountOut: "0.1", status: "success", explorerUrl: "https://robinhoodchain.blockscout.com/tx/0xfeed", at: "2026-09-22T10:00:00.000Z" },
+        // A swap still being signed is not confirmed.
+        { hash: "0xbeef", ticker: null, tokenOut: null, usdgIn: "10", amountOut: null, status: "pending", explorerUrl: null, at: null },
+      ],
+      marketAvailable: true,
+      history: "partial",
+    });
+  });
+
+  it("shows nothing of the owner's before delegation, and reads a history it does not know as complete", async () => {
+    const before = await portfolioWith({ ...answer, delegated: false, wallet: null, gas: null, cash: null, history: "someday" });
+    expect(before).toMatchObject({ delegated: false, wallet: null, cash: null, positions: [], swaps: [], gas: { ok: false, wei: null }, history: "complete" });
+    // A delegated answer with no wallet cannot be drawn as the owner's.
+    expect(await portfolioWith({ ...answer, wallet: "not-an-address" })).toMatchObject({ delegated: false, positions: [], swaps: [], cash: null });
+  });
+
+  it("refuses an answer it cannot read, and a portfolio on another chain than the one asked for", async () => {
+    await expect(portfolioWith({ ...answer, positions: undefined })).rejects.toMatchObject({ code: "PORTFOLIO_SHAPE", status: 502 });
+    await expect(portfolioWith({ ...answer, input: null })).rejects.toMatchObject({ code: "PORTFOLIO_SHAPE" });
+    await expect(portfolioWith({ ...answer, delegated: "yes" })).rejects.toMatchObject({ code: "PORTFOLIO_SHAPE" });
+    await expect(portfolioWith({ ...answer, chainId: 8453 }, 4663)).rejects.toMatchObject({ code: "PORTFOLIO_CHAIN", status: 502 });
+    await expect(portfolioWith({ ...answer, chainId: 8453 })).resolves.toMatchObject({ chainId: 8453 });
+  });
+
+  it("keeps the code PerkOS gives when it cannot read the wallet", async () => {
+    const http = vi.fn(async () => reply(503, { error: { message: "Robinhood Chain did not answer. Try again in a moment.", code: "CHAIN_UNAVAILABLE" } }));
+    await expect(tradeWith(http as unknown as typeof fetch).positions("stocks-robinhood")).rejects.toMatchObject({ status: 503, code: "CHAIN_UNAVAILABLE" });
   });
 });

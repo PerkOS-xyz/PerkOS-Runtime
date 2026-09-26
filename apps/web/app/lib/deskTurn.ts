@@ -10,23 +10,26 @@
  * order: the person trades only from the Trader sheet, by holding to approve.
  */
 
-import { Agents, Desks, Team, type DeskSummary, type PerkosClient } from "@perkos/client";
+import { Agents, Desks, DeskTrade, Team, type DeskSummary, type PerkosClient } from "@perkos/client";
 import type { DeskAsset, DeskManifest, DeskMarket, DeskSeries } from "@perkos/desk-contract";
 import type { NoteStore } from "@perkos/vault";
 
 import { askedAbout, candidates, factLines, MAX_CANDIDATES } from "./marketFacts";
 import { teamMemory } from "./memory";
-import { rememberMarket } from "./perkos";
+import { rememberManifest, rememberMarket } from "./perkos";
 import { runTurn } from "./turnEngine";
 import { failureLabel } from "./turnFailure";
 import { lintTurn } from "./turnLint";
 import { buildHead, headBudget, principalLine, shortFact } from "./turnPrompts";
-import { TURN_PHASES, type FailureKind, type RoleReply, type TurnErrorCode, type TurnEvent, type TurnKind, type TurnRecord, type TurnStep } from "./turnRecord";
+import { PHASE_ONE_SPECIALISTS, TURN_PHASES, type FailureKind, type RoleReply, type TurnErrorCode, type TurnEvent, type TurnKind, type TurnRecord, type TurnStep } from "./turnRecord";
 import { saveTurn } from "./turnStore";
 import { readyTeam, TURN_ERRORS } from "./turnTeam";
+import { turnSize, uniswapFacts } from "./uniswapFacts";
 
 /** The market and its history together must answer within this. */
 export const FACTS_MS = 10_000;
+/** Uniswap's quotes at the turn's size must answer within this, or the turn goes on without them. */
+export const QUOTES_MS = 8_000;
 /** Assets a question about named stocks puts in front of the team. */
 const MAX_ASKED = 5;
 
@@ -96,6 +99,7 @@ export async function runDeskTurn(input: DeskTurnInput): Promise<TurnRecord | nu
     return null;
   }
   rememberMarket(input.desk.module, market);
+  rememberManifest(input.desk.module, manifest);
   const assets = turnAssets(kind, input.question, market, input.tickers);
   if (!assets.length) {
     input.emit({ step: "error", code: "DESK_MARKET", message: "The desk has no priced asset to look at right now." });
@@ -110,12 +114,19 @@ export async function runDeskTurn(input: DeskTurnInput): Promise<TurnRecord | nu
     [],
   );
   if (signal.aborted) return null;
-  const facts = factLines(market, assets, series);
-  early.push(step(`Read ${facts.length} ${facts.length === 1 ? "fact" : "facts"} from the market`));
+  const marketFacts = factLines(market, assets, series);
+  const size = turnSize(input.question, manifest.maxOrder);
+  const quoted = await within(uniswapFacts(new DeskTrade(input.client), input.desk.module, assets, size), QUOTES_MS, [] as string[]);
+  if (signal.aborted) return null;
+  const facts = [...marketFacts, ...quoted.map((line, i) => `[F${marketFacts.length + i + 1}] ${line}`)];
+  early.push(step(`Read ${marketFacts.length} ${marketFacts.length === 1 ? "fact" : "facts"} from the market`));
+  if (quoted.length) early.push(step(`Asked Uniswap what ${size} ${market.quoteSymbol} buys now`));
   const memory = input.notes ? await teamMemory(input.notes, input.desk.id, input.question).catch(() => "") : "";
 
   // 2. Open.
-  const phases = TURN_PHASES.map((roles) => roles.filter((r) => rolePrompts[r as keyof typeof rolePrompts] !== undefined));
+  const phases = [[...TURN_PHASES[0], ...PHASE_ONE_SPECIALISTS], [...TURN_PHASES[1]]].map((roles) =>
+    roles.filter((r) => rolePrompts[r as keyof typeof rolePrompts] !== undefined),
+  );
   const roles = phases.flat();
   const principal = principalLine(
     input.question,

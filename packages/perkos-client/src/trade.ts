@@ -122,6 +122,84 @@ export interface BuyInput {
   maxSlippageBps: number;
   /** The quote the owner approved, in the stock's atomic units, so PerkOS can refuse a worse price. */
   quotedAmountOut: string;
+  /** Why the order goes out, kept with it on PerkOS: the desk turn whose plan it follows. Left out, PerkOS writes its own. */
+  reason?: string;
+}
+
+/** One stock the delegated wallet holds, at the desk's price, against what the Trader paid for it. */
+export interface PortfolioPosition {
+  ticker: string;
+  name: string;
+  address: string;
+  decimals: number;
+  /** What the wallet holds now, in atomic units. */
+  amount: string;
+  /** The desk's price now, in USDG a share; null while the market gives none. */
+  price: number | null;
+  change24hPct: number | null;
+  logoUrl: string | null;
+  /** What the wallet holds, at that price, in USDG. */
+  value: number | null;
+  /** USDG paid and shares received across the swaps that landed, each in its own atomic units. */
+  spent: string;
+  received: string;
+  /** USDG a share across those swaps; null when none is on record. */
+  avgCost: number | null;
+  /** The average cost of what the wallet holds now, in USDG. */
+  cost: number | null;
+  pnl: number | null;
+  pnlPct: number | null;
+  /** How many swaps into this stock landed, and when PerkOS recorded the last one. */
+  buys: number;
+  lastBuyAt: string | null;
+}
+
+/** One swap the Trader sent on the desk. Its amounts are in whole units, as PerkOS wrote them. */
+export interface PortfolioSwap {
+  hash: string;
+  /** The stock, by the desk's ticker; null for one the market no longer lists. */
+  ticker: string | null;
+  tokenOut: string | null;
+  usdgIn: string | null;
+  amountOut: string | null;
+  /** A swap PerkOS has not confirmed or refused reads as "pending". */
+  status: SwapStatus;
+  explorerUrl: string | null;
+  at: string | null;
+}
+
+export interface PortfolioTotals {
+  /** What the positions with a price are worth, in USDG. */
+  value: number;
+  /** What the positions with a cost cost. */
+  cost: number;
+  /** Over the positions with both a price and a cost, and in percent of their cost. */
+  pnl: number;
+  pnlPct: number | null;
+  /** How many positions have no price, and how many no cost. */
+  unpriced: number;
+  uncosted: number;
+}
+
+/** Whether the costs count every buy: PerkOS read its whole log of them, only part of it, or none. */
+export type PortfolioHistory = "complete" | "partial" | "unavailable";
+const HISTORIES: readonly PortfolioHistory[] = ["complete", "partial", "unavailable"];
+
+export interface DeskPortfolio {
+  /** PerkOS holds a live share of a wallet the owner delegated. */
+  delegated: boolean;
+  wallet: string | null;
+  chainId: number;
+  input: TraderToken | null;
+  /** The USDG the wallet holds, ready to spend; null before the owner gives access. */
+  cash: TraderBalance | null;
+  gas: DeskTrader["gas"];
+  positions: PortfolioPosition[];
+  totals: PortfolioTotals;
+  swaps: PortfolioSwap[];
+  /** False when the desk's market did not answer, so a stock or a price may be missing. */
+  marketAvailable: boolean;
+  history: PortfolioHistory;
 }
 
 type Obj = Record<string, unknown>;
@@ -216,6 +294,80 @@ function boughtOf(swap: SwapStatus, said: unknown): boolean | null {
   if (swap === "success" && said === true) return true;
   if ((swap === "reverted" || swap === "not_sent") && said === false) return false;
   return null;
+}
+
+/** A whole-unit amount as PerkOS wrote it ("0.05"), or null. */
+const whole = (v: unknown): string | null => (typeof v === "string" && /^\d+(\.\d+)?$/.test(v.trim()) ? v.trim() : null);
+const count = (v: unknown): number => {
+  const n = finite(v);
+  return n !== null && n > 0 ? Math.floor(n) : 0;
+};
+/** A link the screen may open: http(s) only. */
+const link = (v: unknown): string | null => {
+  const t = text(v)?.trim() ?? null;
+  return t && /^https?:\/\//i.test(t) ? t : null;
+};
+
+function position(v: unknown, inputDecimals: number): PortfolioPosition[] {
+  if (!isObject(v)) return [];
+  const ticker = text(v.ticker);
+  const decimals = finite(v.decimals);
+  if (!ticker || typeof v.address !== "string" || !ADDRESS.test(v.address) || decimals === null) return [];
+  // PerkOS gives what is held as `raw`, in atomic units, beside `amount` in whole units.
+  const amount = atomic(v.raw, decimals) ?? fromWhole(v.amount, decimals);
+  if (amount === null) return [];
+  return [
+    {
+      ticker,
+      name: text(v.name) ?? ticker,
+      address: v.address,
+      decimals,
+      amount,
+      price: finite(v.price),
+      change24hPct: finite(v.change24hPct),
+      logoUrl: link(v.logoUrl),
+      value: finite(v.value),
+      spent: fromWhole(v.spent, inputDecimals) ?? "0",
+      received: fromWhole(v.received, decimals) ?? "0",
+      avgCost: finite(v.avgCost),
+      cost: finite(v.cost),
+      pnl: finite(v.pnl),
+      pnlPct: finite(v.pnlPct),
+      buys: count(v.buys),
+      lastBuyAt: text(v.lastBuyAt),
+    },
+  ];
+}
+
+function swapLine(v: unknown): PortfolioSwap[] {
+  if (!isObject(v)) return [];
+  const hash = text(v.hash);
+  if (!hash) return [];
+  return [
+    {
+      hash,
+      ticker: text(v.ticker),
+      tokenOut: typeof v.tokenOut === "string" && ADDRESS.test(v.tokenOut) ? v.tokenOut : null,
+      usdgIn: whole(v.usdgIn),
+      amountOut: whole(v.amountOut),
+      // "sending", or anything else PerkOS has not settled, is not confirmed.
+      status: SWAP_STATUSES.find((s) => s === v.status) ?? "pending",
+      explorerUrl: link(v.explorerUrl),
+      at: text(v.at),
+    },
+  ];
+}
+
+function totalsOf(v: unknown): PortfolioTotals {
+  const t = isObject(v) ? v : {};
+  return {
+    value: finite(t.value) ?? 0,
+    cost: finite(t.cost) ?? 0,
+    pnl: finite(t.pnl) ?? 0,
+    pnlPct: finite(t.pnlPct),
+    unpriced: count(t.unpriced),
+    uncosted: count(t.uncosted),
+  };
 }
 
 export class DeskTrade {
@@ -336,5 +488,41 @@ export class DeskTrade {
     const hash = text(body.hash);
     if (!hash) throw new PerkosApiError("PerkOS answered a receipt this version cannot read", 502, "RECEIPT_SHAPE");
     return { hash, status: status(body.status), explorerUrl: text(body.explorerUrl) };
+  }
+
+  /**
+   * What the delegated wallet holds on the desk's chain, priced by the desk,
+   * against what the Trader paid for it; the USDG and gas beside it; and the
+   * last swaps. Moves nothing. With `expectChainId`, a portfolio on any other
+   * chain is refused, as the Trader is.
+   */
+  async positions(module: string, expectChainId?: number): Promise<DeskPortfolio> {
+    const body = await this.client.request<Obj>(this.path(module, "positions"), { timeoutMs: 30_000 });
+    const chainId = finite(body.chainId);
+    const input = token(body.input);
+    // Without what the desk pays in, no cost can be read.
+    if (typeof body.delegated !== "boolean" || chainId === null || !input || !Array.isArray(body.positions) || !Array.isArray(body.swaps)) {
+      throw new PerkosApiError("PerkOS answered a portfolio this version cannot read", 502, "PORTFOLIO_SHAPE");
+    }
+    if (expectChainId !== undefined && chainId !== expectChainId) {
+      throw new PerkosApiError(`This portfolio is on chain ${chainId}; this desk trades on chain ${expectChainId}`, 502, "PORTFOLIO_CHAIN");
+    }
+    const wallet = typeof body.wallet === "string" && ADDRESS.test(body.wallet) ? body.wallet : null;
+    const delegated = body.delegated && wallet !== null;
+    const cash = delegated && isObject(body.cash) ? amountOf(body.cash, input.decimals, ["raw", "amount"]) : null;
+    return {
+      delegated,
+      wallet,
+      chainId,
+      input,
+      cash: cash === null ? null : { symbol: input.symbol, address: input.address, decimals: input.decimals, amount: cash },
+      gas: gasOf(body.gas, []),
+      // Before the owner gives access there is nothing of theirs to show, whatever came with the answer.
+      positions: delegated ? body.positions.flatMap((p) => position(p, input.decimals)) : [],
+      totals: totalsOf(body.totals),
+      swaps: delegated ? body.swaps.flatMap(swapLine) : [],
+      marketAvailable: body.marketAvailable !== false,
+      history: HISTORIES.find((h) => h === body.history) ?? "complete",
+    };
   }
 }

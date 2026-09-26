@@ -33,6 +33,12 @@ export interface ProviderHealth {
   detail: string;
   /** Where it is answering from, when there is a URL to name. */
   baseUrl?: string;
+  /**
+   * False when this person cannot use the source at all, such as PerkOS LLM
+   * for a wallet without access: the screen leaves it out rather than showing
+   * something broken they could never fix.
+   */
+  offered?: boolean;
 }
 
 export interface AiProvider {
