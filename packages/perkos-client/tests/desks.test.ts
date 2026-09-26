@@ -151,6 +151,22 @@ describe("what the client says when it cannot ask", () => {
     });
   });
 
+  it("reads the reason PerkOS nests under error, before the flat one", async () => {
+    const nested = vi.fn(async () =>
+      reply(409, { error: { message: "The Trader's wallet needs a little ETH on Robinhood Chain for gas", code: "TRADER_NEEDS_GAS" }, message: "ignored" }),
+    );
+    await expect(clientWith(nested as unknown as typeof fetch).request("/desks/stocks-robinhood/orders/buy")).rejects.toMatchObject({
+      status: 409,
+      code: "TRADER_NEEDS_GAS",
+      message: "The Trader's wallet needs a little ETH on Robinhood Chain for gas",
+    });
+    const bare = vi.fn(async () => reply(500, { error: "boom" }));
+    await expect(clientWith(bare as unknown as typeof fetch).request("/desks/stocks-robinhood/trader")).rejects.toMatchObject({
+      message: "PerkOS answered 500",
+      code: "PERKOS_API",
+    });
+  });
+
   it("tells a silent service apart from a refusal", async () => {
     const http = vi.fn(async () => Promise.reject(new Error("timed out")));
     const client = clientWith(http as unknown as typeof fetch);
