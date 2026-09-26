@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GET } from "../app/api/desks/market/route";
 import { GET as SERIES } from "../app/api/desks/series/route";
+import { cachedMarket } from "../app/lib/perkos";
 
 const request = (module: string) =>
   new Request(`http://127.0.0.1:3100/api/desks/market?module=${module}`, { headers: { host: "127.0.0.1:3100" } });
@@ -68,6 +69,15 @@ describe("GET /api/desks/market", () => {
     const res = await GET(request("stocks-robinhood"));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ market: MARKET });
+  });
+
+  it("leaves the market it read for Sparky, so his next answer does not fetch it again", async () => {
+    await signIn();
+    const http = vi.fn(async () => Response.json({ ok: true, module: "stocks-warm", ...MARKET }));
+    vi.stubGlobal("fetch", http);
+    await GET(request("stocks-warm"));
+    expect(await cachedMarket("stocks-warm")).toEqual(MARKET);
+    expect(http).toHaveBeenCalledTimes(1);
   });
 
   it("refuses a market that breaks the contract instead of showing it", async () => {
