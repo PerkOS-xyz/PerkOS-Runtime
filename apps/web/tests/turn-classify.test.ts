@@ -114,6 +114,65 @@ describe("which questions go to the team", () => {
     expect(kind("What should I buy with $50?")).toBeNull();
   });
 
+  it("keeps the lines people say right after a turn with Sparky: thanks, praise and questions about what the team said", () => {
+    const wide = [...assets, asset("AMD", "Advanced Micro Devices"), asset("HOOD", "Robinhood Markets")];
+    for (const text of [
+      "Thanks for the analysis",
+      "Great analysis!",
+      "Nice research, thanks",
+      "Muchas gracias por el análisis",
+      "Gracias por la recomendación",
+      "Nice pick on NVDA!",
+      "Well done",
+      "What did Scout recommend?",
+      "What did the Trader suggest?",
+      "Did the Auditor recommend anything?",
+      "¿Qué recomendó Scout?",
+      "¿Qué sugirió el Trader?",
+      "Why did the team recommend NVDA?",
+      "What was the top pick?",
+      "Remind me what the desk recommended this week",
+      "Which stock was recommended?",
+      "¿Cuál fue la recomendación?",
+      "What happened this week?",
+      "¿Qué hiciste esta semana?",
+      "Can you recommend a good book?",
+      "Which model should I pick for Sparky?",
+      "What voice should I pick?",
+      "Check the desk settings",
+      "What is Robinhood Chain?",
+      "¿Qué puedo operar en esta mesa?",
+      "¿Qué puedo comprar aquí?",
+    ]) {
+      expect([text, turnKindFor(text, { manifest: marked, assets: wide })]).toEqual([text, null]);
+    }
+  });
+
+  it("still finds the task after thanks, in a later sentence, or in a hypothetical", () => {
+    expect(kind("Thanks, now analyze Tesla")).toBe("analyze");
+    expect(kind("Analyze Tesla, thanks")).toBe("analyze");
+    expect(kind("Gracias! Ahora analiza Tesla")).toBe("analyze");
+    expect(kind("Great analysis, what should I buy next month?")).toBe("advise");
+    expect(kind("What did the team say? Also analyze NVDA")).toBe("analyze");
+    expect(kind("If you were me, what would you buy?")).toBe("advise");
+    expect(kind("Explain why NVDA dropped today")).toBe("analyze");
+    expect(kind("Was NVDA up today?")).toBe("analyze");
+    expect(kind("Is NVDA a good pick?")).toBe("analyze");
+  });
+
+  it("reads recommend, pick and a horizon as advice only about the market or buying, or in the short open form", () => {
+    expect(kind("Should I buy now?")).toBe("advise");
+    expect(kind("What stocks do you recommend?")).toBe("advise");
+    expect(kind("What do you recommend, Sparky?")).toBe("advise");
+    expect(kind("What would you recommend?")).toBe("advise");
+    expect(kind("¿Qué acciones me recomiendas?")).toBe("advise");
+    expect(kind("¿Alguna oportunidad esta semana?")).toBe("advise");
+    expect(kind("Top picks?")).toBe("advise");
+    expect(kind("Analízame el mercado")).toBe("analyze");
+    expect(kind("What can I buy here?")).toBeNull();
+    expect(kind("I read your analysis")).toBeNull();
+  });
+
   it("recognises tickers before the market has loaded", () => {
     expect(turnKindFor("How is NVDA doing?", { manifest: eqlty })).toBe("analyze");
     expect(turnKindFor("Is it OK to ask?", { manifest: eqlty })).toBeNull();
