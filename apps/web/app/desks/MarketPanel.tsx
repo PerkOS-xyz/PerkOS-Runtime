@@ -1,10 +1,12 @@
 "use client";
 
 import type { DeskAsset } from "@perkos/desk-contract";
-import { useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useMemo, useState, type CSSProperties } from "react";
 
+import { AssetDetail } from "./AssetDetail";
 import type { Chain } from "./chains";
 import { useMarket } from "./useMarket";
+import { useSeries } from "./useSeries";
 
 const price = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: v < 1 ? 4 : 2 });
 const pct = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(2)}%`;
@@ -29,9 +31,13 @@ function Logo({ asset }: { asset: DeskAsset }) {
  * What the desk can trade, as the desk prices it. A value the desk does not
  * know shows as a dash, and a column nobody fills is left out.
  */
-export function MarketPanel({ module, chain }: { module: string; chain: Chain }) {
+export function MarketPanel({ module, chain, onAsk }: { module: string; chain: Chain; onAsk?: (text: string) => void }) {
   const { market, error, loading, refresh } = useMarket(module);
   const [query, setQuery] = useState("");
+  const [picked, setPicked] = useState<string | null>(null);
+  const history = useSeries(module, picked);
+  const close = useCallback(() => setPicked(null), []);
+  const selected = market?.assets.find((a) => a.ticker === picked) ?? null;
 
   const assets = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -46,7 +52,7 @@ export function MarketPanel({ module, chain }: { module: string; chain: Chain })
   const grid = { gridTemplateColumns: columns } as CSSProperties;
 
   return (
-    <section className={`mk ${chain}`} aria-label="Market">
+    <section className={`mk ${chain}${selected ? " has-detail" : ""}`} aria-label="Market">
       <header className="mk-head">
         <div className="mk-title">
           <span className="kicker">Market</span>
@@ -93,7 +99,13 @@ export function MarketPanel({ module, chain }: { module: string; chain: Chain })
           ? Array.from({ length: 8 }, (_, i) => <li key={i} className="mk-skel" style={{ "--i": i } as CSSProperties} />)
           : assets.map((a, i) => (
               <li key={a.address} className="mk-li" style={{ "--i": Math.min(i, 18) } as CSSProperties}>
-                <div className="mk-row" style={grid}>
+                <button
+                  type="button"
+                  className={`mk-row${a.ticker === picked ? " on" : ""}`}
+                  style={grid}
+                  aria-pressed={a.ticker === picked}
+                  onClick={() => setPicked(a.ticker === picked ? null : a.ticker)}
+                >
                   <span className="mk-asset">
                     <Logo asset={a} />
                     <span>
@@ -115,11 +127,24 @@ export function MarketPanel({ module, chain }: { module: string; chain: Chain })
                       {a.tradeable === true ? "Tradeable" : a.tradeable === false ? "Not tradeable" : "Unknown"}
                     </span>
                   ) : null}
-                </div>
+                </button>
               </li>
             ))}
         {market && !assets.length ? <li className="mk-empty">No stock matches &ldquo;{query.trim()}&rdquo;.</li> : null}
       </ul>
+
+      {selected && market ? (
+        <AssetDetail
+          key={selected.ticker}
+          asset={selected}
+          quote={market.quoteSymbol}
+          logo={<Logo asset={selected} />}
+          series={history.series}
+          loading={history.loading}
+          onAsk={onAsk}
+          onClose={close}
+        />
+      ) : null}
     </section>
   );
 }

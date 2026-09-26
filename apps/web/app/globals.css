@@ -867,3 +867,51 @@ button { font: inherit; }
   .mk-li, .mk-sheet { animation: none; opacity: 1; }
   .mk-skel { animation: none; }
 }
+
+/* A row can be picked to see the asset up close. */
+button.mk-row { cursor: pointer; }
+.mk-row:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
+.mk-row.on { background: var(--accent-soft); }
+.mk-row.on::before { opacity: 1; }
+
+/* One asset up close, over the bottom of the market. */
+.mk.has-detail .mk-rows { padding-bottom: 300px; }
+.mk-detail {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: linear-gradient(180deg, rgba(12, 16, 28, 0.97), rgba(5, 7, 14, 0.98));
+  box-shadow: 0 -18px 50px rgba(0, 0, 0, 0.55);
+  animation: detail-up 280ms var(--ease);
+}
+@keyframes detail-up { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+.mk-detail header { display: flex; align-items: center; gap: 12px; }
+.mk-detail header .mk-logo { width: 34px; height: 34px; }
+.mk-detail header > div { display: flex; flex-direction: column; min-width: 0; }
+.mk-detail header b { font-family: var(--display); font-size: 20px; font-weight: 800; letter-spacing: -0.01em; }
+.mk-detail header small { font-size: 11px; color: var(--mute); }
+.mk-detail .mk-detail-price { flex-direction: row; align-items: baseline; gap: 6px; margin-left: auto; }
+.mk-detail-price strong { font-family: var(--display); font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.mk-detail-price span { font-size: 11px; letter-spacing: 0.1em; color: var(--mute); }
+.mk-detail-price em { font-style: normal; font-size: 11.5px; padding: 2px 8px; border-radius: 999px; }
+.mk-detail-price em.up { color: var(--ok); background: rgba(61, 220, 151, 0.1); }
+.mk-detail-price em.down { color: var(--err); background: rgba(255, 107, 107, 0.1); }
+.mk-detail header .bubble-close { margin-left: 6px; }
+.mk-chart { margin: 0; }
+.mk-plot { position: relative; height: 124px; }
+.mk-plot svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.mk-dot { position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent); }
+.mk-chart figcaption { margin-top: 8px; font-size: 11px; color: var(--mute); }
+.mk-chart-wait { height: 124px; margin: 0; display: grid; place-items: center; border: 1px dashed var(--hair); border-radius: 12px; font-size: 12px; color: var(--mute); }
+.mk-detail footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.mk-detail footer .chip-btn { padding: 7px 14px; font-size: 12px; }
+@media (prefers-reduced-motion: reduce) {
+  .mk-detail { animation: none; }
+}
