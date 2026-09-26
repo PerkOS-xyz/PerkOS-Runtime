@@ -1,6 +1,6 @@
 {
   "name": "@perkos/ens",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "description": "Keyless ENS V2 primitives and identity verification for PerkOS desks",
   "license": "MIT",

@@ -3,6 +3,8 @@ import styles from "./IdentitySheet.module.css";
 
 export function ensStepLabel(step: string): string {
   const [kind, action, role] = step.split(":");
+  if (kind === "text" && role?.startsWith("agent-registration[")) return `Publish ${action} ENSIP-25 attestation`;
+  if (kind === "text" && role === "agent-context") return `Publish ${action} ENSIP-26 context`;
   if (kind === "move") {
     const labels: Record<string, string> = { mount: "Mount destination child pointer", parent: "Switch team parent pointer", link: `Link ${role} records to its new name`, metadata: `Update ${role} ERC-8004 name`, manifest: "Publish the new team manifest", detach: "Detach the old child pointer" };
     return labels[action ?? ""] ?? "Move team branch";

@@ -31,5 +31,16 @@
 .activity li[data-state="reverted"] .activityDot, .activity li[data-state="reconciliation"] .activityDot { background: #ff9696; }
 .badge { text-transform: uppercase; font: 10px var(--mono); letter-spacing: .07em; }
 .liveAction { padding: 12px; border: 1px solid var(--ok); border-radius: 8px; color: var(--ok); }
+.protocol { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--hair-strong); border-radius: 10px; background: rgba(255,255,255,.035); }
+.protocolHeading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.proofBadge { display: inline-block; width: fit-content; padding: 4px 7px; border: 1px solid var(--hair-strong); border-radius: 5px; color: var(--ink-2); font-size: 11px; }
+.proofBadge[data-verified="true"] { color: var(--ok); border-color: var(--ok); }
+.agentProof { display: grid; gap: 8px; margin-top: 10px; }
+.agentProof summary { cursor: pointer; color: var(--ink); }
+.agentProof summary:focus-visible { outline: 2px solid var(--ok); outline-offset: 3px; }
+.proofFields { display: grid; gap: 6px; margin: 12px 0 0; }
+.proofFields dt { color: var(--ink-2); }
+.proofFields dd { margin: 0 0 8px; overflow-wrap: anywhere; }
+.proofFields code { font: inherit; }
 @keyframes ensPulse { 50% { opacity: .3; } }
 @media (prefers-reduced-motion: reduce) { .activityDot { animation: none !important; } }

@@ -27,6 +27,8 @@ export interface SeatVerification {
   verified: boolean;
   writeGranted: boolean;
   issues: string[];
+  /** Values actually read at DeskVerification.blockNumber, never inferred from a manifest. */
+  ensip25?: { key: string; value: string; claimedName: string | null };
 }
 export interface DeskVerification {
   name: string;
@@ -120,10 +122,13 @@ export async function verifyDeskIdentity(client: PublicClient, input: DeskIdenti
     if (!same(seatOwner, input.owner)) failures.push("owner-changed");
     if (!same(resolver, seat.resolver)) failures.push("resolver-changed");
     if (!same(registrationOwner, seat.wallet)) failures.push("agent-wallet-changed");
-    if (claimedEnsName(metadata) !== seatFqn) failures.push("registration-name-mismatch");
-    if (backlink !== "1") failures.push("attestation-missing");
+    const claimedName = claimedEnsName(metadata);
+    if (claimedName !== seatFqn) failures.push("registration-name-mismatch");
+    // ENSIP-25 recommends writing "1", but verification accepts every non-empty value.
+    if (backlink.length === 0) failures.push("attestation-missing");
     // Identity validity and permission revocation are distinct states.
-    return { id: seat.id, name: seatFqn, verified: failures.length === 0, writeGranted, issues: failures };
+    return { id: seat.id, name: seatFqn, verified: failures.length === 0, writeGranted, issues: failures,
+      ensip25: { key: registrationKey, value: backlink, claimedName } };
   }));
   return { name, blockNumber: String(blockNumber), verified: seats.every((s) => s.verified), issues, seats };
 }
