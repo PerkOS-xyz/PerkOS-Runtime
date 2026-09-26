@@ -54,6 +54,15 @@ describe("NoteStore", () => {
     expect((await reopened.search("risk", { scopes: ["user", "eqlty-desk"] })).length).toBe(2);
   });
 
+  it("does not match on short or common words", async () => {
+    const { notes } = store();
+    await notes.appendJournal("user", "Person: My budget for stocks is 500 USDG a month.");
+    expect(await notes.search("Watch NVDA for me", { scopes: ["user"] })).toEqual([]);
+    expect(await notes.search("¿Qué es lo que hay para mí?", { scopes: ["user"] })).toEqual([]);
+    expect((await notes.search("what is my budget", { scopes: ["user"] })).length).toBe(1);
+    expect((await notes.search("budgets", { scopes: ["user"] })).length).toBe(1);
+  });
+
   it("builds a short context block for a prompt", async () => {
     const { notes } = store();
     await notes.appendJournal("user", "My budget for stocks is 500 USDG a month.");
