@@ -6,7 +6,7 @@
 import { rename } from "node:fs/promises";
 import { join } from "node:path";
 
-import { NoteStore } from "@perkos/vault";
+import { isScope, NoteStore } from "@perkos/vault";
 
 import { homeDir } from "./home";
 import { vaultKeys } from "./vault";
@@ -43,4 +43,21 @@ export async function setMemoryAside(wallet: string): Promise<void> {
   await rename(root, `${root}-${stamp}`).catch((e: NodeJS.ErrnoException) => {
     if (e.code !== "ENOENT") throw e;
   });
+}
+
+/** Where an exchange is kept: the open desk's notes, or the person's own. */
+export const scopeFor = (desk?: string) => (desk && isScope(desk) ? desk : "user");
+
+/** What Sparky may recall: the person's notes plus the open desk's, or every desk's from the general chat. */
+export function recallScopes(desk: string | undefined, deskIds: string[]): string[] {
+  const scope = scopeFor(desk);
+  return scope === "user" ? ["user", ...deskIds.filter(isScope)] : ["user", scope];
+}
+
+const MAX_ENTRY = 2000;
+
+/** One exchange as a journal entry, stamped with the local time. */
+export function journalEntry(question: string, reply: string, at = new Date()): string {
+  const time = `${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`;
+  return `[${time}] Person: ${question.trim().slice(0, MAX_ENTRY)}\nSparky: ${reply.trim().slice(0, MAX_ENTRY)}`;
 }
