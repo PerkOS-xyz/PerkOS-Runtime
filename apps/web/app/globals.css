@@ -1144,3 +1144,58 @@ button.mk-row { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .agent-avatar svg, .agent-avatar .aa-ring, .agent-avatar .aa-eyes, .agent-avatar .aa-module, .agent-avatar .aa-accent, .agent-avatar .aa-accent-glow, .agent-avatar .aa-module-glow { animation: none !important; }
 }
+
+/* The desk's team around Sparky, like the people on a call: two on each side
+   of his head at rest, a compact row above him once the conversation opens. */
+.st-team { position: absolute; z-index: 3; left: 50%; top: calc(46.5% - 42px); width: 0; height: 0; transition: left var(--st-ms) var(--st-ease), top var(--st-ms) var(--st-ease); }
+.st-member {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  animation: seat-in 520ms var(--ease) forwards;
+  transition: left var(--st-ms) var(--st-ease), top var(--st-ms) var(--st-ease), transform var(--st-ms) var(--st-ease);
+}
+/* Moves with `translate`, not `transform`, so the centering and the conversation scale survive the entrance. */
+@keyframes seat-in { from { opacity: 0; translate: 0 12px; } to { opacity: 1; translate: 0 0; } }
+.st-member.seat-1 { left: -330px; animation-delay: 120ms; }
+.st-member.seat-2 { left: -190px; animation-delay: 200ms; }
+.st-member.seat-3 { left: 190px; animation-delay: 280ms; }
+.st-member.seat-4 { left: 330px; animation-delay: 360ms; }
+.st-member b { font-family: var(--display); font-size: 13px; font-weight: 700; letter-spacing: 0.01em; }
+.st-member small { margin-top: -4px; font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--mute); }
+.st-member.idle small { color: #7fe0a8; }
+.st-member.thinking small { color: #b69cff; }
+.st-member.error small { color: #ff8f8f; }
+.st-note { font-size: 11px; color: #ffb4b4; }
+.stage.split .st-team, .stage.panel .st-team { top: 236px; }
+.stage.split .st-team { left: calc(50% + var(--convo-w) / 2); }
+.stage.split .st-member, .stage.panel .st-member { transform: translate(-50%, -50%) scale(0.62); }
+.stage.split .st-member.seat-1, .stage.panel .st-member.seat-1 { left: -150px; }
+.stage.split .st-member.seat-2, .stage.panel .st-member.seat-2 { left: -50px; }
+.stage.split .st-member.seat-3, .stage.panel .st-member.seat-3 { left: 50px; }
+.stage.split .st-member.seat-4, .stage.panel .st-member.seat-4 { left: 150px; }
+.stage.split .st-member small, .stage.panel .st-member small { display: none; }
+/* Specialists: smaller, under the table at rest; one row under it in a conversation. */
+.st-member.st-spec { left: var(--x); top: 118px; gap: 4px; animation-delay: calc(440ms + var(--i, 0) * 60ms); }
+.st-member.st-spec b { font-size: 11px; }
+.st-member.st-spec small { margin-top: -3px; font-size: 8.5px; }
+.stage.split .st-member.st-spec, .stage.panel .st-member.st-spec { left: var(--row); top: 60px; transform: translate(-50%, -50%) scale(0.7); }
+.stage.split .st-member.st-spec b, .stage.panel .st-member.st-spec b { display: none; }
+.stage.split .st-core-wrap, .stage.panel .st-core-wrap { top: 56%; }
+@media (max-width: 900px) {
+  .stage.split .st-team { display: none; }
+}
+/* A narrow window keeps the whole team on screen: the row scales toward Sparky. */
+@media (max-width: 1000px) {
+  .stage:not(.split):not(.panel) .st-team { scale: 0.8; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .st-member { animation: none; opacity: 1; }
+}

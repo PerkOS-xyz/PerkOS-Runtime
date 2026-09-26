@@ -5,6 +5,9 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Form
 import { useSparkyChat } from "../chat/useSparkyChat";
 import { openMemory } from "../memory/open";
 import { AppHeader } from "../shell/AppHeader";
+import { wakeAction } from "../team/look";
+import { TeamRow } from "../team/TeamRow";
+import { useTeam } from "../team/useTeam";
 import { useTalk } from "../voice/useTalk";
 import { CHAIN_LABEL, chainOf } from "./chains";
 import type { Desk } from "./DesksScreen";
@@ -35,6 +38,8 @@ export function DeskView({
   const closeMarket = useCallback(() => setMarket(false), []);
   const { voice, talk } = useTalk(chat);
   const manifest = useDeskManifest(desk.module);
+  const team = useTeam(desk.id);
+  const waking = wakeAction(team.team?.status, team.busy);
   const [draft, setDraft] = useState("");
   const [voiceReady, setVoiceReady] = useState<boolean | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -95,6 +100,15 @@ export function DeskView({
             <button type="button" className="ah-out" onClick={() => openMemory({ scope: desk.id, name: desk.name })}>
               Memory
             </button>
+            <button
+              type="button"
+              className="ah-out"
+              disabled={!waking.enabled}
+              title="Wakes Scout, Risk, Trader and Auditor on PerkOS. Desk time runs while they are awake."
+              onClick={() => void team.wake()}
+            >
+              {waking.label}
+            </button>
             <button type="button" className="ah-out" onClick={onBack}>
               All desks
             </button>
@@ -107,7 +121,10 @@ export function DeskView({
           <h1>{desk.name}</h1>
           {chain !== "neutral" ? <span className={`chain-badge ${chain}`}>{CHAIN_LABEL[chain]}</span> : null}
           {manifest?.tagline ? <small className="st-tagline">{manifest.tagline}</small> : null}
+          {team.error ? <small className="st-note">{team.error}</small> : null}
         </header>
+
+        <TeamRow team={team.team} />
 
         <div className="st-core-wrap">
           <button
