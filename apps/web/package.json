@@ -17,15 +17,18 @@
     "@perkos/ai": "*",
     "@perkos/client": "*",
     "@perkos/desk-contract": "*",
+    "@perkos/ens": "0.2.1",
     "@perkos/vault": "*",
+    "@worldcoin/idkit-core": "4.3.0",
     "next": "16.3.5",
+    "qrcode": "1.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "viem": "^2.56.9",
-    "@perkos/ens": "0.2.1"
+    "viem": "^2.56.9"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "@types/qrcode": "1.5.6",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2"
   }

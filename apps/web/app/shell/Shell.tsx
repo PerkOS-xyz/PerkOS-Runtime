@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 import { DeskView } from "../desks/DeskView";
 import { DesksScreen, type Desk } from "../desks/DesksScreen";
@@ -41,6 +41,11 @@ function Stages() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const openSettings = () => setSettingsOpen(true);
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
+  useEffect(() => {
+    const showWorld = () => setSettingsOpen(true);
+    window.addEventListener("perkos:world-settings", showWorld);
+    return () => window.removeEventListener("perkos:world-settings", showWorld);
+  }, []);
 
   const logout = async () => {
     setSettingsOpen(false);

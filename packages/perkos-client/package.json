@@ -9,6 +9,6 @@
   },
   "dependencies": {
     "@perkos/desk-contract": "*",
-    "@perkos/ens": "0.2.0"
+    "@perkos/ens": "0.2.1"
   }
 }
