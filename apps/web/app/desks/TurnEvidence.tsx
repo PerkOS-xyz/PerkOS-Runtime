@@ -59,7 +59,7 @@ export function TurnEvidence({ record }: { record: TurnRecord }) {
     finally { if (version === generation.current) setBusy(false); }
   }
 
-  return <section className={`${styles.body} ${styles.section}`} aria-label="Turn ENS evidence">
+  return <section className={`${styles.body} ${styles.section} ${styles.embedded}`} aria-label="Turn ENS evidence">
     <h3>ENS evidence</h3>
     <p>Publish a selected response with its teammate's own wallet. Review the complete public packet first. Prompts, memory and the rest of the conversation are excluded.</p>
     <ul className={styles.seats}>{ROLES.map((role) => {
