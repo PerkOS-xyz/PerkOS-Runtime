@@ -89,7 +89,7 @@ export function DesksScreen({
               </div>
               <div className="df-art" aria-hidden>
                 <i className="df-glow" />
-                <img className="df-sparky" src="/sparky-samurai-full.png" alt="" draggable={false} />
+                <img className="df-team" src="/sparky-team.webp" alt="" width={1600} height={800} draggable={false} />
               </div>
             </>
           ) : null}

@@ -467,13 +467,32 @@ button { font: inherit; }
   animation: float 6s ease-in-out infinite;
 }
 .dh-back { display: block; margin: 0 0 10px -4px; }
+/* Sparky with the team, wider than the art column: it reaches back under the
+   copy, fades in from the left so the words stay clear, and its black ground
+   melts into the card instead of sitting on it as a box. */
+.df-team {
+  position: absolute;
+  right: -8%;
+  bottom: -6%;
+  width: 160%;
+  max-width: none;
+  height: auto;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 22%), linear-gradient(to top, transparent 0%, #000 14%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent 0%, #000 22%), linear-gradient(to top, transparent 0%, #000 14%);
+  mask-composite: intersect;
+  animation: float 7s ease-in-out infinite;
+}
 .desks-home.behind > .dh-featured { transform: translateY(40px) scale(0.96); transition-delay: 60ms; }
 @media (max-width: 860px) {
   .dh-featured { grid-template-columns: 1fr; }
   .df-art { min-height: 240px; }
+  .df-team { right: -4%; width: 110%; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .df-glow, .df-sparky { animation: none; }
+  .df-glow, .df-sparky, .df-team { animation: none; }
 }
 .pill.small { padding: 10px 18px; font-size: 13px; }
 .ai-chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(236, 27, 105, 0.4); background: rgba(236, 27, 105, 0.08); color: #ffd3e1; font-size: 12px; cursor: pointer; }
