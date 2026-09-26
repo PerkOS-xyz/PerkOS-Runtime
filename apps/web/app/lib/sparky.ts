@@ -3,6 +3,8 @@
 import type { AiRegistry, ChatMessage } from "@perkos/ai";
 
 import type { ModelChoice } from "./settings";
+import { failureLabel } from "./turnFailure";
+import { roleName, withoutFactTags, type TurnRecord } from "./turnRecord";
 
 export const SPARKY_PROMPT = [
   "You are Sparky, the assistant in PerkOS Runtime.",
@@ -128,4 +130,82 @@ export function tapReply(stream: ReadableStream<Uint8Array>, done: (text: string
       await reader.cancel(reason);
     },
   });
+}
+
+/** What Sparky gets of one answer of the team. */
+const TEAM_CLIP = 1_200;
+
+/** The part of a desk turn Sparky reads. */
+export type TeamTurn = Pick<TurnRecord, "question" | "replies" | "guests" | "error">;
+
+const oneLine = (s: string) => s.replace(/\s+/g, " ").trim();
+const clipped = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
+
+/**
+ * Each role's part of a turn, one per line: "Scout: <answer>", or
+ * "Auditor: (no answer: model failed)". The [Fn] tags are left out: they
+ * number this turn's facts only, and Sparky's words may be read aloud.
+ */
+export function teamLines(turn: TeamTurn): string[] {
+  return [...turn.replies, ...turn.guests].map((r) => {
+    const who = roleName(r.role);
+    if (!r.ok) return `${who}: (no answer: ${failureLabel(r.failure ?? "other")})`;
+    return `${who}: ${clipped(oneLine(withoutFactTags(r.reply)), TEAM_CLIP)}`;
+  });
+}
+
+/** Asks Sparky to sum a desk turn up for the person, from what the team said. */
+export function withTeam(system: string, turn: TeamTurn): string {
+  const asked = clipped(oneLine(turn.question), 300);
+  if (turn.error) {
+    return [
+      system,
+      "",
+      `The desk's team could not take part in the person's request "${asked}": ${oneLine(turn.error.message)}`,
+      "Answer the person yourself, briefly, from the desk's facts, and say in one short sentence that the team did not take part and why.",
+      "Do not pick a stock or give a plan in the team's place.",
+    ].join("\n");
+  }
+  return [
+    system,
+    "",
+    `The desk's team just worked on the person's request "${asked}". What each of them said is below.`,
+    "Sum it up for the person in plain text, in a few short sentences: the read, the risk, the plan and the record.",
+    "Say where the team disagrees. Use only what the team said and the desk's facts, and never invent a number.",
+    "If someone did not answer, name them and say why.",
+    "Nothing is bought until the person holds to approve in the Trader.",
+    "Say the facts themselves: no fact tags like [F1] and no @ mentions.",
+    "What the team said:",
+    ...teamLines(turn),
+  ].join("\n");
+}
+
+/** Gives Sparky what the team said in a desk's last turn, for questions about it afterwards. */
+export function withTeamNotes(system: string, turn: TeamTurn): string {
+  const asked = clipped(oneLine(turn.question), 300);
+  return `${system}\n\nWhat the desk's team said in its last turn, on "${asked}". Use it when the person asks about it:\n${teamLines(turn).join("\n")}`;
+}
+
+/** Sparky's first words while the desk's team wakes up to work on the request. */
+export const WARM_UP = [
+  "The desk's team is waking up on PerkOS to work on this request. That can take a minute or two, and they will answer in this conversation.",
+  "Meanwhile reply in two or three short sentences: say the team is on it, and give a first read from the desk's facts when they cover the question.",
+  "Do not pick a stock or give a plan: the team does that.",
+].join(" ");
+
+export function withWarmUp(system: string): string {
+  return `${system}\n\n${WARM_UP}`;
+}
+
+/**
+ * The conversation as the model gets it when Sparky answers a question the
+ * conversation may not end with: a turn's summary, or a warm-up, after the
+ * person asked Sparky something else meanwhile. The question goes last.
+ */
+export function answering(messages: ChatMessage[], question: string): ChatMessage[] {
+  const q = question.trim().slice(0, MAX_CHARS);
+  if (!q) return messages;
+  const last = messages[messages.length - 1];
+  if (last?.role === "user" && last.content.trim() === q) return messages;
+  return [...messages, { role: "user" as const, content: q }].slice(-MAX_MESSAGES);
 }
