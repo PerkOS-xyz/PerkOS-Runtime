@@ -55,5 +55,19 @@ export function wakeAction(status: TeamStatus | undefined, busy: boolean): { lab
   return { label: "Wake team", enabled: true };
 }
 
+/**
+ * Whether opening the desk should wake its team by itself: only a team that
+ * exists and sleeps. A team with a role never set up is left alone, because
+ * waking it would create agents; that stays the person's call.
+ */
+export function wakesOnOpen(team: { status: TeamStatus; agents: ReadonlyArray<{ state: string }> } | null): boolean {
+  if (!team || !team.agents.length) return false;
+  if (team.agents.some((a) => a.state === "planned" || a.state === "failed")) return false;
+  return team.agents.some((a) => a.state === "hibernated");
+}
+
+/** While the desk is open, how often PerkOS hears the team is in use, well inside its idle window. */
+export const KEEP_AWAKE_MS = 5 * 60_000;
+
 /** Waking takes a few minutes: read often while it happens, rarely otherwise. */
 export const pollEvery = (status: TeamStatus | undefined) => (status === "waking" || status === "provisioning" ? 8_000 : 60_000);

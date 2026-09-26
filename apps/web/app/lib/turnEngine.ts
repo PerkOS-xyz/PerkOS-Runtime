@@ -14,12 +14,15 @@
 
 import type { AgentAnswer } from "@perkos/client";
 
-import { classifyAnswer, classifyError, failureLabel } from "./turnFailure";
+import { classifyAnswer, classifyError, failureLabel, stillStarting } from "./turnFailure";
 import { fullPrompt, handoff, roleTail } from "./turnPrompts";
 import { roleName, type FailureKind, type RiskLevel, type RoleReply, type TurnEvent, type TurnKind, type Verdict } from "./turnRecord";
 
 /** How long PerkOS waits for one agent in a turn. */
 export const TASK_MS = 55_000;
+/** How long an agent that is still starting after a wake is asked again, and how often. */
+export const STARTING_WINDOW_MS = 90_000;
+export const STARTING_RETRY_MS = 8_000;
 
 /** One role's seat at the table for this turn. */
 export interface TurnSeat {
@@ -51,7 +54,23 @@ export interface RunTurnInput {
   signal: AbortSignal;
   now?: () => number;
   taskMs?: number;
+  /** Waits between asks of an agent still starting; ends early when the turn stops. */
+  pause?: (ms: number, signal: AbortSignal) => Promise<void>;
 }
+
+const pauseFor = (ms: number, signal: AbortSignal) =>
+  new Promise<void>((resolve) => {
+    if (signal.aborted) return resolve();
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      { once: true }
+    );
+  });
 
 export interface TurnOutcome {
   replies: RoleReply[];
@@ -88,6 +107,7 @@ const listNames = (roles: string[]) => {
 export async function runTurn(input: RunTurnInput): Promise<TurnOutcome> {
   const now = input.now ?? Date.now;
   const taskMs = input.taskMs ?? TASK_MS;
+  const pause = input.pause ?? pauseFor;
   const iso = () => new Date(now()).toISOString();
   const working = (text: string) => input.emit({ step: "working", at: iso(), text });
   const replies: RoleReply[] = [];
@@ -126,9 +146,22 @@ export async function runTurn(input: RunTurnInput): Promise<TurnOutcome> {
     input.emit({ step: "start", role, phase, at: startedAt, ...(seat.agentName ? { agentName: seat.agentName } : {}) });
     working(`${who} is ${phase === 1 ? "reading the facts" : (DOING[role] ?? "working")}`);
     try {
-      const answer = await input.ask(seat.agentId, fullPrompt(input.head, tail), { timeoutMs: taskMs, signal: input.signal });
+      const ask = () => input.ask(seat.agentId!, fullPrompt(input.head, tail), { timeoutMs: taskMs, signal: input.signal });
+      let answer = await ask();
+      let read = classifyAnswer(answer);
+      // Just woken, its runtime may not be listening yet: ask again for a while before giving up.
+      let retries = 0;
+      while (!read.ok && stillStarting(read.detail) && now() - started < STARTING_WINDOW_MS && !input.signal.aborted) {
+        if (!retries++) working(`${who} is still starting up; asking again`);
+        await pause(STARTING_RETRY_MS, input.signal);
+        if (input.signal.aborted) break;
+        answer = await ask();
+        read = classifyAnswer(answer);
+      }
+      if (!read.ok && input.signal.aborted && stillStarting(read.detail)) {
+        return finish({ ...base, ok: false, reply: "", failure: "stopped", detail: `Stopped while ${who} was still starting.`, ms: Math.max(0, now() - started), startedAt });
+      }
       if (input.touch) void input.touch(seat.agentId).catch(() => undefined);
-      const read = classifyAnswer(answer);
       const ms = Math.max(0, now() - started);
       const name = answer.agentName || seat.agentName;
       const reply: RoleReply = { role, phase, ...(name ? { agentName: name } : {}), ok: read.ok, reply: read.reply, ms, startedAt };
