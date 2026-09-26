@@ -7,7 +7,7 @@ import type { BuyReceipt } from "@perkos/client";
 import { describe, expect, it, vi } from "vitest";
 
 import type { BuyOutcome } from "../app/desks/trade";
-import { keepTurnReceipt, subscribeTurnReceipts, turnReceipt } from "../app/desks/turnReceipts";
+import { keepTurnReceipt, sendBuyForTurn, subscribeTurnReceipts, turnReceipt } from "../app/desks/turnReceipts";
 
 const swap = (o: Partial<BuyReceipt> = {}): BuyOutcome => ({
   kind: "receipt",
@@ -50,5 +50,30 @@ describe("keeping a buy's receipt with its turn", () => {
     await expect(keepTurnReceipt("20260926-143500-ab12", swap({ status: "not_sent", bought: false, hash: null }), order, http as unknown as typeof fetch)).resolves.toBe(false);
     expect(http).not.toHaveBeenCalled();
     expect(turnReceipt("20260926-143500-ab12")).toBeNull();
+  });
+});
+
+describe("sending a buy from a turn's plan", () => {
+  const order = { module: "stocks-robinhood", ticker: "NVDA", amountUsdg: "50", maxSlippageBps: 100, quotedAmountOut: "4200000000000000" };
+  const answer = { status: "success", bought: true, hash: "0xbeef", explorerUrl: null, amountOut: "1", steps: [], notice: null };
+
+  it("sends the buy with its turn, then keeps the receipt with that turn", async () => {
+    const calls: Array<{ url: string; method: string; body: Record<string, unknown> }> = [];
+    const http = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), method: String(init?.method), body: JSON.parse(String(init?.body)) });
+      return String(url) === "/api/desks/buy" ? Response.json({ receipt: answer }) : Response.json({ ok: true });
+    });
+    const outcome = await sendBuyForTurn({ ...order, turnId: "20260926-143600-ab12" }, http as unknown as typeof fetch);
+    expect(outcome).toMatchObject({ kind: "receipt", receipt: { hash: "0xbeef" } });
+    await vi.waitFor(() => expect(calls).toHaveLength(2));
+    expect(calls[0]).toMatchObject({ url: "/api/desks/buy", method: "POST", body: { turnId: "20260926-143600-ab12" } });
+    expect(calls[1]).toMatchObject({ url: "/api/desks/turns?id=20260926-143600-ab12", method: "PATCH", body: { receipt: { hash: "0xbeef", ticker: "NVDA", amount: "50" } } });
+    expect(turnReceipt("20260926-143600-ab12")).toMatchObject({ hash: "0xbeef" });
+  });
+
+  it("sends a buy that follows no plan as it is, and keeps nothing", async () => {
+    const http = vi.fn(async () => Response.json({ receipt: answer }));
+    await expect(sendBuyForTurn(order, http as unknown as typeof fetch)).resolves.toMatchObject({ kind: "receipt" });
+    expect(http).toHaveBeenCalledTimes(1);
   });
 });

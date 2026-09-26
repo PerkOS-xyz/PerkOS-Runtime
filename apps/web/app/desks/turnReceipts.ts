@@ -6,7 +6,7 @@
  */
 
 import type { TurnReceipt } from "../lib/turnRecord";
-import { turnReceiptOf, type BuyOutcome } from "./trade";
+import { sendBuy, turnReceiptOf, type BuyOrder, type BuyOutcome } from "./trade";
 
 const receipts = new Map<string, TurnReceipt>();
 const listeners = new Set<() => void>();
@@ -46,4 +46,15 @@ export async function keepTurnReceipt(turnId: string, outcome: BuyOutcome, order
     console.warn(`The receipt was not kept with the desk turn: ${(err as Error).message}`);
     return false;
   }
+}
+
+/**
+ * Sends one approved buy, as sendBuy does, and never throws either. A buy
+ * that follows a desk turn's plan leaves its receipt with that turn; the
+ * outcome does not wait for it.
+ */
+export async function sendBuyForTurn(order: BuyOrder, http: Http = browserFetch): Promise<BuyOutcome> {
+  const outcome = await sendBuy(order, http);
+  if (order.turnId) void keepTurnReceipt(order.turnId, outcome, order, http);
+  return outcome;
 }

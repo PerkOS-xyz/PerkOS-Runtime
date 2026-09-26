@@ -1,11 +1,12 @@
 "use client";
 
 import type { DeskStarter } from "@perkos/desk-contract";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type FormEvent } from "react";
 
 import { ChatChips, ChatsDrawer } from "../chat/ChatsDrawer";
 import { useChatActions, useChats } from "../chat/useChats";
 import { useSparkyChat } from "../chat/useSparkyChat";
+import type { TurnReceipt } from "../lib/turnRecord";
 import { openMemory } from "../memory/open";
 import { AppHeader } from "../shell/AppHeader";
 import { useVault } from "../shell/useVault";
@@ -16,6 +17,7 @@ import { ChatLine, TypingLine } from "../turn/ChatLine";
 import { focusLine } from "../turn/TurnCards";
 import { routeFor } from "../turn/turnChat";
 import { chatOfTurn, FOCUS_HOLD_MS } from "../turn/turnLook";
+import { planOfView } from "../turn/turnPlan";
 import { useDeskAssets, useTurnChat } from "../turn/useTurnChat";
 import { WorkFold, WorkingList } from "../turn/WorkingList";
 import { useTalk } from "../voice/useTalk";
@@ -26,7 +28,8 @@ import { Embers } from "./Embers";
 import { HistorySheet } from "./HistorySheet";
 import { MarketSheet } from "./MarketSheet";
 import { PortfolioSheet } from "./PortfolioSheet";
-import { WalletTraderSheet } from "./WalletTraderSheet";
+import { subscribeTurnReceipts, turnReceipt } from "./turnReceipts";
+import { WalletTraderSheet, type TraderPrefill } from "./WalletTraderSheet";
 import { coreState, DEFAULT_STARTERS, isAnswering, whisper } from "./stage";
 import { useDeskManifest } from "./useDeskManifest";
 
@@ -88,6 +91,26 @@ export function DeskView({
   const focus = useCallback((role: string) => {
     if (convoRef.current && focusLine(convoRef.current, role)) heldUntil.current = Date.now() + FOCUS_HOLD_MS;
   }, []);
+  /** The Trader's plan, once the turn is over, and the receipt of a buy that followed it. */
+  const plan = useMemo(() => planOfView(turn.view, manifest?.maxOrder), [turn.view, manifest?.maxOrder]);
+  const receipt = useTurnReceipt(turn.view.turnId);
+  // What Buy in Trader filled the Trader with, while the sheet it opened is open.
+  const [prefill, setPrefill] = useState<TraderPrefill | null>(null);
+  const planUsed = useCallback(() => setPrefill(null), []);
+  useEffect(() => {
+    if (!trader) setPrefill(null);
+  }, [trader]);
+  /** Opens the Trader with the plan filled in. Nothing is quoted or signed until the person asks for a quote and holds. */
+  const buyPlan = useCallback(() => {
+    const turnId = turn.view.turnId;
+    if (!plan || !turnId) return;
+    setPrefill({ turnId, ticker: plan.ticker, amount: plan.amount, startedAt: turn.view.startedAt, key: Date.now() });
+    setMarket(false);
+    setHistory(false);
+    setTrader(true);
+  }, [plan, turn.view.turnId, turn.view.startedAt]);
+  // Offered on a desk that trades, until the person signed from the plan.
+  const onBuy = plan && !receipt && desk.module && manifest?.screens.includes("trader") ? buyPlan : undefined;
 
   useEffect(() => {
     fetch("/api/voice")
@@ -241,7 +264,10 @@ export function DeskView({
           {team.error ? <small className="st-note">{team.error}</small> : null}
         </header>
 
-        <TeamRow team={team.team} turn={turn.live || inChat.held ? { view: turn.view, lines: inChat.lines, onFocus: focus } : null} />
+        <TeamRow
+          team={team.team}
+          turn={turn.live || inChat.held ? { view: turn.view, lines: inChat.lines, onFocus: focus, receipt, onBuy, buyTitle: plan ? `${plan.ticker} for ${plan.amount} USDG` : undefined } : null}
+        />
 
         <div className="st-core-wrap">
           <button
@@ -364,7 +390,9 @@ export function DeskView({
       </div>
 
       {market && desk.module ? <MarketSheet title={desk.name} module={desk.module} chain={chain} onAsk={send} onClose={closeMarket} /> : null}
-      {trader && !market && desk.module ? <WalletTraderSheet title={desk.name} module={desk.module} chain={chain} onClose={closeTrader} /> : null}
+      {trader && !market && desk.module ? (
+        <WalletTraderSheet title={desk.name} module={desk.module} chain={chain} onClose={closeTrader} prefill={prefill} onPlanUsed={planUsed} />
+      ) : null}
       {history && !market && !trader ? <HistorySheet desk={desk.id} title={desk.name} chain={chain} live={turn.live} vault={vault} onClose={closeHistory} /> : null}
       {portfolio && !market && !trader && !history && desk.module ? (
         <PortfolioSheet
@@ -377,4 +405,10 @@ export function DeskView({
       ) : null}
     </main>
   );
+}
+
+/** The receipt this window keeps for a turn, from a buy that followed its plan. */
+function useTurnReceipt(turnId: string | null): TurnReceipt | null {
+  const read = useCallback(() => turnReceipt(turnId), [turnId]);
+  return useSyncExternalStore(subscribeTurnReceipts, read, () => null);
 }

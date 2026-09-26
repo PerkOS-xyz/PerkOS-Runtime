@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 
 import { buyRun, dismissBuy, startBuy, subscribeBuys, type BuyRun } from "./buyStore";
 import type { Chain } from "./chains";
+import { clockOf } from "./history";
 import { createHold } from "./hold";
 import { dismissSweep, startSweep, subscribeSweeps, sweepRun, type SweepRun } from "./sweepStore";
 import {
@@ -20,6 +21,7 @@ import {
   heldOf,
   minAfterSlippage,
   outcomeDismissible,
+  planAmount,
   priceCheck,
   quoteMismatch,
   quoteSecondsLeft,
@@ -27,7 +29,6 @@ import {
   RECHECK_MS,
   receiptView,
   revokeAllowed,
-  sendBuy,
   sendHomeAllowed,
   sendSweep,
   short,
@@ -41,8 +42,10 @@ import {
   sweepView,
   txUrl,
   unresolved,
-  usd
+  usd,
+  type PlanCap
 } from "./trade";
+import { sendBuyForTurn } from "./turnReceipts";
 import { useMarket } from "./useMarket";
 import { useTrader } from "./useTrader";
 
@@ -51,14 +54,47 @@ const WAIT_MS = 3 * 60_000;
 const AMOUNT = /^\d{1,7}(\.\d{1,6})?$/;
 const name = (a: DeskAsset | undefined) => a?.name.split(" • ")[0] ?? "";
 
+/** What Buy in Trader fills the Trader with: the plan of a finished desk turn. */
+export interface TraderPrefill {
+  /** The desk turn whose plan this is: a buy from it names the turn to PerkOS and keeps its receipt there. */
+  turnId: string;
+  /** One of the desk's tickers. */
+  ticker: string;
+  /** Whole USDG, as the plan says it. The form never starts above the sheet's own limit. */
+  amount: number;
+  /** When the turn started, for the note above the form. */
+  startedAt: number | null;
+  /** Each press of Buy in Trader starts the form over, even for the same plan. */
+  key: number;
+}
+
 /**
  * The Trader on a desk that buys from a wallet the owner delegated. The owner
  * gives access on a PerkOS page in the browser; the money sits in that wallet;
  * a buy runs only after a quote and a hold, and PerkOS signs it through
  * Dynamic inside the owner's limits. What the wallet buys stays there until
  * the owner sends it home.
+ *
+ * Opened from a desk turn's plan, the form starts on the plan's stock and
+ * amount. Nothing is quoted or signed by that: the owner still asks for the
+ * quote and holds to approve, and one buy from it keeps its receipt with the turn.
  */
-export function WalletTraderSheet({ title, module, chain, onClose }: { title: string; module: string; chain: Chain; onClose: () => void }) {
+export function WalletTraderSheet({
+  title,
+  module,
+  chain,
+  onClose,
+  prefill = null,
+  onPlanUsed
+}: {
+  title: string;
+  module: string;
+  chain: Chain;
+  onClose: () => void;
+  prefill?: TraderPrefill | null;
+  /** A buy from the plan went out: the plan has done its part. */
+  onPlanUsed?: () => void;
+}) {
   const { trader, error, loading, load } = useTrader(module);
   const { market } = useMarket(module);
   const buy = useBuyRun(module);
@@ -95,7 +131,7 @@ export function WalletTraderSheet({ title, module, chain, onClose }: { title: st
         {trader ? <Access trader={trader} load={load} moving={moving} /> : null}
         {trader?.delegated && trader.wallet ? <Funds module={module} trader={trader} assets={market?.assets ?? []} load={load} /> : null}
         {/* Always drawn: a buy that was in flight when the sheet closed shows its outcome even if the wallet cannot be read now. */}
-        <Buy module={module} trader={trader} assets={market?.assets ?? []} load={load} />
+        <Buy key={prefill?.key ?? 0} module={module} trader={trader} assets={market?.assets ?? []} load={load} prefill={prefill} onPlanUsed={onPlanUsed} />
       </div>
     </aside>
   );
@@ -444,18 +480,41 @@ function useSweepRun(module: string): SweepRun | null {
 }
 
 /** One order: stock, amount, slippage, quote, hold, receipt. */
-function Buy({ module, trader, assets, load }: { module: string; trader: DeskTrader | null; assets: DeskAsset[]; load: () => Promise<DeskTrader | null> }) {
+function Buy({
+  module,
+  trader,
+  assets,
+  load,
+  prefill = null,
+  onPlanUsed
+}: {
+  module: string;
+  trader: DeskTrader | null;
+  assets: DeskAsset[];
+  load: () => Promise<DeskTrader | null>;
+  prefill?: TraderPrefill | null;
+  onPlanUsed?: (() => void) | undefined;
+}) {
   const tradeable = useMemo(() => assets.filter((a) => a.tradeable !== false).sort((a, b) => a.ticker.localeCompare(b.ticker)), [assets]);
   const run = useBuyRun(module);
   const sweep = useSweepRun(module);
-  const [ticker, setTicker] = useState("");
-  const [amountText, setAmountText] = useState("1");
+  const [ticker, setTicker] = useState(prefill?.ticker ?? "");
+  const [amountText, setAmountText] = useState(prefill ? planAmount(prefill.amount, null).amount : "1");
   const [slippage, setSlippage] = useState<number>(SLIPPAGE_BPS);
   // The quote keeps the stock and amount it was asked for: those, not the form, are what a hold approves.
   const [quote, setQuote] = useState<{ quote: DeskQuote; receivedAt: number; asset: DeskAsset; amount: number } | null>(null);
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState("");
   const [clock, setClock] = useState(0);
+
+  // The plan's amount, once the wallet is read: never above one order's limit or what the wallet holds.
+  const fromPlan = prefill ? planAmount(prefill.amount, trader) : null;
+  const planned = fromPlan?.amount ?? null;
+  // An amount the owner typed is theirs: the plan no longer sets it.
+  const typed = useRef(false);
+  useEffect(() => {
+    if (planned !== null && !typed.current) setAmountText(planned);
+  }, [planned]);
 
   const asset = tradeable.find((a) => a.ticker === ticker);
   const amount = AMOUNT.test(amountText.trim()) ? Number(amountText) : NaN;
@@ -506,7 +565,7 @@ function Buy({ module, trader, assets, load }: { module: string; trader: DeskTra
     const { quote: q, asset: stock } = quote;
     const usdg = String(quote.amount);
     // The quote the owner saw always goes with the order: PerkOS refuses the swap below it less this slippage.
-    const order = { module, ticker: stock.ticker, amountUsdg: usdg, maxSlippageBps: slippage, quotedAmountOut: q.amountOut };
+    const order = { module, ticker: stock.ticker, amountUsdg: usdg, maxSlippageBps: slippage, quotedAmountOut: q.amountOut, ...(prefill ? { turnId: prefill.turnId } : {}) };
     const started = startBuy(
       module,
       {
@@ -518,9 +577,11 @@ function Buy({ module, trader, assets, load }: { module: string; trader: DeskTra
         maxSlippageBps: slippage,
         heldBefore: heldOf(trader, stock.address)
       },
-      () => sendBuy(order)
+      () => sendBuyForTurn(order)
     );
     if (started) setQuote(null);
+    // One buy from the plan: the next one from this form follows no turn.
+    if (started && prefill) onPlanUsed?.();
   }
 
   const reset = () => {
@@ -542,6 +603,9 @@ function Buy({ module, trader, assets, load }: { module: string; trader: DeskTra
         <Outcome run={run} trader={trader} load={load} />
       ) : (
         <div className="tr-form">
+          {prefill && fromPlan ? (
+            <PlanNote prefill={prefill} capped={fromPlan.capped} amount={fromPlan.amount} missing={tradeable.length > 0 && !tradeable.some((a) => a.ticker === prefill.ticker)} />
+          ) : null}
           <label className="tr-field">
             <span>Stock</span>
             <select
@@ -571,6 +635,7 @@ function Buy({ module, trader, assets, load }: { module: string; trader: DeskTra
               value={amountText}
               disabled={asking}
               onChange={(e) => {
+                typed.current = true;
                 setAmountText(e.target.value);
                 reset();
               }}
@@ -640,6 +705,22 @@ function Buy({ module, trader, assets, load }: { module: string; trader: DeskTra
         </div>
       )}
     </section>
+  );
+}
+
+/** Where the form's stock and amount came from: the desk's plan, and the turn its receipt goes to. */
+function PlanNote({ prefill, capped, amount, missing }: { prefill: TraderPrefill; capped: PlanCap; amount: string; missing: boolean }) {
+  const when = prefill.startedAt !== null ? clockOf(new Date(prefill.startedAt).toISOString()) : "";
+  const held = capped === "cap" ? ` One order can spend up to ${amount} USDG, so it starts there.` : capped === "held" ? ` The wallet holds ${amount} USDG, so it starts there.` : "";
+  const gone = missing ? ` ${prefill.ticker} cannot be bought on the desk right now.` : "";
+  return (
+    <div className="tr-plan wide" role="note">
+      <span className="tr-plan-kicker">From the desk&apos;s plan{when ? ` · ${when}` : ""}</span>
+      <p>
+        <b>{prefill.ticker}</b> for <b>{prefill.amount} USDG</b>, as the Trader planned it.{held}
+        {gone} Nothing is bought until you get a quote and hold to approve, and the receipt stays with the turn.
+      </p>
+    </div>
   );
 }
 
