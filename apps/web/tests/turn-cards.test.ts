@@ -65,6 +65,19 @@ describe("the team row during a turn", () => {
     expect(out).toMatch(/class="st-member st-spec idle"/);
   });
 
+  it("lights a specialist the turn asks, with no card, and leaves the others alone", () => {
+    const withQuote = view([
+      { ...(live[0] as Extract<TurnEvent, { step: "open" }>), roles: ["scout", "risk", "quote", "trader", "auditor"] },
+      ...live.slice(1),
+      { step: "start", role: "quote", phase: 1, at: at(1) },
+    ]);
+    const out = html({ view: withQuote, lines: new Set(), onFocus: noop });
+    expect(out).toMatch(/class="st-member st-spec thinking"[^>]*title="Quote/);
+    expect(out).toMatch(/class="st-member st-spec idle"[^>]*title="Hooks/);
+    expect(out.match(/class="st-card /g)).toHaveLength(4);
+    expect(out.match(/<small>Thinking<\/small>/g)).toHaveLength(2);
+  });
+
   it("folds into chips once the turn is over, and the portraits go back to the team's look", () => {
     const over = view([...live, { step: "done", turnId: ID, replies: [], flags: ["risk:no-answer"], ms: 3_000, kept: "vault", stopped: true }]);
     const out = html({ view: over, lines: new Set(["risk"]), onFocus: noop });

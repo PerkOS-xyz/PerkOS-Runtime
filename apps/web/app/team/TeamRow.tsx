@@ -58,7 +58,8 @@ function Member({
  * The desk's team around Sparky, as PerkOS reports it: the table beside him,
  * the specialists below. While a desk turn runs, each seat at the table shows
  * its part on a card under its head and its portrait follows the turn; a
- * moment after the turn the cards fold into chips.
+ * moment after the turn the cards fold into chips. A specialist the turn asks,
+ * such as Quote, has no card, but its portrait and status follow the turn too.
  */
 export function TeamRow({ team, turn = null }: { team: DeskTeam | null; turn?: SeatTurn | null }) {
   const clock = useTurnClock(turn?.view ?? null);
@@ -86,6 +87,7 @@ export function TeamRow({ team, turn = null }: { team: DeskTeam | null; turn?: S
       })}
       {specialists.map((agent, i) => {
         const seat = specialistSeat(i, specialists.length);
+        const look = cards ? cardLook(cards.view, agent.role, { index: table.length + i + 1, now: clock.now }) : null;
         return (
           <Member
             key={agent.name}
@@ -95,6 +97,8 @@ export function TeamRow({ team, turn = null }: { team: DeskTeam | null; turn?: S
             note="analysis only"
             seat={i}
             style={{ "--x": `${seat.x}px`, "--row": `${seat.row}px`, "--i": i } as CSSProperties}
+            state={open ? look?.avatar : null}
+            status={open && look?.status === "thinking" ? "Thinking" : undefined}
           />
         );
       })}
