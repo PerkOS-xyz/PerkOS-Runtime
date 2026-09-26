@@ -12,7 +12,8 @@ import { deriveVaultKey, NoteStore, VaultKeyMismatch } from "../src/index.ts";
 
 const WALLET = "0xabc0000000000000000000000000000000000001";
 const KEY = deriveVaultKey(WALLET, "0x01");
-const DAY = new Date("2026-09-26T15:00:00.000Z");
+// Noon on this machine: the same calendar day in every time zone.
+const DAY = new Date(2026, 8, 26, 12, 0);
 
 const store = (root = mkdtempSync(join(tmpdir(), "perkos-notes-")), key = KEY) => ({ root, notes: new NoteStore(root, key, () => DAY) });
 
@@ -26,6 +27,13 @@ describe("NoteStore", () => {
     const onDisk = readFileSync(join(root, "user", "journal", "2026-09-26.json"), "utf8");
     expect(onDisk).not.toContain("NVIDIA");
     expect((await new NoteStore(root, KEY, () => DAY).read(note.id))?.body).toContain("NVIDIA");
+  });
+
+  it("files the journal under the day on this machine", async () => {
+    const root = mkdtempSync(join(tmpdir(), "perkos-notes-"));
+    const late = await new NoteStore(root, KEY, () => new Date(2026, 8, 26, 23, 30)).appendJournal("user", "late");
+    const early = await new NoteStore(root, KEY, () => new Date(2026, 8, 27, 0, 30)).appendJournal("user", "early");
+    expect([late.id, early.id]).toEqual(["user/journal/2026-09-26", "user/journal/2026-09-27"]);
   });
 
   it("cannot be read with another key", async () => {
