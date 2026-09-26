@@ -30,6 +30,16 @@ export const DeskRolePromptsSchema = z
   .object({ scout: RolePrompt, risk: RolePrompt, trader: RolePrompt, auditor: RolePrompt, quote: RolePrompt.optional() })
   .strict();
 
+/**
+ * What each role does when the person drafts a token launch: Scout reads the
+ * pair, Risk gives a verdict, the Hooks and Treasury specialists, when the
+ * desk seats them, explain the pool's hook and the fee split, and the Auditor
+ * writes the record. The Trader has no part: a launch trades nothing.
+ */
+export const DeskLaunchPromptsSchema = z
+  .object({ scout: RolePrompt, risk: RolePrompt, auditor: RolePrompt, hooks: RolePrompt.optional(), treasury: RolePrompt.optional() })
+  .strict();
+
 export const DeskManifestSchema = z
   .object({
     /** One line under the desk's name: "Tokenized stocks on Robinhood Chain". */
@@ -56,6 +66,8 @@ export const DeskManifestSchema = z
         analyze: DeskRolePromptsSchema.optional(),
         advise: DeskRolePromptsSchema.optional(),
         order: DeskRolePromptsSchema.optional(),
+        /** Runs when the person drafts a token launch; a verdict from Risk warns, it never launches or stops one. */
+        launch: DeskLaunchPromptsSchema.optional(),
       })
       .strict(),
   })
@@ -63,5 +75,6 @@ export const DeskManifestSchema = z
 
 export type DeskStarter = z.infer<typeof DeskStarterSchema>;
 export type DeskRolePrompts = z.infer<typeof DeskRolePromptsSchema>;
+export type DeskLaunchPrompts = z.infer<typeof DeskLaunchPromptsSchema>;
 export type DeskManifest = z.infer<typeof DeskManifestSchema>;
 export type DeskTurnKind = keyof DeskManifest["turns"];

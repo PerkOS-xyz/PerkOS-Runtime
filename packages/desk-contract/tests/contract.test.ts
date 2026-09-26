@@ -160,4 +160,18 @@ describe("a desk's manifest", () => {
     expect(DeskManifestSchema.safeParse({ ...manifest, theme: "dark" }).success).toBe(false);
     expect(DeskManifestSchema.safeParse({ ...manifest, turns: { launch: prompts } }).success).toBe(false);
   });
+
+  it("takes a launch turn: Scout, Risk and the Auditor, with the Hooks and Treasury specialists when the desk seats them", () => {
+    const launch = { scout: "As Scout: read the pair.", risk: "As Risk: VERDICT: GO or VERDICT: BLOCK.", auditor: "As Auditor: record the launch." };
+    expect(DeskManifestSchema.safeParse({ ...manifest, turns: { ...manifest.turns, launch } }).success).toBe(true);
+    const seated = DeskManifestSchema.parse({ ...manifest, turns: { launch: { ...launch, hooks: "As Hooks: the pool's hook.", treasury: "As Treasury: the fee split." } } });
+    expect(Object.keys(seated.turns.launch ?? {})).toEqual(["scout", "risk", "auditor", "hooks", "treasury"]);
+  });
+
+  it("refuses a launch turn without Risk's verdict to ask for, or with a role that trades", () => {
+    const launch = { scout: "As Scout: read the pair.", risk: "As Risk: a verdict.", auditor: "As Auditor: record the launch." };
+    const { risk: _risk, ...noRisk } = launch;
+    expect(DeskManifestSchema.safeParse({ ...manifest, turns: { launch: noRisk } }).success).toBe(false);
+    expect(DeskManifestSchema.safeParse({ ...manifest, turns: { launch: { ...launch, trader: "As Trader: buy it." } } }).success).toBe(false);
+  });
 });
