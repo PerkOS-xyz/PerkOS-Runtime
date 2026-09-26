@@ -2489,3 +2489,7 @@ button.st-card-chip:hover { border-color: var(--role); }
 @media (prefers-reduced-motion: reduce) {
   .lc, .lc-chip, .lc-checks li, .lc-stamp, .lc-state.busy { animation: none; opacity: 1; }
 }
+/* The launch action among the first questions: the chain's green, the same card shape. */
+.st-starters button.st-launch { border-color: rgba(0, 200, 5, 0.38); background: radial-gradient(90% 120% at 0% 0%, rgba(0, 200, 5, 0.12), transparent 60%), rgba(8, 11, 22, 0.72); }
+.st-starters button.st-launch:hover { border-color: rgba(0, 200, 5, 0.7); }
+.st-starters button.st-launch small { color: #9fe3b0; }
