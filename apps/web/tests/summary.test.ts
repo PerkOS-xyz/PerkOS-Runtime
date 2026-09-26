@@ -13,6 +13,8 @@ import { describe, expect, it } from "vitest";
 import { journalEntry } from "../app/lib/journal";
 import { addSummary, dropSummary, hasSummary, parseMemory } from "../app/lib/memoryNote";
 import { pendingDays, SUMMARY_PROMPT, summarizeDay } from "../app/lib/summary";
+import { failureLabel } from "../app/lib/turnFailure";
+import { turnBody, turnTitle, type TurnRecord } from "../app/lib/turnRecord";
 
 const KEY = deriveVaultKey("0xabc0000000000000000000000000000000000001", "0x01");
 const MODEL = { provider: "local", model: "m" };
@@ -126,6 +128,92 @@ describe("pendingDays", () => {
       { scope: "user", date: "2026-09-24" },
       { scope: "eqlty-desk", date: "2026-09-23" },
       { scope: "user", date: "2026-09-22" },
+    ]);
+  });
+});
+
+describe("a day's desk decisions", () => {
+  const HASH = `0x${"cd".repeat(32)}`;
+  const turn = (d: number, h: number, extra: Partial<TurnRecord> = {}): TurnRecord => ({
+    v: 1,
+    id: `202609${d}-${String(h).padStart(2, "0")}0000-ab12`,
+    desk: "eqlty-desk",
+    module: "stocks-robinhood",
+    kind: "advise",
+    question: "What should I buy this month?",
+    principal: "@Scout @Risk What should I buy this month?",
+    startedAt: day(d, h).toISOString(),
+    endedAt: day(d, h).toISOString(),
+    ms: 60_000,
+    facts: [],
+    memory: "",
+    head: "",
+    prompts: {},
+    replies: [
+      { role: "risk", phase: 1, ok: true, reply: "RISK: low\n@Trader @Auditor keep each pick under 50 USDG.", ms: 1 },
+      { role: "trader", phase: 2, ok: true, reply: `@Sparky Buy 50 USDG of NVDA below 178 USDG, through pool ${HASH}.`, ms: 1 },
+      { role: "auditor", phase: 2, ok: true, reply: "@Sparky Outlook: NVDA first, review on 2026-10-26.", ms: 1 },
+    ],
+    guests: [],
+    riskLevel: "low",
+    flags: [],
+    trace: [],
+    receipt: { hash: HASH, explorerUrl: `https://explorer.example/tx/${HASH}`, status: "success", ticker: "NVDA", amount: "50", at: "x" },
+    ...extra,
+  });
+  const keep = (notes: NoteStore, r: TurnRecord) => notes.writeTurn(r.desk, r.id, turnTitle(r), turnBody(r, failureLabel), r);
+
+  it("go into the summary after the conversations, one line each, without a hash", async () => {
+    const notes = await vault([["eqlty-desk", 26, "Keep the NVDA budget small this month, and remind me about the review."]]);
+    await keep(notes, turn(26, 14));
+    await keep(notes, turn(25, 10, { question: "Yesterday's question?" }));
+    const { registry, calls } = model();
+    expect(await summarizeDay(notes, registry, MODEL, "eqlty-desk", "2026-09-26")).toEqual({ scope: "eqlty-desk", date: "2026-09-26", ok: true });
+    const input = String(calls[0]?.messages[1]?.content);
+    expect(input.startsWith("Conversations of 2026-09-26:")).toBe(true);
+    expect(input.indexOf("Desk decisions of 2026-09-26")).toBeGreaterThan(input.indexOf("Keep the NVDA budget small"));
+    expect(input).toContain("Question (14:00, advise): What should I buy this month?\nRisk: low\nPlan: Buy 50 USDG of NVDA below 178 USDG");
+    expect(input).toContain("Record: Outlook: NVDA first, review on 2026-10-26. Signed NVDA 50, success.");
+    expect(input).not.toMatch(/0x/i);
+    expect(input).not.toContain("explorer.example");
+    expect(input).not.toContain("Yesterday's question?");
+  });
+
+  it("are summarized on a day without conversations", async () => {
+    const notes = await vault([]);
+    await keep(notes, turn(26, 9));
+    const { registry, calls } = model();
+    expect((await summarizeDay(notes, registry, MODEL, "eqlty-desk", "2026-09-26")).ok).toBe(true);
+    const input = String(calls[0]?.messages[1]?.content);
+    expect(input.startsWith("Desk decisions of 2026-09-26")).toBe(true);
+    expect(input).not.toContain("Conversations of");
+    expect(await notes.read("eqlty-desk/notes/memory")).not.toBeNull();
+  });
+
+  it("share the size cap with a long day of conversations", async () => {
+    const root = mkdtempSync(join(tmpdir(), "perkos-summary-"));
+    const notes = new NoteStore(root, KEY, () => day(26));
+    for (let i = 0; i < 16; i++) await notes.appendJournal("eqlty-desk", journalEntry(`Question ${i}: ${"about the desk and its picks ".repeat(64)}`, "Noted.", day(26)));
+    await keep(notes, turn(26, 9, { question: "Morning question?" }));
+    await keep(notes, turn(26, 15, { question: "Afternoon question?" }));
+    const { registry, calls } = model();
+    await summarizeDay(notes, registry, MODEL, "eqlty-desk", "2026-09-26");
+    const input = String(calls[0]?.messages[1]?.content);
+    // The journal alone is over the 24,000 characters the model reads.
+    expect((await notes.read("eqlty-desk/journal/2026-09-26"))!.body.length).toBeGreaterThan(24_000);
+    expect(input.length).toBeLessThanOrEqual("Conversations of 2026-09-26:\n\n".length + 24_000);
+    expect(input).toContain("Morning question?");
+    expect(input).toContain("Afternoon question?");
+  });
+
+  it("make a day to summarize later, once however many turns it had", async () => {
+    const notes = await vault([["user", 24, "Day twenty-four: we talked about the budget and the desks for a while."]]);
+    await keep(notes, turn(25, 10));
+    await keep(notes, turn(25, 11));
+    await keep(notes, turn(26, 9));
+    expect(await pendingDays(notes, "2026-09-26")).toEqual([
+      { scope: "eqlty-desk", date: "2026-09-25" },
+      { scope: "user", date: "2026-09-24" },
     ]);
   });
 });
