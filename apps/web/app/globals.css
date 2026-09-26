@@ -1548,7 +1548,8 @@ button.mk-row { cursor: pointer; }
 /* A partner's mark beside the name: small, in the partner's own color, lit like the rest. */
 .st-member b .st-mark { display: inline-block; width: 1.15em; height: 1.15em; margin-left: 0.35em; vertical-align: -0.2em; filter: drop-shadow(0 0 4px rgba(255, 0, 122, 0.55)); }
 .stage.split .st-member.st-spec, .stage.panel .st-member.st-spec { left: var(--row); top: 60px; transform: translate(-50%, -50%) scale(0.7); }
-.stage.split .st-member.st-spec b, .stage.panel .st-member.st-spec b { display: none; }
+/* Their names stay under them in a conversation too, so the desk says who each specialist is. */
+.stage.split .st-member.st-spec b, .stage.panel .st-member.st-spec b { font-size: 12px; white-space: nowrap; }
 .stage.split .st-core-wrap, .stage.panel .st-core-wrap { top: 56%; }
 @media (max-width: 900px) {
   .stage.split .st-team { display: none; }
