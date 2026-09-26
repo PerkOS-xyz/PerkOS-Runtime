@@ -4,16 +4,21 @@ import type { DeskTeam, TeamAgent } from "@perkos/client";
 import type { CSSProperties } from "react";
 
 import { AgentPortrait } from "./AgentPortrait";
+import { markFor } from "./agentPortraits";
 import { roleConfig } from "./avatarIdentity";
 import { memberLook, seating, specialistSeat } from "./look";
 
 function Member({ agent, className, size, style, note, seat }: { agent: TeamAgent; className: string; size: number; style?: CSSProperties; note?: string; seat?: number }) {
   const look = memberLook(agent.state);
   const name = roleConfig(agent.role).label;
+  const mark = markFor(agent.role);
   return (
     <div className={`st-member ${className} ${look.avatar}`} style={style} title={`${name}${note ? ` · ${note}` : ""}: ${look.label}`}>
       <AgentPortrait role={agent.role} state={look.avatar} size={size} label={name} seat={seat} />
-      <b>{name}</b>
+      <b>
+        {name}
+        {mark ? <img className="st-mark" src={mark.src} alt={mark.label} title={`${mark.label} specialist`} draggable={false} /> : null}
+      </b>
       <small>{look.label}</small>
     </div>
   );

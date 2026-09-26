@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { portraitFor, portraitSrc } from "../app/team/agentPortraits";
+import { markFor, portraitFor, portraitSrc } from "../app/team/agentPortraits";
 
 const PUBLIC = join(__dirname, "..", "public");
 
@@ -23,6 +23,17 @@ describe("agent portraits", () => {
   it("points at a file the app serves", () => {
     for (const role of ["scout", "risk", "trader", "auditor", "hooks", "quote", "treasury", "researcher", "", "x"]) {
       expect(existsSync(join(PUBLIC, portraitSrc(role)))).toBe(true);
+    }
+  });
+
+  it("marks the Uniswap specialists, and only them", () => {
+    for (const role of ["hooks", "quote", "Treasury"]) {
+      const mark = markFor(role);
+      expect(mark?.label).toBe("Uniswap");
+      expect(existsSync(join(PUBLIC, mark?.src ?? "missing"))).toBe(true);
+    }
+    for (const role of ["scout", "risk", "trader", "auditor", "researcher"]) {
+      expect(markFor(role)).toBeNull();
     }
   });
 });

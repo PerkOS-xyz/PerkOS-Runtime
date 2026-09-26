@@ -39,3 +39,18 @@ export function portraitFor(role: string): string {
 export function portraitSrc(role: string): string {
   return `/agents/${portraitFor(role)}.png`;
 }
+
+/**
+ * A small partner mark shown beside a teammate's name, for the specialists
+ * whose whole job runs on one partner's protocol.
+ */
+const ROLE_MARKS: Record<string, { src: string; label: string }> = {
+  hooks: { src: "/marks/uniswap.png", label: "Uniswap" },
+  quote: { src: "/marks/uniswap.png", label: "Uniswap" },
+  treasury: { src: "/marks/uniswap.png", label: "Uniswap" },
+};
+
+/** The partner mark for a role, or null when the role works on no single partner. */
+export function markFor(role: string): { src: string; label: string } | null {
+  return ROLE_MARKS[role.trim().toLowerCase()] ?? null;
+}
