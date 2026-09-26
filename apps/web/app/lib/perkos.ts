@@ -1,6 +1,7 @@
 /** PerkOS API client for the signed-in wallet. */
 
 import { Desks, PerkosClient, type DeskSummary } from "@perkos/client";
+import type { DeskMarket, DeskSeries } from "@perkos/desk-contract";
 
 import { sessions } from "./session";
 
@@ -38,4 +39,30 @@ export async function cachedDesks(): Promise<DeskSummary[]> {
   } catch {
     return catalogue?.desks ?? [];
   }
+}
+
+const MARKET_TTL_MS = 30_000;
+const markets = new Map<string, { at: number; market: DeskMarket }>();
+
+/** A desk's market for Sparky's prompt, cached for half a minute. The last known one, or null, when the desk does not answer. */
+export async function cachedMarket(module: string): Promise<DeskMarket | null> {
+  const hit = markets.get(module);
+  if (hit && Date.now() - hit.at < MARKET_TTL_MS) return hit.market;
+  const client = await perkosClient();
+  if (!client) return null;
+  try {
+    const market = await new Desks(client).market(module);
+    markets.set(module, { at: Date.now(), market });
+    return market;
+  } catch {
+    return hit?.market ?? null;
+  }
+}
+
+/** Price history of a few tickers, for the facts Sparky cites. Empty when the desk does not answer. */
+export async function deskSeries(module: string, tickers: string[]): Promise<DeskSeries[]> {
+  if (!tickers.length) return [];
+  const client = await perkosClient();
+  if (!client) return [];
+  return new Desks(client).series(module, tickers).catch(() => []);
 }
