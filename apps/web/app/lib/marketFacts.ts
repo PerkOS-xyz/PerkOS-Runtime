@@ -90,11 +90,29 @@ export function mostActive(assets: DeskAsset[], limit = MOST_ACTIVE): DeskAsset[
     .slice(0, limit);
 }
 
+/** Whether the desk reports any 24h activity (volume or change) for these assets. */
+export function reportsActivity(assets: DeskAsset[]): boolean {
+  return assets.some((a) => a.volume24hUsd !== null || a.change24hPct !== null);
+}
+
+/**
+ * A spread across the desk's tradeable assets when the desk reports no 24h
+ * activity: taken at even steps through the list, so the prompt does not lean
+ * on whichever tickers sort first.
+ */
+export function spreadOf(assets: DeskAsset[], limit = MOST_ACTIVE): DeskAsset[] {
+  const pool = assets.filter((a) => a.tradeable === true && a.priceUsd !== null);
+  if (pool.length <= limit) return pool;
+  const step = pool.length / limit;
+  return Array.from({ length: limit }, (_, i) => pool[Math.floor(i * step)]).filter((a): a is DeskAsset => Boolean(a));
+}
+
 /** The facts block for the prompt, or "" when there is no market. */
 export function marketFacts(deskName: string, market: DeskMarket | null, question: string, series: DeskSeries[] = []): string {
   if (!market) return "";
   const asked = askedAbout(question, market.assets);
-  const shown = asked.length ? asked : mostActive(market.assets);
+  const active = reportsActivity(market.assets);
+  const shown = asked.length ? asked : active ? mostActive(market.assets) : spreadOf(market.assets);
   const lines = shown.map((a) => {
     const price = a.priceUsd === null ? "no price right now" : `${num(a.priceUsd)} ${market.quoteSymbol}${a.priceAt ? ` at ${clock(a.priceAt)}` : ""}`;
     const change = a.change24hPct === null ? "" : `, ${a.change24hPct >= 0 ? "+" : ""}${a.change24hPct.toFixed(2)}% in 24h`;
@@ -109,10 +127,12 @@ export function marketFacts(deskName: string, market: DeskMarket | null, questio
     lines.length
       ? asked.length
         ? `Prices of what the person asked about:\n${lines.join("\n")}`
-        : `Most active on this desk now:\n${lines.join("\n")}`
+        : active
+          ? `Most active on this desk now:\n${lines.join("\n")}`
+          : `Some of this desk's assets (the desk reports no 24h volume or change right now, so none of them is "most active"):\n${lines.join("\n")}`
       : "",
     "Use only these prices. If a price is not listed here, say you do not have it; never guess one.",
-    "Talk only about the assets on this desk. Never suggest ETFs, funds or tickers that are not in its list, and never tell the person to ask a teammate by name.",
+    "Talk only about the assets on this desk. Never suggest a ticker that is not in its list, and never tell the person to ask a teammate by name.",
   ]
     .filter(Boolean)
     .join("\n");

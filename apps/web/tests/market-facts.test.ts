@@ -5,7 +5,7 @@
 import type { DeskAsset, DeskMarket } from "@perkos/desk-contract";
 import { describe, expect, it } from "vitest";
 
-import { askedAbout, marketFacts, mostActive } from "../app/lib/marketFacts";
+import { askedAbout, marketFacts, mostActive, spreadOf } from "../app/lib/marketFacts";
 
 const asset = (ticker: string, name: string, extra: Partial<DeskAsset> = {}): DeskAsset => ({
   ticker,
@@ -110,6 +110,18 @@ describe("marketFacts", () => {
     expect(facts).toContain("Most active on this desk now:");
     expect(facts).toMatch(/- AMD \(AMD\): 100\.00 USDG at \d{2}:\d{2}, -2\.40% in 24h, tradeable\./);
     expect(facts).not.toContain("Prices of what the person asked about");
-    expect(facts).toContain("Never suggest ETFs, funds or tickers that are not in its list");
+    expect(facts).toContain("Never suggest a ticker that is not in its list");
+    expect(facts).not.toContain("ETF");
+  });
+
+  it("says so plainly when the desk reports no 24h activity, and spreads the sample", () => {
+    const tickers = ["AAOI", "AAPL", "AMBA", "AMC", "AMD", "AMZN", "ASML", "AVGO", "BND", "COIN", "GLD", "MSFT", "NVDA", "SGOV", "SPY", "TSLA"];
+    const market = { ...MARKET, assets: tickers.map((t) => asset(t, t)) };
+    const sample = spreadOf(market.assets).map((a) => a.ticker);
+    expect(sample).toHaveLength(8);
+    expect(sample).toEqual(["AAOI", "AMBA", "AMD", "ASML", "BND", "GLD", "NVDA", "SPY"]);
+    const facts = marketFacts("EQLTY Desk", market, "What should I buy this month?");
+    expect(facts).toContain("the desk reports no 24h volume or change right now");
+    expect(facts).not.toContain("Most active on this desk now:");
   });
 });
