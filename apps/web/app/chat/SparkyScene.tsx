@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
 
-import { coreState, whisper } from "../desks/stage";
+import { coreState, isAnswering, whisper } from "../desks/stage";
 import { openMemory } from "../memory/open";
 import { useVault } from "../shell/useVault";
 import { useTalk } from "../voice/useTalk";
@@ -92,7 +92,7 @@ export function SparkyScene({ model, onOpenChange }: { model: string | null; onO
     return () => window.removeEventListener("keydown", onKey);
   }, [shown, close]);
 
-  const state = coreState(voice.status, chat.busy);
+  const state = coreState(voice.status, chat.busy, isAnswering(chat.busy, chat.messages));
   const split = chat.messages.length > 0;
   const working = chat.busy || voice.status === "speaking";
   const noVoice = voiceReady === false ? "Voice needs Grok. Sign in with Grok in Settings." : "";

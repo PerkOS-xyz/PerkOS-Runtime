@@ -13,7 +13,7 @@ import { CHAIN_LABEL, chainOf } from "./chains";
 import type { Desk } from "./DesksScreen";
 import { Embers } from "./Embers";
 import { MarketSheet } from "./MarketSheet";
-import { coreState, DEFAULT_STARTERS, whisper } from "./stage";
+import { coreState, DEFAULT_STARTERS, isAnswering, whisper } from "./stage";
 import { useDeskManifest } from "./useDeskManifest";
 
 /**
@@ -56,7 +56,7 @@ export function DeskView({
     endRef.current?.scrollIntoView({ block: "end" });
   }, [chat.messages]);
 
-  const state = coreState(voice.status, chat.busy);
+  const state = coreState(voice.status, chat.busy, isAnswering(chat.busy, chat.messages));
   const split = chat.messages.length > 0;
   const working = chat.busy || voice.status === "speaking";
   const starters = manifest?.starters.length ? manifest.starters : DEFAULT_STARTERS;

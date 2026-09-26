@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { coreState, DEFAULT_STARTERS, whisper } from "../app/desks/stage";
+import { coreState, DEFAULT_STARTERS, isAnswering, whisper } from "../app/desks/stage";
 
 describe("coreState", () => {
   it("follows the voice, and thinks while a reply is on its way", () => {
@@ -13,6 +13,13 @@ describe("coreState", () => {
     expect(coreState("transcribing", false)).toBe("thinking");
     expect(coreState("idle", true)).toBe("thinking");
     expect(coreState("idle", false)).toBe("idle");
+  });
+
+  it("lights him up as soon as his answer arrives, in text as well as out loud", () => {
+    expect(coreState("idle", true, true)).toBe("speaking");
+    expect(isAnswering(true, [{ role: "user", content: "Hi" }, { role: "assistant", content: "" }])).toBe(false);
+    expect(isAnswering(true, [{ role: "user", content: "Hi" }, { role: "assistant", content: "Hello" }])).toBe(true);
+    expect(isAnswering(false, [{ role: "assistant", content: "Hello" }])).toBe(false);
   });
 
   it("says the promise when nothing is happening", () => {
