@@ -11,12 +11,15 @@ export function AppHeader({
   section,
   actions,
   onLogout,
-  onSettings
+  onSettings,
+  onHome
 }: {
   section: string;
   actions?: ReactNode;
   onLogout: () => Promise<void>;
   onSettings?: () => void;
+  /** When set, the PerkOS mark takes the person back to the dashboard. */
+  onHome?: () => void;
 }) {
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [leaving, setLeaving] = useState(false);
@@ -43,10 +46,17 @@ export function AppHeader({
 
   return (
     <header className="app-header">
-      <div className="ah-brand">
-        <img src="/logo-name.png" alt="PerkOS" />
-        <span className="kicker">{section}</span>
-      </div>
+      {onHome ? (
+        <button type="button" className="ah-brand ah-home" title="Back to the dashboard" onClick={onHome}>
+          <img src="/logo-name.png" alt="PerkOS, back to the dashboard" />
+          <span className="kicker">{section}</span>
+        </button>
+      ) : (
+        <div className="ah-brand">
+          <img src="/logo-name.png" alt="PerkOS" />
+          <span className="kicker">{section}</span>
+        </div>
+      )}
       <div className="ah-account">
         {actions}
         {onSettings ? (

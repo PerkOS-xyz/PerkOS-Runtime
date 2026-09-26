@@ -222,6 +222,11 @@ button { font: inherit; }
 .app-header { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .ah-brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .ah-brand img { height: 26px; width: auto; }
+/* Inside a desk the mark is the way home; buttons in the bar stay clickable under the window's drag region. */
+.ah-home { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.ah-home img { transition: filter 160ms var(--ease), transform 160ms var(--ease); }
+.ah-home:hover img { filter: brightness(1.15) drop-shadow(0 0 10px rgba(236, 27, 105, 0.45)); transform: translateX(-1px); }
+.app-header button { -webkit-app-region: no-drag; }
 .ah-account { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .ah-id {
   display: inline-flex;
@@ -242,6 +247,11 @@ button { font: inherit; }
 .ah-out { background: none; border: 0; padding: 4px; color: var(--mute); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; }
 .ah-out:hover { color: #ffd3e1; }
 .ah-out:disabled { opacity: 0.5; cursor: default; }
+/* The team's switch, as visible as the desk it serves: ember while asleep, a pulse while it wakes, green once it is up. */
+.ah-out.ah-wake { padding: 7px 14px; border: 1px solid rgba(236, 27, 105, 0.55); border-radius: 999px; background: rgba(236, 27, 105, 0.08); color: #ffd3e1; box-shadow: 0 0 18px rgba(236, 27, 105, 0.18); transition: background 160ms var(--ease), color 160ms var(--ease); }
+.ah-out.ah-wake:hover:not(:disabled) { background: rgba(236, 27, 105, 0.2); color: #fff; }
+.ah-out.ah-wake.waking, .ah-out.ah-wake.provisioning { opacity: 1; animation: ember-ring 2.4s ease-out infinite; }
+.ah-out.ah-wake.ready { opacity: 1; border-color: rgba(61, 220, 151, 0.5); background: rgba(61, 220, 151, 0.08); color: #b9f5d6; box-shadow: none; }
 
 /* Header above the wizard, clear of the window controls. */
 .wizard { position: relative; }
