@@ -6,7 +6,7 @@ export function WizardFrame({ header, children }: { header?: ReactNode; children
     <main className="wizard">
       {header ? <div className="wz-top">{header}</div> : null}
       <section className="wz-card">
-        <img className="wz-sparky" src="/sparky.png" alt="" width={76} height={76} />
+        <img className="wz-sparky" src="/sparky-samurai-head.png" alt="" width={76} height={76} />
         {children}
       </section>
     </main>

@@ -89,7 +89,7 @@ export function DesksScreen({
               </div>
               <div className="df-art" aria-hidden>
                 <i className="df-glow" />
-                <img className="df-sparky" src="/sparky-full.png" alt="" draggable={false} />
+                <img className="df-sparky" src="/sparky-samurai-full.png" alt="" draggable={false} />
               </div>
             </>
           ) : null}
@@ -119,7 +119,7 @@ export function DesksScreen({
               <div className="desk-art">
                 <img className="desk-art-logo" src="/logo.png" alt="" />
                 <b>{d.name}</b>
-                <img className="desk-art-sparky" src="/sparky-full.png" alt="" draggable={false} />
+                <img className="desk-art-sparky" src="/sparky-samurai-full.png" alt="" draggable={false} />
               </div>
               {d.module ? <span className="desk-module">{d.module}</span> : null}
               <p>{d.description}</p>

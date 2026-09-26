@@ -122,7 +122,7 @@ export function SparkyScene({ model, onOpenChange }: { model: string | null; onO
     <>
       <div className={`bubble${shown ? " away" : ""}${voice.continuous ? " live" : ""}`}>
         <button ref={launcherRef} type="button" className="bubble-button" aria-label="Talk with Sparky" aria-expanded={shown} onClick={open}>
-          <img src="/sparky.png" alt="" width={46} height={46} />
+          <img src="/sparky-samurai-head.png" alt="" width={46} height={46} />
           <span className="bubble-tip">Talk with Sparky</span>
         </button>
       </div>

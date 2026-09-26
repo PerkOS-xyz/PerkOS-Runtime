@@ -268,7 +268,7 @@ export function MemoryPanel() {
   if (status === "locked") {
     body = (
       <div className="mem-empty">
-        <img src="/sparky.png" alt="" />
+        <img src="/sparky-samurai-head.png" alt="" />
         <p>
           {vault.conflict
             ? "Your wallet signed differently than last time, so the memory saved on this device stays locked."
@@ -393,7 +393,7 @@ export function MemoryPanel() {
   } else if (rows && rows.length === 0) {
     body = (
       <div className="mem-empty">
-        <img src="/sparky.png" alt="" />
+        <img src="/sparky-samurai-head.png" alt="" />
         <p>
           {current === "user"
             ? "Nothing here yet. Talk to Sparky and your conversations show up here, sealed with your wallet."

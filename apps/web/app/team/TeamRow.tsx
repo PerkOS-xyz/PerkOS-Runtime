@@ -3,7 +3,7 @@
 import type { DeskTeam, TeamAgent } from "@perkos/client";
 import type { CSSProperties } from "react";
 
-import { AgentSphere } from "./AgentSphere";
+import { AgentPortrait } from "./AgentPortrait";
 import { roleConfig } from "./avatarIdentity";
 import { memberLook, seating, specialistSeat } from "./look";
 
@@ -12,7 +12,7 @@ function Member({ agent, className, size, style, note, seat }: { agent: TeamAgen
   const name = roleConfig(agent.role).label;
   return (
     <div className={`st-member ${className} ${look.avatar}`} style={style} title={`${name}${note ? ` · ${note}` : ""}: ${look.label}`}>
-      <AgentSphere role={agent.role} state={look.avatar} size={size} label={name} seat={seat} />
+      <AgentPortrait role={agent.role} state={look.avatar} size={size} label={name} seat={seat} />
       <b>{name}</b>
       <small>{look.label}</small>
     </div>
