@@ -703,6 +703,75 @@ button { font: inherit; }
   pointer-events: none;
 }
 .bubble-button:hover .bubble-tip { opacity: 1; transform: none; }
+
+/* Sparky before any desk. The bubble opens a scene where he is the only one
+   there: the screen steps back, the scene grows out of the bubble, and his
+   head flies from the corner to the center. Closing runs it backwards. */
+.bubble.away .bubble-button { opacity: 0; transform: scale(0.4); pointer-events: none; transition: opacity 220ms var(--ease), transform 220ms var(--ease); }
+.desks-home > :not(.bubble):not(.sparky-scene) { transition: opacity 420ms var(--ease), transform 560ms var(--ease), filter 420ms var(--ease); }
+.desks-home.behind > :not(.bubble):not(.sparky-scene) { opacity: 0; filter: blur(8px); pointer-events: none; }
+.desks-home.behind > .app-header { transform: translateY(-18px); }
+.desks-home.behind > .dh-intro { transform: translateY(-10px) scale(0.98); transition-delay: 40ms; }
+.desks-home.behind > .deck { transform: translateY(48px) scale(0.95); transition-delay: 80ms; }
+
+.stage.sparky-scene {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  height: auto;
+  padding: 0;
+  background: radial-gradient(60% 55% at 50% 46%, rgba(236, 27, 105, 0.08), transparent 70%), rgba(3, 4, 10, 0.34);
+}
+.sparky-scene.opening { animation: ss-reveal 720ms var(--ease) both; }
+.sparky-scene.closing { animation: ss-conceal 460ms var(--ease) both; pointer-events: none; }
+.sparky-scene.opening .st-core-wrap { animation: ss-arrive 720ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.sparky-scene.closing .st-core-wrap { animation: ss-leave 460ms var(--ease) both; }
+.sparky-scene.opening .ss-top, .sparky-scene.opening .st-starters, .sparky-scene.opening .st-ask { animation: rise 520ms var(--ease) 280ms both; }
+@keyframes ss-reveal { from { clip-path: circle(32px at var(--ox) var(--oy)); } to { clip-path: circle(150vmax at var(--ox) var(--oy)); } }
+@keyframes ss-conceal { from { clip-path: circle(150vmax at var(--ox) var(--oy)); } to { clip-path: circle(32px at var(--ox) var(--oy)); opacity: 0.3; } }
+@keyframes ss-arrive { from { translate: var(--dx) var(--dy); scale: 0.2; } 72% { scale: 1.04; } to { translate: 0 0; scale: 1; } }
+@keyframes ss-leave { from { translate: 0 0; scale: 1; opacity: 1; } to { translate: var(--dx) var(--dy); scale: 0.2; opacity: 0; } }
+
+/* A quiet HUD around him: rings that turn faster while he listens. */
+.ss-halo { position: relative; display: grid; place-items: center; }
+.ss-ring { position: absolute; left: 50%; top: 50%; translate: -50% -50%; border-radius: 50%; pointer-events: none; }
+.ss-ring.outer { width: 332px; height: 332px; border: 1px dashed rgba(120, 160, 255, 0.22); animation: ring-spin 48s linear infinite; }
+.ss-ring.inner { width: 274px; height: 274px; border: 1px solid rgba(236, 27, 105, 0.12); border-top-color: rgba(255, 106, 120, 0.75); border-right-color: rgba(255, 106, 120, 0.3); animation: ring-spin 7s linear infinite; transition: border-color 300ms var(--ease); }
+.ss-halo:has(.st-core.listening) .ss-ring.inner { animation-duration: 1.8s; border-top-color: #ff2d7a; border-right-color: rgba(255, 45, 122, 0.55); }
+.ss-halo:has(.st-core.thinking) .ss-ring.inner { animation-duration: 3s; }
+.ss-halo:has(.st-core.speaking) .ss-ring.outer { border-color: rgba(255, 106, 120, 0.4); animation-duration: 16s; }
+.sparky-scene.opening .ss-ring { animation: ss-ring-in 900ms var(--ease) both, ring-spin 7s linear infinite; }
+@keyframes ss-ring-in { from { opacity: 0; scale: 0.55; } to { opacity: 1; scale: 1; } }
+
+.ss-top {
+  position: absolute;
+  z-index: 8;
+  left: 0;
+  right: 0;
+  top: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 40px var(--side) 0;
+  -webkit-app-region: drag;
+}
+.ss-top button { -webkit-app-region: no-drag; }
+.ss-title { display: flex; flex-direction: column; gap: 4px; }
+.ss-title b { font-family: var(--display); font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.ss-title small { font-size: 11px; letter-spacing: 0.06em; color: var(--mute); }
+.ss-actions { display: flex; align-items: center; gap: 10px; }
+.ss-close { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--hair-strong); background: rgba(6, 9, 18, 0.7); color: var(--ink-2); cursor: pointer; transition: color 160ms var(--ease), border-color 160ms var(--ease), transform 220ms var(--ease); }
+.ss-close:hover { color: #fff; border-color: rgba(236, 27, 105, 0.55); transform: rotate(90deg); }
+.ss-close svg { width: 16px; height: 16px; }
+.ss-memory { position: absolute; z-index: 5; left: var(--side); top: 132px; width: min(360px, calc(100% - 2 * var(--side))); }
+.ss-memory .memory-banner { margin: 0; }
+.sparky-scene.split .ss-memory { left: auto; right: var(--side); top: 104px; }
+.ss-err { position: absolute; z-index: 6; left: 50%; bottom: 88px; translate: -50% 0; margin: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .sparky-scene, .sparky-scene .st-core-wrap, .sparky-scene .ss-top, .sparky-scene .st-starters, .sparky-scene .st-ask, .ss-ring { animation: none !important; }
+  .desks-home > :not(.bubble):not(.sparky-scene) { transition: none; }
+}
 .bubble-panel {
   width: min(380px, calc(100vw - 48px));
   height: min(540px, calc(100vh - 140px));
