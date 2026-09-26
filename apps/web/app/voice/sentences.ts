@@ -1,3 +1,5 @@
+import { withoutFactTags } from "../lib/turnRecord";
+
 /**
  * Splits a streamed reply into sentences, so speech can start with the first
  * one while the rest is still arriving.
@@ -32,3 +34,9 @@ export class SentenceSplitter {
     return rest ? [rest] : [];
   }
 }
+
+/**
+ * What Sparky says out loud of a sentence: no [Fn] fact tags and no @ before
+ * a name. The chat keeps the text as written.
+ */
+export const spoken = (sentence: string) => withoutFactTags(sentence).replace(/@(?=[A-Za-z])/g, "").trim();

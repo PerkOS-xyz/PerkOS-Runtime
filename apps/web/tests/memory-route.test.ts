@@ -118,6 +118,19 @@ describe("editing and forgetting", () => {
     expect((await send(PUT(req("PUT", "", { id: "user/notes/memory", body: "  " })))).status).toBe(400);
   });
 
+  it("lists a desk turn by its question, keeps it as it happened, and forgets it on request", async () => {
+    const notes = await turnOn();
+    const turnBody = "Asked: How is NVDA doing today?\nAnalyze · Risk medium · 71.4 s\nScout (18.2 s): NVDA holds its range [F1].";
+    await notes.writeTurn("eqlty-desk", "20260926-120000-ab12", "2026-09-26 12:00 How is NVDA doing today?", turnBody, { v: 1 });
+    const { body: list } = await get("?scope=eqlty-desk");
+    expect(list.notes[0]).toMatchObject({ kind: "turn", preview: "How is NVDA doing today?", exchanges: 0 });
+    const id = "eqlty-desk/turns/20260926-120000-ab12";
+    const refused = await send(PUT(req("PUT", "", { id, body: "rewritten" })));
+    expect(refused).toEqual({ status: 400, body: { error: "turn", message: "A desk turn is kept as it happened." } });
+    expect((await send(FORGET(req("DELETE", `?id=${encodeURIComponent(id)}`)))).body).toEqual({ ok: true });
+    expect(await notes.read(id)).toBeNull();
+  });
+
   it("forgets a day for good", async () => {
     const notes = await turnOn();
     await notes.appendJournal("user", journalEntry("My budget is 500 USDG a month.", "Noted."));

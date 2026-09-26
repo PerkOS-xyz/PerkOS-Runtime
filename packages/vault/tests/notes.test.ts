@@ -132,6 +132,65 @@ describe("NoteStore", () => {
     expect((await new NoteStore(root, KEY).list()).map((n) => n.id)).toEqual(["user/notes/goals"]);
   });
 
+  describe("desk turns", () => {
+    const record = { v: 1, id: "20260926-120000-ab12", secret: "headline-only-in-data" };
+    const body = "Asked: How is NVDA doing today?\nAnalyze · Risk medium · 71.4 s\nScout (18.2 s): NVDA holds its range [F1].";
+
+    it("keeps a turn sealed on disk and bound to its id", async () => {
+      const { root, notes } = store();
+      const turn = await notes.writeTurn("eqlty-desk", record.id, "2026-09-26 12:00 How is NVDA doing today?", body, record);
+      expect(turn).toMatchObject({ id: "eqlty-desk/turns/20260926-120000-ab12", scope: "eqlty-desk", kind: "turn" });
+      const file = join(root, "eqlty-desk", "turns", `${record.id}.json`);
+      const onDisk = readFileSync(file, "utf8");
+      expect(onDisk).not.toContain("NVDA");
+      expect(onDisk).not.toContain("headline-only-in-data");
+      const reopened = await new NoteStore(root, KEY).read(turn.id);
+      expect(reopened?.data).toEqual(record);
+      expect(reopened?.body).toBe(body);
+
+      mkdirSync(join(root, "other-desk", "turns"), { recursive: true });
+      renameSync(file, join(root, "other-desk", "turns", `${record.id}.json`));
+      expect(await new NoteStore(root, KEY).read(`other-desk/turns/${record.id}`)).toBeNull();
+    });
+
+    it("lists turns of one scope apart from the journal and the notes", async () => {
+      const { root, notes } = store();
+      await notes.appendJournal("eqlty-desk", "Watch NVDA.");
+      await notes.writeNote("eqlty-desk", "memory", "Memory", "## 2026-09-26\nFacts\n- Budget 500 USDG.");
+      await notes.writeTurn("eqlty-desk", record.id, "turn", body, record);
+      await notes.writeTurn("user", "20260926-120001-cd34", "turn", body, record);
+      const reopened = new NoteStore(root, KEY);
+      expect((await reopened.list("eqlty-desk", "turn")).map((n) => n.id)).toEqual([`eqlty-desk/turns/${record.id}`]);
+      expect((await reopened.list(undefined, "turn")).length).toBe(2);
+      expect((await reopened.list("eqlty-desk")).length).toBe(3);
+    });
+
+    it("finds a turn by what it says, never by its record, and can search turns alone", async () => {
+      const { root, notes } = store();
+      await notes.appendJournal("eqlty-desk", "NVDA looked strong this morning.");
+      await notes.writeTurn("eqlty-desk", record.id, "2026-09-26 12:00 How is NVDA doing today?", body, record);
+      const reopened = new NoteStore(root, KEY);
+      expect((await reopened.search("headline", { scopes: ["eqlty-desk"] })).length).toBe(0);
+      expect((await reopened.search("NVDA", { scopes: ["eqlty-desk"] })).map((h) => h.id).sort()).toEqual([
+        "eqlty-desk/journal/2026-09-26",
+        `eqlty-desk/turns/${record.id}`,
+      ]);
+      expect((await reopened.search("NVDA", { scopes: ["eqlty-desk"], kinds: ["turn"] })).map((h) => h.id)).toEqual([`eqlty-desk/turns/${record.id}`]);
+      expect(await reopened.contextFor("NVDA", ["eqlty-desk"], 1800, ["turn"])).toContain("How is NVDA doing today?");
+      expect(await reopened.contextFor("NVDA", ["eqlty-desk"], 1800, ["turn"])).not.toContain("looked strong");
+    });
+
+    it("forgets a turn for good, and refuses a name that could escape the vault", async () => {
+      const { root, notes } = store();
+      await notes.writeTurn("eqlty-desk", record.id, "turn", body, record);
+      expect(await notes.remove(`eqlty-desk/turns/${record.id}`)).toBe(true);
+      expect(readdirSync(join(root, "eqlty-desk", "turns"))).toEqual([]);
+      expect((await notes.search("NVDA", { scopes: ["eqlty-desk"] })).length).toBe(0);
+      await expect(notes.writeTurn("eqlty-desk", "../x", "t", "b", {})).rejects.toThrow("Not a turn name");
+      await expect(notes.writeTurn("../evil", record.id, "t", "b", {})).rejects.toThrow("Not a scope");
+    });
+  });
+
   it("rejects scopes and names that could escape the vault", async () => {
     const { root, notes } = store();
     await expect(notes.appendJournal("../evil", "x")).rejects.toThrow("Not a scope");

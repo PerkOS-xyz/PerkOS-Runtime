@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
+import type { DeskStarter } from "@perkos/desk-contract";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 
 import { ChatChips, ChatsDrawer } from "../chat/ChatsDrawer";
 import { useChatActions, useChats } from "../chat/useChats";
@@ -11,6 +12,10 @@ import { useVault } from "../shell/useVault";
 import { wakeAction } from "../team/look";
 import { TeamRow } from "../team/TeamRow";
 import { useTeam } from "../team/useTeam";
+import { ChatLine, TypingLine } from "../turn/ChatLine";
+import { routeFor } from "../turn/turnChat";
+import { useDeskAssets, useTurnChat } from "../turn/useTurnChat";
+import { WorkFold, WorkingList } from "../turn/WorkingList";
 import { useTalk } from "../voice/useTalk";
 import { useWallet } from "../wallet/context";
 import { CHAIN_LABEL, chainOf } from "./chains";
@@ -45,7 +50,8 @@ export function DeskView({
   const closeMarket = useCallback(() => setMarket(false), []);
   const [trader, setTrader] = useState(false);
   const closeTrader = useCallback(() => setTrader(false), []);
-  const { voice, talk } = useTalk(chat, { command: (text) => saved.command(text, true) });
+  // Spoken questions go through the same router as typed ones, so a task said out loud reaches the team.
+  const { voice, talk, talkReply, hold, release } = useTalk(chat, { route: (text) => dispatch(text), command: (text) => saved.command(text, true) });
   const manifest = useDeskManifest(desk.module);
   const team = useTeam(desk.id);
   const waking = wakeAction(team.team?.status, team.busy);
@@ -53,6 +59,15 @@ export function DeskView({
   const [voiceReady, setVoiceReady] = useState<boolean | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const assets = useDeskAssets(desk.module, Boolean(manifest && Object.keys(manifest.turns).length));
+  const turn = useTurnChat({ desk: desk.id, chat, voice: voiceReady ? { reply: talkReply, hold, release } : null });
+  /** Each turn's facts, for the [Fn] tags in its answers. */
+  const factsByTurn = useMemo(() => {
+    const out = new Map<string, string[]>();
+    for (const m of chat.messages) if (m.role === "team" && m.kind === "principal" && m.turnId && m.facts) out.set(m.turnId, m.facts);
+    return out;
+  }, [chat.messages]);
+  const typing = turn.view.order.filter((role) => turn.view.roles[role]?.status === "thinking");
 
   useEffect(() => {
     fetch("/api/voice")
@@ -63,22 +78,37 @@ export function DeskView({
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
-  }, [chat.messages]);
+  }, [chat.messages, typing.length, turn.view.steps.length]);
 
-  const state = coreState(voice.status, chat.busy, isAnswering(chat.busy, chat.messages));
+  const state = coreState(voice.status, chat.busy || turn.live, isAnswering(chat.busy, chat.messages));
   const split = chat.messages.length > 0;
-  const working = chat.busy || voice.status === "speaking";
+  const working = chat.busy || voice.status === "speaking" || turn.live;
   const saved = useChatActions(chats, { working, stop });
   const starters = manifest?.starters.length ? manifest.starters : DEFAULT_STARTERS;
 
-  /** Sparky answers out loud when voice works here, and in text either way. */
-  function send(text: string) {
+  /**
+   * Where the person's words go, typed or spoken: a desk task to the team,
+   * anything else to Sparky alone, and everything to Sparky while the team
+   * works. Sparky answers out loud when voice works here, and in text either way.
+   */
+  function dispatch(text: string, starter?: DeskStarter) {
     const t = text.trim();
     if (!t) return;
+    const route = routeFor(t, { manifest, ...(assets ? { assets } : {}), starter: starter ?? null, live: turn.live });
+    if (route.to === "team") {
+      void turn.ask(t, route.kind);
+      return;
+    }
+    const options = { ...(route.tone ? { tone: route.tone } : {}), ...(!turn.live && turn.lastTurn ? { about: turn.lastTurn } : {}) };
+    if (voiceReady) talk(t, options);
+    else void chat.send(t, {}, options);
+  }
+
+  function send(text: string, starter?: DeskStarter) {
+    if (!text.trim()) return;
     setDraft("");
-    if (saved.command(t, false) !== null) return;
-    if (voiceReady) talk(t);
-    else void chat.send(t);
+    if (saved.command(text.trim(), false) !== null) return;
+    dispatch(text, starter);
   }
 
   function submit(e: FormEvent) {
@@ -86,9 +116,11 @@ export function DeskView({
     send(draft);
   }
 
+  /** Stops Sparky and the wait for the team. PerkOS cannot cancel a task, so an agent already asked may still finish there. */
   function stop() {
     voice.stopAll();
     chat.abort();
+    turn.stop();
   }
 
   return (
@@ -174,20 +206,14 @@ export function DeskView({
 
         {split ? (
           <section className="st-convo" aria-label="Conversation with Sparky">
-            {chat.messages.map((m, i) => (
-              <div key={i} className={`st-turn ${m.role}`}>
-                <span className="st-who">{m.role === "user" ? "You" : "Sparky"}</span>
-                <p>
-                  {m.content ||
-                    (chat.busy && i === chat.messages.length - 1 ? (
-                      <span className="st-typing" aria-label="Sparky is writing">
-                        <i />
-                        <i />
-                        <i />
-                      </span>
-                    ) : null)}
-                </p>
-              </div>
+            {chat.messages.map((m) => (
+              <ChatLine key={m.id} message={m} typing={chat.replying.includes(m.id)} facts={m.role === "team" && m.turnId ? factsByTurn.get(m.turnId) : undefined}>
+                {m.role === "assistant" && m.work ? <WorkFold work={m.work} /> : null}
+              </ChatLine>
+            ))}
+            {turn.live ? <WorkingList view={turn.view} /> : null}
+            {typing.map((role) => (
+              <TypingLine key={`typing-${role}`} role={role} />
             ))}
             {chat.error ? <p className="hint err">{chat.error}</p> : null}
             <div ref={endRef} />
@@ -195,7 +221,7 @@ export function DeskView({
         ) : (
           <div className="st-starters" aria-label="Suggested questions">
             {starters.map((s, i) => (
-              <button key={s.text} type="button" style={{ "--i": i } as CSSProperties} onClick={() => send(s.text)}>
+              <button key={s.text} type="button" style={{ "--i": i } as CSSProperties} onClick={() => send(s.text, s)}>
                 {s.text}
                 <small>{s.tag}</small>
               </button>
@@ -261,12 +287,13 @@ export function DeskView({
             )}
           </button>
           {working ? (
-            <button type="button" className="st-ask-btn send" aria-label="Stop" title="Stop" onClick={stop}>
+            <button type="button" className="st-ask-btn send" aria-label="Stop" title={turn.live ? "Stop waiting for the team" : "Stop"} onClick={stop}>
               <svg viewBox="0 0 24 24" aria-hidden>
                 <rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor" />
               </svg>
             </button>
-          ) : (
+          ) : null}
+          {working && !draft.trim() ? null : (
             <button type="submit" className="st-ask-btn send" aria-label="Send" disabled={!draft.trim()}>
               <svg viewBox="0 0 24 24" aria-hidden>
                 <path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />

@@ -42,7 +42,43 @@ describe("a desk's team", () => {
     });
     expect((await teamWith(http as unknown as typeof fetch).wake("eqlty-desk")).status).toBe("waking");
     const broke = vi.fn(async () => reply(402, { error: { message: "Add desk time to run the team", code: "PAYMENT_REQUIRED" } }));
-    await expect(teamWith(broke as unknown as typeof fetch).wake("eqlty-desk")).rejects.toMatchObject({ status: 402 });
+    await expect(teamWith(broke as unknown as typeof fetch).wake("eqlty-desk")).rejects.toMatchObject({ status: 402, code: "PAYMENT_REQUIRED" });
+  });
+
+  it("keeps how PerkOS addresses each agent, and gives waking more time than reading", async () => {
+    const http = vi.fn(async () =>
+      reply(200, {
+        status: "ready",
+        agents: [
+          { role: "scout", name: "eqlty-scout-1234abcd", agentId: "agent-scout", state: "ready" },
+          { role: "trader", name: "eqlty-trader-1234abcd", state: "planned" },
+        ],
+      }),
+    );
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+    try {
+      const team = await teamWith(http as unknown as typeof fetch).status("eqlty-desk");
+      expect(team.agents[0]?.agentId).toBe("agent-scout");
+      expect(team.agents[1]).not.toHaveProperty("agentId");
+      await teamWith(http as unknown as typeof fetch).wake("eqlty-desk");
+      expect(timeout.mock.calls.map((c) => c[0])).toEqual([30_000, 90_000]);
+    } finally {
+      timeout.mockRestore();
+    }
+  });
+
+  it("gives up waking when the caller stops waiting", async () => {
+    const stop = new AbortController();
+    const http = vi.fn(
+      (_url: string | URL | Request, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          if (init?.signal?.aborted) reject(new DOMException("aborted", "AbortError"));
+          init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+        }),
+    );
+    const pending = teamWith(http as unknown as typeof fetch).wake("eqlty-desk", { signal: stop.signal }).catch((e: unknown) => e);
+    stop.abort();
+    expect(await pending).toMatchObject({ code: "PERKOS_ABORTED" });
   });
 
   it("refuses a team it cannot read", async () => {

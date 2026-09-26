@@ -3,6 +3,7 @@
  *
  *   <root>/<scope>/journal/YYYY-MM-DD.json   the day's conversation
  *   <root>/<scope>/notes/<slug>.json          notes and remembered facts
+ *   <root>/<scope>/turns/<slug>.json          a desk turn: what the team was asked and said
  *   <root>/key-check.json                     tells whether a key opens this vault
  *
  * `scope` is "user" (the person, across desks) or a desk id. Every file is
@@ -17,7 +18,7 @@ import MiniSearch from "minisearch";
 
 import { isSealed, open, seal, type Sealed } from "./seal.ts";
 
-export type NoteKind = "journal" | "note";
+export type NoteKind = "journal" | "note" | "turn";
 
 export interface Note {
   /** `<scope>/journal/<date>` or `<scope>/notes/<slug>` */
@@ -27,6 +28,8 @@ export interface Note {
   title: string;
   body: string;
   updatedAt: string;
+  /** Structured record kept with a turn. Sealed with the note, never searched. */
+  data?: unknown;
 }
 
 export interface Hit {
@@ -40,7 +43,7 @@ export interface Hit {
 
 const SCOPE = /^(user|[a-z0-9][a-z0-9-]{0,63})$/;
 const SLUG = /^[a-z0-9][a-z0-9-]{0,80}$/;
-const KINDS: Record<string, NoteKind> = { journal: "journal", notes: "note" };
+const KINDS: Record<string, NoteKind> = { journal: "journal", notes: "note", turns: "turn" };
 
 export const isScope = (scope: string) => SCOPE.test(scope);
 
@@ -188,6 +191,18 @@ export class NoteStore {
     );
   }
 
+  /**
+   * Writes (or replaces) a desk turn: `body` is the readable account that
+   * Memory shows and search finds, `data` the full record kept beside it.
+   */
+  async writeTurn(scope: string, slug: string, title: string, body: string, data: unknown): Promise<Note> {
+    if (!isScope(scope)) throw new Error(`Not a scope: ${scope}`);
+    if (!SLUG.test(slug)) throw new Error(`Not a turn name: ${slug}`);
+    return this.serial(() =>
+      this.save({ id: `${scope}/turns/${slug}`, scope, kind: "turn", title, body, updatedAt: this.now().toISOString(), data }),
+    );
+  }
+
   /** A note by id, or null when it is missing, sealed with another key, or not a note id at all. */
   async read(id: string): Promise<Note | null> {
     const [scope = "", dir = "", name = "", ...rest] = id.split("/");
@@ -222,19 +237,21 @@ export class NoteStore {
     this.loaded = true;
   }
 
-  /** Notes, newest first, optionally for one scope. */
-  async list(scope?: string): Promise<Note[]> {
+  /** Notes, newest first, optionally for one scope and of one kind. */
+  async list(scope?: string, kind?: NoteKind): Promise<Note[]> {
     await this.loadAll();
-    return [...this.notes.values()].filter((n) => !scope || n.scope === scope).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return [...this.notes.values()]
+      .filter((n) => (!scope || n.scope === scope) && (!kind || n.kind === kind))
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
 
-  /** Full-text search (BM25) over the given scopes. */
-  async search(query: string, { scopes, k = 6 }: { scopes: string[]; k?: number }): Promise<Hit[]> {
+  /** Full-text search (BM25) over the given scopes, and only the given kinds when they are named. */
+  async search(query: string, { scopes, k = 6, kinds }: { scopes: string[]; k?: number; kinds?: NoteKind[] }): Promise<Hit[]> {
     await this.loadAll();
     if (!this.index) {
       this.index = new MiniSearch<Note>({
         fields: ["title", "body"],
-        storeFields: ["scope", "title", "updatedAt"],
+        storeFields: ["scope", "kind", "title", "updatedAt"],
         idField: "id",
         processTerm: term,
       });
@@ -247,7 +264,7 @@ export class NoteStore {
         prefix: (t) => t.length >= 4,
         fuzzy: (t) => (t.length >= 5 ? 0.2 : false),
         boost: { title: 2 },
-        filter: (r) => scopes.includes(String(r.scope)),
+        filter: (r) => scopes.includes(String(r.scope)) && (!kinds || kinds.includes(r.kind as NoteKind)),
       })
       .slice(0, k)
       .map((r) => {
@@ -264,8 +281,8 @@ export class NoteStore {
   }
 
   /** What the notes say about a query, as a short block for a prompt. Empty when nothing matches. */
-  async contextFor(query: string, scopes: string[], maxChars = 1800): Promise<string> {
-    const hits = await this.search(query, { scopes });
+  async contextFor(query: string, scopes: string[], maxChars = 1800, kinds?: NoteKind[]): Promise<string> {
+    const hits = await this.search(query, { scopes, ...(kinds ? { kinds } : {}) });
     let out = "";
     for (const h of hits) {
       const line = `- ${h.title} (${localDay(new Date(h.updatedAt))}): ${h.snippet}\n`;

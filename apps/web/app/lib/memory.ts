@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { ChatStore, isScope, NoteStore } from "@perkos/vault";
 
 import { homeDir } from "./home";
+import { MEMORY_SLUG } from "./memoryNote";
 import { vaultKeys } from "./vault";
 
 const open = new Map<string, { key: Buffer; notes: NoteStore }>();
@@ -68,4 +69,24 @@ export const scopeFor = (desk?: string) => (desk && isScope(desk) ? desk : "user
 export function recallScopes(desk: string | undefined, deskIds: string[]): string[] {
   const scope = scopeFor(desk);
   return scope === "user" ? ["user", ...deskIds.filter(isScope)] : ["user", scope];
+}
+
+/** What the desk's Memory note may add to a turn. */
+const TEAM_NOTE_CHARS = 400;
+
+/**
+ * What a desk turn's team may be told from memory: the desk's earlier turns
+ * and its Memory note. Never the person's own conversations: the team runs on
+ * PerkOS infra, and the person's words stay on this machine.
+ */
+export async function teamMemory(notes: NoteStore, desk: string, question: string, maxChars = 900): Promise<string> {
+  if (!isScope(desk) || desk === "user") return "";
+  const note = await notes.read(`${desk}/notes/${MEMORY_SLUG}`).catch(() => null);
+  const kept = note ? note.body.replace(/\s+/g, " ").trim().slice(0, TEAM_NOTE_CHARS) : "";
+  const room = Math.max(0, maxChars - kept.length - 40);
+  const turns = room ? await notes.contextFor(question, [desk], room, ["turn"]).catch(() => "") : "";
+  return [turns ? `Earlier desk turns: ${turns.replace(/\n/g, " ")}` : "", kept ? `Desk notes: ${kept}` : ""]
+    .filter(Boolean)
+    .join(" ")
+    .slice(0, maxChars);
 }

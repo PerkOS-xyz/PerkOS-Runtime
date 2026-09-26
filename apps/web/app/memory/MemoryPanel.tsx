@@ -8,7 +8,7 @@ import { useVault } from "../shell/useVault";
 import { useWallet } from "../wallet/context";
 import { OPEN_MEMORY, type OpenMemory } from "./open";
 
-type Kind = "journal" | "note";
+type Kind = "journal" | "note" | "turn";
 type Scope = { id: string; name: string; notes: number };
 type Row = { id: string; scope: string; kind: Kind; title: string; updatedAt: string; exchanges: number; preview: string };
 type Hit = { id: string; scope: string; name: string; title: string; snippet: string; updatedAt: string };

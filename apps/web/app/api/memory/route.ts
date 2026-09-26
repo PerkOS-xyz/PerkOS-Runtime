@@ -9,11 +9,17 @@ import { sessionWallet } from "../../lib/vault";
 
 const PREVIEW = 180;
 
-/** A row for the list: a day's journal shows its first question and how many exchanges it holds; the Memory note, its latest facts. */
+/** What a desk turn was asked: the first line of its readable account. */
+const turnQuestion = (body: string) => (body.split("\n")[0] ?? "").replace(/^Asked:\s*/, "");
+
+/**
+ * A row for the list: a day's journal shows its first question and how many exchanges it holds; the Memory note,
+ * its latest facts; a desk turn, what it was asked.
+ */
 function row(n: Note) {
   const exchanges = n.kind === "journal" ? parseJournal(n.body) : [];
   const latest = n.kind === "note" ? parseMemory(n.body)[0]?.sections.flatMap((s) => s.items) : undefined;
-  const text = exchanges[0]?.person ?? (latest?.length ? latest.join(" · ") : n.body);
+  const text = n.kind === "turn" ? turnQuestion(n.body) : (exchanges[0]?.person ?? (latest?.length ? latest.join(" · ") : n.body));
   return {
     id: n.id,
     scope: n.scope,
@@ -73,6 +79,7 @@ export async function PUT(req: Request) {
   const b = (await req.json().catch(() => ({}))) as { id?: unknown; body?: unknown };
   const note = typeof b.id === "string" ? await notes.read(b.id) : null;
   if (!note) return Response.json({ error: "not_found" }, { status: 404 });
+  if (note.kind === "turn") return Response.json({ error: "turn", message: "A desk turn is kept as it happened." }, { status: 400 });
   if (note.kind !== "note") return Response.json({ error: "journal", message: "A day's conversations cannot be edited." }, { status: 400 });
   const body = typeof b.body === "string" ? b.body.slice(0, 60_000) : "";
   if (!body.trim()) return Response.json({ error: "body", message: "The note is empty." }, { status: 400 });

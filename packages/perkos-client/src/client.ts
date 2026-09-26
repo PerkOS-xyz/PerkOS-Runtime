@@ -13,8 +13,8 @@
 export interface PerkosClientOptions {
   /** Defaults to production. */
   baseUrl?: string;
-  /** The current session token, or undefined while signed out. */
-  token?: () => string | undefined;
+  /** The current session token, or undefined while signed out. May be read fresh on each call. */
+  token?: () => string | undefined | Promise<string | undefined>;
   /** Swappable for tests. */
   fetchImpl?: typeof fetch;
   /** Cut a call off after this long. A desk turn is waiting behind it. */
@@ -39,13 +39,32 @@ export interface RequestOptions {
   timeoutMs?: number;
   /** A call that is fine to make signed out, such as a public catalogue. */
   anonymous?: boolean;
+  /** Lets the caller give up early, for example when the person stops a desk turn. */
+  signal?: AbortSignal;
 }
 
 const DEFAULT_TIMEOUT_MS = 20_000;
 
+/** The call's own deadline, joined with the caller's signal when there is one. */
+function withTimeout(signal: AbortSignal | undefined, ms: number): AbortSignal {
+  const timeout = AbortSignal.timeout(ms);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
+
+/**
+ * Why a call got no answer: the caller gave up (PERKOS_ABORTED), the deadline
+ * passed (PERKOS_TIMEOUT), or PerkOS could not be reached (PERKOS_UNREACHABLE).
+ * All three have status 0: PerkOS never answered.
+ */
+function transportCode(err: unknown, signal: AbortSignal | undefined): string {
+  if (signal?.aborted) return "PERKOS_ABORTED";
+  if ((err as Error | undefined)?.name === "TimeoutError") return "PERKOS_TIMEOUT";
+  return "PERKOS_UNREACHABLE";
+}
+
 export class PerkosClient {
   readonly baseUrl: string;
-  private readonly token: () => string | undefined;
+  private readonly token: () => string | undefined | Promise<string | undefined>;
   private readonly http: typeof fetch;
   private readonly timeoutMs: number;
 
@@ -61,7 +80,7 @@ export class PerkosClient {
     for (const [key, value] of Object.entries(options.query ?? {})) {
       if (value !== undefined && value !== "") url.searchParams.set(key, value);
     }
-    const token = options.anonymous ? undefined : this.token();
+    const token = options.anonymous ? undefined : await this.token();
     if (!token && !options.anonymous) {
       throw new PerkosApiError("Sign in to PerkOS first", 401, "PERKOS_SESSION");
     }
@@ -75,10 +94,10 @@ export class PerkosClient {
           ...(token ? { authorization: `Bearer ${token}` } : {}),
         },
         ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
-        signal: AbortSignal.timeout(options.timeoutMs ?? this.timeoutMs),
+        signal: withTimeout(options.signal, options.timeoutMs ?? this.timeoutMs),
       });
     } catch (err) {
-      throw new PerkosApiError(`PerkOS did not answer: ${(err as Error).message}`, 0, "PERKOS_UNREACHABLE");
+      throw new PerkosApiError(`PerkOS did not answer: ${(err as Error).message}`, 0, transportCode(err, options.signal));
     }
     const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) {
