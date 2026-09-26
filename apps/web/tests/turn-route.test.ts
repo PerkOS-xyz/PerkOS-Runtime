@@ -386,7 +386,10 @@ describe("POST /api/desks/turn: a turn", () => {
     expect(await second.json()).toEqual({ error: "turn_live", message: "The team is still on the last question." });
     release();
     expect(frames(await first.text()).at(-1)).toMatchObject({ step: "done" });
-    expect((await post({ desk: "eqlty-desk", text: "And Apple?", kind: "analyze" })).status).toBe(200);
+    const third = await post({ desk: "eqlty-desk", text: "And Apple?", kind: "analyze" });
+    expect(third.status).toBe(200);
+    // Read it to the end, so its Trader and Auditor are not asked during the next test.
+    expect(frames(await third.text()).at(-1)).toMatchObject({ step: "done" });
   });
 
   it("stops waiting when the window closes the stream, and keeps the turn as stopped", async () => {

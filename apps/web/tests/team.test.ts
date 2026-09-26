@@ -100,10 +100,11 @@ describe("/api/desks/team", () => {
     const http = vi.fn(async (url: string, _init?: RequestInit) => (url.endsWith("/instance") ? Response.json(team) : Response.json({ ok: true })));
     vi.stubGlobal("fetch", http);
     expect(await (await PUT(req("PUT", "", { desk: "eqlty-desk" }))).json()).toEqual({ touched: 2 });
-    expect(http.mock.calls.map((c) => `${c[1]?.method ?? "GET"} ${String(c[0])}`)).toEqual([
+    // The touches go out together, so they can land in either order.
+    expect(http.mock.calls.map((c) => `${c[1]?.method ?? "GET"} ${String(c[0])}`).sort()).toEqual([
       "GET https://api.perkos.xyz/project-templates/eqlty-desk/instance",
-      "POST https://api.perkos.xyz/agents/id-scout/activity",
       "POST https://api.perkos.xyz/agents/id-auditor/activity",
+      "POST https://api.perkos.xyz/agents/id-scout/activity",
     ]);
     expect((await PUT(req("PUT", "", { desk: "Bad Desk" }))).status).toBe(400);
   });
