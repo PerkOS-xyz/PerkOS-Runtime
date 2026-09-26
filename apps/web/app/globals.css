@@ -1675,6 +1675,7 @@ button.mk-row { cursor: pointer; }
   backdrop-filter: blur(8px);
   box-shadow: inset 2px 0 0 color-mix(in srgb, var(--role) 85%, transparent);
 }
+.st-turn.team.typing { align-items: flex-start; }
 .st-turn.team.typing p { padding: 8px 14px; }
 .st-turn.team .st-typing i { background: var(--role); }
 .st-turn.principal .st-who { color: #ff9fbf; }
@@ -1745,4 +1746,56 @@ button.mk-row { cursor: pointer; }
 .st-turn.assistant.warm p { border-color: rgba(245, 106, 87, 0.26); }
 @media (prefers-reduced-motion: reduce) {
   .st-turn.team, .st-sysnote { animation: none; }
+}
+
+/* "Sparky · working": the turn's checklist while the team works, an ember
+   scan running along its top edge; once the turn is over it folds into one
+   line under Sparky's summary. */
+.st-turn.working .st-who { color: #ff9fbf; }
+.st-work {
+  position: relative;
+  overflow: hidden;
+  min-width: min(340px, 100%);
+  padding: 12px 15px 10px;
+  border-radius: 16px;
+  border-bottom-left-radius: 6px;
+  border: 1px solid rgba(236, 27, 105, 0.28);
+  background: linear-gradient(160deg, rgba(236, 27, 105, 0.07), transparent 55%), rgba(10, 14, 26, 0.82);
+  backdrop-filter: blur(8px);
+  animation: rise 320ms var(--ease) both;
+}
+.st-work-scan { position: absolute; left: 0; top: 0; width: 38%; height: 2px; background: var(--ember); animation: slide 1.6s var(--ease) infinite; }
+.st-work ol { display: flex; flex-direction: column; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.st-work li { display: flex; align-items: baseline; gap: 9px; font-size: 12.5px; line-height: 1.5; }
+.st-work li.earlier { padding-left: 20px; font-size: 10.5px; color: var(--mute); }
+.st-work li.done { color: var(--ink-2); }
+.st-work li.done b { flex: none; width: 11px; font-size: 11px; font-weight: 600; color: var(--ok); }
+.st-work li.now { color: var(--ink); }
+.st-work li.now em { font-style: normal; color: var(--mute); font-variant-numeric: tabular-nums; }
+.st-work-pulse { flex: none; align-self: center; width: 7px; height: 7px; margin: 0 2px; border-radius: 50%; background: var(--coral); animation: work-pulse 1.3s ease-out infinite; }
+@keyframes work-pulse { from { box-shadow: 0 0 0 0 rgba(245, 106, 87, 0.55); } to { box-shadow: 0 0 0 8px rgba(245, 106, 87, 0); } }
+.st-work small { display: block; margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--hair); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); font-variant-numeric: tabular-nums; }
+.st-worked { font-size: 11px; color: var(--mute); }
+.st-worked summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 11px 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--hair);
+  list-style: none;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: color 160ms var(--ease), border-color 160ms var(--ease);
+}
+.st-worked summary::-webkit-details-marker { display: none; }
+.st-worked summary::before { content: ""; width: 5px; height: 5px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); transition: transform 160ms var(--ease); }
+.st-worked[open] summary::before { transform: rotate(45deg); }
+.st-worked summary:hover { color: var(--ink-2); border-color: var(--hair-strong); }
+.st-worked ol { display: flex; flex-direction: column; gap: 3px; margin: 8px 0 2px 5px; padding: 0 0 0 14px; border-left: 1px solid var(--hair); list-style: none; }
+.st-worked li { position: relative; font-size: 11.5px; line-height: 1.5; color: var(--ink-2); }
+.st-worked li::before { content: ""; position: absolute; left: -17.5px; top: 7px; width: 6px; height: 6px; border-radius: 50%; background: var(--bg); box-shadow: inset 0 0 0 1.5px rgba(61, 220, 151, 0.7); }
+@media (prefers-reduced-motion: reduce) {
+  .st-work, .st-work-scan, .st-work-pulse { animation: none; }
 }

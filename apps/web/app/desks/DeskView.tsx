@@ -15,6 +15,7 @@ import { useTeam } from "../team/useTeam";
 import { ChatLine, TypingLine } from "../turn/ChatLine";
 import { routeFor } from "../turn/turnChat";
 import { useDeskAssets, useTurnChat } from "../turn/useTurnChat";
+import { WorkFold, WorkingList } from "../turn/WorkingList";
 import { useTalk } from "../voice/useTalk";
 import { useWallet } from "../wallet/context";
 import { CHAIN_LABEL, chainOf } from "./chains";
@@ -77,7 +78,7 @@ export function DeskView({
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
-  }, [chat.messages, typing.length]);
+  }, [chat.messages, typing.length, turn.view.steps.length]);
 
   const state = coreState(voice.status, chat.busy || turn.live, isAnswering(chat.busy, chat.messages));
   const split = chat.messages.length > 0;
@@ -206,8 +207,11 @@ export function DeskView({
         {split ? (
           <section className="st-convo" aria-label="Conversation with Sparky">
             {chat.messages.map((m) => (
-              <ChatLine key={m.id} message={m} typing={chat.replying.includes(m.id)} facts={m.role === "team" && m.turnId ? factsByTurn.get(m.turnId) : undefined} />
+              <ChatLine key={m.id} message={m} typing={chat.replying.includes(m.id)} facts={m.role === "team" && m.turnId ? factsByTurn.get(m.turnId) : undefined}>
+                {m.role === "assistant" && m.work ? <WorkFold work={m.work} /> : null}
+              </ChatLine>
             ))}
+            {turn.live ? <WorkingList view={turn.view} /> : null}
             {typing.map((role) => (
               <TypingLine key={`typing-${role}`} role={role} />
             ))}
