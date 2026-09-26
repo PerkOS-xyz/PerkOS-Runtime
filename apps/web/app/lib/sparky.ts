@@ -1,7 +1,9 @@
 /** Sparky's replies, streamed from the model the person chose. */
 
 import type { AiRegistry, ChatMessage } from "@perkos/ai";
+import type { DeskManifest } from "@perkos/desk-contract";
 
+import { planOfRecord, type TurnPlan } from "../turn/turnPlan";
 import type { ModelChoice } from "./settings";
 import { failureLabel } from "./turnFailure";
 import { roleName, withoutFactTags, type TurnRecord } from "./turnRecord";
@@ -184,6 +186,29 @@ export function withTeam(system: string, turn: TeamTurn): string {
 export function withTeamNotes(system: string, turn: TeamTurn): string {
   const asked = clipped(oneLine(turn.question), 300);
   return `${system}\n\nWhat the desk's team said in its last turn, on "${asked}". Use it when the person asks about it:\n${teamLines(turn).join("\n")}`;
+}
+
+/**
+ * The plan Sparky's summary points to: after an advise turn only, on a desk
+ * with a Trader, when the Trader left one. The same plan the Trader's card
+ * fills the Trader with, capped at what one order may spend.
+ */
+export function planToPoint(
+  turn: Pick<TurnRecord, "kind" | "error" | "replies" | "facts" | "verdict">,
+  manifest: Pick<DeskManifest, "screens" | "maxOrder"> | null,
+): TurnPlan | null {
+  if (turn.kind !== "advise" || turn.error || !manifest?.screens.includes("trader")) return null;
+  return planOfRecord(turn, manifest.maxOrder);
+}
+
+/** Asks Sparky to close his summary by pointing to Buy in Trader, where the plan is one press away. */
+export function withPlan(system: string, plan: TurnPlan): string {
+  return [
+    system,
+    "",
+    `The Trader's plan is ready to buy from the desk: ${plan.ticker} for ${plan.amount} USDG.`,
+    'Close with one short sentence that points the person to "Buy in Trader" on the Trader\'s card: it opens the Trader with that filled in, and nothing is bought until they get a quote and hold to approve.',
+  ].join("\n");
 }
 
 /** Sparky's first words while the desk's team wakes up to work on the request. */

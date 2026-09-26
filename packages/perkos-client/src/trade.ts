@@ -122,6 +122,8 @@ export interface BuyInput {
   maxSlippageBps: number;
   /** The quote the owner approved, in the stock's atomic units, so PerkOS can refuse a worse price. */
   quotedAmountOut: string;
+  /** Why the order goes out, kept with it on PerkOS: the desk turn whose plan it follows. Left out, PerkOS writes its own. */
+  reason?: string;
 }
 
 /** One stock the delegated wallet holds, at the desk's price, against what the Trader paid for it. */

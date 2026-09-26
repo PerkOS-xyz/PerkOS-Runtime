@@ -16,7 +16,7 @@ import type { NoteStore } from "@perkos/vault";
 
 import { askedAbout, candidates, factLines, MAX_CANDIDATES } from "./marketFacts";
 import { teamMemory } from "./memory";
-import { rememberMarket } from "./perkos";
+import { rememberManifest, rememberMarket } from "./perkos";
 import { runTurn } from "./turnEngine";
 import { failureLabel } from "./turnFailure";
 import { lintTurn } from "./turnLint";
@@ -99,6 +99,7 @@ export async function runDeskTurn(input: DeskTurnInput): Promise<TurnRecord | nu
     return null;
   }
   rememberMarket(input.desk.module, market);
+  rememberManifest(input.desk.module, manifest);
   const assets = turnAssets(kind, input.question, market, input.tickers);
   if (!assets.length) {
     input.emit({ step: "error", code: "DESK_MARKET", message: "The desk has no priced asset to look at right now." });

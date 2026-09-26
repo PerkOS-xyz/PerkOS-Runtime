@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 
-import type { TurnRecord, TurnRow } from "../lib/turnRecord";
+import { receiptLine, type TurnRecord, type TurnRow } from "../lib/turnRecord";
 import type { VaultState } from "../shell/useVault";
 import { AgentPortrait } from "../team/AgentPortrait";
 import { roleConfig, sphereAccent, type AgentAvatarState } from "../team/avatarIdentity";
@@ -249,7 +249,7 @@ function TurnList({
   );
 }
 
-function TurnRowLine({ turn: t, index, onOpen }: { turn: TurnRow; index: number; onOpen: (id: string) => void }) {
+export function TurnRowLine({ turn: t, index, onOpen }: { turn: TurnRow; index: number; onOpen: (id: string) => void }) {
   const missed = !t.stopped && t.failed.length > 0;
   const names = t.failed.map((r) => roleConfig(r).label);
   return (
@@ -267,7 +267,7 @@ function TurnRowLine({ turn: t, index, onOpen }: { turn: TurnRow; index: number;
             {t.riskLevel ? <span className={`hs-risk ${t.riskLevel}`}>{t.riskLevel} risk</span> : null}
             {t.verdict ? <span className={`hs-risk ${t.verdict === "GO" ? "low" : "high"}`}>{t.verdict}</span> : null}
             <span>{secondsOf(t.ms)}</span>
-            <span className={`hs-sign${t.signed ? " on" : ""}`}>{t.signed ? "signed" : "unsigned"}</span>
+            <span className={`hs-sign${t.signed ? " on" : ""}`}>{t.signed ? (t.receipt ? `signed · ${receiptLine(t.receipt)}` : "signed") : "unsigned"}</span>
             {t.stopped ? <span className="hs-miss dim">stopped waiting</span> : null}
             {missed ? <span className="hs-miss">{names.length > 2 ? "the team did not answer" : `no answer: ${names.join(", ")}`}</span> : null}
           </span>
@@ -326,7 +326,7 @@ export function TurnReplay({ record }: { record: TurnRecord }) {
           {record.riskLevel ? <span className={`hs-risk ${record.riskLevel}`}>{record.riskLevel} risk</span> : null}
           {record.verdict ? <span className={`hs-risk ${record.verdict === "GO" ? "low" : "high"}`}>verdict {record.verdict}</span> : null}
           <span>{secondsOf(record.ms)} total</span>
-          <span className={`hs-sign${signed ? " on" : ""}`}>{record.receipt ? `signed · ${record.receipt.ticker} ${record.receipt.amount}` : "unsigned"}</span>
+          <span className={`hs-sign${signed ? " on" : ""}`}>{record.receipt ? `signed · ${receiptLine(record.receipt)}` : "unsigned"}</span>
         </div>
       </header>
       {record.error ? <p className="hs-ended">Ended early: {record.error.message}</p> : null}
@@ -337,7 +337,7 @@ export function TurnReplay({ record }: { record: TurnRecord }) {
       {view.order.length ? (
         <div className="hs-cards" aria-label="Each agent's card">
           {view.order.map((role, i) => {
-            const look = cardLook(view, role, { index: i + 1, now: view.endedAt ?? 0, receipt: signed });
+            const look = cardLook(view, role, { index: i + 1, now: view.endedAt ?? 0, receipt: record.receipt ?? null });
             return look ? <TurnCard key={role} look={look} replay /> : null;
           })}
         </div>

@@ -8,8 +8,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { clockOf, dayOf, factParts, failureText, partsOf, replayView, secondsOf, whyOf, WHY_CHARS } from "../app/desks/history";
-import { TurnReplay } from "../app/desks/HistorySheet";
-import type { RoleReply, TurnRecord } from "../app/lib/turnRecord";
+import { TurnReplay, TurnRowLine } from "../app/desks/HistorySheet";
+import { receiptLine, type RoleReply, type TurnRecord, type TurnRow } from "../app/lib/turnRecord";
 import { TurnCard } from "../app/turn/TurnCards";
 import { cardLook, metricFor, metricText } from "../app/turn/turnLook";
 
@@ -192,11 +192,46 @@ describe("a turn opened in History", () => {
   it("says a turn was signed, stopped or ended early", () => {
     const signed = html(record({ receipt: { hash: "0x12", status: "success", ticker: "NVDA", amount: "40", at: "2026-09-26T14:40:00.000Z" } }));
     expect(signed).toContain('<span class="hs-sign on">signed · NVDA 40</span>');
+    const pending = html(record({ receipt: { hash: "0x12", status: "pending", ticker: "NVDA", amount: "40", at: "2026-09-26T14:40:00.000Z" } }));
+    expect(pending).toContain('<span class="hs-sign on">signed · NVDA 40 · pending</span>');
+    // The Auditor's card carries the receipt, a link to the swap, and no chip copy of it.
+    expect(signed).toContain('<a class="st-card-slot st-receipt success" href="https://robinhoodchain.blockscout.com/tx/0x12"');
+    expect(signed).toContain("<span>Signed · NVDA 40</span>");
+    expect(signed).not.toContain("st-card-receipt");
     const stopped = html(record({ stopped: true }));
     expect(stopped).toContain("You stopped waiting for this turn. Agents already asked may still have finished on PerkOS");
     const ended = html(record({ replies: [], error: { code: "TEAM_ASLEEP", message: "The team is asleep." } }));
     expect(ended).toContain("Ended early: The team is asleep.");
     expect(ended).toContain("The team was not asked in this turn.");
     expect(ended).not.toContain("st-card ");
+  });
+});
+
+describe("a turn in History's list", () => {
+  const row = (extra: Partial<TurnRow> = {}): TurnRow => ({
+    id: "20260926-143200-ab12",
+    kind: "advise",
+    question: "What should I buy this month?",
+    startedAt: "2026-09-26T14:32:00.000Z",
+    ms: 71_400,
+    flags: 0,
+    failed: [],
+    signed: false,
+    ...extra,
+  });
+  const html = (t: TurnRow) => renderToStaticMarkup(createElement(TurnRowLine, { turn: t, index: 0, onOpen: () => undefined })).replace(/<!-- -->/g, "");
+
+  it("says what the person signed after the turn: the stock and the amount", () => {
+    const signed = html(row({ signed: true, receipt: { ticker: "NVDA", amount: "50", status: "success" } }));
+    expect(signed).toContain('class="hs-row signed"');
+    expect(signed).toContain('<span class="hs-sign on">signed · NVDA 50</span>');
+    expect(html(row({ signed: true }))).toContain('<span class="hs-sign on">signed</span>');
+    expect(html(row())).toContain('<span class="hs-sign">unsigned</span>');
+  });
+
+  it("says where a swap stands when it is not confirmed", () => {
+    expect(receiptLine({ ticker: "NVDA", amount: "50", status: "success" })).toBe("NVDA 50");
+    expect(receiptLine({ ticker: "NVDA", amount: "50", status: "pending" })).toBe("NVDA 50 · pending");
+    expect(receiptLine({ ticker: "BRK.B", amount: "12.5", status: "reverted" })).toBe("BRK.B 12.5 · reverted");
   });
 });

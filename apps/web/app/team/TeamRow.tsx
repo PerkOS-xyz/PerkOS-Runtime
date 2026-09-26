@@ -60,6 +60,8 @@ function Member({
  * its part on a card under its head and its portrait follows the turn; a
  * moment after the turn the cards fold into chips. A specialist the turn asks,
  * such as Quote, has no card, but its portrait and status follow the turn too.
+ * Once the turn is over, the Trader's card carries Buy in Trader when it left
+ * a plan, and the Auditor's the receipt once the person signed from it.
  */
 export function TeamRow({ team, turn = null }: { team: DeskTeam | null; turn?: SeatTurn | null }) {
   const clock = useTurnClock(turn?.view ?? null);
@@ -70,8 +72,10 @@ export function TeamRow({ team, turn = null }: { team: DeskTeam | null; turn?: S
   return (
     <div className={`st-team${cards ? ` turn${open ? " open" : ""}` : ""}`} aria-label="The desk's team">
       {table.map((agent, i) => {
-        const look = cards ? cardLook(cards.view, agent.role, { index: i + 1, now: clock.now }) : null;
+        const look = cards ? cardLook(cards.view, agent.role, { index: i + 1, now: clock.now, receipt: cards.receipt ?? null }) : null;
         const focusable = look !== null && (cards?.lines.has(agent.role) === true || look.status === "thinking");
+        // The Trader's plan, one press from the Trader once the turn is over.
+        const buy = agent.role === "trader" ? cards?.onBuy : undefined;
         return (
           <Member
             key={agent.name}
@@ -81,7 +85,7 @@ export function TeamRow({ team, turn = null }: { team: DeskTeam | null; turn?: S
             state={open ? look?.avatar : null}
             status={open && look?.status === "thinking" ? "Thinking" : undefined}
           >
-            {look ? <TurnCard look={look} onFocus={focusable ? () => cards?.onFocus(agent.role) : undefined} /> : null}
+            {look ? <TurnCard look={look} onFocus={focusable ? () => cards?.onFocus(agent.role) : undefined} onBuy={buy} buyTitle={cards?.buyTitle} /> : null}
           </Member>
         );
       })}

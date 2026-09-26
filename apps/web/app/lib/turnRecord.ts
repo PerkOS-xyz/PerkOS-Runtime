@@ -201,6 +201,8 @@ export interface TurnRow {
   failed: string[];
   /** The person signed an order after the turn. */
   signed: boolean;
+  /** What they signed, when the turn keeps its receipt: the stock, the amount and where the swap stands. */
+  receipt?: Pick<TurnReceipt, "ticker" | "amount" | "status">;
   /** The person stopped waiting; the agents were not cancelled. */
   stopped?: boolean;
   /** Why the turn ended early, when it did. */
@@ -234,6 +236,10 @@ export function newTurnId(at = new Date(), random = () => Math.random()): string
 }
 
 export const isTurnId = (v: unknown): v is string => typeof v === "string" && /^\d{8}-\d{6}-[0-9a-f]{4}$/.test(v);
+
+/** A receipt as History and the cards read it: "NVDA 50", with where the swap stands when it is not confirmed: "NVDA 50 · pending". */
+export const receiptLine = (r: Pick<TurnReceipt, "ticker" | "amount" | "status">): string =>
+  `${r.ticker} ${r.amount}${r.status === "success" ? "" : ` · ${r.status}`}`;
 
 /** "2026-09-26 14:32 How is NVDA doing today?", in local time. */
 export function turnTitle(record: Pick<TurnRecord, "startedAt" | "question">): string {

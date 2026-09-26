@@ -1370,6 +1370,13 @@ button { font: inherit; }
 .tr-form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; margin-top: 12px; padding: 14px 16px; border-radius: 16px; border: 1px solid rgba(236, 27, 105, 0.3); background: rgba(236, 27, 105, 0.05); }
 .tr-form .wide { grid-column: 1 / -1; }
 .tr-form .pill { justify-self: start; }
+/* Opened from the desk's plan: the form says where its stock and amount came
+   from, edged in ember like the action that opened it. */
+.tr-plan { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 11px 14px; border-radius: 12px; border: 1px solid rgba(236, 27, 105, 0.34); background: linear-gradient(100deg, rgba(236, 27, 105, 0.13), rgba(245, 106, 87, 0.04) 55%, transparent), rgba(3, 4, 10, 0.55); box-shadow: inset 2px 0 0 var(--pink); animation: rise 360ms var(--ease) both; }
+.tr-plan-kicker { font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase; color: #ff9fbf; }
+.tr-plan p { margin: 0; font-size: 12px; line-height: 1.6; color: var(--ink-2); }
+.tr-plan b { font-family: var(--display); font-size: 13.5px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); }
+@media (prefers-reduced-motion: reduce) { .tr-plan { animation: none; } }
 .tr-field { display: flex; flex-direction: column; gap: 5px; }
 .tr-field span { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--mute); }
 .tr-field input, .tr-field select { width: 100%; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--hair-strong); background: rgba(3, 4, 10, 0.7); color: var(--ink); font: inherit; font-size: 13px; }
@@ -2092,6 +2099,47 @@ button.st-card-chip:hover { border-color: var(--role); }
 .st-card.warn .st-card-chip i { background: none; border: 1.5px solid #ff8a1f; box-shadow: none; }
 .st-card.error .st-card-chip i { background: none; border: 1.5px solid #ff4a4a; box-shadow: none; }
 .stage.split .st-card-chip, .stage.panel .st-card-chip { max-width: 96px; padding: 3px 8px 3px 6px; font-size: 9px; }
+/* The Trader's plan, one press from the Trader: the one ember action at the
+   table. It only fills the Trader in; the quote and the hold stay the person's. */
+.st-card-buy { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 10px; padding: 5px 8px; border: 0; border-radius: 999px; background: var(--ember); color: #fff; font: inherit; font-size: 10px; font-weight: 600; letter-spacing: 0.03em; white-space: nowrap; cursor: pointer; box-shadow: 0 6px 18px rgba(236, 27, 105, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.22); transition: filter 160ms var(--ease), box-shadow 160ms var(--ease); }
+.st-card-buy::after { content: "\2192"; content: "\2192" / ""; font-weight: 400; transition: transform 160ms var(--ease); }
+.st-card-buy:hover { filter: brightness(1.08); box-shadow: 0 8px 24px rgba(236, 27, 105, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.22); }
+.st-card-buy:hover::after { transform: translateX(2px); }
+.st-card-buy:focus-visible { outline: 1px solid #fff; outline-offset: 2px; }
+.st-card-buy + .st-card-focus { margin-top: 6px; }
+/* Folded, it waits under the Trader's chip, and breathes twice so the eye finds it. */
+.st-card-buy.chip { width: max-content; max-width: 150px; margin: 6px auto 0; padding: 3px 10px; font-size: 9.5px; line-height: 1.4; box-shadow: 0 4px 14px rgba(236, 27, 105, 0.38); animation: chip-in 360ms var(--ease) both, buy-breathe 2.2s ease-in-out 700ms 2; }
+.stage.split .st-card-buy.chip, .stage.panel .st-card-buy.chip { font-size: 9px; }
+/* A chip with the plan or the receipt under it: both centered under the seat. */
+.st-card:has(> .st-card-buy.chip, > .st-card-receipt) { display: flex; flex-direction: column; align-items: center; }
+/* And the specialists step one more row lower, so the pill under the chip has its room. */
+.stage.split .st-team.turn:not(.open):has(.st-card-buy.chip, .st-card-receipt) .st-member.st-spec,
+.stage.panel .st-team.turn:has(.st-card-buy.chip, .st-card-receipt) .st-member.st-spec { top: 110px; }
+/* Signed: the receipt of the order the person approved from the turn's plan,
+   on the Auditor's card. Its diamond says where the swap stands; it opens the
+   swap on the explorer. */
+.st-receipt { --tick: var(--ok); --tick-glow: rgba(61, 220, 151, 0.55); display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; color: #b9f5d8; text-decoration: none; }
+.st-receipt i { flex: none; width: 5px; height: 5px; border-radius: 1px; transform: rotate(45deg); background: var(--tick); box-shadow: 0 0 8px var(--tick-glow); }
+.st-receipt span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-receipt.pending { --tick: #ffb020; --tick-glow: rgba(255, 176, 32, 0.55); color: #ffd78a; }
+.st-receipt.reverted { --tick: var(--err); --tick-glow: rgba(255, 107, 107, 0.55); color: #ffb3b3; }
+.st-card-slot.st-receipt { border-style: solid; border-color: color-mix(in srgb, var(--tick) 50%, transparent); background: radial-gradient(ellipse at center, color-mix(in srgb, var(--tick) 14%, transparent), transparent 70%); transition: border-color 160ms var(--ease); }
+.st-card-receipt { width: max-content; max-width: 160px; margin: 6px auto 0; padding: 3px 10px 3px 8px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--tick) 50%, transparent); background: rgba(7, 12, 16, 0.92); backdrop-filter: blur(8px); font-size: 9.5px; line-height: 1.4; animation: chip-in 360ms var(--ease) both; transition: border-color 160ms var(--ease); }
+.stage.split .st-card-receipt, .stage.panel .st-card-receipt { font-size: 9px; }
+.st-card-slot.st-receipt:hover, .st-card-receipt:hover { border-color: var(--tick); }
+.st-card-slot.st-receipt:focus-visible, .st-card-receipt:focus-visible { outline: 1px solid var(--coral); outline-offset: 2px; }
+@keyframes buy-breathe { 50% { box-shadow: 0 4px 22px rgba(236, 27, 105, 0.7), 0 0 0 3px rgba(236, 27, 105, 0.16); } }
+@media not (max-width: 900px) {
+  /* While the cards are open the full cards carry both; the chips' copies wait for the fold. */
+  .stage.split:not(.panel) .st-team.open :is(.st-card-buy.chip, .st-card-receipt) { display: none; }
+}
+@media (max-width: 900px) {
+  /* Beside Sparky the plan's pill reaches under his line, too small to read at that size: the line gives way. */
+  .stage.split:has(.st-team.turn .st-card-buy.chip) .st-whisper { visibility: hidden; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .st-card-buy.chip, .st-card-receipt { animation: none; }
+}
 /* The chips need a little room: the specialists sit a step lower while they show. */
 .stage.split .st-team.turn:not(.open) .st-member.st-spec, .stage.panel .st-team.turn .st-member.st-spec { top: 76px; }
 .stage:not(.split):not(.panel) .st-team.turn .st-member.st-spec { top: 134px; }

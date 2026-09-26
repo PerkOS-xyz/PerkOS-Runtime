@@ -228,6 +228,16 @@ describe("a buy", () => {
     });
   });
 
+  it("sends the reason the order goes out with, when there is one", async () => {
+    const bodies: unknown[] = [];
+    const http = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return reply(200, { ok: true, bought: true, status: "success", hash: "0xfeed", steps: [] });
+    });
+    await tradeWith(http as typeof fetch).buy("stocks-robinhood", { ...input, reason: "20260926-143205-ab12" });
+    expect(bodies).toEqual([{ ...input, reason: "20260926-143205-ab12" }]);
+  });
+
   it("reads an order that stopped before the swap as nothing bought, and keeps no approval's hash as the order's", async () => {
     await expect(
       buyWith({
