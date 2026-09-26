@@ -11,9 +11,11 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { GET } from "../app/api/memory/route";
+import { POST as SUMMARIZE } from "../app/api/memory/summarize/route";
 import { DELETE, POST } from "../app/api/vault/route";
 import { journalEntry } from "../app/lib/journal";
 import { memoryFor } from "../app/lib/memory";
+import { addSummary } from "../app/lib/memoryNote";
 
 const account = privateKeyToAccount(generatePrivateKey());
 const wallet = account.address.toLowerCase();
@@ -34,6 +36,7 @@ beforeEach(async () => {
   process.env.PERKOS_DEVICE_SECRET = "cd".repeat(32);
   // No PerkOS API in tests: desk names fall back to their ids.
   process.env.PERKOS_API_URL = "http://127.0.0.1:9";
+  await writeFile(join(home, "settings.json"), JSON.stringify({ model: { provider: "local", model: "m" } }));
   await writeFile(
     join(home, "session.json"),
     JSON.stringify({ wallet, accessToken: "t", refreshToken: "r", expiresAt: Date.now() + 3_600_000, refreshExpiresAt: Date.now() + 86_400_000 }),
@@ -88,5 +91,31 @@ describe("/api/memory", () => {
     const { body } = await get("?q=budget");
     expect(body.hits.map((h: { scope: string }) => h.scope).sort()).toEqual(["eqlty-desk", "user"]);
     expect(body.hits.find((h: { scope: string }) => h.scope === "user").name).toBe("You");
+  });
+
+  it("shows the latest facts of the Memory note in the list", async () => {
+    const notes = await turnOn();
+    await notes.writeNote("user", "memory", "Memory", addSummary("", "2026-09-26", "Facts\n- Budget is 500 USDG.\nDecisions\n- none\nPreferences\n- Low risk."));
+    const { body } = await get("?scope=user");
+    expect(body.notes[0]).toMatchObject({ title: "Memory", preview: "Budget is 500 USDG. · Low risk." });
+  });
+});
+
+describe("/api/memory/summarize", () => {
+  const summarize = async (body: unknown) => {
+    const res = await SUMMARIZE(req("POST", "", body));
+    return { status: res.status, body: await res.json() };
+  };
+
+  it("answers 423 while memory is off", async () => {
+    expect((await summarize({})).status).toBe(423);
+  });
+
+  it("reports a day without conversations without calling the model", async () => {
+    await turnOn();
+    const { status, body } = await summarize({ scope: "eqlty-desk", date: "2026-09-20" });
+    expect(status).toBe(200);
+    expect(body.results).toEqual([{ scope: "eqlty-desk", date: "2026-09-20", ok: false, reason: "empty" }]);
+    expect((await summarize({ pending: true })).body.results).toEqual([]);
   });
 });
