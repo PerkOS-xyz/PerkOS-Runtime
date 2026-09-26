@@ -6,6 +6,7 @@ import { parseJournal } from "../../lib/journal";
 import { dropSummary, hasSummary, MEMORY_SLUG, parseMemory } from "../../lib/memoryNote";
 import { memoryFor } from "../../lib/memory";
 import { cachedDesks } from "../../lib/perkos";
+import { forgetTurn } from "../../lib/turnStore";
 import { sessionWallet } from "../../lib/vault";
 
 const PREVIEW = 180;
@@ -101,6 +102,11 @@ export async function DELETE(req: Request) {
   if (notes instanceof Response) return notes;
   const note = await notes.read(new URL(req.url).searchParams.get("id") ?? "");
   if (!note || !(await notes.remove(note.id))) return Response.json({ error: "not_found" }, { status: 404 });
+  if (note.kind === "turn") {
+    // History also lists this session's copy of a desk turn: a decision forgotten here leaves it too.
+    const wallet = await sessionWallet();
+    if (wallet) await forgetTurn(wallet, note.id.slice(note.id.lastIndexOf("/") + 1), null);
+  }
   if (note.kind === "journal") {
     const date = note.id.slice(-10);
     const memory = await notes.read(`${note.scope}/notes/${MEMORY_SLUG}`);

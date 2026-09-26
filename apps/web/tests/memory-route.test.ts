@@ -18,6 +18,7 @@ import { memoryFor } from "../app/lib/memory";
 import { addSummary } from "../app/lib/memoryNote";
 import { failureLabel } from "../app/lib/turnFailure";
 import { turnBody, turnTitle, type TurnRecord } from "../app/lib/turnRecord";
+import { getTurn, listTurns, saveTurn } from "../app/lib/turnStore";
 
 const account = privateKeyToAccount(generatePrivateKey());
 const wallet = account.address.toLowerCase();
@@ -251,6 +252,17 @@ describe("a desk's decisions", () => {
     ]);
     expect(one.decision).toMatchObject({ plan: "Wait for a pullback to 178 USDG, then buy 50 USDG.", recordMissing: "model failed", checks: ["Auditor · no answer"] });
     expect(one.decision.summary).toBe("The desk reads NVDA as steady and would wait for 178 USDG.");
+  });
+
+  it("forgotten from Memory, also leave this session's History", async () => {
+    const notes = await turnOn();
+    const r = turn("20260926-160000-ef56");
+    expect(await saveTurn(wallet, r, notes)).toBe("vault");
+    expect((await listTurns(wallet, "eqlty-desk", null)).map((t) => t.id)).toContain(r.id);
+    const res = await FORGET(req("DELETE", `?id=${encodeURIComponent(`eqlty-desk/turns/${r.id}`)}`));
+    expect(await res.json()).toEqual({ ok: true });
+    expect((await listTurns(wallet, "eqlty-desk", null)).map((t) => t.id)).not.toContain(r.id);
+    expect(await getTurn(wallet, r.id, notes)).toBeNull();
   });
 
   it("are found by search, like the rest of what Sparky remembers", async () => {
