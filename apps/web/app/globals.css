@@ -1966,3 +1966,7 @@ button.st-card-chip:hover { border-color: var(--role); }
 @media (prefers-reduced-motion: reduce) {
   .st-card-full, .st-card-chip, .st-card-skel, .st-card-bar::after, .st-card-steps li.active i, .st-card-chip i, .st-turn.team.st-focus p { animation: none; }
 }
+/* On a narrow window Sparky stays above the conversation, in the room the narrow layout leaves him. */
+@media (max-width: 900px) {
+  .stage.split .st-core-wrap { top: 170px; }
+}
