@@ -8,7 +8,14 @@
  * than painted on screen.
  */
 
-import { DeskMarketSchema, DeskSeriesSchema, type DeskMarket, type DeskSeries } from "@perkos/desk-contract";
+import {
+  DeskManifestSchema,
+  DeskMarketSchema,
+  DeskSeriesSchema,
+  type DeskManifest,
+  type DeskMarket,
+  type DeskSeries,
+} from "@perkos/desk-contract";
 
 import { PerkosApiError, type PerkosClient } from "./client.ts";
 
@@ -54,6 +61,19 @@ export class Desks {
       if (typeof t.module === "string" && t.module) summary.module = t.module;
       return [summary];
     });
+  }
+
+  /** How the desk presents itself and runs its team, or null when it publishes nothing. */
+  async manifest(module: string): Promise<DeskManifest | null> {
+    let body: Record<string, unknown>;
+    try {
+      body = await this.client.request<Record<string, unknown>>(`/desks/${encodeURIComponent(module)}/manifest`);
+    } catch (err) {
+      if (err instanceof PerkosApiError && err.status === 404) return null;
+      throw err;
+    }
+    const { ok: _ok, module: _module, ...manifest } = body;
+    return parseOrFail<DeskManifest>(DeskManifestSchema, manifest, "manifest");
   }
 
   /** What this desk can trade, priced. */

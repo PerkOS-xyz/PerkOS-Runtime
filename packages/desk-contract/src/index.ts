@@ -9,6 +9,7 @@
 
 export const DESK_CONTRACT_VERSION = "1";
 
+export * from "./manifest.ts";
 export * from "./market.ts";
 export * from "./series.ts";
 export * from "./order.ts";
