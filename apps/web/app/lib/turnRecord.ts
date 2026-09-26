@@ -185,6 +185,12 @@ export const roleName = (role: string) => (role ? role[0]!.toUpperCase() + role.
 const pad = (n: number) => String(n).padStart(2, "0");
 const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
 const oneLine = (s: string) => s.replace(/\s+/g, " ").trim();
+/**
+ * An answer without its [Fn] tags. Each turn numbers its own facts, so a tag
+ * kept in a note would point at another turn's fact once it is recalled, and
+ * Sparky would read it aloud.
+ */
+export const withoutFactTags = (s: string) => s.replace(/\s*\[F\d+\]/g, "");
 
 /** A new turn id from the local time: "20260926-143205-ab12". */
 export function newTurnId(at = new Date(), random = () => Math.random()): string {
@@ -208,11 +214,12 @@ export function turnTitle(record: Pick<TurnRecord, "startedAt" | "question">): s
 
 /**
  * The readable account of a turn: what Memory shows and search finds. The
- * full record travels beside it, sealed and not searched.
+ * full record travels beside it, sealed and not searched, with the answers as
+ * sent, [Fn] tags included, for History.
  *
  *   Asked: How is NVDA doing today?
  *   Analyze · Risk medium · 71.4 s
- *   Scout (18.2 s): @Trader @Auditor NVDA trades at 181.20 USDG [F1] ...
+ *   Scout (18.2 s): @Trader @Auditor NVDA trades at 181.20 USDG ...
  *   Auditor: no answer, model failed (API call failed after 3 retries: HTTP 502: upstream_failed)
  *   Sparky: The desk reads NVDA as ...
  *   Checks: auditor:no-answer
@@ -227,10 +234,10 @@ export function turnBody(record: TurnRecord, label: (failure: FailureKind) => st
   if (record.error) lines.push(`Ended early: ${record.error.message}`);
   for (const r of [...record.replies, ...record.guests]) {
     const who = roleName(r.role);
-    if (r.ok) lines.push(`${who} (${seconds(r.ms)}): ${oneLine(r.reply)}`);
+    if (r.ok) lines.push(`${who} (${seconds(r.ms)}): ${oneLine(withoutFactTags(r.reply))}`);
     else lines.push(`${who}: no answer, ${label(r.failure ?? "other")}${r.detail ? ` (${oneLine(r.detail)})` : ""}`);
   }
-  if (record.summary?.trim()) lines.push(`Sparky: ${oneLine(record.summary)}`);
+  if (record.summary?.trim()) lines.push(`Sparky: ${oneLine(withoutFactTags(record.summary))}`);
   if (record.receipt) lines.push(`Signed: ${record.receipt.ticker} ${record.receipt.amount}, ${record.receipt.status}`);
   if (record.flags.length) lines.push(`Checks: ${record.flags.join(", ")}`);
   return lines.join("\n");

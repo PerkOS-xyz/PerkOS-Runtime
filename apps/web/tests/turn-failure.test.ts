@@ -7,7 +7,7 @@ import { PerkosApiError } from "@perkos/client";
 import { describe, expect, it } from "vitest";
 
 import { classifyAnswer, classifyError, failureLabel, runtimeFailure } from "../app/lib/turnFailure";
-import { newTurnId, turnBody, turnTitle, type TurnRecord } from "../app/lib/turnRecord";
+import { newTurnId, turnBody, turnTitle, withoutFactTags, type TurnRecord } from "../app/lib/turnRecord";
 
 describe("a task that came back", () => {
   it("keeps a delivered answer and never keeps PerkOS's reply length as a reason", () => {
@@ -140,12 +140,21 @@ describe("a turn's record", () => {
       [
         "Asked: How is NVDA doing today?",
         "Analyze · Risk medium · 71.4 s",
-        "Scout (18.2 s): @Trader @Auditor NVDA trades at 181.20 USDG [F1].",
+        "Scout (18.2 s): @Trader @Auditor NVDA trades at 181.20 USDG.",
         "Risk (12.9 s): RISK: medium @Trader @Auditor keep it small.",
         "Auditor: no answer, model failed (API call failed after 3 retries: HTTP 502: upstream_failed)",
         "Sparky: The desk reads NVDA as steady.",
         "Checks: auditor:no-answer",
       ].join("\n"),
     );
+  });
+
+  it("keeps the [Fn] tags out of the note, since each turn numbers its own facts, and in the record for History", () => {
+    const tagged: TurnRecord = { ...record, summary: "NVDA holds [F1], AAPL slips [F2][F3]." };
+    const body = turnBody(tagged, failureLabel);
+    expect(body).not.toMatch(/\[F\d+\]/);
+    expect(body).toContain("Sparky: NVDA holds, AAPL slips.");
+    expect(tagged.replies[0]!.reply).toContain("[F1]");
+    expect(withoutFactTags("Up 1.2% [F1] and near the top [F12].")).toBe("Up 1.2% and near the top.");
   });
 });
