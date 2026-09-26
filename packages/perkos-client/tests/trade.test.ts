@@ -17,6 +17,21 @@ const USDG = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168";
 const NVDA = "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec";
 
 describe("the delegated wallet", () => {
+  it("preserves only valid World grant fields, fails closed on malformed policy and accepts older APIs", async () => {
+    const base = { delegated: true, wallet: WALLET, chainId: 4663, balances: [], cap: 100 };
+    const grant = { agentId: "trader-1", walletAddress: WALLET, chainIds: [4663], maxPerOrder: "25", revision: 2 };
+    const read = (extra: Record<string, unknown>) => tradeWith(vi.fn(async () => reply(200, { ...base, ...extra })) as typeof fetch).trader("stocks-robinhood");
+    expect((await read({}))).not.toHaveProperty("world");
+    expect((await read({ world: { enabled: false, approved: false, grant: null } })).world).toEqual({ enabled: false, approved: false, grant: null });
+    expect((await read({ world: { enabled: true, approved: true, grant: { ...grant, privateKey: "never-public" } } })).world).toEqual({ enabled: true, approved: true, grant });
+    for (const world of [null, {}, { enabled: false, approved: true, grant }, { enabled: true, approved: true, grant: null },
+      ...[{ agentId: "bad/id" }, { walletAddress: "bad" }, { chainIds: [] }, { chainIds: [4663, 4663] }, { chainIds: ["4663"] },
+        { maxPerOrder: "0" }, { maxPerOrder: "NaN" }, { maxPerOrder: "1e2" }, { revision: -1 }].map((change) => ({ enabled: true, approved: true, grant: { ...grant, ...change } }))]) {
+      const trader = await read({ world });
+      expect(trader).toMatchObject({ delegated: true, wallet: WALLET, cap: 100, world: { enabled: true, approved: false, grant: null } });
+    }
+  });
+
   it("reads the wallet, its funds on the desk's chain and the cap on one order", async () => {
     const http = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
       expect(String(url)).toBe("https://api.perkos.xyz/desks/stocks-robinhood/trader");

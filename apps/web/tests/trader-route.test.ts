@@ -10,7 +10,8 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DELETE as REVOKE } from "../app/api/delegation/route";
+import { DELETE as REVOKE, POST as DELEGATE } from "../app/api/delegation/route";
+import { delegationLink, delegationMode, traderAgentId } from "../app/desks/delegation";
 import { POST as BUY } from "../app/api/desks/buy/route";
 import { GET as POSITIONS } from "../app/api/desks/positions/route";
 import { GET as QUOTE } from "../app/api/desks/quote/route";
@@ -54,6 +55,58 @@ function perkos(routes: Record<string, (init?: RequestInit, url?: URL) => Respon
   vi.stubGlobal("fetch", http);
   return http;
 }
+
+describe("POST /api/delegation", () => {
+  it("carries each selected desk's Trader through the browser helper and local proxy", async () => {
+    await signIn();
+    const sent: unknown[] = [];
+    const remote = perkos({ "POST /delegation/link-token": (init) => {
+      sent.push(JSON.parse(String(init?.body)));
+      return Response.json({ url: "https://api.perkos.xyz/delegate?t=fixture" });
+    } });
+    vi.stubGlobal("fetch", (input: string, init?: RequestInit) => input === "/api/delegation"
+      ? DELEGATE(post(input, JSON.parse(String(init?.body)))) : remote(input, init));
+    for (const desk of ["eqlty", "floor"]) {
+      const agentId = traderAgentId({ templateId: desk, status: "ready", agents: [
+        { role: "scout", name: `${desk}-scout`, agentId: `${desk}-scout-id`, state: "ready" },
+        { role: "trader", name: `${desk}-trader`, agentId: `${desk}-stable-id`, state: "ready" },
+      ] }, desk);
+      for (const approved of [false, true]) {
+        const world = { enabled: true, approved, grant: approved ? { agentId: agentId!, walletAddress: WALLET, chainIds: [4663], maxPerOrder: "25", revision: 1 } : null };
+        const mode = delegationMode({ world, wallet: WALLET, chainId: 4663 }, agentId);
+        await expect(delegationLink(mode, agentId)).resolves.toContain("/delegate?");
+      }
+    }
+    expect(sent).toEqual([
+      { mode: "grant", agentId: "eqlty-stable-id" }, { mode: "edit", agentId: "eqlty-stable-id" },
+      { mode: "grant", agentId: "floor-stable-id" }, { mode: "edit", agentId: "floor-stable-id" },
+    ]);
+  });
+
+  it("validates supplied IDs, requires the owner session and retains backend ownership refusals", async () => {
+    expect((await DELEGATE(post("/api/delegation", { agentId: "trader-1" }))).status).toBe(401);
+    for (const agentId of [null, 42, "", "trader/name", "a".repeat(129)]) {
+      expect((await DELEGATE(post("/api/delegation", { agentId }))).status).toBe(400);
+    }
+    await signIn();
+    const http = perkos({ "POST /delegation/link-token": () => Response.json({ error: { code: "WORLD_AGENT_OWNER_MISMATCH", message: "Wrong Trader owner" } }, { status: 409 }) });
+    const res = await DELEGATE(post("/api/delegation", { agentId: "other-trader", owner: "forged-owner" }));
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: "WORLD_AGENT_OWNER_MISMATCH" });
+    expect(JSON.parse(String(http.mock.calls[0]?.[1]?.body))).toEqual({ mode: "grant", agentId: "other-trader" });
+  });
+
+  it("keeps legacy and revoke requests possible without a Trader ID and rejects another site", async () => {
+    await signIn();
+    const http = perkos({ "POST /delegation/link-token": () => Response.json({ url: "https://api.perkos.xyz/delegate" }) });
+    expect((await DELEGATE(post("/api/delegation", { mode: "revoke" }))).status).toBe(200);
+    expect(JSON.parse(String(http.mock.calls[0]?.[1]?.body))).toEqual({ mode: "revoke" });
+    const req = post("/api/delegation", { mode: "edit", agentId: "trader-1" });
+    req.headers.set("sec-fetch-site", "cross-site");
+    expect((await DELEGATE(req)).status).toBe(403);
+    expect(http).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe("GET /api/desks/trader", () => {
   it("asks which desk, needs a session, and refuses another site", async () => {

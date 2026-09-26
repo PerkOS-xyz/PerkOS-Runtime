@@ -35,6 +35,7 @@ import { MarketSheet } from "./MarketSheet";
 import { PortfolioSheet } from "./PortfolioSheet";
 import { subscribeTurnReceipts, turnReceipt } from "./turnReceipts";
 import { WalletTraderSheet, type TraderPrefill } from "./WalletTraderSheet";
+import { traderAgentId } from "./delegation";
 import { coreState, DEFAULT_STARTERS, isAnswering, whisper } from "./stage";
 import { useDeskManifest } from "./useDeskManifest";
 
@@ -465,7 +466,7 @@ export function DeskView({
       {identity ? <IdentitySheet key={desk.id} desk={desk.id} title={desk.name} chain={chain} onClose={closeIdentity} /> : null}
       {market && desk.module ? <MarketSheet title={desk.name} module={desk.module} chain={chain} onAsk={send} onClose={closeMarket} /> : null}
       {trader && !market && desk.module ? (
-        <WalletTraderSheet title={desk.name} module={desk.module} chain={chain} onClose={closeTrader} prefill={prefill} onPlanUsed={planUsed} />
+        <WalletTraderSheet title={desk.name} module={desk.module} chain={chain} agentId={traderAgentId(team.team, desk.id)} onClose={closeTrader} prefill={prefill} onPlanUsed={planUsed} />
       ) : null}
       {history && !market && !trader ? <HistorySheet desk={desk.id} title={desk.name} chain={chain} live={turn.live} vault={vault} onClose={closeHistory} /> : null}
       {portfolio && !market && !trader && !history && desk.module ? (

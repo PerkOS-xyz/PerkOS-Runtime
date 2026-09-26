@@ -44,6 +44,30 @@ export interface DeskTrader {
   input: TraderToken | null;
   /** False when the desk's stock list did not answer, so stocks the wallet holds may be missing. */
   marketAvailable: boolean;
+  /** Independent of the Dynamic share. Absent on older APIs; an enabled but
+   * unapproved World policy cannot authorize spending. */
+  world?: TraderWorld;
+}
+
+export interface TraderWorld {
+  enabled: boolean;
+  approved: boolean;
+  grant: { agentId: string; walletAddress: string; chainIds: number[]; maxPerOrder: string; revision: number } | null;
+}
+
+/** Malformed policy data preserves wallet recovery but never enables buying. */
+function worldOf(value: unknown): TraderWorld {
+  const closed: TraderWorld = { enabled: true, approved: false, grant: null };
+  if (!isObject(value) || typeof value.enabled !== "boolean" || typeof value.approved !== "boolean") return closed;
+  if (!value.enabled) return value.approved === false && value.grant === null ? { enabled: false, approved: false, grant: null } : closed;
+  if (!value.approved) return closed;
+  const g = value.grant;
+  if (!isObject(g) || typeof g.agentId !== "string" || !/^[a-zA-Z0-9_-]{1,128}$/.test(g.agentId) ||
+      typeof g.walletAddress !== "string" || !ADDRESS.test(g.walletAddress) || !Array.isArray(g.chainIds) || !g.chainIds.length ||
+      g.chainIds.some((id) => !Number.isSafeInteger(id) || id <= 0) || new Set(g.chainIds).size !== g.chainIds.length ||
+      typeof g.maxPerOrder !== "string" || !/^[1-9]\d*$/.test(g.maxPerOrder) || !Number.isSafeInteger(Number(g.maxPerOrder)) ||
+      typeof g.revision !== "number" || !Number.isSafeInteger(g.revision) || g.revision < 0) return closed;
+  return { enabled: true, approved: true, grant: { agentId: g.agentId, walletAddress: g.walletAddress, chainIds: [...g.chainIds] as number[], maxPerOrder: g.maxPerOrder, revision: g.revision } };
 }
 
 /**
@@ -404,6 +428,7 @@ export class DeskTrade {
       ...capOf(body.cap),
       input: token(body.input),
       marketAvailable: body.marketAvailable !== false,
+      ...(Object.hasOwn(body, "world") ? { world: worldOf(body.world) } : {}),
     };
   }
 
