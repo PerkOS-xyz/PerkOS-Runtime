@@ -7,10 +7,14 @@ import type { VoiceStatus } from "../voice/useVoice";
 
 export type CoreState = "idle" | "listening" | "thinking" | "speaking";
 
-/** Sparky's look: listening while the mic is open, thinking until the first word is spoken, speaking while he talks. */
-export function coreState(voice: VoiceStatus, busy: boolean): CoreState {
+/**
+ * Sparky's look: listening while the mic is open, thinking until the first
+ * word of his answer arrives, then speaking while he answers, out loud or in
+ * text, so he lights up whichever way he replies.
+ */
+export function coreState(voice: VoiceStatus, busy: boolean, answering = false): CoreState {
   if (voice === "listening") return "listening";
-  if (voice === "speaking") return "speaking";
+  if (voice === "speaking" || answering) return "speaking";
   if (voice === "transcribing" || voice === "thinking" || busy) return "thinking";
   return "idle";
 }
@@ -30,3 +34,9 @@ export const DEFAULT_STARTERS = [
   { text: "How do I start here?", tag: "First steps" },
   { text: "What will the team never do without me?", tag: "They draft. You approve." }
 ];
+
+/** Whether his answer is arriving right now: the last turn is his and has words in it. */
+export function isAnswering(busy: boolean, messages: ReadonlyArray<{ role: string; content: string }>): boolean {
+  const last = messages[messages.length - 1];
+  return busy && last?.role === "assistant" && last.content.length > 0;
+}
