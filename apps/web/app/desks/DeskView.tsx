@@ -31,6 +31,7 @@ import { IdentitySheet } from "./IdentitySheet";
 import { HistorySheet } from "./HistorySheet";
 import { LaunchCard } from "./LaunchCard";
 import { draftKey, launchIntent, type LaunchSeed } from "./launchForm";
+import { StartersRow } from "../chat/StartersRow";
 import { MarketSheet } from "./MarketSheet";
 import { PortfolioSheet } from "./PortfolioSheet";
 import { subscribeTurnReceipts, turnReceipt } from "./turnReceipts";
@@ -372,7 +373,7 @@ export function DeskView({
             <div ref={endRef} />
           </section>
         ) : (
-          <div className="st-starters" aria-label="Suggested questions">
+          <StartersRow>
             {starters.map((s, i) => (
               <button key={s.text} type="button" style={{ "--i": i } as CSSProperties} onClick={() => send(s.text, s)}>
                 {s.text}
@@ -385,7 +386,7 @@ export function DeskView({
                 <small>Bankr deploys it. You hold to launch.</small>
               </button>
             ) : null}
-          </div>
+          </StartersRow>
         )}
 
         <ChatChips chats={chats} hasMessages={split} onNew={() => saved.newChat()} />

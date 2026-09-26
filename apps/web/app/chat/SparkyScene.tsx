@@ -8,6 +8,7 @@ import { useVault } from "../shell/useVault";
 import { useTalk } from "../voice/useTalk";
 import { useWallet } from "../wallet/context";
 import { ChatChips, ChatsDrawer } from "./ChatsDrawer";
+import { StartersRow } from "./StartersRow";
 import { MemoryBanner } from "./MemoryBanner";
 import { useChatActions, useChats } from "./useChats";
 import { useSparkyChat } from "./useSparkyChat";
@@ -210,14 +211,14 @@ export function SparkyScene({ model, onOpenChange }: { model: string | null; onO
                 <div ref={endRef} />
               </section>
             ) : (
-              <div className="st-starters" aria-label="Suggested questions">
+              <StartersRow>
                 {STARTERS.map((s, i) => (
                   <button key={s.text} type="button" style={{ "--i": i } as CSSProperties} onClick={() => send(s.text)}>
                     {s.text}
                     <small>{s.tag}</small>
                   </button>
                 ))}
-              </div>
+              </StartersRow>
             )}
 
             {voice.error ? <p className="hint err ss-err">{voice.error}</p> : null}
