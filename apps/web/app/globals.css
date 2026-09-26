@@ -2493,3 +2493,14 @@ button.st-card-chip:hover { border-color: var(--role); }
 .st-starters button.st-launch { border-color: rgba(0, 200, 5, 0.38); background: radial-gradient(90% 120% at 0% 0%, rgba(0, 200, 5, 0.12), transparent 60%), rgba(8, 11, 22, 0.72); }
 .st-starters button.st-launch:hover { border-color: rgba(0, 200, 5, 0.7); }
 .st-starters button.st-launch small { color: #9fe3b0; }
+/* The desk's team on a drafted launch: reading it, or Risk's verdict. It warns; the hold stays the person's. */
+.lc-team { margin: 0; padding: 9px 12px; border-radius: 12px; border: 1px solid var(--hair); background: rgba(3, 4, 10, 0.5); font-size: 12px; line-height: 1.55; color: var(--ink-2); }
+.lc-team b { font-family: var(--display); font-weight: 700; }
+.lc-team.busy { border-color: rgba(236, 27, 105, 0.35); color: #ffd3e1; animation: breathe 1.4s ease-in-out infinite; }
+.lc-team.go { border-color: rgba(0, 200, 5, 0.45); background: rgba(0, 200, 5, 0.07); }
+.lc-team.go b { color: #7dff8a; }
+.lc-team.block { border-color: rgba(255, 176, 32, 0.45); background: rgba(255, 176, 32, 0.07); color: #ffe2a8; }
+.lc-team.block b { color: #ffb020; }
+@media (prefers-reduced-motion: reduce) {
+  .lc-team.busy { animation: none; }
+}

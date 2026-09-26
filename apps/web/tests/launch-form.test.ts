@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { parsePairs } from "../app/lib/bankrLaunch";
 import { LAUNCH_UNCONFIRMED } from "../app/desks/launch";
-import { formKey, formReady, isLaunchOutcome, launchBody, launchIntent, launchOutcome, pairChips, seedForm, sendLaunch, suggestSymbol } from "../app/desks/launchForm";
+import { draftKey, formKey, formReady, isLaunchOutcome, launchBody, launchIntent, launchOutcome, pairChips, seedForm, sendLaunch, suggestSymbol } from "../app/desks/launchForm";
 import { isLaunchSummary } from "../app/desks/launchStore";
 import { BANKR_WALLET, POOL, QUOTES, TOKEN, TX, WALLET } from "./bankrFixtures";
 
@@ -115,5 +115,14 @@ describe("launch outcome", () => {
     expect(isLaunchOutcome({ kind: "unconfirmed", message: "x" })).toBe(true);
     expect(isLaunchSummary({ name: "Night Owl", symbol: "OWL", pairedSymbol: "NVDA", deployer: BANKR_WALLET })).toBe(true);
     expect(isLaunchSummary({ name: "Night Owl" })).toBe(false);
+  });
+});
+
+describe("the draft the team reads", () => {
+  it("is keyed by what would launch, whatever the checks said, so the same draft goes to the team once", () => {
+    const draft = { name: "Night Owl", symbol: "OWL", pair: { address: "0xD0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC" }, feesTo: "wallet", vesting: true, quoteOnlyFees: false, description: "", image: "" };
+    expect(draftKey(draft)).toBe(draftKey({ ...draft, pair: { address: draft.pair.address.toLowerCase() } }));
+    expect(draftKey(draft)).not.toBe(draftKey({ ...draft, feesTo: "bankr" }));
+    expect(draftKey(draft)).not.toBe(draftKey({ ...draft, symbol: "OWLS" }));
   });
 });

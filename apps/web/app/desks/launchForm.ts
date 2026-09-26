@@ -109,6 +109,10 @@ export const launchBody = (f: LaunchForm, pairAddress?: string) => ({
 /** One string per launch the form describes: a check is good only for the form it checked. */
 export const formKey = (f: LaunchForm) => JSON.stringify(launchBody(f));
 
+/** One drafted launch, whatever its checks said: what the team's verdict is about. */
+export const draftKey = (d: { name: string; symbol: string; pair: { address: string }; feesTo: string; vesting: boolean; quoteOnlyFees: boolean; description: string; image: string }) =>
+  JSON.stringify([d.name, d.symbol, d.pair.address.toLowerCase(), d.feesTo, d.vesting, d.quoteOnlyFees, d.description, d.image]);
+
 /** The form has what a check needs. */
 export const formReady = (f: LaunchForm) => f.name.trim() !== "" && cleanSymbol(f.symbol) !== "" && f.pair.trim() !== "";
 

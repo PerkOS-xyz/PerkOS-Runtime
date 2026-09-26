@@ -7,7 +7,7 @@ import type { LaunchCheck } from "../lib/launchChecks";
 import type { DraftAnswer } from "../lib/launchDraft";
 import { useWallet } from "../wallet/context";
 import { launchAddressUrl, launchTxUrl } from "./launch";
-import { cleanSymbol, formKey, formReady, launchBody, pairChips, seedForm, sendLaunch, suggestSymbol, type LaunchForm, type LaunchSeed } from "./launchForm";
+import { cleanSymbol, draftKey, formKey, formReady, launchBody, pairChips, seedForm, sendLaunch, suggestSymbol, type LaunchForm, type LaunchSeed } from "./launchForm";
 import { dismissLaunch, launchRun, startLaunch, subscribeLaunches, type LaunchRun } from "./launchStore";
 import { HoldToApprove } from "./WalletTraderSheet";
 
@@ -36,6 +36,14 @@ async function squareDataUrl(file: File, size = 512): Promise<string> {
 
 type Tone = "draft" | "busy" | "ready" | "fix" | "live" | "failed";
 
+/** The desk's team on the launch it last read: still reading, or Risk's verdict. */
+export interface LaunchTeam {
+  /** The draft it read (draftKey). */
+  key: string;
+  live: boolean;
+  verdict: "GO" | "BLOCK" | null;
+}
+
 /**
  * A token launch in the desk conversation: a new token paired with a
  * tokenized stock (or WETH) on Robinhood Chain, deployed with its Uniswap v4
@@ -44,7 +52,22 @@ type Tone = "draft" | "busy" | "ready" | "fix" | "live" | "failed";
  * wake up. The person signs nothing on chain: Bankr deploys, and the Bankr
  * wallet pays the gas.
  */
-export function LaunchCard({ module, seed, onSettings, onClose }: { module: string; seed: LaunchSeed; onSettings: () => void; onClose: () => void }) {
+export function LaunchCard({
+  module,
+  seed,
+  onSettings,
+  onClose,
+  onChecked,
+  team = null
+}: {
+  module: string;
+  seed: LaunchSeed;
+  onSettings: () => void;
+  onClose: () => void;
+  /** A check came back, for the desk's team to read when it passed. */
+  onChecked?: (answer: DraftAnswer) => void;
+  team?: LaunchTeam | null;
+}) {
   const wallet = useWallet();
   const run = useLaunchRun(module);
   const [form, setForm] = useState<LaunchForm>(() => seedForm(seed));
@@ -134,6 +157,7 @@ export function LaunchCard({ module, seed, onSettings, onClose }: { module: stri
       if (res.status === 412 && body.error === "bankr_key") setKeySaved(false);
       if (!res.ok || !body.checks || !body.draft) throw new Error(body.message ?? `The check did not finish (${res.status}).`);
       setChecked({ key, answer: body as DraftAnswer });
+      onChecked?.(body as DraftAnswer);
     } catch (err) {
       setChecked(null);
       setError((err as Error).message === "Failed to fetch" ? "Could not reach this app's server. Try again." : (err as Error).message);
@@ -356,6 +380,7 @@ export function LaunchCard({ module, seed, onSettings, onClose }: { module: stri
           ) : null}
 
           {answer ? <Checks answer={answer} /> : stale ? <p className="lc-stale">Changed since the check. Check again before launching.</p> : null}
+          {answer && team && team.key === draftKey(answer.draft) ? <TeamVerdict team={team} /> : null}
           {error ? <p className="hint err">{error}</p> : null}
 
           <Terms />
@@ -382,6 +407,26 @@ export function LaunchCard({ module, seed, onSettings, onClose }: { module: stri
       )}
     </section>
   );
+}
+
+/** What the desk's team said about this launch. Risk's verdict warns; the hold stays the person's. */
+function TeamVerdict({ team }: { team: LaunchTeam }) {
+  if (team.verdict === "GO") {
+    return (
+      <p className="lc-team go">
+        <b>Risk says GO.</b> The hold is still yours.
+      </p>
+    );
+  }
+  if (team.verdict === "BLOCK") {
+    return (
+      <p className="lc-team block">
+        <b>Risk says BLOCK.</b> A warning, not a lock: the reasons are in the conversation, and the hold is still yours.
+      </p>
+    );
+  }
+  if (team.live) return <p className="lc-team busy">The desk&apos;s team is reading this launch: Scout, Risk and the specialists, then the Auditor records it.</p>;
+  return <p className="lc-team">Risk gave no verdict on this launch. The hold is still yours.</p>;
 }
 
 const MARK: Record<string, string> = { ok: "✓", warn: "!", bad: "✕" };

@@ -4,6 +4,7 @@ import type { DeskAsset, DeskMarket } from "@perkos/desk-contract";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { ReplyOptions, SparkyChatState } from "../chat/useSparkyChat";
+import type { LaunchTurnFacts } from "../lib/launchTurn";
 import type { TurnKind } from "../lib/turnRecord";
 import { freshMemo, stopNote, turnChatSteps, type TurnChatStep } from "./turnChat";
 import { workOf, type TurnView } from "./turnState";
@@ -24,7 +25,7 @@ export interface TurnChat {
   /** The desk's last finished turn, for questions about it. */
   lastTurn: string | null;
   /** Gives the desk's team a task: the person's line, then the turn, then Sparky's summary. */
-  ask: (text: string, kind: TurnKind) => Promise<void>;
+  ask: (text: string, kind: TurnKind, extra?: { tickers?: string[]; launch?: LaunchTurnFacts }) => Promise<void>;
   /** Stops waiting for the team. The agents already asked are not cancelled on PerkOS. */
   stop: () => void;
 }
@@ -40,7 +41,7 @@ export function useTurnChat({ desk, chat, voice }: { desk: string; chat: SparkyC
   voiceRef.current = voice;
 
   const ask = useCallback(
-    async (text: string, kind: TurnKind) => {
+    async (text: string, kind: TurnKind, extra: { tickers?: string[]; launch?: LaunchTurnFacts } = {}) => {
       chat.post({ role: "user", content: text });
       const memo = freshMemo();
       // Sparky thinks while the team works; the first reply he speaks takes over from here.
@@ -80,7 +81,7 @@ export function useTurnChat({ desk, chat, voice }: { desk: string; chat: SparkyC
             return;
         }
       };
-      const end = await turn.start({ desk, text, kind }, (event, view) => {
+      const end = await turn.start({ desk, text, kind, ...extra }, (event, view) => {
         for (const step of turnChatSteps(event, view, memo)) run(step, view);
       });
       if (end.end === "refused" || end.end === "busy") {
