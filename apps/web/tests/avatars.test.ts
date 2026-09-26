@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { AGENT_STATES, DESK_IDENTITIES, resolveIdentity, roleConfig } from "../app/team/avatarIdentity";
+import { AGENT_STATES, DESK_IDENTITIES, resolveIdentity, roleConfig, SPECIALIST_ACCENTS, sphereAccent } from "../app/team/avatarIdentity";
 
 describe("the house team", () => {
   it("has four agents that differ in head, visor and pattern", () => {
@@ -46,5 +46,16 @@ describe("states", () => {
   it("sleeps without losing the identity", () => {
     expect(AGENT_STATES.hibernating).toEqual({ expression: "sleepy", ring: null, mode: "hibernating" });
     expect(AGENT_STATES.success.expression).toBe("success");
+  });
+});
+
+describe("the sphere stand-in", () => {
+  it("lights a known role in its accent, and each specialist seat in its own color", () => {
+    expect(sphereAccent("scout")).toBe(roleConfig("scout").accent);
+    const seats = ["hooks", "quote", "treasury"].map((role, i) => sphereAccent(role, i));
+    expect(new Set(seats).size).toBe(3);
+    for (const color of seats) expect(["scout", "risk", "trader", "auditor"].map((r) => roleConfig(r).accent)).not.toContain(color);
+    expect(SPECIALIST_ACCENTS).toContain(sphereAccent("hooks"));
+    expect(sphereAccent("hooks")).toBe(sphereAccent("hooks"));
   });
 });

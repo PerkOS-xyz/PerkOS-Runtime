@@ -1136,6 +1136,10 @@ button.mk-row { cursor: pointer; }
 .agent-avatar[data-mode="hibernating"] .aa-eyes { opacity: 0.7; }
 .agent-avatar[data-mode="offline"] .aa-eyes-glow, .agent-avatar[data-mode="hibernating"] .aa-eyes-glow, .agent-avatar[data-mode="offline"] .aa-accent-glow,
 .agent-avatar[data-mode="hibernating"] .aa-accent-glow, .agent-avatar[data-mode="hibernating"] .aa-module-glow { opacity: 0; }
+/* The sphere stand-in: its glow follows the state, and dims with the agent. */
+.agent-sphere .as-glow { opacity: 0.5; transition: opacity 600ms ease; }
+.agent-sphere[data-state="working"] .as-glow, .agent-sphere[data-state="listening"] .as-glow { animation: aa-pulse 2.2s ease-in-out infinite; }
+.agent-sphere[data-mode="offline"] .as-glow, .agent-sphere[data-mode="hibernating"] .as-glow { opacity: 0.12; }
 @keyframes aa-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.015); } }
 @keyframes aa-spin { to { transform: rotate(360deg); } }
 @keyframes aa-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }

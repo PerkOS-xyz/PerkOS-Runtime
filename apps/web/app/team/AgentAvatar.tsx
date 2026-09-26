@@ -35,7 +35,7 @@ export type AgentLike = {
   runtimeState?: AgentAvatarState;
 };
 
-const RING: Record<AgentAvatarState, { color: string; dash?: string }> = {
+export const RING: Record<AgentAvatarState, { color: string; dash?: string }> = {
   idle: { color: "#f2f4f8" },
   listening: { color: "#3d8bff" },
   thinking: { color: "#a06bff", dash: "200 110" },

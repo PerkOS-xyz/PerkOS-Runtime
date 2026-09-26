@@ -3,16 +3,16 @@
 import type { DeskTeam, TeamAgent } from "@perkos/client";
 import type { CSSProperties } from "react";
 
-import { AgentAvatar } from "./AgentAvatar";
+import { AgentSphere } from "./AgentSphere";
 import { roleConfig } from "./avatarIdentity";
 import { memberLook, seating, specialistSeat } from "./look";
 
-function Member({ agent, className, size, style, note }: { agent: TeamAgent; className: string; size: number; style?: CSSProperties; note?: string }) {
+function Member({ agent, className, size, style, note, seat }: { agent: TeamAgent; className: string; size: number; style?: CSSProperties; note?: string; seat?: number }) {
   const look = memberLook(agent.state);
   const name = roleConfig(agent.role).label;
   return (
     <div className={`st-member ${className} ${look.avatar}`} style={style} title={`${name}${note ? ` · ${note}` : ""}: ${look.label}`}>
-      <AgentAvatar role={agent.role} state={look.avatar} size={size} label={name} />
+      <AgentSphere role={agent.role} state={look.avatar} size={size} label={name} seat={seat} />
       <b>{name}</b>
       <small>{look.label}</small>
     </div>
@@ -37,6 +37,7 @@ export function TeamRow({ team }: { team: DeskTeam | null }) {
             className="st-spec"
             size={48}
             note="analysis only"
+            seat={i}
             style={{ "--x": `${seat.x}px`, "--row": `${seat.row}px`, "--i": i } as CSSProperties}
           />
         );
