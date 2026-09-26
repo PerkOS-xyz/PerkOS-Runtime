@@ -1656,6 +1656,7 @@ button.mk-row { cursor: pointer; }
 }
 @media (prefers-reduced-motion: reduce) {
   .chats-drawer, .cd-row, .st-chip { animation: none; opacity: 1; }
+}
 /* The desk's team in the conversation. Sparky's line to them is edged in his
    ember; each agent speaks in its role's color, with the sphere's light as a
    dot beside its name; one that did not answer is a short muted line with a
