@@ -2,6 +2,7 @@ import { Desks, PerkosApiError, type DeskSummary, type PerkosClient } from "@per
 
 import { runDeskTurn } from "../../../lib/deskTurn";
 import { guard } from "../../../lib/guard";
+import { readLaunchFacts, type LaunchTurnFacts } from "../../../lib/launchTurn";
 import { memoryFor } from "../../../lib/memory";
 import { cachedDesks, perkosClient } from "../../../lib/perkos";
 import { errorResponse } from "../../../lib/respond";
@@ -22,15 +23,16 @@ const renewFailed = (err: unknown) =>
     ? bad("signed_out", TURN_ERRORS.SIGNED_OUT, 401)
     : bad("perkos_unreachable", "PerkOS did not answer to renew the sign-in. Try again in a moment.", 502);
 
-// POST { desk, text, kind: "analyze" | "advise" | "order", tickers? } -> text/event-stream of desk turn events,
+// POST { desk, text, kind: "analyze" | "advise" | "order" | "launch", tickers?, launch? } -> text/event-stream of desk turn events,
 // one `data: <json>\n\n` frame each (see lib/turnRecord.ts). The team is woken only when part of it sleeps.
+// A launch turn carries the launch the person drafted and Bankr checked (see lib/launchTurn.ts).
 // 400 bad input, 401 signed out, 404 when the desk does not run that kind of turn, 409 while a turn is live,
 // 502 when PerkOS does not answer to renew the sign-in.
 // Closing the stream stops waiting for the team; PerkOS cannot cancel a task, so an agent may still finish.
 export async function POST(req: Request) {
   const denied = guard(req);
   if (denied) return denied;
-  const body = (await req.json().catch(() => ({}))) as { desk?: unknown; text?: unknown; kind?: unknown; tickers?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { desk?: unknown; text?: unknown; kind?: unknown; tickers?: unknown; launch?: unknown };
   const desk = typeof body.desk === "string" ? body.desk.trim() : "";
   if (!DESK.test(desk)) return bad("desk", "Which desk?");
   const text = typeof body.text === "string" ? body.text.trim() : "";
@@ -43,6 +45,12 @@ export async function POST(req: Request) {
       return bad("tickers", `Up to ${MAX_TICKERS} tickers.`);
     }
     tickers = body.tickers as string[];
+  }
+  let launch: LaunchTurnFacts | undefined;
+  if (kind === "launch") {
+    const drafted = readLaunchFacts(body.launch);
+    if (!drafted) return bad("launch", "A launch turn needs the launch the person drafted.");
+    launch = drafted;
   }
 
   const wallet = await sessionWallet();
@@ -91,7 +99,7 @@ export async function POST(req: Request) {
           open = false;
         }
       };
-      void runDeskTurn({ id, wallet, desk: { ...summary, module }, manifest, kind, question: text, ...(tickers ? { tickers } : {}), client, notes, signal: stop.signal, emit })
+      void runDeskTurn({ id, wallet, desk: { ...summary, module }, manifest, kind, question: text, ...(tickers ? { tickers } : {}), ...(launch ? { launch } : {}), client, notes, signal: stop.signal, emit })
         .catch((err: Error) => emit({ step: "error", code: "INTERNAL", message: `${TURN_ERRORS.INTERNAL} ${err.message}` }))
         .finally(() => {
           releaseTurn(wallet, desk, id);

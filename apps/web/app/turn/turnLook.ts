@@ -115,7 +115,7 @@ export function firstTicker(text: string, tickers: readonly string[]): string | 
 
 const RISK_LINE = /^\s*RISK:\s*(low|medium|high)\b/im;
 /** What the Auditor's record is, by kind of turn. */
-const RECORD: Record<TurnKind, string> = { analyze: "analysis", advise: "outlook", order: "order" };
+const RECORD: Record<TurnKind, string> = { analyze: "analysis", advise: "outlook", order: "order", launch: "launch" };
 
 /** The one result a role shows on its card once its part is over; null while it is waiting or working. */
 export function metricFor(view: Pick<TurnView, "kind" | "facts" | "verdict">, role: RoleView): CardMetric | null {
@@ -136,7 +136,7 @@ export function metricFor(view: Pick<TurnView, "kind" | "facts" | "verdict">, ro
       return pick ? { value: pick, label: "top pick" } : { value: "read", label: "market read" };
     }
     case "risk": {
-      if (kind === "order" && r.verdict) return { value: r.verdict, label: "verdict" };
+      if ((kind === "order" || kind === "launch") && r.verdict) return { value: r.verdict, label: "verdict" };
       const level = r.riskLevel ?? (reply.match(RISK_LINE)?.[1]?.toLowerCase() as RiskLevel | undefined);
       return level ? { value: level, label: "risk level" } : { value: "read", label: "risk read" };
     }

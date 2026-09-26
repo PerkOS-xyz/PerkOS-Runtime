@@ -176,7 +176,7 @@ describe("POST /api/desks/turn: refusals before the turn starts", () => {
     expect((await post({ desk: "Bad Desk", text: "x", kind: "analyze" })).status).toBe(400);
     expect((await post({ desk: "eqlty-desk", text: "", kind: "analyze" })).status).toBe(400);
     expect((await post({ desk: "eqlty-desk", text: "x".repeat(2_001), kind: "analyze" })).status).toBe(400);
-    expect(await (await post({ desk: "eqlty-desk", text: "x", kind: "launch" })).json()).toMatchObject({ error: "kind" });
+    expect(await (await post({ desk: "eqlty-desk", text: "x", kind: "mint" })).json()).toMatchObject({ error: "kind" });
     expect((await post({ desk: "eqlty-desk", text: "x", kind: "analyze", tickers: ["NVDA", "../x"] })).status).toBe(400);
     const order = await post({ desk: "eqlty-desk", text: "Buy $50 of NVDA", kind: "order" });
     expect(order.status).toBe(404);

@@ -13,7 +13,7 @@
 
 import type { TeamStatus } from "@perkos/client";
 
-export const TURN_KINDS = ["analyze", "advise", "order"] as const;
+export const TURN_KINDS = ["analyze", "advise", "order", "launch"] as const;
 export type TurnKind = (typeof TURN_KINDS)[number];
 export const isTurnKind = (v: unknown): v is TurnKind => typeof v === "string" && (TURN_KINDS as readonly string[]).includes(v);
 
@@ -48,8 +48,12 @@ export const TURN_PHASES: readonly [readonly string[], readonly string[]] = [
   ["trader", "auditor"],
 ];
 
-/** Specialists who join the first phase when the desk gives them a prompt: Quote reads Uniswap's executable price. */
-export const PHASE_ONE_SPECIALISTS: readonly string[] = ["quote"];
+/**
+ * Specialists who join the first phase when the desk gives them a prompt:
+ * Quote reads Uniswap's executable price; in a launch, Hooks explains the
+ * pool's hook and Treasury the fee split.
+ */
+export const PHASE_ONE_SPECIALISTS: readonly string[] = ["quote", "hooks", "treasury"];
 
 export interface RoleReply {
   /** scout, risk, trader, auditor */
@@ -209,7 +213,7 @@ export interface TurnRow {
   error?: TurnErrorCode;
 }
 
-const KIND_LABEL: Record<TurnKind, string> = { analyze: "Analyze", advise: "Advise", order: "Order" };
+const KIND_LABEL: Record<TurnKind, string> = { analyze: "Analyze", advise: "Advise", order: "Order", launch: "Launch" };
 
 /** "Scout" for "scout". */
 export const roleName = (role: string) => (role ? role[0]!.toUpperCase() + role.slice(1) : role);

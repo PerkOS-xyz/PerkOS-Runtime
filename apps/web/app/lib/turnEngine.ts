@@ -173,7 +173,8 @@ export async function runTurn(input: RunTurnInput): Promise<TurnOutcome> {
       if (role === "risk" && reply.ok) {
         const level = riskLevelOf(reply.reply);
         if (level) notes.riskLevel = riskLevel = level;
-        if (input.kind === "order") {
+        // A launch asks Risk for a verdict too; there it only warns, the hold stays the person's.
+        if (input.kind === "order" || input.kind === "launch") {
           const v = verdictOf(reply.reply);
           if (v) notes.verdict = verdict = v;
         }
