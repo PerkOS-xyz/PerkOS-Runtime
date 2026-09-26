@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { SparkyBubble } from "../chat/SparkyBubble";
+import { SparkyScene } from "../chat/SparkyScene";
 import { AppHeader } from "../shell/AppHeader";
 import { CHAIN_LABEL, chainOf } from "./chains";
 
@@ -24,6 +24,7 @@ export function DesksScreen({
 }) {
   const [desks, setDesks] = useState<Desk[] | null>(null);
   const [error, setError] = useState("");
+  const [withSparky, setWithSparky] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -44,7 +45,7 @@ export function DesksScreen({
   }, []);
 
   return (
-    <main className="desks-home">
+    <main className={`desks-home${withSparky ? " behind" : ""}`}>
       <AppHeader
         section="Desks"
         onLogout={onLogout}
@@ -94,7 +95,7 @@ export function DesksScreen({
         })}
       </ul>
       {desks && !desks.length && !error ? <p className="wz-note dh-note">No desks are published yet.</p> : null}
-      <SparkyBubble model={model} />
+      <SparkyScene model={model} onOpenChange={setWithSparky} />
     </main>
   );
 }
