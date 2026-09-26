@@ -97,7 +97,7 @@ export function SparkyBubble({ model }: { model: string | null }) {
       <section className="bubble-panel" aria-label="Chat with Sparky" aria-hidden={!open}>
         <header>
           <span className={`sp-avatar ${status}`} aria-hidden>
-            <img src="/sparky.png" alt="" width={34} height={34} />
+            <img src="/sparky-samurai-head.png" alt="" width={34} height={34} />
           </span>
           <div className="sp-title">
             <b>Sparky</b>
@@ -176,7 +176,7 @@ export function SparkyBubble({ model }: { model: string | null }) {
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
-        <img src="/sparky.png" alt="" width={46} height={46} />
+        <img src="/sparky-samurai-head.png" alt="" width={46} height={46} />
         {!open ? <span className="bubble-tip">{live ? "Live: Sparky is listening" : "Ask Sparky"}</span> : null}
       </button>
     </div>

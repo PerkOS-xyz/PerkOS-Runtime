@@ -48,12 +48,12 @@ export function SparkyChat({
     <section className={`chat${compact ? " compact" : ""}`}>
       <div className="messages">
         <div className="msg assistant">
-          <img src="/sparky.png" alt="" width={28} height={28} />
+          <img src="/sparky-samurai-head.png" alt="" width={28} height={28} />
           <p>{greeting}</p>
         </div>
         {chat.messages.map((m, i) => (
           <div key={i} className={`msg ${m.role}`}>
-            {m.role === "assistant" ? <img src="/sparky.png" alt="" width={28} height={28} /> : null}
+            {m.role === "assistant" ? <img src="/sparky-samurai-head.png" alt="" width={28} height={28} /> : null}
             <p>{m.content || "…"}</p>
           </div>
         ))}
