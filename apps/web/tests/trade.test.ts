@@ -22,6 +22,7 @@ import {
   MAX_SLIPPAGE_BPS,
   mayDismiss,
   minAfterSlippage,
+  planAmount,
   priceCheck,
   QUOTE_TTL_S,
   quoteMismatch,
@@ -38,6 +39,7 @@ import {
   sweepUnsettled,
   sweepView,
   toUnits,
+  turnReceiptOf,
   UNCONFIRMED,
   unresolved,
   type BuyOutcome,
@@ -367,6 +369,53 @@ describe("how a buy's receipt reads", () => {
       title: "An approval is on its way",
       body: "Buy again once it lands!",
     });
+  });
+});
+
+describe("the receipt a desk turn keeps of a buy from its plan", () => {
+  const order = { ticker: "NVDA", amountUsdg: "50" };
+  const at = new Date("2026-09-26T14:40:00.000Z");
+
+  it("keeps the swap that went out, and where it stands", () => {
+    const url = "https://robinhoodchain.blockscout.com/tx/0xfeed";
+    expect(turnReceiptOf({ kind: "receipt", receipt: receipt({ explorerUrl: url }) }, order, at)).toEqual({
+      hash: "0xfeed",
+      explorerUrl: url,
+      status: "success",
+      ticker: "NVDA",
+      amount: "50",
+      at: "2026-09-26T14:40:00.000Z",
+    });
+    expect(turnReceiptOf({ kind: "receipt", receipt: receipt({ status: "pending", bought: null }) }, order, at)).toMatchObject({ status: "pending", hash: "0xfeed" });
+    expect(turnReceiptOf({ kind: "receipt", receipt: receipt({ status: "reverted", bought: false }) }, order, at)).toMatchObject({ status: "reverted" });
+    expect(turnReceiptOf({ kind: "receipt", receipt: receipt() }, order, at)).not.toHaveProperty("explorerUrl");
+  });
+
+  it("keeps nothing when no swap went out, or when nobody can say what happened", () => {
+    const stopped = receipt({ status: "not_sent", bought: false, hash: null, steps: [{ kind: "approve", hash: "0xa11", status: "success", explorerUrl: null }] });
+    expect(turnReceiptOf({ kind: "receipt", receipt: stopped }, order, at)).toBeNull();
+    expect(turnReceiptOf({ kind: "refused", code: "STALE_ORDER", message: "x", detail: "" }, order, at)).toBeNull();
+    expect(turnReceiptOf({ kind: "unconfirmed", message: UNCONFIRMED }, order, at)).toBeNull();
+  });
+});
+
+describe("a buy that starts from the desk's plan", () => {
+  it("takes the plan's amount until the wallet is read", () => {
+    expect(planAmount(50, null)).toEqual({ amount: "50", capped: null });
+    expect(planAmount(35.5, null)).toEqual({ amount: "35.5", capped: null });
+  });
+
+  it("never starts above one order's limit or the USDG the wallet holds", () => {
+    // The wallet holds 25 USDG and one order may spend 25.
+    expect(planAmount(20, trader())).toEqual({ amount: "20", capped: null });
+    expect(planAmount(50, trader({ cap: 100 }))).toEqual({ amount: "25", capped: "held" });
+    expect(planAmount(50, trader({ cap: 10 }))).toEqual({ amount: "10", capped: "cap" });
+    const odd = trader({ cap: 100, balances: [{ symbol: "USDG", address: USDG, decimals: 6, amount: "12345678" }] });
+    expect(planAmount(50, odd)).toEqual({ amount: "12.34", capped: "held" });
+  });
+
+  it("leaves a limit it cannot read to the sheet's own checks", () => {
+    expect(planAmount(50, trader({ cap: 0, balances: [] }))).toEqual({ amount: "50", capped: null });
   });
 });
 
