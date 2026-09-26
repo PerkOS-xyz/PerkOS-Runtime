@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 
 import { ChatChips, ChatsDrawer } from "../chat/ChatsDrawer";
 import { useChatActions, useChats } from "../chat/useChats";
@@ -11,6 +11,7 @@ import { useVault } from "../shell/useVault";
 import { wakeAction } from "../team/look";
 import { TeamRow } from "../team/TeamRow";
 import { useTeam } from "../team/useTeam";
+import { ChatLine } from "../turn/ChatLine";
 import { useTalk } from "../voice/useTalk";
 import { useWallet } from "../wallet/context";
 import { CHAIN_LABEL, chainOf } from "./chains";
@@ -53,6 +54,12 @@ export function DeskView({
   const [voiceReady, setVoiceReady] = useState<boolean | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  /** Each turn's facts, for the [Fn] tags in its answers. */
+  const factsByTurn = useMemo(() => {
+    const out = new Map<string, string[]>();
+    for (const m of chat.messages) if (m.role === "team" && m.kind === "principal" && m.turnId && m.facts) out.set(m.turnId, m.facts);
+    return out;
+  }, [chat.messages]);
 
   useEffect(() => {
     fetch("/api/voice")
@@ -174,20 +181,8 @@ export function DeskView({
 
         {split ? (
           <section className="st-convo" aria-label="Conversation with Sparky">
-            {chat.messages.map((m, i) => (
-              <div key={i} className={`st-turn ${m.role}`}>
-                <span className="st-who">{m.role === "user" ? "You" : "Sparky"}</span>
-                <p>
-                  {m.content ||
-                    (chat.busy && i === chat.messages.length - 1 ? (
-                      <span className="st-typing" aria-label="Sparky is writing">
-                        <i />
-                        <i />
-                        <i />
-                      </span>
-                    ) : null)}
-                </p>
-              </div>
+            {chat.messages.map((m) => (
+              <ChatLine key={m.id} message={m} typing={chat.replying.includes(m.id)} facts={m.role === "team" && m.turnId ? factsByTurn.get(m.turnId) : undefined} />
             ))}
             {chat.error ? <p className="hint err">{chat.error}</p> : null}
             <div ref={endRef} />
