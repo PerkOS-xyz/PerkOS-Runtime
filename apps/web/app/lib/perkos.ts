@@ -59,6 +59,11 @@ export async function cachedMarket(module: string): Promise<DeskMarket | null> {
   }
 }
 
+/** Keeps a market the app just read, so Sparky's next answer in that desk does not wait for it. */
+export function rememberMarket(module: string, market: DeskMarket): void {
+  markets.set(module, { at: Date.now(), market });
+}
+
 /** Price history of a few tickers, for the facts Sparky cites. Empty when the desk does not answer. */
 export async function deskSeries(module: string, tickers: string[]): Promise<DeskSeries[]> {
   if (!tickers.length) return [];
