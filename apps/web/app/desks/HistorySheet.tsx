@@ -337,7 +337,7 @@ export function TurnReplay({ record }: { record: TurnRecord }) {
       {view.order.length ? (
         <div className="hs-cards" aria-label="Each agent's card">
           {view.order.map((role, i) => {
-            const look = cardLook(view, role, { index: i + 1, now: view.endedAt ?? 0, receipt: signed });
+            const look = cardLook(view, role, { index: i + 1, now: view.endedAt ?? 0, receipt: record.receipt ?? null });
             return look ? <TurnCard key={role} look={look} replay /> : null;
           })}
         </div>

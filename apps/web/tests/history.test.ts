@@ -194,6 +194,10 @@ describe("a turn opened in History", () => {
     expect(signed).toContain('<span class="hs-sign on">signed · NVDA 40</span>');
     const pending = html(record({ receipt: { hash: "0x12", status: "pending", ticker: "NVDA", amount: "40", at: "2026-09-26T14:40:00.000Z" } }));
     expect(pending).toContain('<span class="hs-sign on">signed · NVDA 40 · pending</span>');
+    // The Auditor's card carries the receipt, a link to the swap, and no chip copy of it.
+    expect(signed).toContain('<a class="st-card-slot st-receipt success" href="https://robinhoodchain.blockscout.com/tx/0x12"');
+    expect(signed).toContain("<span>Signed · NVDA 40</span>");
+    expect(signed).not.toContain("st-card-receipt");
     const stopped = html(record({ stopped: true }));
     expect(stopped).toContain("You stopped waiting for this turn. Agents already asked may still have finished on PerkOS");
     const ended = html(record({ replies: [], error: { code: "TEAM_ASLEEP", message: "The team is asleep." } }));

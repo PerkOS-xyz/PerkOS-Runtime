@@ -229,6 +229,17 @@ describe("a card's steps, time and portrait", () => {
     expect(cardLook(working, "auditor", { index: 4, now })?.receiptSlot).toBe(false);
   });
 
+  it("puts the receipt itself on the Auditor's card once the person signed, and on no other card", () => {
+    const v = run(fullTurn());
+    const receipt = { hash: "0xfeed", status: "success" as const, ticker: "AAPL", amount: "40", at: at(90), explorerUrl: "https://robinhoodchain.blockscout.com/tx/0xfeed" };
+    const auditor = cardLook(v, "auditor", { index: 4, now: T0 + 90_000, receipt });
+    expect(auditor).toMatchObject({ receiptSlot: false, receipt: { text: "Signed · AAPL 40", status: "success", hash: "0xfeed", explorerUrl: receipt.explorerUrl } });
+    expect(auditor?.steps.map((s) => s.state)).toEqual(["done", "done", "done"]);
+    expect(cardLook(v, "trader", { index: 3, now: T0 + 90_000, receipt })).not.toHaveProperty("receipt");
+    expect(cardLook(v, "auditor", { index: 4, now: T0 + 90_000, receipt: null })).toMatchObject({ receiptSlot: true });
+    expect(cardLook(v, "auditor", { index: 4, now: T0 + 90_000, receipt: true })).not.toHaveProperty("receipt");
+  });
+
   it("counts whole seconds while the role works, then the time it took with one decimal", () => {
     const working = run([open(), { step: "start", role: "scout", phase: 1, at: at(1) }]);
     expect(cardLook(working, "scout", { index: 1, now: T0 + 13_700 })).toMatchObject({ time: "12 s", chip: "12 s", title: "01 · SCOUT", tone: "active" });

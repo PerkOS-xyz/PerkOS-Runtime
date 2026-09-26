@@ -10,7 +10,7 @@
 
 import type { Message } from "../chat/messages";
 import { failureLabel, runtimeFailure } from "../lib/turnFailure";
-import type { FailureKind, RiskLevel, TurnKind } from "../lib/turnRecord";
+import { receiptLine, type FailureKind, type RiskLevel, type TurnKind, type TurnReceipt } from "../lib/turnRecord";
 import { roleConfig, type AgentAvatarState } from "../team/avatarIdentity";
 import type { RoleStatus, RoleView, TurnView } from "./turnState";
 
@@ -198,6 +198,8 @@ export interface CardLook {
   avatar: AgentAvatarState | null;
   /** A delivered Auditor waits on the person's signature for its receipt. */
   receiptSlot: boolean;
+  /** Once the person signed an order from the turn's plan, its receipt on the Auditor's card: "Signed · NVDA 50". */
+  receipt?: { text: string; status: TurnReceipt["status"]; hash: string; explorerUrl?: string };
   /** What the card says once it folds into a chip. */
   chip: string;
   /** "Scout: NVDA / TOP PICK" */
@@ -206,8 +208,12 @@ export interface CardLook {
   detail?: string;
 }
 
-/** A role's card at a given moment, or null when the role has no part in this turn. */
-export function cardLook(view: TurnView, role: string, opts: { index: number; now: number; receipt?: boolean }): CardLook | null {
+/**
+ * A role's card at a given moment, or null when the role has no part in this
+ * turn. `receipt` says the person signed an order after the turn; given the
+ * receipt itself, the Auditor's card shows it.
+ */
+export function cardLook(view: TurnView, role: string, opts: { index: number; now: number; receipt?: boolean | TurnReceipt | null }): CardLook | null {
   const raw = view.roles[role];
   if (!raw) return null;
   const r = settled(raw);
@@ -215,7 +221,8 @@ export function cardLook(view: TurnView, role: string, opts: { index: number; no
   const metric = metricFor(view, r);
   const avatar = seatState(r);
   const time = cardTime(view, r, opts.now);
-  const states = stepStates(r, opts.receipt === true);
+  const signed = Boolean(opts.receipt);
+  const states = stepStates(r, signed);
   const tone: CardTone =
     r.status === "thinking" ? "active" : r.status === "delivered" ? "done" : r.status === "waiting" ? "waiting" : avatar === "warning" ? "warn" : avatar === "error" ? "error" : "dim";
   const working = r.status === "thinking" ? `thinking${time ? `, ${time}` : ""}` : time || "waiting";
@@ -229,13 +236,22 @@ export function cardLook(view: TurnView, role: string, opts: { index: number; no
     steps: stepLabels(role).map((label, i) => ({ label, state: states[i] ?? "idle" })),
     metric,
     avatar,
-    receiptSlot: role === "auditor" && r.status === "delivered" && opts.receipt !== true,
+    receiptSlot: role === "auditor" && r.status === "delivered" && !signed,
+    ...(role === "auditor" && typeof opts.receipt === "object" && opts.receipt ? { receipt: receiptOn(opts.receipt) } : {}),
     // A delivered role folds to its result; one without an answer, to why.
     chip: metric ? (r.status === "delivered" ? metric.value : metric.label) : r.status === "thinking" ? time || "thinking" : time || "waiting",
     summary: `${name}: ${metric ? metricText(metric) : working}`,
     ...(r.status === "failed" && r.detail ? { detail: r.detail } : {}),
   };
 }
+
+/** A receipt as the Auditor's card shows it. */
+const receiptOn = (r: TurnReceipt): NonNullable<CardLook["receipt"]> => ({
+  text: `Signed · ${receiptLine(r)}`,
+  status: r.status,
+  hash: r.hash,
+  ...(r.explorerUrl ? { explorerUrl: r.explorerUrl } : {}),
+});
 
 export type CardsMode = "none" | "open" | "chips";
 
