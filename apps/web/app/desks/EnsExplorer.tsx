@@ -44,6 +44,7 @@ export function EnsExplorer() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const generation = useRef(0);
+  const packetInput = useRef<HTMLInputElement>(null);
   const load = async (hash: string) => {
     setPacket(null); setError(""); setBusy(true);
     try {
@@ -88,12 +89,27 @@ export function EnsExplorer() {
         {/^perkos-evidence:1:0x[0-9a-f]{64}$/.test(records[s.id] ?? "") ? <button type="button" disabled={busy} onClick={() => void load(records[s.id]!.split(":")[2]!)}>Read {s.id} evidence</button> : null}
       </div>)}</div>
     </div> : null}
-    <label>Verify an exported packet<input type="file" accept="application/json,.json" disabled={busy} onChange={async (event) => {
-      const file = event.target.files?.[0]; setPacket(null); setError(""); if (!file) return;
-      try { if (file.size > 150_000) throw new Error("Packet is too large."); setPacket(parseEvidence(JSON.parse(await file.text()))); }
-      catch (err) { setError((err as Error).message); }
-      event.target.value = "";
-    }} /></label>
+    <section className={styles.packetImport} aria-label="Verify an exported packet">
+      <strong>Verify an exported packet</strong>
+      <p>Open a saved packet to check its evidence.</p>
+      <div className={styles.importActions}>
+        <button type="button" className={styles.importButton} disabled={busy} onClick={() => packetInput.current?.click()}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+            <path d="M12 16V3m-5 5 5-5 5 5M4 16v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" />
+          </svg>
+          Import JSON packet
+        </button>
+        <small>.json · up to 150 KB</small>
+      </div>
+      <input ref={packetInput} type="file" accept="application/json,.json" hidden disabled={busy} onChange={async (event) => {
+        const input = event.currentTarget;
+        const file = input.files?.[0]; if (!file) return;
+        setPacket(null); setError("");
+        try { if (file.size > 150_000) throw new Error("Packet is too large."); setPacket(parseEvidence(JSON.parse(await file.text()))); }
+        catch (err) { setError((err as Error).message); }
+        finally { input.value = ""; }
+      }} />
+    </section>
     {error ? <p role="alert">{error}</p> : null}
     {packet ? <EvidenceResult key={packet.hash + packet.transactionHash} envelope={packet} /> : null}
   </section>;
