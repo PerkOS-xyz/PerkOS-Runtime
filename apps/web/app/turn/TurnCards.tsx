@@ -60,9 +60,10 @@ export function focusLine(convo: HTMLElement, role: string): boolean {
  * One agent's part of the turn: a card with its head, its time, its result,
  * its three steps and Focus while the turn runs, and a chip with the result
  * once it folds. Focus, or the chip, shows the agent's last line in the
- * conversation.
+ * conversation. A `replay` card, as History shows a kept turn, is the same
+ * card without Focus and without the chip.
  */
-export function TurnCard({ look, onFocus }: { look: CardLook; onFocus?: (() => void) | undefined }) {
+export function TurnCard({ look, onFocus, replay = false }: { look: CardLook; onFocus?: (() => void) | undefined; replay?: boolean }) {
   const style = { "--role": sphereAccent(look.role) } as CSSProperties;
   const tip = look.detail ? `${look.summary}\n${look.detail}` : look.summary;
   return (
@@ -95,17 +96,19 @@ export function TurnCard({ look, onFocus }: { look: CardLook; onFocus?: (() => v
             </li>
           ))}
         </ol>
-        <button
-          type="button"
-          className="st-card-focus"
-          disabled={!onFocus}
-          onClick={onFocus}
-          title={onFocus ? `Show ${look.name}'s last line in the conversation` : `${look.name} has no line in the conversation yet`}
-        >
-          Focus
-        </button>
+        {replay ? null : (
+          <button
+            type="button"
+            className="st-card-focus"
+            disabled={!onFocus}
+            onClick={onFocus}
+            title={onFocus ? `Show ${look.name}'s last line in the conversation` : `${look.name} has no line in the conversation yet`}
+          >
+            Focus
+          </button>
+        )}
       </div>
-      {onFocus ? (
+      {replay ? null : onFocus ? (
         <button type="button" className="st-card-chip" onClick={onFocus} aria-label={`${look.summary}. Show ${look.name}'s last line.`}>
           <i aria-hidden />
           <span>{look.chip}</span>
