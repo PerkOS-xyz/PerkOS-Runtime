@@ -1,13 +1,12 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { createPublicClient, http } from "viem";
-import { sepolia } from "viem/chains";
 import { discoverDesk, instanceName, parseEvidence, readText, seatName, verifyEvidence, type EvidenceEnvelope } from "@perkos/ens";
 import styles from "./IdentitySheet.module.css";
 import { Ensip25Proof, Ensip25Summary } from "./Ensip25Proof";
 
-export const ensReader = createPublicClient({ chain: sepolia, transport: http("https://ethereum-sepolia-rpc.publicnode.com", { timeout: 15_000, retryCount: 0 }), cacheTime: 0 });
+import { ensReader } from "../lib/ensReader";
+export { ensReader };
 const PUBLIC_EVIDENCE = "https://api.perkos.xyz/ens/evidence/";
 
 export function EvidenceResult({ envelope }: { envelope: EvidenceEnvelope }) {
