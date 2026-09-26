@@ -83,7 +83,14 @@ export function DeskView({
   const state = coreState(voice.status, chat.busy || turn.live, isAnswering(chat.busy, chat.messages));
   const split = chat.messages.length > 0;
   const working = chat.busy || voice.status === "speaking" || turn.live;
-  const saved = useChatActions(chats, { working, stop });
+  const saved = useChatActions(chats, {
+    working,
+    stop,
+    settle: () => {
+      chat.abort();
+      turn.stop();
+    }
+  });
   const starters = manifest?.starters.length ? manifest.starters : DEFAULT_STARTERS;
 
   /**

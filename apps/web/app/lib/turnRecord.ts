@@ -196,7 +196,8 @@ const oneLine = (s: string) => s.replace(/\s+/g, " ").trim();
  * kept in a note would point at another turn's fact once it is recalled, and
  * Sparky would read it aloud.
  */
-export const withoutFactTags = (s: string) => s.replace(/\s*\[F\d+\]/g, "");
+// Single tags and grouped ones: "[F1]", "[F1, F2]", "[F1-F3]", "[F1–3]".
+export const withoutFactTags = (s: string) => s.replace(/\s*\[F\d+(?:\s*[,–-]\s*F?\d+)*\]/g, "");
 
 /** A new turn id from the local time: "20260926-143205-ab12". */
 export function newTurnId(at = new Date(), random = () => Math.random()): string {

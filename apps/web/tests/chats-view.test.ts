@@ -5,7 +5,7 @@
 import { isChatId } from "@perkos/vault";
 import { describe, expect, it } from "vitest";
 
-import { chatCommand, chatWhen, escapeIsMine, groupChats, groupNames, LOST_SAVE_CAPTION, newChatCaption, newChatId, savable, type ChatRow } from "../app/chat/chatsView";
+import { chatCommand, chatWhen, escapeIsMine, groupChats, groupNames, keptLines, LOST_SAVE_CAPTION, newChatCaption, newChatId, savable, type ChatRow } from "../app/chat/chatsView";
 
 const row = (id: string, extra: Partial<ChatRow> = {}): ChatRow => ({
   id,
@@ -117,5 +117,24 @@ describe("escapeIsMine", () => {
 describe("a New chat whose save failed", () => {
   it("says so plainly", () => {
     expect(LOST_SAVE_CAPTION).toBe("New chat. The last one could not be saved in Chats.");
+  });
+});
+
+describe("keptLines", () => {
+  it("keeps the person's and Sparky's text only, so reopening a chat gives the same thread", () => {
+    const screen = [
+      { id: "a", role: "user", content: "What should I buy this month?" },
+      { id: "b", role: "team", content: "@Scout @Risk What should I buy this month?" },
+      { id: "c", role: "assistant", content: "The team leans to NVDA.", tone: "summary" },
+      { id: "d", role: "assistant", content: "  " },
+    ];
+    const kept = keptLines(screen);
+    expect(kept).toEqual([
+      { role: "user", content: "What should I buy this month?" },
+      { role: "assistant", content: "The team leans to NVDA." },
+    ]);
+    // What a reopened chat puts back on screen, with new ids, keeps the same signature.
+    const reopened = kept.map((m, i) => ({ ...m, id: `x${i}` }));
+    expect(JSON.stringify(keptLines(reopened))).toBe(JSON.stringify(kept));
   });
 });
