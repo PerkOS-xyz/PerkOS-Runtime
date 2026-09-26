@@ -4,6 +4,7 @@
  * Bankr key and the Bankr wallet behind it.
  */
 
+import type { LaunchLinks } from "../desks/launch";
 import { bankrMe, type BankrMe } from "./bankr";
 import { bankrKey } from "./bankrKey";
 import type { LaunchPair, LaunchParams, LaunchPreview } from "./bankrLaunch";
@@ -34,6 +35,22 @@ export interface DraftAnswer {
   /** The Bankr wallet that deploys and pays the gas. */
   deployer: string;
   limits: { launches24h: number; simulations24h: number };
+}
+
+/** A launch that went out, as POST /api/launch/deploy answers it. */
+export interface LaunchReceipt {
+  tokenAddress: string;
+  poolId: string | null;
+  txHash: string | null;
+  chain: "robinhood";
+  name: string;
+  symbol: string;
+  pairedSymbol: string;
+  pairAddress: string | null;
+  feeRecipient: string;
+  deployer: string;
+  deployedAt: string;
+  links: LaunchLinks;
 }
 
 export const DESCRIPTION_MAX = 500;
