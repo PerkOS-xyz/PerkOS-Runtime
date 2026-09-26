@@ -154,6 +154,7 @@ function Access({ trader, agentId, load, moving }: { trader: DeskTrader; agentId
   const [busy, setBusy] = useState<"" | "grant" | "edit" | "revoke">("");
   const [waiting, setWaiting] = useState<"" | "grant" | "edit">("");
   const [note, setNote] = useState("");
+  const [grantTimedOut, setGrantTimedOut] = useState(false);
   const [revokeFailed, setRevokeFailed] = useState(false);
   const [copied, setCopied] = useState(false);
   // Revoke asks once more before it runs. An order that starts meanwhile hides the question until it finishes.
@@ -161,6 +162,12 @@ function Access({ trader, agentId, load, moving }: { trader: DeskTrader; agentId
   const before = useRef(trader);
   const needsApproval = worldApprovalRequired(trader, agentId);
   const cap = effectiveOrderCap(trader, agentId);
+  const grantReady = Boolean(trader.delegated && trader.wallet && !needsApproval);
+  const timeoutNote = grantTimedOut && !grantReady ? "Nothing came back from the browser yet. Finish there, then press Check." : "";
+
+  // A manual Check can confirm approval after polling has stopped. Clear only
+  // its timeout notice; errors opening access or revoking remain visible.
+  useEffect(() => { if (grantReady) setGrantTimedOut(false); }, [grantReady]);
 
   // While the owner finishes in the browser, read the wallet every 4 s, with a
   // ceiling: an abandoned page must not leave a poll running for ever.
@@ -176,7 +183,7 @@ function Access({ trader, agentId, load, moving }: { trader: DeskTrader; agentId
       } else if (Date.now() - started > WAIT_MS) {
         setWaiting("");
         // Saving the same limits changes nothing here, so only a grant that never arrived is worth a word.
-        if (waiting === "grant") setNote("Nothing came back from the browser yet. Finish there, then press Check.");
+        if (waiting === "grant") setGrantTimedOut(true);
       }
     }, 4000);
     return () => window.clearInterval(timer);
@@ -185,6 +192,7 @@ function Access({ trader, agentId, load, moving }: { trader: DeskTrader; agentId
   async function open(mode: "grant" | "edit") {
     setBusy(mode);
     setNote("");
+    setGrantTimedOut(false);
     before.current = trader;
     try {
       if (trader.world?.enabled && !agentId) throw new Error("This desk's Trader is not available yet. Set up its team, then try again.");
@@ -202,6 +210,7 @@ function Access({ trader, agentId, load, moving }: { trader: DeskTrader; agentId
     if (moving) return;
     setBusy("revoke");
     setNote("");
+    setGrantTimedOut(false);
     setRevokeFailed(false);
     try {
       const res = await fetch("/api/delegation", { method: "DELETE" }).catch(() => null);
@@ -227,9 +236,9 @@ function Access({ trader, agentId, load, moving }: { trader: DeskTrader; agentId
 
   const footer = (
     <>
-      {note ? (
+      {note || timeoutNote ? (
         <p className="tr-note err">
-          {note}{" "}
+          {note || timeoutNote}{" "}
           <button type="button" className="link-btn" onClick={() => void load()}>
             Check
           </button>
