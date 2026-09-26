@@ -425,6 +425,9 @@ button { font: inherit; }
 .stage.base .st-blob { background: radial-gradient(circle, rgba(236, 27, 105, 0.22) 0%, rgba(0, 82, 255, 0.1) 44%, transparent 68%); }
 .stage.split .st-blob { left: 72%; }
 .st-embers { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* The same embers behind the screens before a desk: fixed, under the content, never in the way. */
+.screen-ambient { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.hero, .wizard, .desks-home { position: relative; z-index: 1; }
 .st-area { position: absolute; inset: 0; z-index: 2; transition: right var(--st-ms) var(--st-ease); }
 .stage.panel .st-area { right: calc(var(--panel-w) + var(--side)); }
 
