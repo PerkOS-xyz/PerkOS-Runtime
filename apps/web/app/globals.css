@@ -535,6 +535,11 @@ button { font: inherit; }
    the right, so each layout is a percentage of what is left. */
 .stage {
   --side: clamp(20px, 4vw, 48px);
+  /* The suggestions row and the two chevrons beside it share this geometry:
+     the row scrolls between them and never under them. */
+  --starters-bottom: 100px;
+  --starters-gap: 56px;
+  --starters-w: min(1008px, calc(100% - 2 * var(--side) - 2 * var(--starters-gap)));
   --panel-w: min(560px, 44vw);
   --convo-w: min(46%, 600px);
   --st-ms: 520ms;
@@ -695,69 +700,50 @@ button { font: inherit; }
   position: absolute;
   z-index: 4;
   left: 50%;
-  bottom: 100px;
+  bottom: var(--starters-bottom);
   transform: translateX(-50%);
-  /* One line that scrolls sideways: the suggestions read in a row and keep to
-     their own band under the team, instead of stacking over the heads. */
-  width: min(1120px, calc(100% - 2 * var(--side)));
+  /* One line that scrolls sideways, inside the band the chevrons leave it. */
+  width: var(--starters-w);
   display: flex;
   gap: 10px;
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scroll-snap-type: x proximity;
-  scroll-padding-inline: 52px;
   scrollbar-width: none;
-  /* The ends fade the row itself out rather than painting over it, so the
-     colour behind shows through. The two discs are added back to the mask so
-     the chevrons stay solid inside the part that fades. */
-  -webkit-mask-image:
-    radial-gradient(circle 17px at 28px 50%, #000 62%, transparent 100%),
-    radial-gradient(circle 17px at calc(100% - 28px) 50%, #000 62%, transparent 100%),
-    linear-gradient(90deg, transparent 0, #000 56px, #000 calc(100% - 56px), transparent 100%);
-  mask-image:
-    radial-gradient(circle 17px at 28px 50%, #000 62%, transparent 100%),
-    radial-gradient(circle 17px at calc(100% - 28px) 50%, #000 62%, transparent 100%),
-    linear-gradient(90deg, transparent 0, #000 56px, #000 calc(100% - 56px), transparent 100%);
-  mask-composite: add;
+  /* Its own ends fade the row out; nothing is painted over it, so the colour
+     behind shows through and a card is gone before it reaches a chevron. */
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 26px, #000 calc(100% - 26px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 26px, #000 calc(100% - 26px), transparent 100%);
 }
 .st-starters::-webkit-scrollbar { display: none; }
-/* Both ends fade out with a chevron over them, instead of a scrollbar under the
-   row. They are sticky flex items with their width taken back by a negative
-   margin, so they hold the edge as the row scrolls without displacing a card. */
-.st-starters::before, .st-starters::after {
-  content: "";
-  position: sticky;
-  z-index: 2;
-  flex: 0 0 52px;
-  align-self: stretch;
-  pointer-events: none;
-  background-repeat: no-repeat;
-  /* Three layers, painted front to back: the chevron, a soft disc that holds it
-     off whatever card is under it, and the fade that dims the row's own edge. */
-  background-position: center, center, center;
-  background-size: 9px 15px, auto;
+/* The chevrons sit outside the scroller: a suggestion never passes under one,
+   and the row fades out before it reaches them. They move the row by most of
+   its own width, so a press lands the next card at the same edge. */
+.st-starters-nav {
+  position: absolute;
+  z-index: 5;
+  bottom: var(--starters-bottom);
+  width: var(--starters-gap);
+  height: 62px;
+  padding: 0;
+  border: 0;
+  background: transparent no-repeat center / 9px 15px;
+  opacity: 0.85;
+  cursor: pointer;
+  transition: opacity 160ms var(--ease), transform 160ms var(--ease);
 }
-.st-starters::before {
-  left: 0;
-  margin-right: -56px;
-  flex-basis: 56px;
-  background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 14'%3E%3Cpath d='M6.3 1 1.4 7l4.9 6' fill='none' stroke='%23d5def5' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"),
-    radial-gradient(circle at center, rgba(4, 6, 14, 0.7) 0 12px, rgba(4, 6, 14, 0) 16px);
+.st-starters-nav:hover { opacity: 1; transform: scale(1.18); }
+.st-starters-nav:focus-visible { outline: 1px solid var(--coral); outline-offset: -8px; border-radius: 12px; }
+.st-starters-nav.prev {
+  left: calc(50% - var(--starters-w) / 2 - var(--starters-gap));
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 14'%3E%3Cpath d='M6.3 1 1.4 7l4.9 6' fill='none' stroke='%23d5def5' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
-.st-starters::after {
-  right: 0;
-  margin-left: -56px;
-  flex-basis: 56px;
-  background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 14'%3E%3Cpath d='M1.7 1 6.6 7l-4.9 6' fill='none' stroke='%23d5def5' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"),
-    radial-gradient(circle at center, rgba(4, 6, 14, 0.7) 0 12px, rgba(4, 6, 14, 0) 16px);
+.st-starters-nav.next {
+  left: calc(50% + var(--starters-w) / 2);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 14'%3E%3Cpath d='M1.7 1 6.6 7l-4.9 6' fill='none' stroke='%23d5def5' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
-/* The ends belong to the chevrons: the first and last card keep out of them,
-   as a margin rather than padding on the row, which would pen the fades in
-   and stop them reaching the edge. */
-.st-starters button:first-of-type { margin-left: 52px; }
-.st-starters button:last-of-type { margin-right: 52px; }
+.st-starters button:first-of-type { margin-left: 26px; }
+.st-starters button:last-of-type { margin-right: 26px; }
 .st-starters button {
   flex: 0 0 clamp(178px, 17vw, 218px);
   scroll-snap-align: start;
@@ -820,7 +806,7 @@ button { font: inherit; }
   .stage.split .st-id { display: none; }
   .stage.split .st-convo { top: 250px; }
   .stage.split .st-ask { left: 50%; }
-  .st-starters { bottom: 92px; }
+  .stage { --starters-bottom: 92px; }
   .st-starters button { flex-basis: 172px; }
 }
 /* A short window, before a conversation: the desk's name sits higher, Sparky
@@ -836,13 +822,17 @@ button { font: inherit; }
    brought up to the same size. The row drops to keep its own clearance. */
 @media not (max-width: 900px) {
   .stage:not(.split):not(.panel) .st-member.st-spec { top: 132px; }
-  .st-starters { bottom: 88px; }
+  .stage { --starters-bottom: 88px; }
   .st-starters button { font-size: 11px; padding: 8px 11px; }
   .st-starters small { font-size: 9px; }
 }
 @media (max-height: 720px) {
   .st-core { width: 170px; height: 170px; }
-  .st-starters { display: none; }
+}
+/* The suggestions used to be a grid three rows deep, which is why they were
+   dropped early; as one line they cost about 62px and can stay much longer. */
+@media (max-height: 560px) {
+  .st-starters, .st-starters-nav { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .st-core, .st-eye, .st-blob, .st-starters button, .st-hello, .st-convo { animation: none !important; opacity: 1; }
@@ -1757,7 +1747,7 @@ button.mk-row { cursor: pointer; }
 /* Not being kept: a hollow dot, explained in the title. */
 .st-chip.off::after { content: ""; width: 5px; height: 5px; margin-left: 1px; border-radius: 50%; border: 1px solid currentColor; opacity: 0.7; }
 /* The chips take the row above the composer, so the first questions sit higher. */
-.stage:has(.st-chats) .st-starters { bottom: 124px; }
+.stage:has(.st-chats) { --starters-bottom: 124px; }
 .sparky-scene:has(.st-chats) .ss-err {
   left: auto;
   right: max(var(--side), calc(50% - 340px));
@@ -1869,7 +1859,7 @@ button.mk-row { cursor: pointer; }
 .cd-empty .cd-note { margin: 0; }
 @media (max-width: 900px) {
   .chats-drawer { width: auto; right: var(--side); top: 96px; }
-  .stage:has(.st-chats) .st-starters { bottom: 120px; }
+  .stage:has(.st-chats) { --starters-bottom: 120px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .chats-drawer, .cd-row, .st-chip { animation: none; opacity: 1; }
@@ -2284,8 +2274,14 @@ button.st-card-chip:hover { border-color: var(--role); }
   translate: calc(-50% - 50px) 0;
   margin: 0;
 }
+/* With a sheet open too, the seat is drawn at a smaller scale than the card
+   undoes, so a length here lands shorter on screen: the offset is divided by
+   what is left of that scale, or the pill would sit on Sparky's own line. */
 .stage.split.panel .st-team.turn .st-card-buy.chip,
-.stage.split.panel .st-team.turn .st-card-receipt { translate: calc(-50% - 32px) 0; }
+.stage.split.panel .st-team.turn .st-card-receipt {
+  translate: calc(-50% - 32px) 0;
+  top: min(calc((min(74vh, 100vh - 180px) - 200px) * 1.24), calc((100vh - 380px) * 1.24));
+}
 /* So the pill sits over Sparky's glow rather than behind it. */
 .stage.split .st-team.turn:not(.open), .stage.panel .st-team.turn { z-index: 4; }
 /* And the specialists step one more row lower, so the pill under the chip has its room. */
