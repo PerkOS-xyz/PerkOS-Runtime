@@ -1,7 +1,7 @@
 import { PerkosApiError, type PerkosClient } from "./client.ts";
 
 export type WorldProvider = "idkit" | "oidc";
-export type WorldRequestState = "preparing" | "pending" | "verifying" | "enrolled" | "approved" | "consumed" | "cancelled" | "denied" | "expired" | "failed" | "stale";
+export type WorldRequestState = "preparing" | "pending" | "verifying" | "awaiting_link_approval" | "enrolled" | "approved" | "consumed" | "cancelled" | "denied" | "expired" | "failed" | "stale";
 export interface WorldStatus {
   enabled: boolean;
   environment: "sandbox";
@@ -22,7 +22,7 @@ export interface WorldRequest {
   signal?: string;
   sessionId?: `session_${string}`;
 }
-const STATES: WorldRequestState[] = ["preparing", "pending", "verifying", "enrolled", "approved", "consumed", "cancelled", "denied", "expired", "failed", "stale"];
+const STATES: WorldRequestState[] = ["preparing", "pending", "verifying", "awaiting_link_approval", "enrolled", "approved", "consumed", "cancelled", "denied", "expired", "failed", "stale"];
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const text = (v: unknown, max = 8192): v is string => typeof v === "string" && v.length > 0 && v.length <= max;
 const shape = () => new PerkosApiError("PerkOS returned an unreadable World response", 502, "WORLD_SHAPE");
@@ -69,6 +69,11 @@ export class World {
   }
   async enroll(provider: WorldProvider, signal?: AbortSignal): Promise<WorldRequest> {
     return readWorldRequest(await this.client.request("/world/requests", { method: "POST", body: { provider, purpose: "enroll", ...(provider === "oidc" ? { mode: "authorization_code" } : {}) }, ...(signal ? { signal } : {}) }));
+  }
+  async linkProvider(provider: WorldProvider, candidateId: string, signal?: AbortSignal): Promise<WorldRequest> {
+    if (!worldRequestId(candidateId)) throw new PerkosApiError("Invalid World candidate", 400, "WORLD_REQUEST_ID");
+    return readWorldRequest(await this.client.request("/world/requests", { method: "POST", body: { provider, purpose: "link-provider", candidateId,
+      ...(provider === "oidc" ? { mode: "authorization_code" } : {}) }, ...(signal ? { signal } : {}) }));
   }
   private path(id: string) { if (!worldRequestId(id)) throw new PerkosApiError("Invalid World request", 400, "WORLD_REQUEST_ID"); return `/world/requests/${encodeURIComponent(id)}`; }
   async request(id: string, signal?: AbortSignal): Promise<WorldRequest> {

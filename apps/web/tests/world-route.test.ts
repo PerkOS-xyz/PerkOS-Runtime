@@ -28,10 +28,22 @@ describe("World authenticated local proxy", () => {
   });
   it("refuses a grant disguised as enrollment before contacting the API", async () => {
     const http = vi.fn(); vi.stubGlobal("fetch", http);
-    for (const body of [{ provider: "idkit", purpose: "delegate" }, { provider: "oidc", purpose: "enroll", owner: "someone-else" }, { provider: "idkit", purpose: "enroll", verified: true }]) {
+    for (const body of [{ provider: "idkit", purpose: "delegate" }, { provider: "oidc", purpose: "enroll", owner: "someone-else" }, { provider: "idkit", purpose: "enroll", verified: true },
+      { provider: "idkit", purpose: "link-provider" }, { provider: "idkit", purpose: "link-provider", candidateId: "../other" },
+      { provider: "idkit", purpose: "link-provider", candidateId: "candidate-1", linked: true }]) {
       expect((await POST(req(["requests"], body), context(["requests"]))).status).toBe(400);
     }
     expect(http).not.toHaveBeenCalled();
+  });
+  it("forwards the explicit provider pairing without accepting a client assertion of approval", async () => {
+    const body = { provider: "oidc", purpose: "link-provider", candidateId: "candidate-1" };
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe("https://api.perkos.xyz/world/requests");
+      expect((init?.headers as Record<string, string>).authorization).toBe("Bearer owner-session");
+      expect(JSON.parse(init?.body as string)).toEqual({ ...body, mode: "authorization_code" });
+      return Response.json({ ...request, provider: "oidc", purpose: "link-provider" });
+    }));
+    expect((await POST(req(["requests"], body), context(["requests"]))).status).toBe(200);
   });
   it("forwards the exact proof and strips unrelated fields in the response", async () => {
     const result = { protocol_version: "4.0", responses: [{ opaque: "signed" }] };
