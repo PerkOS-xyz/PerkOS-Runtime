@@ -5,7 +5,7 @@
 import type { DeskAsset, DeskMarket } from "@perkos/desk-contract";
 import { describe, expect, it } from "vitest";
 
-import { askedAbout, marketFacts } from "../app/lib/marketFacts";
+import { askedAbout, marketFacts, mostActive } from "../app/lib/marketFacts";
 
 const asset = (ticker: string, name: string, extra: Partial<DeskAsset> = {}): DeskAsset => ({
   ticker,
@@ -92,5 +92,24 @@ describe("marketFacts", () => {
       { ticker: "AMD", priceUsd: 630.99, change24hPct: null, points: [], source: "uniswap-rwa-1d", days: 5, low: 600, high: 640.5, changePct: 2.5 },
     ]);
     expect(facts).toContain("5-day range 600.00 to 640.50 USDG, +2.50% over it (uniswap-rwa-1d).");
+  });
+
+  it("answers an open question from the desk's most active assets", () => {
+    const market = {
+      ...MARKET,
+      assets: [
+        asset("AAPL", "Apple", { volume24hUsd: 5000, change24hPct: 1.2 }),
+        asset("AMD", "AMD", { volume24hUsd: 9000, change24hPct: -2.4 }),
+        asset("BE", "Bloom Energy", { volume24hUsd: null, change24hPct: 7.5 }),
+        asset("NVDA", "NVIDIA", { volume24hUsd: 12000, tradeable: null }),
+        asset("ALL", "Allstate", { priceUsd: null }),
+      ],
+    };
+    expect(mostActive(market.assets).map((a) => a.ticker)).toEqual(["AMD", "AAPL", "BE"]);
+    const facts = marketFacts("EQLTY Desk", market, "What should I buy this month?");
+    expect(facts).toContain("Most active on this desk now:");
+    expect(facts).toMatch(/- AMD \(AMD\): 100\.00 USDG at \d{2}:\d{2}, -2\.40% in 24h, tradeable\./);
+    expect(facts).not.toContain("Prices of what the person asked about");
+    expect(facts).toContain("Never suggest ETFs, funds or tickers that are not in its list");
   });
 });
