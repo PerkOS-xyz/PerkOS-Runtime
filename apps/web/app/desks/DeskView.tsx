@@ -1,16 +1,23 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
 
-import { SparkyChat } from "../chat/SparkyChat";
 import { useSparkyChat } from "../chat/useSparkyChat";
 import { openMemory } from "../memory/open";
 import { AppHeader } from "../shell/AppHeader";
+import { useTalk } from "../voice/useTalk";
 import { CHAIN_LABEL, chainOf } from "./chains";
 import type { Desk } from "./DesksScreen";
+import { Embers } from "./Embers";
 import { MarketSheet } from "./MarketSheet";
+import { coreState, DEFAULT_STARTERS, whisper } from "./stage";
+import { useDeskManifest } from "./useDeskManifest";
 
-/** An open desk: its card on the left, the full chat with Sparky on the right. */
+/**
+ * An open desk as a scene: Sparky at the center, by voice or by text. The
+ * conversation opens to the left once it starts, and the desk's market slides
+ * in from the right. What the desk says about itself comes from its manifest.
+ */
 export function DeskView({
   desk,
   onBack,
@@ -26,8 +33,54 @@ export function DeskView({
   const chat = useSparkyChat({ desk: desk.id });
   const [market, setMarket] = useState(false);
   const closeMarket = useCallback(() => setMarket(false), []);
+  const { voice, talk } = useTalk(chat);
+  const manifest = useDeskManifest(desk.module);
+  const [draft, setDraft] = useState("");
+  const [voiceReady, setVoiceReady] = useState<boolean | null>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetch("/api/voice")
+      .then((res) => (res.ok ? (res.json() as Promise<{ stt: string }>) : { stt: "none" }))
+      .then((cfg) => setVoiceReady(cfg.stt !== "none"))
+      .catch(() => setVoiceReady(false));
+  }, []);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ block: "end" });
+  }, [chat.messages]);
+
+  const state = coreState(voice.status, chat.busy);
+  const split = chat.messages.length > 0;
+  const working = chat.busy || voice.status === "speaking";
+  const starters = manifest?.starters.length ? manifest.starters : DEFAULT_STARTERS;
+
+  /** Sparky answers out loud when voice works here, and in text either way. */
+  function send(text: string) {
+    const t = text.trim();
+    if (!t) return;
+    setDraft("");
+    if (voiceReady) talk(t);
+    else void chat.send(t);
+  }
+
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    send(draft);
+  }
+
+  function stop() {
+    voice.stopAll();
+    chat.abort();
+  }
+
   return (
-    <main className="desk-view">
+    <main className={`stage ${chain}${split ? " split" : ""}${market ? " panel" : ""}`}>
+      <div className="st-ambient" aria-hidden>
+        <i className="st-blob" />
+        <Embers />
+      </div>
       <AppHeader
         section={desk.name}
         onLogout={onLogout}
@@ -39,26 +92,142 @@ export function DeskView({
                 Market
               </button>
             ) : null}
+            <button type="button" className="ah-out" onClick={() => openMemory({ scope: desk.id, name: desk.name })}>
+              Memory
+            </button>
             <button type="button" className="ah-out" onClick={onBack}>
               All desks
             </button>
           </>
         }
       />
-      <div className="dv-body">
-        <aside className={`dv-side ${chain}`}>
+      <div className="st-area">
+        <header className="st-id">
           <span className="kicker">Desk</span>
           <h1>{desk.name}</h1>
           {chain !== "neutral" ? <span className={`chain-badge ${chain}`}>{CHAIN_LABEL[chain]}</span> : null}
-          <p>{desk.description}</p>
-          <button type="button" className="link-btn dv-memory" onClick={() => openMemory({ scope: desk.id, name: desk.name })}>
-            What Sparky remembers here →
+          {manifest?.tagline ? <small className="st-tagline">{manifest.tagline}</small> : null}
+        </header>
+
+        <div className="st-core-wrap">
+          <button
+            type="button"
+            className={`st-core ${state}`}
+            aria-label={voiceReady ? (state === "listening" ? "Stop listening" : "Talk to Sparky") : "Ask Sparky"}
+            title={voiceReady === false ? "Voice needs Grok. Sign in with Grok in Settings." : "Talk to Sparky"}
+            onClick={() => (voiceReady ? voice.toggleTalk() : inputRef.current?.focus())}
+          >
+            <i className="st-eye l" />
+            <i className="st-eye r" />
           </button>
-          <img className="dv-sparky" src="/sparky-full.png" alt="" draggable={false} />
-        </aside>
-        <SparkyChat chat={chat} greeting={`You are in ${desk.name}. Ask me about it, or tell me what you want to do here.`} />
+          <p className="st-whisper" aria-live="polite">
+            {whisper(state)}
+          </p>
+          {!split ? <p className="st-hello">You are in {desk.name}. Ask me anything about it, or tap me to talk.</p> : null}
+        </div>
+
+        {split ? (
+          <section className="st-convo" aria-label="Conversation with Sparky">
+            {chat.messages.map((m, i) => (
+              <div key={i} className={`st-turn ${m.role}`}>
+                <span className="st-who">{m.role === "user" ? "You" : "Sparky"}</span>
+                <p>
+                  {m.content ||
+                    (chat.busy && i === chat.messages.length - 1 ? (
+                      <span className="st-typing" aria-label="Sparky is writing">
+                        <i />
+                        <i />
+                        <i />
+                      </span>
+                    ) : null)}
+                </p>
+              </div>
+            ))}
+            {chat.error ? <p className="hint err">{chat.error}</p> : null}
+            <div ref={endRef} />
+          </section>
+        ) : (
+          <div className="st-starters" aria-label="Suggested questions">
+            {starters.map((s, i) => (
+              <button key={s.text} type="button" style={{ "--i": i } as CSSProperties} onClick={() => send(s.text)}>
+                {s.text}
+                <small>{s.tag}</small>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <form className="st-ask" onSubmit={submit}>
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Ask Sparky. Nothing spends until you approve."
+            aria-label="Ask Sparky"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <button
+            type="button"
+            className={`st-ask-btn${voice.status === "listening" ? " listening" : ""}`}
+            aria-label={voice.status === "listening" ? "Stop listening" : "Speak"}
+            title={voiceReady === false ? "Voice needs Grok. Sign in with Grok in Settings." : voice.status === "listening" ? "Stop listening" : "Speak"}
+            disabled={voiceReady === false}
+            onClick={voice.toggleTalk}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden>
+              <rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" strokeWidth="1.8" />
+              <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            className={`st-ask-btn${voice.continuous ? " on" : ""}`}
+            aria-pressed={voice.continuous}
+            aria-label="Live conversation"
+            title="Live conversation: Sparky listens again after every reply"
+            disabled={voiceReady === false}
+            onClick={() => voice.setContinuous(!voice.continuous)}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden>
+              <path d="M4 12h2M8 8v8M12 5v14M16 8v8M20 12h-2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            className={`st-ask-btn${voice.muted ? " on" : ""}`}
+            aria-pressed={voice.muted}
+            aria-label={voice.muted ? "Unmute Sparky" : "Mute Sparky"}
+            title={voice.muted ? "Unmute Sparky" : "Mute Sparky"}
+            onClick={() => voice.setMuted(!voice.muted)}
+          >
+            {voice.muted ? (
+              <svg viewBox="0 0 24 24" aria-hidden>
+                <path d="M4 9h4l5-4v14l-5-4H4zM17 9l4 6M21 9l-4 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" aria-hidden>
+                <path d="M4 9h4l5-4v14l-5-4H4zM16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
+              </svg>
+            )}
+          </button>
+          {working ? (
+            <button type="button" className="st-ask-btn send" aria-label="Stop" title="Stop" onClick={stop}>
+              <svg viewBox="0 0 24 24" aria-hidden>
+                <rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor" />
+              </svg>
+            </button>
+          ) : (
+            <button type="submit" className="st-ask-btn send" aria-label="Send" disabled={!draft.trim()}>
+              <svg viewBox="0 0 24 24" aria-hidden>
+                <path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          )}
+        </form>
       </div>
-      {market && desk.module ? <MarketSheet title={desk.name} module={desk.module} chain={chain} onAsk={(text) => void chat.send(text)} onClose={closeMarket} /> : null}
+
+      {market && desk.module ? <MarketSheet title={desk.name} module={desk.module} chain={chain} onAsk={send} onClose={closeMarket} /> : null}
     </main>
   );
 }

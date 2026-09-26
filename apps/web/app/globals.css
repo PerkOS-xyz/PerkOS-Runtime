@@ -294,7 +294,7 @@ button { font: inherit; }
 
 /* Desks: the catalogue as a row of collectible cards. */
 .desks-home { min-height: 100vh; padding: 44px clamp(20px, 4vw, 48px) 40px; display: flex; flex-direction: column; gap: 28px; }
-.desks-home .app-header, .desk-view .app-header { max-width: 1180px; margin: 0 auto; }
+.desks-home .app-header { max-width: 1180px; margin: 0 auto; }
 .dh-intro { width: 100%; max-width: 1180px; margin: 0 auto; }
 .dh-intro > * { opacity: 0; animation: rise 600ms var(--ease) forwards; }
 .dh-intro > :nth-child(2) { animation-delay: 60ms; }
@@ -392,28 +392,228 @@ button { font: inherit; }
 .ai-chip .kicker { font-size: 9.5px; letter-spacing: 0.16em; color: #ff9fbf; }
 .ai-chip:hover { background: rgba(236, 27, 105, 0.16); }
 
-/* An open desk: its card on the left, the full chat with Sparky on the right. */
-.desk-view { height: 100vh; padding: 44px clamp(20px, 4vw, 48px) 20px; display: flex; flex-direction: column; gap: 20px; }
-.dv-body { flex: 1; min-height: 0; width: 100%; max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 24px; }
-.dv-side {
+/* An open desk as a scene: Sparky at the center, the conversation around him.
+   Everything lives in .st-area, which gives the market sheet its room on
+   the right, so each layout is a percentage of what is left. */
+.stage {
+  --side: clamp(20px, 4vw, 48px);
+  --panel-w: min(560px, 44vw);
+  --convo-w: min(46%, 600px);
+  --st-ms: 520ms;
+  --st-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   position: relative;
+  height: 100vh;
   overflow: hidden;
+  padding: 44px var(--side) 0;
+}
+.stage > .app-header { position: relative; z-index: 8; }
+.stage .ah-out[aria-pressed="true"] { color: #ffd3e1; }
+.st-ambient { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.st-blob {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  width: 780px;
+  height: 780px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(236, 27, 105, 0.24) 0%, rgba(245, 106, 87, 0.08) 42%, transparent 68%);
+  animation: breathe 7s ease-in-out infinite;
+  transition: left var(--st-ms) var(--st-ease);
+}
+.stage.robinhood .st-blob { background: radial-gradient(circle, rgba(236, 27, 105, 0.22) 0%, rgba(0, 200, 5, 0.07) 44%, transparent 68%); }
+.stage.base .st-blob { background: radial-gradient(circle, rgba(236, 27, 105, 0.22) 0%, rgba(0, 82, 255, 0.1) 44%, transparent 68%); }
+.stage.split .st-blob { left: 72%; }
+.st-embers { position: absolute; inset: 0; width: 100%; height: 100%; }
+.st-area { position: absolute; inset: 0; z-index: 2; transition: right var(--st-ms) var(--st-ease); }
+.stage.panel .st-area { right: calc(var(--panel-w) + var(--side)); }
+
+/* Who this desk is, above Sparky. */
+.st-id {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  top: 96px;
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 22px;
-  border-radius: 22px;
-  border: 1px solid var(--hair-strong);
-  background: radial-gradient(90% 60% at 10% 0%, rgba(236, 27, 105, 0.2), transparent 62%), linear-gradient(170deg, rgba(24, 28, 48, 0.92), rgba(6, 8, 18, 0.96));
+  align-items: center;
+  gap: 5px;
+  text-align: center;
+  white-space: nowrap;
+  transition: left var(--st-ms) var(--st-ease);
 }
-.dv-side.robinhood { border-color: rgba(0, 200, 5, 0.3); background: radial-gradient(90% 60% at 10% 0%, rgba(0, 200, 5, 0.18), transparent 62%), linear-gradient(170deg, rgba(16, 34, 20, 0.92), rgba(3, 8, 5, 0.96)); }
-.dv-side.base { border-color: rgba(0, 82, 255, 0.35); background: radial-gradient(90% 60% at 10% 0%, rgba(0, 82, 255, 0.2), transparent 62%), linear-gradient(170deg, rgba(16, 22, 48, 0.92), rgba(3, 5, 14, 0.96)); }
-.dv-side h1 { margin: 0; font-family: var(--display); font-size: 30px; line-height: 1.05; letter-spacing: -0.02em; }
-.dv-side p { margin: 0; color: var(--ink-2); font-size: 12.5px; line-height: 1.6; }
-.dv-sparky { position: absolute; right: -20px; bottom: -26px; height: 230px; width: auto; pointer-events: none; }
-@media (max-width: 860px) {
-  .dv-body { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
-  .dv-sparky { height: 150px; }
+.st-id h1 { margin: 0; font-family: var(--display); font-size: 34px; font-weight: 800; line-height: 1; letter-spacing: -0.03em; }
+.st-id .chain-badge { align-self: center; }
+.st-tagline { font-size: 11px; letter-spacing: 0.06em; color: var(--mute); }
+
+/* Sparky: the head is the button; the eyes light up to listen and beat to speak.
+   The eye layers sit where the eyes are on /sparky.png. */
+.st-core-wrap {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  top: 46.5%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  transition: left var(--st-ms) var(--st-ease), top var(--st-ms) var(--st-ease), transform var(--st-ms) var(--st-ease);
+}
+.st-core {
+  position: relative;
+  width: 216px;
+  height: 216px;
+  border: 0;
+  padding: 0;
+  background: url("/sparky.png") center / contain no-repeat;
+  cursor: pointer;
+  filter: drop-shadow(0 0 14px rgba(236, 27, 105, 0.55)) drop-shadow(0 0 44px rgba(236, 27, 105, 0.3));
+  animation: st-breathe 4.2s ease-in-out infinite;
+}
+.st-core:focus-visible { outline: 1px solid var(--coral); outline-offset: 10px; border-radius: 28px; }
+.st-eye {
+  position: absolute;
+  top: 61.6%;
+  width: 7.7%;
+  height: 17.2%;
+  border-radius: 999px;
+  background: radial-gradient(ellipse at center, #fff2f6 0%, #ff9fbf 34%, rgba(236, 27, 105, 0.6) 70%, rgba(236, 27, 105, 0) 100%);
+  filter: blur(2px);
+  mix-blend-mode: screen;
+  opacity: 0.22;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.st-eye.l { left: 31.35%; }
+.st-eye.r { left: 61.15%; }
+.st-core.listening { animation: st-listen 1.4s ease-in-out infinite; filter: drop-shadow(0 0 22px rgba(255, 45, 122, 0.85)) drop-shadow(0 0 66px rgba(236, 27, 105, 0.5)); }
+.st-core.thinking { animation: st-breathe 1.1s ease-in-out infinite; filter: drop-shadow(0 0 18px rgba(236, 27, 105, 0.75)) drop-shadow(0 0 56px rgba(236, 27, 105, 0.4)); }
+.st-core.speaking { animation: st-speak 0.55s ease-in-out infinite; filter: drop-shadow(0 0 26px rgba(255, 90, 106, 0.95)) drop-shadow(0 0 80px rgba(236, 27, 105, 0.65)); }
+.st-core.listening .st-eye { opacity: 0.75; animation: st-eye-pulse 1.4s ease-in-out infinite; }
+.st-core.thinking .st-eye { opacity: 0.6; animation: st-eye-pulse 1.1s ease-in-out infinite; }
+.st-core.speaking .st-eye { opacity: 1; filter: blur(3px); animation: st-eye-beat 0.55s ease-in-out infinite; }
+@keyframes st-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
+@keyframes st-listen { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+@keyframes st-speak { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.035); } }
+@keyframes st-eye-pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.95; } }
+@keyframes st-eye-beat { 0%, 100% { transform: scale(1); opacity: 0.85; } 50% { transform: scale(1.3); opacity: 1; } }
+.st-whisper { margin: 0; font-size: 11px; letter-spacing: 0.26em; text-transform: uppercase; color: var(--mute); transition: color 200ms var(--ease); }
+.st-core:not(.idle) + .st-whisper { color: #ff9fbf; }
+.st-hello { margin: 0; max-width: 40ch; font-size: 12.5px; line-height: 1.6; color: var(--ink-2); text-align: center; opacity: 0; animation: rise 520ms var(--ease) 200ms forwards; }
+
+/* The conversation, on the left once it starts; Sparky makes room to the right. */
+.stage.split .st-core-wrap { left: calc(50% + var(--convo-w) / 2); top: 50%; transform: translate(-50%, -50%) scale(0.72); }
+.stage.split .st-id { left: calc(50% + var(--convo-w) / 2); }
+.stage.panel .st-core-wrap { transform: translate(-50%, -50%) scale(0.66); }
+.stage.panel.split .st-core-wrap { transform: translate(-50%, -50%) scale(0.46); }
+.stage.panel.split .st-id h1 { font-size: 24px; }
+.st-convo {
+  position: absolute;
+  z-index: 4;
+  left: var(--side);
+  top: 104px;
+  bottom: 112px;
+  width: var(--convo-w);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  padding: 14px 8px 8px 0;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 28px);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 28px);
+  animation: rise 420ms var(--ease);
+}
+.st-turn { display: flex; flex-direction: column; gap: 5px; max-width: 92%; }
+.st-turn.user { align-self: flex-end; align-items: flex-end; }
+.st-who { font-size: 9.5px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--mute); }
+.st-turn p { margin: 0; padding: 11px 15px; border-radius: 16px; font-size: 13.5px; line-height: 1.6; white-space: pre-wrap; }
+.st-turn.user p { border-bottom-right-radius: 6px; background: var(--ember); color: #fff; }
+.st-turn.assistant p { border-bottom-left-radius: 6px; border: 1px solid var(--hair); background: rgba(10, 14, 26, 0.78); backdrop-filter: blur(8px); }
+.st-typing { display: inline-flex; gap: 4px; padding: 4px 0; }
+.st-typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--coral); animation: breathe 1s ease-in-out infinite; }
+.st-typing i:nth-child(2) { animation-delay: 0.15s; }
+.st-typing i:nth-child(3) { animation-delay: 0.3s; }
+
+/* First questions, then the composer at the bottom. */
+.st-starters {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  bottom: 100px;
+  transform: translateX(-50%);
+  width: min(680px, calc(100% - 2 * var(--side)));
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.st-starters button {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 11px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--hair-strong);
+  background: rgba(8, 11, 22, 0.72);
+  backdrop-filter: blur(10px);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  opacity: 0;
+  animation: rise 460ms var(--ease) forwards;
+  animation-delay: calc(260ms + var(--i, 0) * 70ms);
+  transition: border-color 160ms var(--ease), transform 160ms var(--ease);
+}
+.st-starters button:hover { border-color: rgba(236, 27, 105, 0.55); transform: translateY(-1px); }
+.st-starters small { font-size: 10.5px; color: var(--mute); }
+.st-ask {
+  position: absolute;
+  z-index: 6;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  width: min(680px, calc(100% - 2 * var(--side)));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 7px 7px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--hair-strong);
+  background: rgba(6, 9, 18, 0.84);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  transition: left var(--st-ms) var(--st-ease), width var(--st-ms) var(--st-ease), border-color 160ms var(--ease);
+}
+.st-ask:focus-within { border-color: rgba(236, 27, 105, 0.55); }
+.stage.split .st-ask { left: calc(var(--side) + var(--convo-w) / 2); width: var(--convo-w); }
+.st-ask input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: var(--ink); font: inherit; font-size: 13.5px; }
+.st-ask input::placeholder { color: var(--mute); }
+.st-ask-btn { flex: none; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--hair); background: none; color: var(--ink-2); cursor: pointer; transition: all 160ms var(--ease); }
+.st-ask-btn svg { width: 16px; height: 16px; }
+.st-ask-btn:hover { color: #ffd3e1; border-color: rgba(236, 27, 105, 0.5); }
+.st-ask-btn.on { color: #fff; border-color: transparent; background: rgba(236, 27, 105, 0.32); }
+.st-ask-btn.listening { color: #fff; border-color: transparent; background: var(--ember); animation: ring-pulse 1.1s ease-in-out infinite; }
+.st-ask-btn.send { color: #fff; border-color: transparent; background: var(--ember); }
+.st-ask-btn:disabled { opacity: 0.4; cursor: default; }
+
+@media (max-width: 900px) {
+  .stage { --convo-w: calc(100% - 2 * var(--side)); --panel-w: calc(100vw - 2 * var(--side)); }
+  .stage.panel .st-area { right: 0; }
+  .stage.split .st-core-wrap { left: 50%; top: 170px; transform: translate(-50%, -50%) scale(0.42); }
+  .stage.split .st-id { display: none; }
+  .stage.split .st-convo { top: 250px; }
+  .stage.split .st-ask { left: 50%; }
+  .st-starters { grid-template-columns: 1fr; bottom: 92px; }
+}
+@media (max-height: 720px) {
+  .st-core { width: 170px; height: 170px; }
+  .st-starters { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .st-core, .st-eye, .st-blob, .st-starters button, .st-hello, .st-convo { animation: none !important; opacity: 1; }
 }
 
 /* Chat with Sparky. */
@@ -741,7 +941,6 @@ button { font: inherit; }
 .mem-sparky { padding: 10px 14px; border-radius: 12px; border-left: 2px solid var(--coral); background: rgba(236, 27, 105, 0.06); color: var(--ink-2); }
 .mem-transcript .mem-sparky span { color: #ff9fbf; }
 .mem-raw { margin: 0; white-space: pre-wrap; font: inherit; font-size: 13px; color: var(--ink-2); }
-.dv-memory { align-self: flex-start; padding: 0; font-size: 12px; color: #ff9fbf; }
 @media (max-width: 640px) {
   .mem-head { padding: 36px 18px 14px; }
   .mem-search, .mem-scopes { margin-left: 18px; margin-right: 18px; }
