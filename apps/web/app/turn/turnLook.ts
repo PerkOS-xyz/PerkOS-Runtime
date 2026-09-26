@@ -81,11 +81,15 @@ export interface CardMetric {
 /** "medium / RISK LEVEL" */
 export const metricText = (m: CardMetric) => `${m.value} / ${m.label.toUpperCase()}`;
 
-/** The tickers of a turn's facts, from lines like "[F1] NVDA (NVIDIA): 181.20 USDG ...". */
+/**
+ * The tickers of a turn's facts, from lines like "[F1] NVDA (NVIDIA): 181.20 USDG ...".
+ * A stock's line names the company after its ticker; a line like Uniswap's
+ * quote, "[F5] Uniswap now: 50.00 USDG buys 0.2741 NVDA ...", names no stock of its own.
+ */
 export function factTickers(facts: readonly string[]): string[] {
   const out: string[] = [];
   for (const line of facts) {
-    const ticker = line.match(/^\[F\d+\]\s+([^\s(]+)\s/)?.[1];
+    const ticker = line.match(/^\[F\d+\]\s+([^\s(]+)\s+\(/)?.[1];
     if (ticker && !out.includes(ticker)) out.push(ticker);
   }
   return out;

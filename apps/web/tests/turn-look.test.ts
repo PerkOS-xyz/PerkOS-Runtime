@@ -187,6 +187,18 @@ describe("the desk's tickers", () => {
     expect(firstTicker("Take $F at 11 [F4]", tickers)).toBe("F");
     expect(firstTicker("NVDAX is not NVDA's cousin", tickers)).toBe("NVDA");
   });
+
+  it("leave Uniswap's quote line out, so the venue is never read as a stock", () => {
+    const quoted = [...FACTS, "[F5] Uniswap now: 50.00 USDG buys 0.2741 NVDA (182.42 USDG each), price impact 0.12%, UniswapX route."];
+    expect(factTickers(quoted)).toEqual(["NVDA", "AAPL", "BRK.B", "F"]);
+    expect(firstTicker("Entry through Uniswap [F5]: 50 USDG of NVDA [F1].", factTickers(quoted))).toBe("NVDA");
+    const v = run([
+      { ...(open("analyze") as Extract<TurnEvent, { step: "open" }>), facts: quoted },
+      { step: "start", role: "trader", phase: 2, at: at(10) },
+      { step: "reply", role: "trader", phase: 2, ok: true, reply: "@Sparky Entry through Uniswap [F5]: 50 USDG, take profit at 190, stop at 172.", ms: 9_000 },
+    ]);
+    expect(metric(v, "trader")).toBe("plan / ENTRY PLAN");
+  });
 });
 
 describe("a card's steps, time and portrait", () => {
