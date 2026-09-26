@@ -82,8 +82,11 @@ export class PerkosClient {
     }
     const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) {
-      const message = typeof payload.message === "string" ? payload.message : `PerkOS answered ${res.status}`;
-      const code = typeof payload.code === "string" ? payload.code : "PERKOS_API";
+      // PerkOS nests the reason under `error` ({ error: { message, code } }); a few routes still answer it flat.
+      const nested = typeof payload.error === "object" && payload.error !== null ? (payload.error as Record<string, unknown>) : {};
+      const message =
+        typeof nested.message === "string" ? nested.message : typeof payload.message === "string" ? payload.message : `PerkOS answered ${res.status}`;
+      const code = typeof nested.code === "string" ? nested.code : typeof payload.code === "string" ? payload.code : "PERKOS_API";
       throw new PerkosApiError(message, res.status, code);
     }
     return payload as T;
