@@ -48,6 +48,9 @@ export const TURN_PHASES: readonly [readonly string[], readonly string[]] = [
   ["trader", "auditor"],
 ];
 
+/** Specialists who join the first phase when the desk gives them a prompt: Quote reads Uniswap's executable price. */
+export const PHASE_ONE_SPECIALISTS: readonly string[] = ["quote"];
+
 export interface RoleReply {
   /** scout, risk, trader, auditor */
   role: string;
