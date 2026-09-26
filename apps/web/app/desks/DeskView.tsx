@@ -25,6 +25,7 @@ import { useWallet } from "../wallet/context";
 import { CHAIN_LABEL, chainOf } from "./chains";
 import type { Desk } from "./DesksScreen";
 import { Embers } from "./Embers";
+import { IdentitySheet } from "./IdentitySheet";
 import { HistorySheet } from "./HistorySheet";
 import { MarketSheet } from "./MarketSheet";
 import { PortfolioSheet } from "./PortfolioSheet";
@@ -53,6 +54,8 @@ export function DeskView({
   const chat = useSparkyChat({ desk: desk.id });
   const vault = useVault(useWallet());
   const chats = useChats({ scope: desk.id, chat, unlocked: vault.unlocked });
+  const [identity, setIdentity] = useState(false);
+  const closeIdentity = useCallback(() => setIdentity(false), []);
   const [market, setMarket] = useState(false);
   const closeMarket = useCallback(() => setMarket(false), []);
   const [trader, setTrader] = useState(false);
@@ -105,6 +108,7 @@ export function DeskView({
     const turnId = turn.view.turnId;
     if (!plan || !turnId) return;
     setPrefill({ turnId, ticker: plan.ticker, amount: plan.amount, startedAt: turn.view.startedAt, key: Date.now() });
+    setIdentity(false);
     setMarket(false);
     setHistory(false);
     setPortfolio(false);
@@ -176,7 +180,7 @@ export function DeskView({
   }
 
   return (
-    <main className={`stage ${chain}${split ? " split" : ""}${market || trader || history || portfolio ? " panel" : ""}`}>
+    <main className={`stage ${chain}${split ? " split" : ""}${market || trader || history || portfolio || identity ? " panel" : ""}`}>
       <div className="st-ambient" aria-hidden>
         <i className="st-blob" />
         <Embers />
@@ -189,7 +193,7 @@ export function DeskView({
         actions={
           <>
             {desk.module ? (
-              <button type="button" className="ah-out" aria-pressed={market} onClick={() => setMarket((v) => !v)}>
+              <button type="button" className="ah-out" aria-pressed={market} onClick={() => { setIdentity(false); setMarket((v) => !v); }}>
                 Market
               </button>
             ) : null}
@@ -199,6 +203,7 @@ export function DeskView({
                 className="ah-out"
                 aria-pressed={portfolio}
                 onClick={() => {
+                  setIdentity(false);
                   setMarket(false);
                   setTrader(false);
                   setHistory(false);
@@ -214,6 +219,7 @@ export function DeskView({
                 className="ah-out"
                 aria-pressed={trader}
                 onClick={() => {
+                  setIdentity(false);
                   setMarket(false);
                   setHistory(false);
                   setPortfolio(false);
@@ -229,6 +235,7 @@ export function DeskView({
                 className="ah-out"
                 aria-pressed={history}
                 onClick={() => {
+                  setIdentity(false);
                   setMarket(false);
                   setTrader(false);
                   setPortfolio(false);
@@ -238,6 +245,9 @@ export function DeskView({
                 History
               </button>
             ) : null}
+            <button type="button" className="ah-out" aria-pressed={identity} onClick={() => { setMarket(false); setTrader(false); setHistory(false); setPortfolio(false); setIdentity((v) => !v); }}>
+              Identity
+            </button>
             <button type="button" className="ah-out" onClick={() => openMemory({ scope: desk.id, name: desk.name })}>
               Memory
             </button>
@@ -390,6 +400,7 @@ export function DeskView({
         </form>
       </div>
 
+      {identity ? <IdentitySheet key={desk.id} desk={desk.id} title={desk.name} chain={chain} onClose={closeIdentity} /> : null}
       {market && desk.module ? <MarketSheet title={desk.name} module={desk.module} chain={chain} onAsk={send} onClose={closeMarket} /> : null}
       {trader && !market && desk.module ? (
         <WalletTraderSheet title={desk.name} module={desk.module} chain={chain} onClose={closeTrader} prefill={prefill} onPlanUsed={planUsed} />

@@ -1,0 +1,18 @@
+.body { min-height: 0; overflow-y: auto; padding: 20px 24px 24px; display: flex; flex-direction: column; gap: 14px; font-size: 12px; }
+.body h2, .body h3, .body p { margin: 0; }
+.body h2 { font-family: var(--display); font-size: 24px; line-height: 1.15; }
+.body h3 { font-size: 15px; }
+.body a { color: var(--ok); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.body small { color: var(--ink-2); }
+.body [role="alert"] { color: #ffb8b8; }
+.seats { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.seats li { padding: 10px 12px; border: 1px solid var(--hair); border-radius: 10px; background: rgba(255,255,255,0.025); }
+.seats li > div { overflow-wrap: anywhere; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.body button { border: 1px solid var(--hair-strong); border-radius: 8px; padding: 8px 12px; background: rgba(255,255,255,0.04); color: var(--ink); font: inherit; cursor: pointer; }
+.body button:disabled { opacity: 0.45; cursor: default; }
+.body button:focus-visible, .body select:focus-visible, .body textarea:focus-visible { outline: 2px solid var(--ok); outline-offset: 2px; }
+.body form { display: grid; gap: 12px; padding-top: 16px; border-top: 1px solid var(--hair); }
+.body label { display: grid; gap: 6px; }
+.body select, .body textarea { width: 100%; border: 1px solid var(--hair-strong); border-radius: 8px; background: #0a1510; color: var(--ink); padding: 8px; font: inherit; }
+.body textarea { resize: vertical; }

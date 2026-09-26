@@ -1,0 +1,329 @@
+{
+  "scope": "isolated Sepolia fork; no public broadcasts",
+  "startedAt": "2026-09-26T12:12:10.271Z",
+  "checks": [
+    {
+      "name": "Sepolia chain",
+      "pass": true
+    },
+    {
+      "name": "Example parent is available",
+      "pass": true
+    },
+    {
+      "name": "Production planner completes all seven seats",
+      "pass": true
+    },
+    {
+      "name": "Agent without gas receives only the bounded initial sponsorship",
+      "pass": true
+    },
+    {
+      "name": "Each seat gets a different resolver",
+      "pass": true
+    },
+    {
+      "name": "Real receipt supplies every ERC-8004 registration ID",
+      "pass": true
+    },
+    {
+      "name": "Canonical pointers and all seven ENSIP-25 associations verify",
+      "pass": true
+    },
+    {
+      "name": "Trader has no delegated ENS write",
+      "pass": true
+    },
+    {
+      "name": "Six evidence writers have their scoped grants",
+      "pass": true
+    },
+    {
+      "name": "risk signs and resolves its own record",
+      "pass": true
+    },
+    {
+      "name": "auditor signs and resolves its own record",
+      "pass": true
+    },
+    {
+      "name": "hooks signs and resolves its own record",
+      "pass": true
+    },
+    {
+      "name": "quote signs and resolves its own record",
+      "pass": true
+    },
+    {
+      "name": "treasury signs and resolves its own record",
+      "pass": true
+    },
+    {
+      "name": "Scout cannot publish through Risk resolver",
+      "pass": true
+    },
+    {
+      "name": "Agent-signed record resolves through the hierarchy",
+      "pass": true
+    },
+    {
+      "name": "Trader record is refused",
+      "pass": true
+    },
+    {
+      "name": "Revoked Scout record is refused",
+      "pass": true
+    },
+    {
+      "name": "Revocation preserves identity but removes write permission",
+      "pass": true
+    },
+    {
+      "name": "Detached subtree cannot verify",
+      "pass": true
+    },
+    {
+      "name": "Detached subtree cannot publish",
+      "pass": true
+    }
+  ],
+  "transactions": [
+    "0x7aba5067ae3f8d7bbc48e6f3e7e7fa648084b34e26949c4acd0df629ca60591a",
+    "0x9b9dddcec1d14b51b53e26680f5c732fed65886fe3192b2c6209dc1890bb9efb",
+    "0x27bdd0a53ec232640cad8b990e2f86b97dfda3e8647ca45736064ac40058e57f",
+    "0x099727f3e779178c27238ba11a288e9c9156649201ef7a14c993d7c8f4914f9a",
+    "0x64edb65e2359e7d31267d7d47b319a3b212333639883f0141bb0e633a5d7d196",
+    "0x6a1ea908d83edf5570da96558629fa474e4718812b645281648d94270c62dd36",
+    "0xfc69c08cd63ed8ab8304eac33d3f62e64a4dfa3c9253e8dac4880d3276dc937f",
+    "0x82962b82d08f2b9e403de8d9de049419edc4bb2aecde23e174e0ecf2fd643b03",
+    "0x010c0ba8f2b10ed818183485a7fe308c7df154bc47fa478cfea2afca5fc40fe0",
+    "0x5d2614d15995ec75926e07c77bcf2b8f75b7bc12a4afb166ade0c6dbdeb512a5",
+    "0x92a1f47021cff4eb12304a1967a589344c07d2fe1310978ba0032b12bb4406d7",
+    "0x2bf2929d68adda5894a5514904d56d55248b722cbaf717acc1df5e02c792e59f",
+    "0xe08a51e2d8362baea325cd2a6d9ee84f0c95c31db4ecc178b150810c97516d59",
+    "0x260e3bb49086ab653d75cf136335ea0feb4554d72f944b72c86fdcf268ccf363",
+    "0x8a7cd9d1535ce31121acdfcb130aecfd79fa70ed05bffcd89a7c039dcc332d4d",
+    "0x7766337c112d419c745804295e8a70e7fc27174a129d41eb40da95a85cab8ffe",
+    "0x04fec0755db246caf484118beecad7c6c09a91b7067918e25526f60982838e26",
+    "0xaf2fd4bfbb02016b0c094292c7e09838eb1f54d27f6dc41d9be153ddcd542e23",
+    "0x8ca662ccf43518ea3f116ff27c9cf9967074bb3b81cb62098639fb937d055d9c",
+    "0x13f428186c349449c816b03e9e8f072e948f0e679d74465c517cdcdfcbcf80a9",
+    "0x00c829d51232be38e59d1ecc0e38814f88728b26400b46eff9c89c6ed3eece09",
+    "0xce54040c27a4fb4c50b4000841b1102344b88c0ab722f7b19abe7965cf73df09",
+    "0xce8d859dec9c52cd8bbe19cf6fe03088c081624c61759d91f8f37f387d4774d8",
+    "0x607c46068b0899e4fb47bdb57414dce1acd050f42d7e4e6464d4a24fc84c3bfa",
+    "0x2da3b42617e4228ab54c8d38494285a9ecd6f2e5bc388d1df3eef4265b0e72fb",
+    "0x69e90a4a19949392bed89656831788b85185cc22a17965313cb851070f5526be",
+    "0xf73724ae9ba5668cf902dddcdb2a5c1ed1c77647050f5107287f708a2cb7f870",
+    "0xb27ecab006108d3a706f036cde4df7006c4ed9afcd86d4483fddf1875005dd57",
+    "0x4ca32052f08de93c15f1625a0300cd149750e45db05a72522037ae3ef5747770",
+    "0xa1a0cb5726f09ce9a299c2bd31ef411d7eab958f5887a3974eb507a49128cc6f",
+    "0xc44bc16d5c771f6f463f02c34e561018832ba887f0085013771c2ee4fbdf0fe4",
+    "0x857cffa6d94f227f25453be56cb11a927ea82cd66c3ebcaa48426425974abe99",
+    "0x479d72f7d4c804aec91f23f0e522cdb7f18f1e90b853b82d68e9f47378bb7096",
+    "0x0863d9ce2312b48aa25d53702a1099574364d78b8b894c33fffedb7bdfc51f7a",
+    "0xe40abd4e219e9ffdbdec5d2ad24a266735bed5de4fe945aca375318a4426c592",
+    "0x090d943828b33dedcb16b7c6529792f181097e285f1ec4ef7feb47bf87455e56",
+    "0x5c5977316780ff884a491ba4a051eba39d982110fb755271f72152af8a8fce60",
+    "0xbcb6b4e59d37795b66889f81ca8c977a6f9f196d8936a8b43cbb0ffd37753611",
+    "0xf9cb54fed7f96ea0831595f418105a3a33a3f37b063d44c81e5d0dda781dea77",
+    "0x88fe075c775e8852f2de325697b2094adb5a4148d28011ded97fbb9a3fd6b52c",
+    "0xbab5c0e91a603910fc533e770c74c0a6e3be41b0b9e145fcb846e30844e450ab",
+    "0x59a93ed1049cd823a8b1dd42335713f87449868f77eb801a4f76a5a38adf98a3",
+    "0xd582ea9efa0dbbca9d2078e64431069198c94d3ee30edb2501eca5f198931c7d",
+    "0x0f48b48837d5580eca7ad78278eddfd48abe57928201f0d26d94d74444858338",
+    "0x394d3fcb25f3e2d555e2c94efc2789f81087be8f5b23781f1a1ea99d3627573e",
+    "0x2d5121626e59cdfb460eb8a01d309dfd6bdb46493ebcc3e5629a52c60f8246a2",
+    "0x6e86c531977d9692c492b6b14f3382cee8c8a6de34c1d6ceccc57e9e12036d98",
+    "0x488086936ce8d5e70925d5f5fa1ee39370c6bc4f7a44599c3dca68fdc491f0cc",
+    "0x8417dfba78996c1468f9326fa6c4b18bad8c7b2f0f517f78d7651791019fda39",
+    "0xbee462fed88140c88881f45296656507d86cd37725ee53257e3a852ae0faa622",
+    "0x16a099c16967ec0d48dbc36e3591320c51fc60af1b694dd8492b2c4e08a97a2a",
+    "0x1caa2d812e0b853fb909749f0f188d18a93b1a40d958077496c5e7e6f47c525e",
+    "0x0251603b893ec76fbb8103b69eb7a6a491b4dbf1ca696e387c758d6316b2fa41",
+    "0x00495a9d8924e1c2a0ff416f8111a27d7671f090f002230531ce4d33310bf0a7",
+    "0x558b9b25c122315a708a14958c075329c9ea0e6d92fcb699a494894f05596890",
+    "0xa613ff721146fce629ccf769c8770d5e63fc0f1de5dfd8b2d5b0b72c5bbd977a",
+    "0x6c41f7b2051ca6473c4ba19a3ceb92a96483068b11076ac7912f358c305357ab",
+    "0xde7b6d9b1fcd7cfcc0b05289feeed289d1a8d04df21198d02bb71c88814272ce",
+    "0xbc1f7abd404dd8221e061a2939f043eeebc5a1a4a96db2e9ff65a1d28efb95f2",
+    "0x3bdd95f3a91f85773bde8c198626375da42452ae4dbe76e0ae09eda42fe50ca9",
+    "0x81ac738c3e1f2863424deff9c25385d0c85aa87e05bae7827717fb9f94a9e317"
+  ],
+  "block": "11786142",
+  "deployer": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+  "parentName": "ensv2-review-20260926.eth",
+  "identity": {
+    "chainId": 11155111,
+    "parentName": "ensv2-review-20260926.eth",
+    "parentRegistry": "0x105e27F1078cf0f1C6A5C4A2c637D413F5100B35",
+    "label": "eqlty-instance-review",
+    "registry": "0xe87D0f82a593B5bA5aF38B00d188FB007Ed02206",
+    "owner": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+    "seats": [
+      {
+        "id": "scout",
+        "agentId": "real-fixture-scout",
+        "wallet": "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+        "resolver": "0x3ED5476f0FeB47d2Af76387CFA7226c018bD5297",
+        "registrationId": "10532",
+        "writes": "scout-source"
+      },
+      {
+        "id": "risk",
+        "agentId": "real-fixture-risk",
+        "wallet": "0x90f79bf6eb2c4f870365e785982e1f101e93b906",
+        "resolver": "0x81E5441FAEE8c6b644113bd7d8F7c98f820Cf534",
+        "registrationId": "10533",
+        "writes": "risk-verdict"
+      },
+      {
+        "id": "trader",
+        "agentId": "real-fixture-trader",
+        "wallet": "0x15d34aaf54267db7d7c367839aaf71a00a2c6a65",
+        "resolver": "0xd9C5Ac39E20F924E1598e87722943Ac29E01Da4b",
+        "registrationId": "10534",
+        "writes": null
+      },
+      {
+        "id": "auditor",
+        "agentId": "real-fixture-auditor",
+        "wallet": "0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc",
+        "resolver": "0x69DaB51590e44e928BAB634D5767A69073e82943",
+        "registrationId": "10535",
+        "writes": "auditor-evidence"
+      },
+      {
+        "id": "hooks",
+        "agentId": "real-fixture-hooks",
+        "wallet": "0x976ea74026e726554db657fa54763abd0c3a0aa9",
+        "resolver": "0x01918D2Df48E25fDcac06abEf65566ACb95E7E95",
+        "registrationId": "10536",
+        "writes": "hooks-evidence"
+      },
+      {
+        "id": "quote",
+        "agentId": "real-fixture-quote",
+        "wallet": "0x14dc79964da2c08b23698b3d3cc7ca32193d9955",
+        "resolver": "0x5Fa2A2c004CaF8e821D4cCf694E2171f951BB176",
+        "registrationId": "10537",
+        "writes": "quote-evidence"
+      },
+      {
+        "id": "treasury",
+        "agentId": "real-fixture-treasury",
+        "wallet": "0x23618e81e3f5cdf7f54c3d65f7fbc0abf5b21e8f",
+        "resolver": "0x54D695f91AF32966160A61C38003EA29dD6588fC",
+        "registrationId": "10538",
+        "writes": "treasury-evidence"
+      }
+    ]
+  },
+  "verification": {
+    "name": "eqlty-instance-review.ensv2-review-20260926.eth",
+    "blockNumber": "11786196",
+    "verified": true,
+    "issues": [],
+    "seats": [
+      {
+        "id": "scout",
+        "name": "scout.eqlty-instance-review.ensv2-review-20260926.eth",
+        "verified": true,
+        "writeGranted": true,
+        "issues": []
+      },
+      {
+        "id": "risk",
+        "name": "risk.eqlty-instance-review.ensv2-review-20260926.eth",
+        "verified": true,
+        "writeGranted": true,
+        "issues": []
+      },
+      {
+        "id": "trader",
+        "name": "trader.eqlty-instance-review.ensv2-review-20260926.eth",
+        "verified": true,
+        "writeGranted": false,
+        "issues": []
+      },
+      {
+        "id": "auditor",
+        "name": "auditor.eqlty-instance-review.ensv2-review-20260926.eth",
+        "verified": true,
+        "writeGranted": true,
+        "issues": []
+      },
+      {
+        "id": "hooks",
+        "name": "hooks.eqlty-instance-review.ensv2-review-20260926.eth",
+        "verified": true,
+        "writeGranted": true,
+        "issues": []
+      },
+      {
+        "id": "quote",
+        "name": "quote.eqlty-instance-review.ensv2-review-20260926.eth",
+        "verified": true,
+        "writeGranted": true,
+        "issues": []
+      },
+      {
+        "id": "treasury",
+        "name": "treasury.eqlty-instance-review.ensv2-review-20260926.eth",
+        "verified": true,
+        "writeGranted": true,
+        "issues": []
+      }
+    ]
+  },
+  "steps": [
+    "registry",
+    "desk-entry",
+    "desk-parent",
+    "resolver:scout",
+    "seat:scout",
+    "fund:scout",
+    "registration:scout",
+    "text:scout:agent-context",
+    "text:scout:agent-registration[0x0001000003aa36a7148004a818bfb912233c491871b3d84c89a494bd9e][10532]",
+    "grant:scout",
+    "resolver:risk",
+    "seat:risk",
+    "registration:risk",
+    "text:risk:agent-context",
+    "text:risk:agent-registration[0x0001000003aa36a7148004a818bfb912233c491871b3d84c89a494bd9e][10533]",
+    "grant:risk",
+    "resolver:trader",
+    "seat:trader",
+    "registration:trader",
+    "text:trader:agent-context",
+    "text:trader:agent-registration[0x0001000003aa36a7148004a818bfb912233c491871b3d84c89a494bd9e][10534]",
+    "resolver:auditor",
+    "seat:auditor",
+    "registration:auditor",
+    "text:auditor:agent-context",
+    "text:auditor:agent-registration[0x0001000003aa36a7148004a818bfb912233c491871b3d84c89a494bd9e][10535]",
+    "grant:auditor",
+    "resolver:hooks",
+    "seat:hooks",
+    "registration:hooks",
+    "text:hooks:agent-context",
+    "text:hooks:agent-registration[0x0001000003aa36a7148004a818bfb912233c491871b3d84c89a494bd9e][10536]",
+    "grant:hooks",
+    "resolver:quote",
+    "seat:quote",
+    "registration:quote",
+    "text:quote:agent-context",
+    "text:quote:agent-registration[0x0001000003aa36a7148004a818bfb912233c491871b3d84c89a494bd9e][10537]",
+    "grant:quote",
+    "resolver:treasury",
+    "seat:treasury",
+    "registration:treasury",
+    "text:treasury:agent-context",
+    "text:treasury:agent-registration[0x0001000003aa36a7148004a818bfb912233c491871b3d84c89a494bd9e][10538]",
+    "grant:treasury",
+    "lock-parent"
+  ],
+  "status": "passed",
+  "finishedAt": "2026-09-26T12:13:02.287Z"
+}

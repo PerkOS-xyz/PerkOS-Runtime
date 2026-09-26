@@ -13,7 +13,11 @@
     "start": "npm start -w @perkos/runtime-desktop",
     "dev": "npm run dev -w @perkos/runtime-web",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "pretest": "npm run build -w @perkos/ens",
+    "pretypecheck": "npm run build -w @perkos/ens",
+    "predev": "npm run build -w @perkos/ens",
+    "prestart": "npm run build -w @perkos/ens"
   },
   "devDependencies": {
     "typescript": "^5.9.2",

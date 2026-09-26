@@ -5,7 +5,8 @@
   "description": "PerkOS Runtime for the desktop.",
   "main": "main.cjs",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "prestart": "npm run build -w @perkos/ens"
   },
   "devDependencies": {
     "electron": "^37.2.0"

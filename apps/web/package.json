@@ -6,7 +6,10 @@
     "dev": "next dev --hostname 127.0.0.1 --port 3100",
     "build": "next build",
     "start": "next start --hostname 127.0.0.1 --port 3100",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prebuild": "npm run build -w @perkos/ens",
+    "predev": "npm run build -w @perkos/ens",
+    "pretypecheck": "npm run build -w @perkos/ens"
   },
   "dependencies": {
     "@dynamic-labs/ethereum": "^4.100.3",
@@ -18,7 +21,8 @@
     "next": "16.3.5",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "viem": "^2.56.9"
+    "viem": "^2.56.9",
+    "@perkos/ens": "0.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
