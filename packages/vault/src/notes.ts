@@ -3,18 +3,19 @@
  *
  *   <root>/<scope>/journal/YYYY-MM-DD.json   the day's conversation
  *   <root>/<scope>/notes/<slug>.json          notes and remembered facts
+ *   <root>/key-check.json                     tells whether a key opens this vault
  *
  * `scope` is "user" (the person, across desks) or a desk id. Every file is
  * sealed with the vault key and bound to its id. The search index lives in
  * memory only and is rebuilt from the notes when the vault opens.
  */
 
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import MiniSearch from "minisearch";
 
-import { isSealed, open, seal } from "./seal.ts";
+import { isSealed, open, seal, type Sealed } from "./seal.ts";
 
 export type NoteKind = "journal" | "note";
 
@@ -43,6 +44,16 @@ const KINDS: Record<string, NoteKind> = { journal: "journal", notes: "note" };
 
 export const isScope = (scope: string) => SCOPE.test(scope);
 
+const CHECK = "perkos-vault-check-v1";
+
+/** A note is on disk but the key cannot open it, so it is left untouched. */
+export class VaultKeyMismatch extends Error {
+  constructor(id: string) {
+    super(`This key does not open ${id}`);
+    this.name = "VaultKeyMismatch";
+  }
+}
+
 function snippet(body: string, query: string, width = 140): string {
   const terms = query.toLowerCase().split(/\W+/).filter((t) => t.length > 2);
   const lower = body.toLowerCase();
@@ -56,6 +67,7 @@ export class NoteStore {
   private readonly notes = new Map<string, Note>();
   private index: MiniSearch<Note> | null = null;
   private loaded = false;
+  private queue: Promise<unknown> = Promise.resolve();
 
   constructor(
     private readonly root: string,
@@ -76,9 +88,30 @@ export class NoteStore {
     }
   }
 
+  /** Runs writes one at a time, so two appends to the same day never race. */
+  private serial<T>(task: () => Promise<T>): Promise<T> {
+    const run = this.queue.then(task, task);
+    this.queue = run.catch(() => undefined);
+    return run;
+  }
+
+  /** Writes through a temporary file, so a crash never leaves half a file. */
+  private async write(file: string, sealed: Sealed): Promise<void> {
+    await mkdir(dirname(file), { recursive: true, mode: 0o700 });
+    await writeFile(`${file}.tmp`, JSON.stringify(sealed), { mode: 0o600 });
+    await rename(`${file}.tmp`, file);
+  }
+
+  /** True when a note is on disk but this key cannot open it. */
+  private async unreadable(id: string): Promise<boolean> {
+    if (this.notes.has(id)) return false;
+    const onDisk = await access(this.file(id)).then(() => true, () => false);
+    return onDisk && (await this.load(id)) === null;
+  }
+
   private async save(note: Note): Promise<Note> {
-    await mkdir(dirname(this.file(note.id)), { recursive: true, mode: 0o700 });
-    await writeFile(this.file(note.id), JSON.stringify(seal(this.key, note, note.id)), { mode: 0o600 });
+    if (await this.unreadable(note.id)) throw new VaultKeyMismatch(note.id);
+    await this.write(this.file(note.id), seal(this.key, note, note.id));
     this.notes.set(note.id, note);
     if (this.index) {
       if (this.index.has(note.id)) this.index.replace(note);
@@ -87,22 +120,51 @@ export class NoteStore {
     return note;
   }
 
+  /**
+   * Whether this key opens the vault. A new vault records a check sealed with
+   * the key. Some wallets sign the same message differently each time, which
+   * gives a different key; that key must not write over the notes.
+   */
+  async claim(): Promise<boolean> {
+    return this.serial(async () => {
+      const file = join(this.root, "key-check.json");
+      const raw = await readFile(file, "utf8").catch((e: NodeJS.ErrnoException) => {
+        if (e.code === "ENOENT") return null;
+        throw e;
+      });
+      if (raw === null) {
+        await this.write(file, seal(this.key, CHECK, "key-check"));
+        return true;
+      }
+      try {
+        const sealed: unknown = JSON.parse(raw);
+        return isSealed(sealed) && open<string>(this.key, sealed, "key-check") === CHECK;
+      } catch {
+        return false;
+      }
+    });
+  }
+
   /** Appends one entry to today's journal of a scope. */
   async appendJournal(scope: string, entry: string): Promise<Note> {
     if (!isScope(scope)) throw new Error(`Not a scope: ${scope}`);
-    const now = this.now();
-    const date = now.toISOString().slice(0, 10);
-    const id = `${scope}/journal/${date}`;
-    const existing = await this.read(id);
-    const body = existing ? `${existing.body}\n\n${entry.trim()}` : entry.trim();
-    return this.save({ id, scope, kind: "journal", title: `Journal ${date}`, body, updatedAt: now.toISOString() });
+    return this.serial(async () => {
+      const now = this.now();
+      const date = now.toISOString().slice(0, 10);
+      const id = `${scope}/journal/${date}`;
+      const existing = await this.read(id);
+      const body = existing ? `${existing.body}\n\n${entry.trim()}` : entry.trim();
+      return this.save({ id, scope, kind: "journal", title: `Journal ${date}`, body, updatedAt: now.toISOString() });
+    });
   }
 
   /** Writes (or replaces) a note in a scope. */
   async writeNote(scope: string, slug: string, title: string, body: string): Promise<Note> {
     if (!isScope(scope)) throw new Error(`Not a scope: ${scope}`);
     if (!SLUG.test(slug)) throw new Error(`Not a note name: ${slug}`);
-    return this.save({ id: `${scope}/notes/${slug}`, scope, kind: "note", title, body, updatedAt: this.now().toISOString() });
+    return this.serial(() =>
+      this.save({ id: `${scope}/notes/${slug}`, scope, kind: "note", title, body, updatedAt: this.now().toISOString() }),
+    );
   }
 
   async read(id: string): Promise<Note | null> {
