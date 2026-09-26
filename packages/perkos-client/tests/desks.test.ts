@@ -106,6 +106,34 @@ describe("asking PerkOS for a desk's market", () => {
   });
 });
 
+describe("asking PerkOS for a desk's manifest", () => {
+  const manifest = {
+    ok: true,
+    module: "stocks-robinhood",
+    tagline: "Tokenized stocks on Robinhood Chain",
+    starters: [{ text: "How is NVDA doing today?", tag: "Price and recent range" }],
+    screens: ["market"],
+    rules: "Priced in USDG. Nobody on the desk spends or signs.",
+    turns: {},
+  };
+
+  it("drops the envelope and checks it against the contract", async () => {
+    const http = vi.fn(async (url: string | URL | Request) => {
+      expect(String(url)).toBe("https://api.perkos.xyz/desks/stocks-robinhood/manifest");
+      return reply(200, manifest);
+    });
+    const out = await new Desks(clientWith(http as unknown as typeof fetch)).manifest("stocks-robinhood");
+    expect(out).toEqual({ tagline: manifest.tagline, starters: manifest.starters, screens: ["market"], rules: manifest.rules, turns: {} });
+  });
+
+  it("is null for a desk that publishes none, and refuses one the contract does not allow", async () => {
+    const none = new Desks(clientWith(vi.fn(async () => reply(404, { error: "none" })) as unknown as typeof fetch));
+    expect(await none.manifest("stocks-base")).toBeNull();
+    const broken = new Desks(clientWith(vi.fn(async () => reply(200, { ...manifest, screens: ["casino"] })) as unknown as typeof fetch));
+    await expect(broken.manifest("stocks-robinhood")).rejects.toMatchObject({ code: "DESK_CONTRACT" });
+  });
+});
+
 describe("what the client says when it cannot ask", () => {
   it("does not send an anonymous request for something that needs a session", async () => {
     const http = vi.fn(async () => reply(200, market));

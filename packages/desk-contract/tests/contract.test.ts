@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { DeskDraftSchema, DeskMarketSchema, DeskQuoteReplySchema, DeskSeriesSchema } from "../src/index.ts";
+import { DeskDraftSchema, DeskManifestSchema, DeskMarketSchema, DeskQuoteReplySchema, DeskSeriesSchema } from "../src/index.ts";
 
 const asset = {
   ticker: "NVDA",
@@ -104,5 +104,27 @@ describe("an order", () => {
     const refusal = { refused: true, code: "thin_liquidity", detail: "The pool is too thin for this size right now." };
     expect(DeskQuoteReplySchema.safeParse(refusal).success).toBe(true);
     expect(DeskQuoteReplySchema.safeParse({ refused: true, code: "because", detail: "no" }).success).toBe(false);
+  });
+});
+
+describe("a desk's manifest", () => {
+  const prompts = { scout: "As Scout: read the facts.", risk: "As Risk: size it.", trader: "As Trader: plan it.", auditor: "As Auditor: record it." };
+  const manifest = {
+    tagline: "Tokenized stocks on Robinhood Chain",
+    starters: [{ text: "How is NVDA doing today?", tag: "Price and recent range" }],
+    screens: ["market", "portfolio"],
+    rules: "Priced in USDG. Nobody on the desk spends or signs.",
+    turns: { analyze: prompts, advise: prompts },
+  };
+
+  it("takes the line, the first questions, the screens and the team's turns", () => {
+    expect(DeskManifestSchema.safeParse(manifest).success).toBe(true);
+  });
+
+  it("refuses a screen the app does not know, a role left out, or a field nobody reads", () => {
+    expect(DeskManifestSchema.safeParse({ ...manifest, screens: ["casino"] }).success).toBe(false);
+    expect(DeskManifestSchema.safeParse({ ...manifest, turns: { analyze: { scout: "x", risk: "y", trader: "z" } } }).success).toBe(false);
+    expect(DeskManifestSchema.safeParse({ ...manifest, theme: "dark" }).success).toBe(false);
+    expect(DeskManifestSchema.safeParse({ ...manifest, turns: { launch: prompts } }).success).toBe(false);
   });
 });
